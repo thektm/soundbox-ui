@@ -4,6 +4,7 @@ import React, {
   useRef,
   useMemo,
   useCallback,
+  memo,
 } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "../contexts/AuthContext";
@@ -235,12 +236,6 @@ export default function HomeComponent() {
     >
       {/* Background Gradient Mesh */}
       <div className="fixed top-0 left-0 w-full h-96 bg-gradient-to-b from-emerald-900/40 to-black pointer-events-none z-0" />
-      <div
-        className="fixed inset-0 opacity-[0.03] pointer-events-none z-40 mix-blend-overlay"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-        }}
-      />
 
       {/* Glowing Orbs */}
       <div className="absolute top-[-10%]  w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
@@ -249,7 +244,7 @@ export default function HomeComponent() {
       <div className="fixed top-0 left-0 w-full h-96 bg-gradient-to-b from-emerald-900/40 to-black pointer-events-none z-0" />
 
       {/* --- Header Section --- */}
-      <header className="sticky top-0 z-50 px-4 pt-4 pb-2 bg-black/90 backdrop-blur-md transition-all duration-300">
+      <header className="sticky top-0 z-50 px-4 pt-4 pb-2 bg-black/90 transition-all duration-300">
         <div className="flex flex-row-reverse items-center justify-between mb-4">
           <div className="flex flex-row-reverse items-center gap-3 fade-in">
             {/* User Initial Circle */}
@@ -383,7 +378,7 @@ export default function HomeComponent() {
         {/* Section Nav (syncs with scroll) */}
         <div
           ref={navRef}
-          className="flex gap-3 overflow-x-auto no-scrollbar pb-2 items-center"
+          className="flex gap-3 overflow-x-auto no-scrollbar pb-2 items-center will-change-transform"
           aria-label="بخش‌های خانه"
         >
           {sectionTitles.map((t, i) => (
@@ -629,7 +624,7 @@ type ChipProps = {
   children: React.ReactNode;
   active?: boolean;
 };
-const Chip = ({ children, active }: ChipProps) => (
+const Chip = memo(({ children, active }: ChipProps) => (
   <button
     className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
       active
@@ -639,7 +634,7 @@ const Chip = ({ children, active }: ChipProps) => (
   >
     {children}
   </button>
-);
+));
 
 type SectionProps = {
   title: string;
@@ -648,28 +643,24 @@ type SectionProps = {
   sectionRef?: (el: HTMLElement | null) => void;
   dataIndex?: number;
 };
-const Section = ({
-  title,
-  subtitle,
-  children,
-  sectionRef,
-  dataIndex,
-}: SectionProps) => (
-  <section
-    ref={sectionRef as React.RefCallback<HTMLElement>}
-    data-index={dataIndex}
-    className="flex flex-col gap-3 fade-in"
-  >
-    <div className="px-4 text-right">
-      <h2 className="text-2xl font-bold tracking-tight leading-none">
-        {title}
-      </h2>
-      {subtitle && (
-        <p className="text-zinc-400 text-xs font-medium mt-1">{subtitle}</p>
-      )}
-    </div>
-    {children}
-  </section>
+const Section = memo(
+  ({ title, subtitle, children, sectionRef, dataIndex }: SectionProps) => (
+    <section
+      ref={sectionRef as React.RefCallback<HTMLElement>}
+      data-index={dataIndex}
+      className="flex flex-col gap-3 fade-in"
+    >
+      <div className="px-4 text-right">
+        <h2 className="text-2xl font-bold tracking-tight leading-none">
+          {title}
+        </h2>
+        {subtitle && (
+          <p className="text-zinc-400 text-xs font-medium mt-1">{subtitle}</p>
+        )}
+      </div>
+      {children}
+    </section>
+  )
 );
 
 type NavItemProps = {
@@ -677,7 +668,7 @@ type NavItemProps = {
   label: string;
   active?: boolean;
 };
-const NavItem = ({ icon, label, active }: NavItemProps) => (
+const NavItem = memo(({ icon, label, active }: NavItemProps) => (
   <div
     className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${
       active ? "text-white" : "text-zinc-500 hover:text-white"
@@ -686,7 +677,7 @@ const NavItem = ({ icon, label, active }: NavItemProps) => (
     {icon}
     <span className="text-[10px] font-medium">{label}</span>
   </div>
-);
+));
 
 // --- List Variants ---
 
@@ -695,135 +686,133 @@ type HorizontalListProps = {
   variant?: "square" | "circle" | "layered";
   onItemClick?: (item: ItemType) => void;
 };
-const HorizontalList = ({
-  items,
-  variant = "square",
-  onItemClick,
-}: HorizontalListProps) => {
-  return (
-    <div className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4">
-      {items.map((item) => (
-        <div
-          key={item.id}
-          onClick={() => onItemClick?.(item)}
-          className={`snap-start shrink-0 flex flex-col gap-2 group cursor-pointer ${
-            variant === "circle" ? "w-28" : "w-36"
-          }`}
-        >
-          {/* Image Container */}
-          <div className="relative">
-            {variant === "layered" && (
-              <>
-                <div className="absolute top-[-4px] left-1/2 -translate-x-1/2 w-[90%] h-full bg-zinc-700 rounded-md z-0 opacity-60" />
-                <div className="absolute top-[-8px] left-1/2 -translate-x-1/2 w-[80%] h-full bg-zinc-800 rounded-md z-[-1] opacity-40" />
-              </>
-            )}
-
-            <div
-              className={`relative overflow-hidden shadow-lg bg-zinc-800 z-10 ${
-                variant === "circle"
-                  ? "rounded-full aspect-square"
-                  : "rounded-md aspect-square"
-              }`}
-            >
-              <img
-                src={item.img}
-                alt={item.title}
-                className="w-full h-full object-cover group-active:scale-95 transition-transform duration-200 ease-out"
-                loading="lazy"
-              />
-              {/* Play Button Overlay */}
-              {variant !== "circle" && (
-                <div className="absolute bottom-2 left-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
-                  <Play fill="black" className="mr-1 w-5 h-5 text-black" />
-                </div>
-              )}
-              {/* New Badge */}
-              {item.isNew && (
-                <span className="absolute top-2 right-2 bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow-lg z-20">
-                  جدید
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Text Info */}
+const HorizontalList = memo(
+  ({ items, variant = "square", onItemClick }: HorizontalListProps) => {
+    return (
+      <div className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4 will-change-transform">
+        {items.map((item) => (
           <div
-            className={`flex flex-col ${
-              variant === "circle" ? "items-center text-center" : "items-start"
+            key={item.id}
+            onClick={() => onItemClick?.(item)}
+            className={`snap-start shrink-0 flex flex-col gap-2 group cursor-pointer ${
+              variant === "circle" ? "w-28" : "w-36"
             }`}
           >
-            <h3
-              className={`font-semibold text-white truncate w-full ${
-                variant === "circle" ? "text-sm" : "text-sm"
+            {/* Image Container */}
+            <div className="relative">
+              {variant === "layered" && (
+                <>
+                  <div className="absolute top-[-4px] left-1/2 -translate-x-1/2 w-[90%] h-full bg-zinc-700 rounded-md z-0 opacity-60" />
+                  <div className="absolute top-[-8px] left-1/2 -translate-x-1/2 w-[80%] h-full bg-zinc-800 rounded-md z-[-1] opacity-40" />
+                </>
+              )}
+
+              <div
+                className={`relative overflow-hidden shadow-lg bg-zinc-800 z-10 ${
+                  variant === "circle"
+                    ? "rounded-full aspect-square"
+                    : "rounded-md aspect-square"
+                }`}
+              >
+                <img
+                  src={item.img}
+                  alt={item.title}
+                  className="w-full h-full object-cover group-active:scale-95 transition-transform duration-200 ease-out"
+                  loading="lazy"
+                />
+                {/* Play Button Overlay */}
+                {variant !== "circle" && (
+                  <div className="absolute bottom-2 left-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+                    <Play fill="black" className="mr-1 w-5 h-5 text-black" />
+                  </div>
+                )}
+                {/* New Badge */}
+                {item.isNew && (
+                  <span className="absolute top-2 right-2 bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow-lg z-20">
+                    جدید
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Text Info */}
+            <div
+              className={`flex flex-col ${
+                variant === "circle"
+                  ? "items-center text-center"
+                  : "items-start"
               }`}
             >
-              {item.title}
-            </h3>
-            <p className="text-zinc-400 text-xs truncate w-full">
-              {item.subtitle}
-            </p>
+              <h3
+                className={`font-semibold text-white truncate w-full ${
+                  variant === "circle" ? "text-sm" : "text-sm"
+                }`}
+              >
+                {item.title}
+              </h3>
+              <p className="text-zinc-400 text-xs truncate w-full">
+                {item.subtitle}
+              </p>
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
-  );
-};
+        ))}
+      </div>
+    );
+  }
+);
 
 type ChartListProps = {
   items: ItemType[];
   color?: string;
   onItemClick?: (item: ItemType) => void;
 };
-const ChartList = ({
-  items,
-  color = "text-white",
-  onItemClick,
-}: ChartListProps) => {
-  return (
-    <div className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4">
-      {items.map((item, index) => (
-        <div
-          key={item.id}
-          className="snap-start shrink-0 w-[85vw] sm:w-96 flex flex-col gap-2"
-        >
-          {/* Render 3 items per column for chart look, or just big cards. 
-               Following prompt "horizontal list" strictly: Large cards with big numbers. */}
+const ChartList = memo(
+  ({ items, color = "text-white", onItemClick }: ChartListProps) => {
+    return (
+      <div className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4 will-change-transform">
+        {items.map((item, index) => (
           <div
-            onClick={() => onItemClick?.(item)}
-            className="flex flex-row-reverse items-center gap-4 bg-zinc-900/50 p-2 pr-4 rounded-md group active:bg-zinc-800 transition-colors relative cursor-pointer"
+            key={item.id}
+            className="snap-start shrink-0 w-[85vw] sm:w-96 flex flex-col gap-2"
           >
-            <span
-              className={`text-4xl font-bold w-12 text-center ${
-                index < 3 ? color : "text-zinc-600"
-              }`}
+            {/* Render 3 items per column for chart look, or just big cards. 
+               Following prompt "horizontal list" strictly: Large cards with big numbers. */}
+            <div
+              onClick={() => onItemClick?.(item)}
+              className="flex flex-row-reverse items-center gap-4 bg-zinc-900/50 p-2 pr-4 rounded-md group active:bg-zinc-800 transition-colors relative cursor-pointer"
             >
-              {index + 1}
-            </span>
-            <div className="h-16 w-16 shrink-0 relative rounded shadow-md overflow-hidden">
-              <img
-                src={item.img}
-                className="h-full w-full object-cover"
-                loading="lazy"
-              />
-            </div>
-            <div className="flex flex-col overflow-hidden flex-1 text-right">
-              <span className="font-bold truncate text-white flex items-center gap-2">
-                {item.title}
-                {item.isNew && (
-                  <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow-lg z-20 ml-2">
-                    جدید
-                  </span>
-                )}
+              <span
+                className={`text-4xl font-bold w-12 text-center ${
+                  index < 3 ? color : "text-zinc-600"
+                }`}
+              >
+                {index + 1}
               </span>
-              <span className="text-zinc-400 text-xs truncate">
-                {item.subtitle}
-              </span>
+              <div className="h-16 w-16 shrink-0 relative rounded shadow-md overflow-hidden">
+                <img
+                  src={item.img}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+              <div className="flex flex-col overflow-hidden flex-1 min-w-0 text-right">
+                <span className="font-bold truncate text-white flex items-center gap-2">
+                  {item.title}
+                  {item.isNew && (
+                    <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow-lg z-20 ml-2">
+                      جدید
+                    </span>
+                  )}
+                </span>
+                <span className="text-zinc-400 text-xs truncate">
+                  {item.subtitle}
+                </span>
+              </div>
+              <MoreHorizontal className="w-5 h-5 text-zinc-500 shrink-0" />
             </div>
-            <MoreHorizontal className="text-zinc-500" />
           </div>
-        </div>
-      ))}
-    </div>
-  );
-};
+        ))}
+      </div>
+    );
+  }
+);

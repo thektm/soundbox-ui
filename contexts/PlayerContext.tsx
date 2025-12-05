@@ -54,6 +54,7 @@ interface PlayerContextType {
   cycleRepeat: () => void;
   next: () => void;
   previous: () => void;
+  close: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
@@ -320,6 +321,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     playAtIndex(prevIdx);
   }, [queue.length, currentIndex, playAtIndex]);
 
+  const close = useCallback(() => {
+    if (howlRef.current) {
+      howlRef.current.stop();
+      howlRef.current.unload();
+      howlRef.current = null;
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+    setIsPlaying(false);
+    setIsVisible(false);
+    setIsExpanded(false);
+    setProgress(0);
+  }, []);
+
   const value: PlayerContextType = {
     currentTrack,
     previousTrack,
@@ -351,6 +367,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     cycleRepeat,
     next,
     previous,
+    close,
   };
 
   return (

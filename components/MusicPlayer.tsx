@@ -142,6 +142,11 @@ const Icon = {
       <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
     </svg>
   ),
+  Close: ({ c = "w-5 h-5" }: { c?: string }) => (
+    <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  ),
 };
 
 // ============================================================================
@@ -307,7 +312,8 @@ const TrackSlide = memo<{
   current: boolean;
   onPlay: () => void;
   onNext: () => void;
-}>(({ track, playing, loading, current, onPlay, onNext }) => {
+  onClose?: () => void;
+}>(({ track, playing, loading, current, onPlay, onNext, onClose }) => {
   if (!track) {
     return (
       <div className="flex items-center gap-3 p-3 opacity-50">
@@ -321,6 +327,14 @@ const TrackSlide = memo<{
 
   return (
     <div className="flex items-center gap-3 p-3">
+      {current && onClose && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          className="w-8 h-8 rounded-full text-neutral-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors flex-shrink-0"
+        >
+          <Icon.Close c="w-4 h-4" />
+        </button>
+      )}
       <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 shadow-lg">
         <img
           src={track.image}
@@ -388,6 +402,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
     duration,
     next,
     previous,
+    close,
   } = usePlayer();
 
   const [dragX, setDragX] = useState(0);
@@ -446,9 +461,9 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
       exit={{ y: 100, opacity: 0 }}
       transition={{ type: "spring", damping: 25, stiffness: 300 }}
       className="fixed left-0 right-0 z-40"
-      style={{ bottom: 96 }}
+      style={{ bottom: 70 }}
     >
-      <div className="mx-3">
+      <div className="mx-1">
         <div
           ref={containerRef}
           className="relative bg-neutral-900/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl overflow-hidden"
@@ -504,6 +519,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                   current
                   onPlay={togglePlay}
                   onNext={next}
+                  onClose={close}
                 />
               </div>
 
