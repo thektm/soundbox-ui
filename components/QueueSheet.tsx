@@ -69,7 +69,7 @@ const PlayingBars = memo(() => (
       <div
         key={i}
         className="w-[3px] bg-emerald-400 rounded-full playing-bar h-full"
-        style={{ animationDelay: `${i * 0.15}s` }}
+        style={{ animationDelay: `${i * 0.15}s`, willChange: 'height' }}
       />
     ))}
   </div>
@@ -89,11 +89,7 @@ interface QueueTrackProps {
 const QueueTrack = memo<QueueTrackProps>(
   ({ track, index, isCurrentTrack, isPlaying, onPlay }) => {
     return (
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: 20 }}
-        transition={{ duration: 0.1 }}
+      <div
         onClick={() => onPlay(track)}
         className={`group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 ${
           isCurrentTrack
@@ -154,7 +150,7 @@ const QueueTrack = memo<QueueTrackProps>(
             {track.duration}
           </span>
         </div>
-      </motion.div>
+      </div>
     );
   }
 );
@@ -229,6 +225,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
+            style={{ willChange: 'opacity' }}
             className="fixed inset-0 bg-black/60  z-70"
           />
 
@@ -242,6 +239,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.3 }}
             onDragEnd={handleDragEnd}
+            style={{ willChange: 'transform' }}
             className="fixed inset-x-0 bottom-0 z-70 flex flex-col bg-gradient-to-b from-neutral-900 to-neutral-950 rounded-t-3xl max-h-[85vh] overflow-hidden shadow-2xl"
           >
             {/* Drag Handle */}
