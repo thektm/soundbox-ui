@@ -2,11 +2,18 @@ import React, { useRef, useEffect, useState, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import { usePlayer, Track } from "../contexts/PlayerContext";
 import { useAuth } from "../contexts/AuthContext";
-import { motion, AnimatePresence, PanInfo } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+  PanInfo,
+  useMotionValue,
+  useTransform,
+  animate,
+} from "framer-motion";
 import QueueSheet from "./QueueSheet";
 
 // ============================================================================
-// ICONS (Inline SVGs)
+// ICONS (Inline SVGs) - UNTOUCHED
 // ============================================================================
 const Icon = {
   Play: ({ c = "w-6 h-6" }: { c?: string }) => (
@@ -157,17 +164,17 @@ const Icon = {
 };
 
 // ============================================================================
-// UTILITIES
+// UTILITIES - UNTOUCHED
 // ============================================================================
 const formatTime = (s: number): string => {
   if (!s || isNaN(s)) return "0:00";
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 };
 
-const SWIPE_THRESHOLD = 80;
+const SWIPE_THRESHOLD = 80; // The pixel distance to trigger next/prev
 
 // ============================================================================
-// PROGRESS BAR
+// PROGRESS BAR - UNTOUCHED
 // ============================================================================
 interface ProgressProps {
   progress: number;
@@ -186,13 +193,11 @@ const ProgressBar = memo<ProgressProps>(
       (e: React.MouseEvent) => {
         if (!ref.current || mini) return;
         const rect = ref.current.getBoundingClientRect();
-        // Disable transition temporarily for instant feedback
         setIsSeeking(true);
         onSeek(
           Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) *
             duration
         );
-        // Re-enable transition after a brief delay
         setTimeout(() => setIsSeeking(false), 50);
       },
       [duration, onSeek, mini]
@@ -239,7 +244,7 @@ const ProgressBar = memo<ProgressProps>(
 );
 
 // ============================================================================
-// VOLUME SLIDER
+// VOLUME SLIDER - UNTOUCHED
 // ============================================================================
 const VolumeSlider = memo<{
   volume: number;
@@ -286,7 +291,7 @@ const VolumeSlider = memo<{
 });
 
 // ============================================================================
-// LOADING SPINNER
+// LOADING SPINNER - UNTOUCHED
 // ============================================================================
 const Spinner = ({ size = "w-5 h-5" }: { size?: string }) => (
   <div
@@ -295,7 +300,7 @@ const Spinner = ({ size = "w-5 h-5" }: { size?: string }) => (
 );
 
 // ============================================================================
-// PLAYING BARS (CSS-only animation)
+// PLAYING BARS - UNTOUCHED
 // ============================================================================
 const PlayingBars = memo(() => (
   <div className="flex items-end gap-[2px] h-3">
@@ -310,7 +315,7 @@ const PlayingBars = memo(() => (
 ));
 
 // ============================================================================
-// TRACK SLIDE
+// TRACK SLIDE - UNTOUCHED
 // ============================================================================
 const TrackSlide = memo<{
   track: Track | null;
@@ -333,7 +338,7 @@ const TrackSlide = memo<{
   }
 
   return (
-    <div className="flex items-center gap-3 p-3">
+    <div className="flex items-center gap-3 p-3 w-full">
       {current && onClose && (
         <button
           onClick={(e) => {
@@ -398,7 +403,80 @@ const TrackSlide = memo<{
 });
 
 // ============================================================================
-// COLLAPSED PLAYER
+// ACTION PREVIEW COMPONENT (NEW - Handles the compact drag reveal)
+// ============================================================================
+const ActionPreview = memo<{
+  track: Track | null;
+  label: string;
+  align: "left" | "right";
+  visibleRatio: number; // 0 to 1
+  isActive: boolean; // Threshold passed
+}>(({ track, label, align, visibleRatio, isActive }) => {
+  if (!track) return null;
+
+  // Calculations for smooth animation based on drag
+  const opacity = Math.min(1, visibleRatio * 2);
+  const scale = 0.8 + 0.2 * Math.min(1, visibleRatio * 1.5);
+  const translateX =
+    align === "left" ? (1 - visibleRatio) * -20 : (1 - visibleRatio) * 20;
+
+  return (
+    <div
+      className={`absolute top-2 bottom-2 w-[48%] rounded-lg overflow-hidden transition-all duration-300
+        ${align === "left" ? "left-2" : "right-2"}
+        ${
+          isActive
+            ? "bg-emerald-900/40 border border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+            : "bg-white/5 border border-white/5"
+        }
+      `}
+      style={{
+        opacity,
+        transform: `scale(${scale}) translateX(${translateX}px)`,
+        zIndex: 10,
+      }}
+    >
+      <div className="flex items-center h-full px-3 gap-2 w-full">
+        {/* Compact Info */}
+        {align === "right" && (
+          <div className="flex-1 min-w-0 text-right">
+            <div className="text-[10px] uppercase tracking-wider font-bold text-emerald-500 mb-0.5">
+              {label}
+            </div>
+            <div className="text-xs text-white font-medium truncate">
+              {track.title}
+            </div>
+          </div>
+        )}
+
+        <img
+          src={track.image}
+          className="w-10 h-10 rounded object-cover flex-shrink-0 shadow-md bg-neutral-800"
+          alt=""
+        />
+
+        {align === "left" && (
+          <div className="flex-1 min-w-0 text-left">
+            <div className="text-[10px] uppercase tracking-wider font-bold text-emerald-500 mb-0.5">
+              {label}
+            </div>
+            <div className="text-xs text-white font-medium truncate">
+              {track.title}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Active Overlay */}
+      {isActive && (
+        <div className="absolute inset-0 bg-emerald-500/10 pointer-events-none" />
+      )}
+    </div>
+  );
+});
+
+// ============================================================================
+// COLLAPSED PLAYER (RE-DESIGNED FOR UNIQUE ANIMATION)
 // ============================================================================
 const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
   const {
@@ -416,53 +494,44 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
   } = usePlayer();
 
   const [dragX, setDragX] = useState(0);
-  const [animating, setAnimating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0);
   const width = containerRef.current?.offsetWidth || 350;
+  const MAX_DRAG = width * 0.45; // Limit drag to roughly half size
 
-  const handleDrag = useCallback(
-    (_: unknown, info: PanInfo) => {
-      if (!animating) setDragX(info.offset.x);
-    },
-    [animating]
-  );
+  // Drag State handlers
+  const handleDrag = useCallback(() => {
+    setDragX(x.get());
+  }, [x]);
 
   const handleDragEnd = useCallback(
     (_: unknown, info: PanInfo) => {
-      const { offset, velocity } = info;
-      const left = offset.x < -SWIPE_THRESHOLD || velocity.x < -400;
-      const right = offset.x > SWIPE_THRESHOLD || velocity.x > 400;
+      const offset = info.offset.x;
 
-      if (left && nextTrack) {
-        setAnimating(true);
-        setDragX(-width);
-        setTimeout(() => {
-          next();
-          setDragX(0);
-          setAnimating(false);
-        }, 200);
-      } else if (right && previousTrack) {
-        setAnimating(true);
-        setDragX(width);
-        setTimeout(() => {
-          previous();
-          setDragX(0);
-          setAnimating(false);
-        }, 200);
-      } else {
-        setDragX(0);
+      if (offset < -SWIPE_THRESHOLD && nextTrack) {
+        // Trigger Next
+        next();
+      } else if (offset > SWIPE_THRESHOLD && previousTrack) {
+        // Trigger Prev
+        previous();
       }
+
+      // Always animate back to 0
+      animate(x, 0, { type: "spring", damping: 25, stiffness: 300 });
+      setDragX(0);
     },
-    [next, previous, nextTrack, previousTrack, width]
+    [next, previous, nextTrack, previousTrack, x]
   );
 
   const handleTap = useCallback(() => {
-    if (Math.abs(dragX) < 10) onExpand();
+    if (Math.abs(dragX) < 5) onExpand();
   }, [dragX, onExpand]);
 
   if (!currentTrack) return null;
 
-  const dragPct = Math.abs(dragX) / width;
+  // Derived values for animation
+  const dragPercentage = Math.abs(dragX) / MAX_DRAG; // 0 to 1
+  const isThresholdPassed = Math.abs(dragX) > SWIPE_THRESHOLD;
 
   return (
     <motion.div
@@ -473,7 +542,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
       className="fixed left-0 right-0 z-40"
       style={{ bottom: 70, willChange: "transform, opacity" }}
     >
-      <div className="mx-1">
+      <div className="mx-2 sm:mx-4">
         <div
           ref={containerRef}
           className="relative bg-neutral-900/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl overflow-hidden"
@@ -485,73 +554,59 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
             mini
           />
 
-          <motion.div
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.2}
-            onDrag={handleDrag}
-            onDragEnd={handleDragEnd}
-            onTap={handleTap}
-            className="relative cursor-grab active:cursor-grabbing"
-            style={{ touchAction: "pan-y" }}
-          >
-            <div className="relative h-[72px] overflow-hidden">
-              {/* Previous */}
-              <div
-                className="absolute inset-y-0 w-full"
-                style={{
-                  transform: `translateX(${-width + dragX}px)`,
-                  opacity: dragPct,
-                }}
-              >
-                <TrackSlide
-                  track={previousTrack}
-                  playing={false}
-                  loading={false}
-                  current={false}
-                  onPlay={() => {}}
-                  onNext={() => {}}
-                />
-              </div>
+          {/* 
+            Container for the Drag Interaction 
+            Design: "Drawer" style. Background reveals Next/Prev.
+          */}
+          <div className="relative h-[72px] w-full">
+            {/* BACKGROUND LAYERS (PREVIEWS) */}
+            {/* Show PREV when dragging RIGHT (dragX > 0) */}
+            <ActionPreview
+              track={previousTrack}
+              label="Prev Song"
+              align="left"
+              visibleRatio={
+                dragX > 0 ? Math.min(1, dragX / SWIPE_THRESHOLD) : 0
+              }
+              isActive={dragX > SWIPE_THRESHOLD}
+            />
 
-              {/* Current */}
-              <div
-                className="absolute inset-y-0 w-full"
-                style={{
-                  transform: `translateX(${dragX}px)`,
-                  opacity: 1 - dragPct * 0.3,
-                }}
-              >
-                <TrackSlide
-                  track={currentTrack}
-                  playing={isPlaying}
-                  loading={isLoading}
-                  current
-                  onPlay={togglePlay}
-                  onNext={next}
-                  onClose={close}
-                />
-              </div>
+            {/* Show NEXT when dragging LEFT (dragX < 0) */}
+            <ActionPreview
+              track={nextTrack}
+              label="Next Song"
+              align="right"
+              visibleRatio={
+                dragX < 0 ? Math.min(1, Math.abs(dragX) / SWIPE_THRESHOLD) : 0
+              }
+              isActive={dragX < -SWIPE_THRESHOLD}
+            />
 
-              {/* Next */}
-              <div
-                className="absolute inset-y-0 w-full"
-                style={{
-                  transform: `translateX(${width + dragX}px)`,
-                  opacity: dragPct,
-                }}
-              >
-                <TrackSlide
-                  track={nextTrack}
-                  playing={false}
-                  loading={false}
-                  current={false}
-                  onPlay={() => {}}
-                  onNext={() => {}}
-                />
-              </div>
-            </div>
-          </motion.div>
+            {/* FOREGROUND LAYER (CURRENT TRACK) */}
+            <motion.div
+              drag="x"
+              dragConstraints={{ left: -MAX_DRAG, right: MAX_DRAG }}
+              dragElastic={0.1} // Add resistance
+              onDrag={handleDrag}
+              onDragEnd={handleDragEnd}
+              onTap={handleTap}
+              className="relative z-20 h-full w-full bg-neutral-900/95 backdrop-blur-md cursor-grab active:cursor-grabbing shadow-xl border-x border-white/5"
+              style={{
+                touchAction: "pan-y",
+                x,
+              }}
+            >
+              <TrackSlide
+                track={currentTrack}
+                playing={isPlaying}
+                loading={isLoading}
+                current
+                onPlay={togglePlay}
+                onNext={next}
+                onClose={close}
+              />
+            </motion.div>
+          </div>
         </div>
       </div>
     </motion.div>
@@ -559,9 +614,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
 });
 
 // ============================================================================
-// EXPANDED PLAYER
-// ============================================================================
-// EXPANDED PLAYER
+// EXPANDED PLAYER - UNTOUCHED
 // ============================================================================
 const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
   const {
@@ -764,8 +817,9 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
     </motion.div>
   );
 });
+
 // ============================================================================
-// MAIN COMPONENT
+// MAIN COMPONENT - UNTOUCHED
 // ============================================================================
 export default function MusicPlayer() {
   const { isAuthenticated } = useAuth();
