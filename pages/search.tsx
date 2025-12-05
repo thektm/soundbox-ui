@@ -1,0 +1,748 @@
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+
+// ============ TYPES ============
+import {
+  MOCK_SONGS,
+  MOCK_ARTISTS,
+  BROWSE_GENRES,
+  Song,
+  Artist,
+  Genre,
+} from "../components/mockData";
+
+interface SearchHistory {
+  id: string;
+  query: string;
+  timestamp: number;
+  type: "song" | "artist" | "query";
+}
+
+// ============ LOCAL STORAGE HELPERS ============
+const STORAGE_KEY = "spotify_search_history";
+
+const getSearchHistory = (): SearchHistory[] => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveSearchHistory = (history: SearchHistory[]): void => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, 20)));
+  } catch {
+    console.error("Failed to save search history");
+  }
+};
+
+const addToHistory = (
+  query: string,
+  type: SearchHistory["type"] = "query"
+): void => {
+  const history = getSearchHistory();
+  const newItem: SearchHistory = {
+    id: `${Date.now()}`,
+    query: query.trim(),
+    timestamp: Date.now(),
+    type,
+  };
+
+  const filtered = history.filter(
+    (h) => h.query.toLowerCase() !== query.toLowerCase()
+  );
+  saveSearchHistory([newItem, ...filtered]);
+};
+
+const removeFromHistory = (id: string): void => {
+  const history = getSearchHistory();
+  saveSearchHistory(history.filter((h) => h.id !== id));
+};
+
+const clearAllHistory = (): void => {
+  localStorage.removeItem(STORAGE_KEY);
+};
+
+// ============ SIMULATED API ============
+const simulateSearch = async (
+  query: string
+): Promise<{ songs: Song[]; artists: Artist[] }> => {
+  await new Promise((resolve) =>
+    setTimeout(resolve, 300 + Math.random() * 400)
+  );
+
+  const q = query.toLowerCase().trim();
+  if (!q) return { songs: [], artists: [] };
+
+  const songs = MOCK_SONGS.filter(
+    (s) =>
+      s.title.toLowerCase().includes(q) ||
+      s.artist.toLowerCase().includes(q) ||
+      s.album.toLowerCase().includes(q)
+  );
+
+  const artists = MOCK_ARTISTS.filter((a) => a.name.toLowerCase().includes(q));
+
+  return { songs, artists };
+};
+
+// ============ ICONS ============
+const SearchIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M10.533 1.27893C5.35215 1.27893 1.12598 5.41887 1.12598 10.5579C1.12598 15.697 5.35215 19.8369 10.533 19.8369C12.767 19.8369 14.8235 19.0671 16.4402 17.7794L20.7929 22.132C21.1834 22.5226 21.8166 22.5226 22.2071 22.132C22.5976 21.7415 22.5976 21.1083 22.2071 20.7178L17.8634 16.3741C19.1616 14.7849 19.94 12.7634 19.94 10.5579C19.94 5.41887 15.7139 1.27893 10.533 1.27893ZM3.12598 10.5579C3.12598 6.55226 6.42768 3.27893 10.533 3.27893C14.6383 3.27893 17.94 6.55226 17.94 10.5579C17.94 14.5. 636 14.6383 17.8369 10.533 17.8369C6.42768 17.8369 3.12598 14.5636 3.12598 10.5579Z" />
+  </svg>
+);
+
+const CloseIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path
+      d="M18 6L6 18M6 6l12 12"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+const ClockIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4-2.42V7z" />
+  </svg>
+);
+
+const PlayIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M8 5.14v14l11-7-11-7z" />
+  </svg>
+);
+
+const VerifiedIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="#3D91F4">
+    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z" />
+  </svg>
+);
+
+const ExplicitIcon = () => (
+  <span className="inline-flex items-center justify-center w-4 h-4 bg-[#9b9b9b] text-black text-[9px] font-bold rounded-sm ml-2">
+    E
+  </span>
+);
+
+const MoreIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="5" cy="12" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="19" cy="12" r="2" />
+  </svg>
+);
+
+// ============ COMPONENTS ============
+
+// Song Card Component
+const SongCard = ({
+  song,
+  index,
+  onPlay,
+}: {
+  song: Song;
+  index: number;
+  onPlay: () => void;
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  return (
+    <div
+      className="group flex items-center gap-3 p-2 rounded-md hover:bg-[#ffffff14] transition-all duration-200 cursor-pointer"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={onPlay}
+    >
+      <div className="relative w-12 h-12 flex-shrink-0">
+        {imageError ? (
+          <div className="w-full h-full bg-[#282828] rounded flex items-center justify-center">
+            <span className="text-2xl">🎵</span>
+          </div>
+        ) : (
+          <img
+            src={song.image}
+            alt={song.title}
+            className="w-full h-full object-cover rounded shadow-lg"
+            onError={() => setImageError(true)}
+          />
+        )}
+        {isHovered && (
+          <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">
+            <button className="w-8 h-8 bg-[#1db954] rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-xl">
+              <PlayIcon className="w-4 h-4 text-black ml-0.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center">
+          <span className="text-white font-normal truncate hover:underline">
+            {song.title}
+          </span>
+          {song.explicit && <ExplicitIcon />}
+        </div>
+        <div className="flex items-center text-sm text-[#a7a7a7]">
+          <span className="truncate hover:underline hover:text-white cursor-pointer">
+            {song.artist}
+          </span>
+          <span className="mx-1">•</span>
+          <span className="truncate hover:underline hover:text-white cursor-pointer">
+            {song.album}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-[#a7a7a7] tabular-nums">
+          {song.duration}
+        </span>
+        <button
+          className={`p-1 text-[#a7a7a7] hover:text-white transition-opacity ${
+            isHovered ? "opacity-100" : "opacity-0"
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <MoreIcon className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Artist Card Component
+const ArtistCard = ({
+  artist,
+  onClick,
+}: {
+  artist: Artist;
+  onClick: () => void;
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  return (
+    <div
+      className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={onClick}
+    >
+      <div className="relative mb-4">
+        <div className="relative pt-[100%]">
+          {imageError ? (
+            <div className="absolute inset-0 bg-[#333] rounded-full flex items-center justify-center">
+              <span className="text-4xl">👤</span>
+            </div>
+          ) : (
+            <img
+              src={artist.image}
+              alt={artist.name}
+              className="absolute inset-0 w-full h-full object-cover rounded-full shadow-2xl"
+              onError={() => setImageError(true)}
+            />
+          )}
+        </div>
+        <button
+          className={`absolute bottom-2 right-2 w-12 h-12 bg-[#1db954] rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-[#1ed760] ${
+            isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
+          }`}
+        >
+          <PlayIcon className="w-6 h-6 text-black ml-0.5" />
+        </button>
+      </div>
+      <div className="flex items-center gap-1 mb-1">
+        <span className="font-bold text-white truncate">{artist.name}</span>
+        {artist.verified && <VerifiedIcon className="w-5 h-5 flex-shrink-0" />}
+      </div>
+      <div className="text-sm text-[#a7a7a7]">
+        هنرمند • {artist.followers} دنبال‌کننده
+      </div>
+    </div>
+  );
+};
+
+// Genre Card Component
+const GenreCard = ({
+  genre,
+  onClick,
+}: {
+  genre: Genre;
+  onClick: () => void;
+}) => (
+  <div
+    className="relative aspect-square rounded-lg overflow-hidden cursor-pointer group"
+    style={{ backgroundColor: genre.color }}
+    onClick={onClick}
+  >
+    <div className="absolute inset-0 p-4 flex flex-col">
+      <span className="font-bold text-xl text-white">{genre.name}</span>
+    </div>
+    <div className="absolute bottom-0 right-0 text-6xl transform rotate-25 translate-x-2 translate-y-2 group-hover:scale-110 transition-transform">
+      {genre.image}
+    </div>
+  </div>
+);
+
+// History Item Component
+const HistoryItem = ({
+  item,
+  onSelect,
+  onRemove,
+}: {
+  item: SearchHistory;
+  onSelect: () => void;
+  onRemove: () => void;
+}) => (
+  <div className="flex items-center gap-3 p-3 rounded-md hover:bg-[#ffffff14] group cursor-pointer transition-colors">
+    <div className="flex-1 flex items-center gap-3" onClick={onSelect}>
+      <div className="w-12 h-12 bg-[#282828] rounded-full flex items-center justify-center">
+        <ClockIcon className="w-6 h-6 text-[#a7a7a7]" />
+      </div>
+      <div>
+        <div className="text-white font-medium">{item.query}</div>
+        <div className="text-sm text-[#a7a7a7]">Recent search</div>
+      </div>
+    </div>
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onRemove();
+      }}
+      className="p-2 opacity-0 group-hover:opacity-100 transition-opacity text-[#a7a7a7] hover:text-white"
+    >
+      <CloseIcon className="w-5 h-5" />
+    </button>
+  </div>
+);
+
+// Loading Skeleton
+const LoadingSkeleton = () => (
+  <div className="animate-pulse">
+    <div className="mb-6">
+      <div className="h-6 w-24 bg-[#282828] rounded mb-4" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="p-4 rounded-lg bg-[#181818]">
+            <div className="aspect-square bg-[#282828] rounded-full mb-4" />
+            <div className="h-4 bg-[#282828] rounded w-3/4 mb-2" />
+            <div className="h-3 bg-[#282828] rounded w-1/2" />
+          </div>
+        ))}
+      </div>
+    </div>
+    <div>
+      <div className="h-6 w-20 bg-[#282828] rounded mb-4" />
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="flex items-center gap-3 p-2 mb-2">
+          <div className="w-12 h-12 bg-[#282828] rounded" />
+          <div className="flex-1">
+            <div className="h-4 bg-[#282828] rounded w-1/3 mb-2" />
+            <div className="h-3 bg-[#282828] rounded w-1/4" />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// ============ MAIN COMPONENT ============
+export default function SpotifySearchPage() {
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [searchResults, setSearchResults] = useState<{
+    songs: Song[];
+    artists: Artist[];
+  }>({ songs: [], artists: [] });
+  const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([]);
+  const [activeFilter, setActiveFilter] = useState<"all" | "songs" | "artists">(
+    "all"
+  );
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Load history on mount
+  useEffect(() => {
+    setSearchHistory(getSearchHistory());
+  }, []);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // Perform search
+  useEffect(() => {
+    const performSearch = async () => {
+      if (!debouncedQuery.trim()) {
+        setSearchResults({ songs: [], artists: [] });
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const results = await simulateSearch(debouncedQuery);
+        setSearchResults(results);
+      } catch (error) {
+        console.error("Search failed:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    performSearch();
+  }, [debouncedQuery]);
+
+  // Handle search submission
+  const handleSearch = useCallback((searchQuery: string) => {
+    if (searchQuery.trim()) {
+      addToHistory(searchQuery);
+      setSearchHistory(getSearchHistory());
+    }
+  }, []);
+
+  // Handle key press
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && query.trim()) {
+      handleSearch(query);
+    }
+    if (e.key === "Escape") {
+      setQuery("");
+      inputRef.current?.blur();
+    }
+  };
+
+  // Remove history item
+  const handleRemoveHistory = (id: string) => {
+    removeFromHistory(id);
+    setSearchHistory(getSearchHistory());
+  };
+
+  // Clear all history
+  const handleClearAllHistory = () => {
+    clearAllHistory();
+    setSearchHistory([]);
+  };
+
+  // Select history item
+  const handleSelectHistory = (item: SearchHistory) => {
+    setQuery(item.query);
+    handleSearch(item.query);
+  };
+
+  // Handle song play
+  const handlePlaySong = (song: Song) => {
+    addToHistory(`${song.title} - ${song.artist}`, "song");
+    setSearchHistory(getSearchHistory());
+    console.log("Playing:", song);
+  };
+
+  // Handle artist click
+  const handleArtistClick = (artist: Artist) => {
+    addToHistory(artist.name, "artist");
+    setSearchHistory(getSearchHistory());
+    console.log("Opening artist:", artist);
+  };
+
+  // Handle genre click
+  const handleGenreClick = (genre: Genre) => {
+    setQuery(genre.name);
+    handleSearch(genre.name);
+  };
+
+  // Filter tabs
+  const filters = [
+    { key: "all", label: "همه" },
+    { key: "songs", label: "آهنگ‌ها" },
+    { key: "artists", label: "هنرمندان" },
+  ] as const;
+
+  const hasResults =
+    searchResults.songs.length > 0 || searchResults.artists.length > 0;
+  const showResults = debouncedQuery.trim() && !isLoading;
+
+  // Filtered results based on active filter
+  const displayedSongs = activeFilter === "artists" ? [] : searchResults.songs;
+  const displayedArtists =
+    activeFilter === "songs" ? [] : searchResults.artists;
+
+  return (
+    <div
+      className="min-h-screen bg-gradient-to-b from-[#1a1a1a] to-[#121212] text-white"
+      dir="rtl"
+    >
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-[#121212]/95 backdrop-blur-md border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center gap-4">
+            {/* Search Input */}
+            <div
+              ref={searchContainerRef}
+              className={`relative flex-1 max-w-xl transition-all duration-200 ${
+                isFocused ? "scale-[1.02]" : ""
+              }`}
+            >
+              <div
+                className={`flex items-center bg-[#242424] rounded-full border-2 transition-all duration-200 ${
+                  isFocused
+                    ? "border-white bg-[#2a2a2a]"
+                    : "border-transparent hover:border-[#3e3e3e] hover:bg-[#2a2a2a]"
+                }`}
+              >
+                <div className="pl-4 pr-2">
+                  <SearchIcon className="w-6 h-6 text-[#a7a7a7]" />
+                </div>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="دنبال چه آهنگی هستید؟"
+                  className="flex-1 bg-transparent py-3 pr-4 text-sm text-white placeholder-[#a7a7a7] outline-none"
+                />
+                {query && (
+                  <button
+                    onClick={() => {
+                      setQuery("");
+                      inputRef.current?.focus();
+                    }}
+                    className="pr-4 pl-2 py-2 text-[#a7a7a7] hover:text-white transition-colors"
+                  >
+                    <CloseIcon className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Tabs */}
+          {debouncedQuery.trim() && hasResults && (
+            <div className="flex gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide">
+              {filters.map((filter) => (
+                <button
+                  key={filter.key}
+                  onClick={() => setActiveFilter(filter.key)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+                    activeFilter === filter.key
+                      ? "bg-white text-black"
+                      : "bg-[#232323] text-white hover:bg-[#2a2a2a]"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Loading State */}
+        {isLoading && <LoadingSkeleton />}
+
+        {/* Search Results */}
+        {showResults && hasResults && (
+          <div className="space-y-8">
+            {/* Top Result + Songs Layout */}
+            {displayedArtists.length > 0 &&
+              displayedSongs.length > 0 &&
+              activeFilter === "all" && (
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-6">
+                  {/* Top Result */}
+                  <section>
+                    <h2 className="text-2xl font-bold mb-4">نتیجه برتر</h2>
+                    <div
+                      className="group p-5 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer relative"
+                      onClick={() => handleArtistClick(displayedArtists[0])}
+                    >
+                      <img
+                        src={displayedArtists[0].image}
+                        alt={displayedArtists[0].name}
+                        className="w-24 h-24 rounded-full mb-5 shadow-2xl"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "";
+                        }}
+                      />
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-3xl font-bold">
+                          {displayedArtists[0].name}
+                        </span>
+                        {displayedArtists[0].verified && (
+                          <VerifiedIcon className="w-6 h-6" />
+                        )}
+                      </div>
+                      <span className="inline-block px-3 py-1 bg-[#121212] rounded-full text-sm font-medium mt-2">
+                        هنرمند
+                      </span>
+                      <button className="absolute bottom-5 right-5 w-12 h-12 bg-[#1db954] rounded-full flex items-center justify-center shadow-2xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-105 hover:bg-[#1ed760]">
+                        <PlayIcon className="w-6 h-6 text-black ml-0.5" />
+                      </button>
+                    </div>
+                  </section>
+
+                  {/* Songs */}
+                  <section>
+                    <h2 className="text-2xl font-bold mb-4">آهنگ‌ها</h2>
+                    <div className="space-y-1">
+                      {displayedSongs.slice(0, 4).map((song, index) => (
+                        <SongCard
+                          key={song.id}
+                          song={song}
+                          index={index}
+                          onPlay={() => handlePlaySong(song)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              )}
+
+            {/* Artists Grid */}
+            {displayedArtists.length > 0 &&
+              (activeFilter === "artists" ||
+                (activeFilter === "all" && displayedArtists.length > 1)) && (
+                <section>
+                  <h2 className="text-2xl font-bold mb-4">هنرمندان</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                    {(activeFilter === "all"
+                      ? displayedArtists.slice(1)
+                      : displayedArtists
+                    ).map((artist) => (
+                      <ArtistCard
+                        key={artist.id}
+                        artist={artist}
+                        onClick={() => handleArtistClick(artist)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+            {/* All Songs List */}
+            {displayedSongs.length > 0 && activeFilter === "songs" && (
+              <section>
+                <h2 className="text-2xl font-bold mb-4">آهنگ‌ها</h2>
+                <div className="space-y-1">
+                  {displayedSongs.map((song, index) => (
+                    <SongCard
+                      key={song.id}
+                      song={song}
+                      index={index}
+                      onPlay={() => handlePlaySong(song)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+
+        {/* No Results */}
+        {showResults && !hasResults && debouncedQuery.trim() && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="text-6xl mb-4">🔍</div>
+            <h2 className="text-2xl font-bold mb-2">
+              نتیجه‌ای برای "{debouncedQuery}" پیدا نشد
+            </h2>
+            <p className="text-[#a7a7a7] text-center max-w-md">
+              لطفاً مطمئن شوید که کلمات را درست نوشته‌اید یا از کلمات کمتر یا
+              متفاوت استفاده کنید.
+            </p>
+          </div>
+        )}
+
+        {/* Initial State - Browse All + Recent Searches */}
+        {!debouncedQuery.trim() && !isLoading && (
+          <div className="space-y-8">
+            {/* Recent Searches */}
+            {searchHistory.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold">جستجوهای اخیر</h2>
+                  <button
+                    onClick={handleClearAllHistory}
+                    className="text-sm text-[#a7a7a7] hover:text-white font-semibold transition-colors"
+                  >
+                    پاک کردن همه
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {searchHistory.slice(0, 8).map((item) => (
+                    <HistoryItem
+                      key={item.id}
+                      item={item}
+                      onSelect={() => handleSelectHistory(item)}
+                      onRemove={() => handleRemoveHistory(item.id)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Browse All */}
+            <section>
+              <h2 className="text-2xl font-bold mb-4">همه ژانرها</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                {BROWSE_GENRES.map((genre) => (
+                  <GenreCard
+                    key={genre.id}
+                    genre={genre}
+                    onClick={() => handleGenreClick(genre)}
+                  />
+                ))}
+              </div>
+            </section>
+          </div>
+        )}
+      </main>
+
+      {/* Custom Scrollbar Styles */}
+      <style>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+        
+        .animate-pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+      `}</style>
+    </div>
+  );
+}
