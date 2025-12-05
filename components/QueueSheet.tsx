@@ -66,18 +66,10 @@ const Icon = {
 const PlayingBars = memo(() => (
   <div className="flex items-end gap-[2px] h-3">
     {[0, 1, 2].map((i) => (
-      <motion.div
+      <div
         key={i}
-        className="w-[3px] bg-emerald-400 rounded-full"
-        animate={{
-          height: ["40%", "100%", "60%", "80%", "40%"],
-        }}
-        transition={{
-          duration: 0.8,
-          repeat: Infinity,
-          delay: i * 0.15,
-          ease: "easeInOut",
-        }}
+        className="w-[3px] bg-emerald-400 rounded-full playing-bar h-full"
+        style={{ animationDelay: `${i * 0.15}s` }}
       />
     ))}
   </div>
@@ -339,7 +331,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
                 <div>
                   <div className="flex items-center gap-2 px-2 mb-3" dir="rtl">
                     <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider">
-                     موارد قبلی لیست
+                      موارد قبلی لیست
                     </h3>
                     <span className="text-xs text-neutral-600 bg-neutral-800/50 px-2 py-0.5 rounded-full">
                       {previousTracks.length}

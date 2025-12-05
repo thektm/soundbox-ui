@@ -184,7 +184,10 @@ const ProgressBar = memo<ProgressProps>(
     if (mini) {
       return (
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
-          <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
+          <div
+            className="h-full bg-emerald-500 transition-[width] duration-300 ease-linear"
+            style={{ width: `${pct}%` }}
+          />
         </div>
       );
     }
@@ -200,7 +203,7 @@ const ProgressBar = memo<ProgressProps>(
           onClick={handleClick}
         >
           <div
-            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full"
+            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-[width] duration-300 ease-linear"
             style={{ width: `${pct}%` }}
           />
           <div
@@ -276,16 +279,12 @@ const Spinner = ({ size = "w-5 h-5" }: { size?: string }) => (
 // PLAYING BARS (CSS-only animation)
 // ============================================================================
 const PlayingBars = memo(() => (
-  <div className="flex items-end gap-0.5 h-4">
-    {[0, 1, 2, 3].map((i) => (
+  <div className="flex items-end gap-[2px] h-3">
+    {[0, 1, 2].map((i) => (
       <div
         key={i}
-        className="w-0.5 bg-emerald-400 rounded-full animate-pulse"
-        style={{
-          height: `${40 + Math.random() * 60}%`,
-          animationDelay: `${i * 0.15}s`,
-          animationDuration: "0.8s",
-        }}
+        className="w-[3px] bg-emerald-400 rounded-full playing-bar h-full"
+        style={{ animationDelay: `${i * 0.15}s` }}
       />
     ))}
   </div>
@@ -599,7 +598,13 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
 
         {/* Album Art */}
         <div className="flex-1 flex items-center justify-center px-2 sm:px-4">
-          <div className="relative w-full aspect-square" style={{ maxWidth: "min(60vh, 90vw)", maxHeight: "min(60vh, 90vw)" }}>
+          <div
+            className="relative w-full aspect-square"
+            style={{
+              maxWidth: "min(60vh, 90vw)",
+              maxHeight: "min(60vh, 90vw)",
+            }}
+          >
             <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl">
               <img
                 src={currentTrack.image}
@@ -629,7 +634,9 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
             </div>
             <button
               onClick={() => setLiked((l) => !l)}
-              className={`ml-4 transition-colors ${liked ? "text-emerald-500" : "text-neutral-400 hover:text-white"}`}
+              className={`ml-4 transition-colors ${
+                liked ? "text-emerald-500" : "text-neutral-400 hover:text-white"
+              }`}
             >
               <Icon.Heart c="w-7 h-7" filled={liked} />
             </button>
@@ -645,7 +652,11 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
         <div className="flex items-center justify-between mb-4 sm:mb-8">
           <button
             onClick={toggleShuffle}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isShuffle ? "text-emerald-500" : "text-neutral-400 hover:text-white"}`}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+              isShuffle
+                ? "text-emerald-500"
+                : "text-neutral-400 hover:text-white"
+            }`}
           >
             <Icon.Shuffle c="w-5 h-5" />
           </button>
@@ -680,7 +691,11 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
 
           <button
             onClick={cycleRepeat}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${repeatMode !== "off" ? "text-emerald-500" : "text-neutral-400 hover:text-white"}`}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+              repeatMode !== "off"
+                ? "text-emerald-500"
+                : "text-neutral-400 hover:text-white"
+            }`}
           >
             {repeatMode === "one" ? (
               <Icon.RepeatOne c="w-5 h-5" />
@@ -720,22 +735,7 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
 // ============================================================================
 export default function MusicPlayer() {
   const { isAuthenticated } = useAuth();
-  const {
-    isVisible,
-    isExpanded,
-    expand,
-    collapse,
-    progress: _p,
-    duration: _d,
-  } = usePlayer();
-  const [, forceUpdate] = useState(0);
-
-  // Force re-render every second to update progress bar
-  useEffect(() => {
-    if (!isVisible) return;
-    const id = setInterval(() => forceUpdate((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, [isVisible]);
+  const { isVisible, isExpanded, expand, collapse } = usePlayer();
 
   if (!isAuthenticated || !isVisible) return null;
 

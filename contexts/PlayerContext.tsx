@@ -79,7 +79,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
 
   const howlRef = useRef<Howl | null>(null);
-  const animationRef = useRef<number | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Derived state for current, previous, and next tracks
@@ -98,44 +98,35 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return queue[nextIndex] || null;
   }, [queue, currentIndex]);
 
-  // Update progress during playback
-  const updateProgress = useCallback(() => {
-    if (howlRef.current) {
-      const seek = howlRef.current.seek() as number;
-      setProgress(seek);
-    }
-  }, []);
-
-  // Animation loop that runs while playing
+  // Update progress during playback - throttled to 250ms for performance
   useEffect(() => {
-    if (!isPlaying) {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-      return;
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
     }
 
-    const animate = () => {
-      updateProgress();
-      animationRef.current = requestAnimationFrame(animate);
-    };
+    if (!isPlaying) return;
 
-    animationRef.current = requestAnimationFrame(animate);
+    progressIntervalRef.current = setInterval(() => {
+      if (howlRef.current) {
+        const seek = howlRef.current.seek() as number;
+        setProgress(seek);
+      }
+    }, 250);
 
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
       }
     };
-  }, [isPlaying, updateProgress]);
+  }, [isPlaying]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
       }
       if (seekTimeoutRef.current) {
         clearTimeout(seekTimeoutRef.current);
@@ -158,8 +149,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         howlRef.current.stop();
         howlRef.current.unload();
       }
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
       }
 
       setIsLoading(true);
@@ -213,7 +204,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       howlRef.current = howl;
       howl.play();
     },
-    [queue, volume, isMuted, updateProgress, repeatMode]
+    [queue, volume, isMuted, repeatMode]
   );
 
   const setQueue = useCallback(

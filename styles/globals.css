@@ -58,3 +58,14 @@ body {
 .hide-scrollbar::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
 }
+@keyframes playingBars {
+  0%, 100% { transform: scaleY(0.4); }
+  25% { transform: scaleY(1); }
+  50% { transform: scaleY(0.6); }
+  75% { transform: scaleY(0.8); }
+}
+
+.playing-bar {
+  animation: playingBars 0.8s ease-in-out infinite;
+  transform-origin: bottom;
+}
