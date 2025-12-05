@@ -471,7 +471,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
       exit={{ y: 100, opacity: 0 }}
       transition={{ type: "spring", damping: 25, stiffness: 300 }}
       className="fixed left-0 right-0 z-40"
-      style={{ bottom: 70 }}
+      style={{ bottom: 70, willChange: "transform, opacity" }}
     >
       <div className="mx-1">
         <div
@@ -606,6 +606,7 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
       dragConstraints={{ top: 0, bottom: 0 }}
       onDragEnd={handleDragEnd}
       className="fixed inset-0 z-60 flex flex-col bg-gradient-to-b from-neutral-900 via-neutral-950 to-black overflow-auto"
+      style={{ willChange: "transform" }}
     >
       <div className="relative flex flex-col min-h-0 h-full px-3 py-4 sm:px-6 sm:py-8 overflow-hidden">
         {/* Header */}
