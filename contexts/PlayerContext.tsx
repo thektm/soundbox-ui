@@ -100,12 +100,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return queue[nextIndex] || null;
   }, [queue, currentIndex]);
 
-  // Update progress during playback - throttled to 250ms for performance
+  // Update progress during playback - throttled to 1s for performance
   useEffect(() => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
+    
 
     if (!isPlaying) return;
 
@@ -114,14 +111,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const seek = howlRef.current.seek() as number;
         setProgress(seek);
       }
-    }, 250);
+    }, 1000);
 
-    return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-    };
+    
   }, [isPlaying]);
 
   // Cleanup on unmount

@@ -167,16 +167,21 @@ interface ProgressProps {
 const ProgressBar = memo<ProgressProps>(
   ({ progress, duration, onSeek, mini }) => {
     const ref = useRef<HTMLDivElement>(null);
+    const [isSeeking, setIsSeeking] = useState(false);
     const pct = duration > 0 ? (progress / duration) * 100 : 0;
 
     const handleClick = useCallback(
       (e: React.MouseEvent) => {
         if (!ref.current || mini) return;
         const rect = ref.current.getBoundingClientRect();
+        // Disable transition temporarily for instant feedback
+        setIsSeeking(true);
         onSeek(
           Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) *
             duration
         );
+        // Re-enable transition after a brief delay
+        setTimeout(() => setIsSeeking(false), 50);
       },
       [duration, onSeek, mini]
     );
@@ -185,7 +190,7 @@ const ProgressBar = memo<ProgressProps>(
       return (
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
           <div
-            className="h-full bg-emerald-500 transition-[width] duration-300 ease-linear"
+            className="h-full bg-emerald-500 transition-[width] duration-1000 ease-linear"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -203,7 +208,9 @@ const ProgressBar = memo<ProgressProps>(
           onClick={handleClick}
         >
           <div
-            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-[width] duration-300 ease-linear"
+            className={`h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full ${
+              isSeeking ? "" : "transition-[width] duration-1000 ease-linear"
+            }`}
             style={{ width: `${pct}%` }}
           />
           <div
