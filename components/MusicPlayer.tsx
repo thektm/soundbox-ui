@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback, memo } from "react";
+import { createPortal } from "react-dom";
 import { usePlayer, Track } from "../contexts/PlayerContext";
 import { useAuth } from "../contexts/AuthContext";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
@@ -143,7 +144,13 @@ const Icon = {
     </svg>
   ),
   Close: ({ c = "w-5 h-5" }: { c?: string }) => (
-    <svg className={c} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
       <path d="M18 6L6 18M6 6l12 12" />
     </svg>
   ),
@@ -329,7 +336,10 @@ const TrackSlide = memo<{
     <div className="flex items-center gap-3 p-3">
       {current && onClose && (
         <button
-          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           className="w-8 h-8 rounded-full text-neutral-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors flex-shrink-0"
         >
           <Icon.Close c="w-4 h-4" />
@@ -759,16 +769,22 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
 export default function MusicPlayer() {
   const { isAuthenticated } = useAuth();
   const { isVisible, isExpanded, expand, collapse } = usePlayer();
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
 
-  if (!isAuthenticated || !isVisible) return null;
+  useEffect(() => {
+    setPortalRoot(document.getElementById("music-player-root"));
+  }, []);
 
-  return (
+  if (!isAuthenticated || !isVisible || !portalRoot) return null;
+
+  return createPortal(
     <AnimatePresence mode="wait">
       {isExpanded ? (
         <ExpandedPlayer key="expanded" onCollapse={collapse} />
       ) : (
         <CollapsedPlayer key="collapsed" onExpand={expand} />
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    portalRoot
   );
 }

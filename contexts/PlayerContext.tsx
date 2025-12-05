@@ -103,8 +103,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // Update progress during playback - throttled to 1s for performance
   useEffect(() => {
-    
-
     if (!isPlaying) return;
 
     progressIntervalRef.current = setInterval(() => {
@@ -113,8 +111,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setProgress(seek);
       }
     }, 1000);
-
-    
   }, [isPlaying]);
 
   // Cleanup on unmount
