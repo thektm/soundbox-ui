@@ -7,7 +7,9 @@ import React, {
   useEffect,
   useMemo,
 } from "react";
-import { Howl } from "howler";
+
+// Howl is imported dynamically to reduce initial bundle size
+type HowlType = import("howler").Howl;
 
 export interface Track {
   id: string;
@@ -78,7 +80,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isShuffle, setIsShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
 
-  const howlRef = useRef<Howl | null>(null);
+  const howlRef = useRef<HowlType | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -139,7 +141,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // Internal function to play a track at a specific index
   const playAtIndex = useCallback(
-    (index: number, queueToUse?: Track[]) => {
+    async (index: number, queueToUse?: Track[]) => {
       const q = queueToUse || queue;
       const track = q[index];
       if (!track) return;
@@ -156,6 +158,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       setIsVisible(true);
       setProgress(0);
+
+      // Dynamically import Howler only when needed
+      const { Howl } = await import("howler");
 
       const howl = new Howl({
         src: [track.src],

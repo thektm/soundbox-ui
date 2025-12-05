@@ -1,5 +1,6 @@
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
+import dynamic from "next/dynamic";
 import {
   NavigationProvider,
   useNavigation,
@@ -7,9 +8,13 @@ import {
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { PlayerProvider } from "../contexts/PlayerContext";
 import BottomNavbar from "../components/BottomNavbar";
-import MusicPlayer from "../components/MusicPlayer";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
+
+// Lazy load heavy components
+const MusicPlayer = dynamic(() => import("../components/MusicPlayer"), {
+  ssr: false,
+});
 
 function RouterSync() {
   const router = useRouter();
