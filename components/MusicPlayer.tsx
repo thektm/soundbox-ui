@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/router";
 import { usePlayer, Track } from "../contexts/PlayerContext";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -617,6 +618,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
 // EXPANDED PLAYER - UNTOUCHED
 // ============================================================================
 const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
+  const router = useRouter();
   const {
     currentTrack,
     isPlaying,
@@ -639,6 +641,17 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
 
   const [liked, setLiked] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isMenuOpen && !(event.target as Element).closest(".menu-button")) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isMenuOpen]);
 
   const handleDragEnd = useCallback(
     (_: unknown, info: PanInfo) => {
@@ -678,7 +691,10 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
               {currentTrack.artist}
             </span>
           </div>
-          <button className="w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors">
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="menu-button w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors relative"
+          >
             <Icon.More c="w-5 h-5 text-white" />
           </button>
         </div>
@@ -814,6 +830,57 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
 
       {/* Queue Sheet */}
       <QueueSheet isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} />
+
+      {/* Menu */}
+      <AnimatePresence>
+        {isMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="absolute top-16 right-4 z-60 bg-neutral-800 rounded-lg shadow-2xl border border-white/10 overflow-hidden min-w-[200px]"
+          >
+            <div className="py-2">
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onCollapse();
+                  if (currentTrack) {
+                    router.push(`/song/${currentTrack.id}`);
+                  }
+                }}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <Icon.Queue c="w-5 h-5" />
+                جزئیات آهنگ
+              </button>
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  // Add share functionality here
+                }}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <Icon.Share c="w-5 h-5" />
+                اشتراک‌گذاری
+              </button>
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setIsQueueOpen(true);
+                }}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <Icon.Queue c="w-5 h-5" />
+                نمایش صف پخش
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 });

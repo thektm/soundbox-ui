@@ -68,6 +68,7 @@ export function usePlayer() {
 }
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
+  const FALLBACK_SRC = "/music.mp3";
   const [queue, setQueueState] = useState<Track[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -151,49 +152,72 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // Dynamically import Howler only when needed
       const { Howl } = await import("howler");
 
-      const howl = new Howl({
-        src: [track.src],
-        html5: true,
-        volume: isMuted ? 0 : volume,
-        onload: () => {
-          setIsLoading(false);
-          setDuration(howl.duration());
-        },
-        onplay: () => {
-          setIsPlaying(true);
-          setIsLoading(false);
-        },
-        onpause: () => {
-          setIsPlaying(false);
-        },
-        onstop: () => {
-          setIsPlaying(false);
-        },
-        onend: () => {
-          setIsPlaying(false);
-          setProgress(0);
-          // Handle repeat and auto-next
-          if (repeatMode === "one") {
-            howl.seek(0);
-            howl.play();
-          } else {
-            // Auto advance to next track
-            const nextIdx =
-              index < q.length - 1 ? index + 1 : repeatMode === "all" ? 0 : -1;
-            if (nextIdx >= 0) {
-              setCurrentIndex(nextIdx);
+      // choose track src or fallback if missing
+      const initialSrc = track.src || FALLBACK_SRC;
+
+      let attemptedFallback = false;
+
+      const createHowl = (src: string) =>
+        new Howl({
+          src: [src],
+          html5: true,
+          volume: isMuted ? 0 : volume,
+          onload: function () {
+            setIsLoading(false);
+            setDuration((this as unknown as HowlType).duration());
+          },
+          onplay: function () {
+            setIsPlaying(true);
+            setIsLoading(false);
+          },
+          onpause: function () {
+            setIsPlaying(false);
+          },
+          onstop: function () {
+            setIsPlaying(false);
+          },
+          onend: function () {
+            setIsPlaying(false);
+            setProgress(0);
+            if (repeatMode === "one") {
+              (this as unknown as HowlType).seek(0);
+              (this as unknown as HowlType).play();
+            } else {
+              const nextIdx =
+                index < q.length - 1
+                  ? index + 1
+                  : repeatMode === "all"
+                  ? 0
+                  : -1;
+              if (nextIdx >= 0) {
+                setCurrentIndex(nextIdx);
+              }
             }
-          }
-        },
-        onloaderror: () => {
-          setIsLoading(false);
-          console.error("Error loading audio");
-        },
-        onplayerror: () => {
-          setIsLoading(false);
-          console.error("Error playing audio");
-        },
-      });
+          },
+          onloaderror: function () {
+            // try fallback once
+            if (!attemptedFallback && src !== FALLBACK_SRC) {
+              attemptedFallback = true;
+              try {
+                (this as unknown as HowlType).unload?.();
+              } catch (e) {
+                /* ignore */
+              }
+              const fb = createHowl(FALLBACK_SRC);
+              howlRef.current = fb;
+              fb.play();
+              return;
+            }
+            setIsLoading(false);
+            console.error("Error loading audio: ", src);
+          },
+          onplayerror: function () {
+            setIsLoading(false);
+            console.error("Error playing audio: ", src);
+          },
+        });
+
+      const howl = createHowl(initialSrc);
 
       howlRef.current = howl;
       howl.play();

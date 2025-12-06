@@ -5,7 +5,11 @@ import React, {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 
+// -----------------------------------------------------------------------------
+// 0. MOCK DATA IMPORTS (Assumed from your existing structure)
+// -----------------------------------------------------------------------------
 import {
   Playlist,
   MoodChip,
@@ -21,6 +25,9 @@ import {
   GENRE_CATEGORIES,
   MoodIconKey,
 } from "../components/mockData";
+
+// Import slug utility
+import { createSlug } from "./playlists/[slug]";
 
 import {
   Palette,
@@ -41,7 +48,7 @@ import {
 } from "@phosphor-icons/react";
 
 // ============================================================================
-// 2. ICONS (Centralized)
+// 1. ICONS
 // ============================================================================
 
 const ICONS = {
@@ -51,7 +58,7 @@ const ICONS = {
   sparkle:
     "M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z",
   clock:
-    "M12 6v6l4 2 M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12s4.477 10 10 10 10-4.477 10-10z", // Combined circle + path
+    "M12 6v6l4 2 M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12s4.477 10 10 10 10-4.477 10-10z",
   music:
     "M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z",
   fire: "M12 23c-3.866 0-7-3.134-7-7 0-2.485 1.394-4.766 3.5-6.326V8c0-3.866 3.134-7 7-7v2c-2.761 0-5 2.239-5 5v1.674C12.406 11.167 14 13.395 14 16c0 3.866-3.134 7-7 7h5c3.866 0 7-3.134 7-7 0-5.144-4.055-9.635-9-11.622V2.054C16.746 4.132 21 9.543 21 16c0 3.866-3.134 7-7 7h-2z",
@@ -91,6 +98,56 @@ const Icon: React.FC<{
 );
 
 // ============================================================================
+// 2. REFACTORED STICKY HEADER
+// ============================================================================
+
+/**
+ * Enhanced Section Header
+ * Uses position: sticky to create the smooth "push" effect.
+ * Includes backdrop blur and glassmorphism styling.
+ */
+const SectionHeader: React.FC<{
+  title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  showSeeAll?: boolean;
+}> = ({ title, subtitle, icon, showSeeAll = true }) => (
+  <div className="sticky top-0 z-40 mb-6 -mx-4 px-4 pt-4 pb-3 transition-all duration-300 bg-neutral-950/85 backdrop-blur-xl border-b border-white/5 shadow-lg shadow-black/20">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3 group">
+        {icon && (
+          <span className="text-2xl flex transform group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
+            {icon}
+          </span>
+        )}
+        <div className="flex flex-col">
+          <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight leading-none group-hover:text-green-400 transition-colors">
+            {title}
+          </h2>
+          {subtitle && (
+            <p className="text-xs md:text-sm text-neutral-400 mt-1 font-medium leading-none opacity-80">
+              {subtitle}
+            </p>
+          )}
+        </div>
+      </div>
+      {showSeeAll && (
+        <button className="flex items-center gap-1 text-xs font-bold text-neutral-500 hover:text-white transition-all bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-sm group">
+          مشاهده همه
+          <Icon
+            name="chevronLeft"
+            className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform"
+            fill={false}
+          />
+        </button>
+      )}
+    </div>
+    {/* Decorative gradient line at bottom */}
+    <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+  </div>
+);
+
+// ============================================================================
 // 3. UTILITY COMPONENTS
 // ============================================================================
 
@@ -122,9 +179,14 @@ const HorizontalScroll: React.FC<{
   const checkScroll = useCallback(() => {
     if (!ref.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = ref.current;
+    // Note: scrollLeft is negative in RTL or handled differently depending on browser
+    // This logic handles standard RTL implementation
+    const isRTL = true; // Hardcoded for this design
+    const scrollVal = Math.abs(scrollLeft);
+
     setArrows({
-      left: scrollLeft > 0,
-      right: scrollLeft < scrollWidth - clientWidth - 10,
+      left: scrollVal > 10,
+      right: scrollVal < scrollWidth - clientWidth - 10,
     });
   }, []);
 
@@ -134,78 +196,56 @@ const HorizontalScroll: React.FC<{
     return () => window.removeEventListener("resize", checkScroll);
   }, [checkScroll]);
 
-  const scroll = (dir: "left" | "right") =>
-    ref.current?.scrollBy({
-      left: (dir === "left" ? -0.8 : 0.8) * ref.current.clientWidth,
+  const scroll = (dir: "left" | "right") => {
+    if (!ref.current) return;
+    // In RTL, negative scrollLeft moves left, positive moves right (conceptually)
+    // Adjusting math for RTL context
+    const amount = (dir === "left" ? -0.8 : 0.8) * ref.current.clientWidth;
+    ref.current.scrollBy({
+      left: amount,
       behavior: "smooth",
     });
+  };
 
   return (
-    <div className="relative group">
-      {arrows.left && (
-        <button
-          onClick={() => scroll("left")}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-neutral-900/90 text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110 -translate-x-2 group-hover:translate-x-0"
-        >
-          <Icon
-            name="chevronRight"
-            className="w-6 h-6 rotate-180"
-            fill={false}
-          />
-        </button>
-      )}
+    <div className="relative group/scroll">
       <div
         ref={ref}
         onScroll={checkScroll}
-        className={`flex gap-4 overflow-x-auto scrollbar-hide pb-2 scroll-smooth ${className}`}
+        className={`flex gap-4 overflow-x-auto scrollbar-hide pb-4 pt-2 px-1 scroll-smooth ${className}`}
         style={{ scrollbarWidth: "none" }}
       >
         {children}
       </div>
+
+      {/* Navigation Buttons - Adjusted Z-index to sit below sticky header but above content */}
+      {arrows.left && (
+        <button
+          onClick={() => scroll("left")}
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-neutral-900/90 text-white flex items-center justify-center shadow-xl opacity-0 group-hover/scroll:opacity-100 transition-all hover:scale-110 border border-white/10"
+        >
+          <Icon
+            name="chevronRight"
+            className="w-5 h-5 rotate-180"
+            fill={false}
+          />
+        </button>
+      )}
       {arrows.right && (
         <button
           onClick={() => scroll("right")}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-neutral-900/90 text-white flex items-center justify-center shadow-xl opacity-0 group-hover:opacity-100 transition-all hover:scale-110 translate-x-2 group-hover:translate-x-0"
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-neutral-900/90 text-white flex items-center justify-center shadow-xl opacity-0 group-hover/scroll:opacity-100 transition-all hover:scale-110 border border-white/10"
         >
-          <Icon name="chevronRight" className="w-6 h-6" fill={false} />
+          <Icon name="chevronRight" className="w-5 h-5" fill={false} />
         </button>
       )}
-      <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-neutral-950 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" />
-      <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-neutral-950 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" />
+
+      {/* Fade Gradients */}
+      <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-neutral-950 to-transparent pointer-events-none z-10" />
+      <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-neutral-950 to-transparent pointer-events-none z-10" />
     </div>
   );
 };
-
-const SectionHeader: React.FC<{
-  title: string;
-  subtitle?: string;
-  icon?: React.ReactNode;
-  showSeeAll?: boolean;
-}> = ({ title, subtitle, icon, showSeeAll = true }) => (
-  <div className="flex items-center justify-between mb-4">
-    <div className="flex items-center gap-3">
-      {icon && <span className="text-2xl flex">{icon}</span>}
-      <div>
-        <h2 className="text-xl md:text-2xl font-bold text-white hover:underline cursor-pointer">
-          {title}
-        </h2>
-        {subtitle && (
-          <p className="text-sm text-neutral-400 mt-0.5">{subtitle}</p>
-        )}
-      </div>
-    </div>
-    {showSeeAll && (
-      <button className="flex items-center gap-1 text-sm font-semibold text-neutral-400 hover:text-white transition-colors group">
-        مشاهده همه
-        <Icon
-          name="chevronLeft"
-          className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform"
-          fill={false}
-        />
-      </button>
-    )}
-  </div>
-);
 
 // ============================================================================
 // 4. CARD COMPONENTS
@@ -219,18 +259,21 @@ const PlaylistCard: React.FC<{
   const [isHovered, setIsHovered] = useState(false);
   const dims = {
     small: { w: "w-32", h: "h-32" },
-    medium: { w: "w-44", h: "h-44" },
+    medium: { w: "w-40 md:w-44", h: "h-40 md:h-44" },
     large: { w: "w-56", h: "h-56" },
   }[size];
 
+  const playlistSlug = createSlug(playlist.title);
+
   return (
-    <button
+    <Link
+      href={`/playlists/${playlistSlug}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`group relative flex flex-col ${dims.w} rounded-lg bg-neutral-900/50 hover:bg-neutral-800/80 p-3 transition-all duration-300 text-left backdrop-blur-sm border border-white/5 hover:border-white/10`}
+      className={`group relative flex flex-col ${dims.w} rounded-xl bg-neutral-900/40 hover:bg-neutral-800/60 p-3 transition-all duration-300 text-left backdrop-blur-sm border border-white/5 hover:border-white/10 shadow-lg`}
     >
       <div
-        className={`relative ${dims.h} w-full rounded-md overflow-hidden mb-4 shadow-xl`}
+        className={`relative ${dims.h} w-full rounded-lg overflow-hidden mb-3 shadow-2xl bg-neutral-800`}
       >
         <div
           className={`absolute inset-0 bg-gradient-to-br ${playlist.gradient}`}
@@ -238,66 +281,42 @@ const PlaylistCard: React.FC<{
         <FadeImage
           src={playlist.image}
           alt={playlist.title}
-          className={`absolute inset-0 w-full h-full object-cover ${
+          className={`absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out ${
             isHovered ? "scale-105" : "scale-100"
           }`}
         />
         <div
-          className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
-            isHovered ? "opacity-100" : "opacity-0"
+          className={`absolute inset-0 bg-black/20 transition-opacity duration-300 ${
+            isHovered ? "opacity-0" : "opacity-20"
           }`}
         />
 
         <div
-          className={`absolute bottom-2 right-2 w-12 h-12 rounded-full bg-green-500 flex items-center justify-center shadow-2xl transform transition-all duration-300 hover:scale-110 hover:bg-green-400 ${
-            isHovered ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+          className={`absolute bottom-3 right-3 w-10 h-10 rounded-full bg-green-500 flex items-center justify-center shadow-2xl transform transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1) hover:bg-green-400 hover:scale-110 ${
+            isHovered ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
           }`}
         >
           <Icon name="play" className="w-5 h-5 text-black ml-0.5" />
         </div>
 
-        <div className="absolute top-2 left-2 flex gap-2">
+        <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
           {playlist.isNew && (
-            <span className="px-2 py-1 text-[10px] font-bold  bg-blue-500 text-white rounded-sm shadow-lg">
+            <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-blue-500 text-white rounded-sm shadow-lg">
               جدید
-            </span>
-          )}
-          {playlist.isPremium && (
-            <span className="px-2 py-1 text-[10px] font-bold  bg-gradient-to-r from-amber-400 to-orange-500 text-black rounded-sm shadow-lg flex items-center gap-1">
-              <Icon name="premium" className="w-3 h-3" />
-              ویژه
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex-1 min-w-0">
-        <h3 className="font-bold text-white truncate text-sm md:text-base mb-1">
+      <div className="flex-1 min-w-0 flex flex-col">
+        <h3 className="font-bold text-white truncate text-sm md:text-[15px] mb-1 leading-tight group-hover:text-green-400 transition-colors">
           {playlist.title}
         </h3>
-        <p className="text-xs md:text-sm text-neutral-400 line-clamp-2 leading-relaxed">
+        <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed">
           {playlist.description}
         </p>
-        {showMeta && (
-          <div className="flex items-center gap-3 mt-3 text-xs text-neutral-500">
-            <span className="flex items-center gap-1">
-              <Icon name="music" className="w-3 h-3" />
-              {playlist.songsCount}
-            </span>
-            <span className="flex items-center gap-1">
-              <Icon name="clock" className="w-3 h-3" fill={false} />
-              {playlist.duration}
-            </span>
-            {playlist.followers && (
-              <span className="flex items-center gap-1">
-                <Icon name="heart" className="w-3 h-3" fill={false} />
-                {playlist.followers}
-              </span>
-            )}
-          </div>
-        )}
       </div>
-    </button>
+    </Link>
   );
 };
 
@@ -305,11 +324,14 @@ const FeaturedPlaylistCard: React.FC<{ playlist: Playlist }> = ({
   playlist,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const playlistSlug = createSlug(playlist.title);
+
   return (
-    <button
+    <Link
+      href={`/playlists/${playlistSlug}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="group relative h-64 md:h-80 rounded-xl overflow-hidden text-left w-full"
+      className="group relative h-72 md:h-96 rounded-2xl overflow-hidden text-left w-full block shadow-2xl ring-1 ring-white/10"
     >
       <div
         className={`absolute inset-0 bg-gradient-to-br ${playlist.gradient}`}
@@ -317,53 +339,59 @@ const FeaturedPlaylistCard: React.FC<{ playlist: Playlist }> = ({
       <FadeImage
         src={playlist.image}
         alt={playlist.title}
-        className={`absolute inset-0 w-full h-full object-cover ${
-          isHovered ? "scale-110" : "scale-100"
+        className={`absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out ${
+          isHovered ? "scale-105" : "scale-100"
         }`}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+      {/* Cinematic Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90" />
 
-      <div className="absolute bottom-0 left-0 right-0 p-6">
+      <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 flex flex-col items-start">
         {playlist.isNew && (
-          <div className="mb-2">
-            <span className="px-2 py-0.5 text-[10px] font-bold  bg-green-500 text-black rounded-full">
-              به‌روزرسانی
+          <div className="mb-3 transform translate-y-0 opacity-100 transition-all">
+            <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest bg-green-500 text-black rounded-full shadow-[0_0_15px_rgba(34,197,94,0.4)]">
+              پیشنهاد ویژه
             </span>
           </div>
         )}
-        <h2 className="text-2xl md:text-4xl font-black text-white mb-2">
+        <h2 className="text-3xl md:text-5xl font-black text-white mb-3 tracking-tight drop-shadow-lg">
           {playlist.title}
         </h2>
-        <p className="text-sm md:text-base text-neutral-300 mb-4 max-w-md">
+        <p className="text-sm md:text-lg text-neutral-200 mb-6 max-w-xl line-clamp-2 drop-shadow-md">
           {playlist.description}
         </p>
         <div className="flex items-center gap-4">
           <div
-            className={`w-14 h-14 rounded-full bg-green-500 flex items-center justify-center shadow-2xl transform transition-all hover:scale-110 ${
-              isHovered ? "scale-100" : "scale-90"
+            className={`w-14 h-14 rounded-full bg-green-500 flex items-center justify-center shadow-lg shadow-green-900/50 transform transition-all duration-300 ${
+              isHovered ? "scale-110" : "scale-100"
             }`}
           >
-            <Icon name="play" className="w-6 h-6 text-black ml-0.5" />
+            <Icon name="play" className="w-6 h-6 text-black ml-1" />
           </div>
-          <div className="text-sm text-neutral-400">
-            <span className="text-white font">{playlist.followers}</span> پسند •{" "}
-            {playlist.songsCount} آهنگ
+          <div className="flex flex-col text-xs md:text-sm font-medium text-neutral-300">
+            <span className="text-white font-bold text-base">
+              {playlist.followers} پسند
+            </span>
+            <span className="opacity-70">{playlist.songsCount} آهنگ منتخب</span>
           </div>
         </div>
       </div>
-    </button>
+    </Link>
   );
 };
 
 const QuickPickCard: React.FC<{ playlist: Playlist }> = ({ playlist }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const playlistSlug = createSlug(playlist.title);
+
   return (
-    <button
+    <Link
+      href={`/playlists/${playlistSlug}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="group flex items-center bg-white/10 hover:bg-white/20 rounded-md overflow-hidden transition-all h-14 md:h-16"
+      className="group flex items-center bg-white/5 hover:bg-white/10 rounded-md overflow-hidden transition-all duration-300 h-12 md:h-14 border border-white/5 hover:border-white/10"
     >
-      <div className="relative w-14 h-14 md:w-16 md:h-16 flex-shrink-0">
+      <div className="relative w-12 h-12 md:w-14 md:h-14 flex-shrink-0">
         <div
           className={`absolute inset-0 bg-gradient-to-br ${playlist.gradient}`}
         />
@@ -374,23 +402,53 @@ const QuickPickCard: React.FC<{ playlist: Playlist }> = ({ playlist }) => {
         />
       </div>
       <div className="flex-1 min-w-0 px-3 md:px-4">
-        <span className="font-bold text-white text-sm md:text-base truncate block">
+        <span className="font-bold text-white text-xs md:text-sm truncate block group-hover:text-green-400 transition-colors">
           {playlist.title}
         </span>
       </div>
       <div
-        className={`w-10 h-10 mr-2 rounded-full bg-green-500 flex items-center justify-center shadow-xl transform transition-all ${
-          isHovered ? "opacity-100 scale-100" : "opacity-0 scale-90"
+        className={`w-8 h-8 mr-3 rounded-full bg-green-500 flex items-center justify-center shadow-xl transform transition-all duration-300 ${
+          isHovered
+            ? "opacity-100 scale-100 translate-x-0"
+            : "opacity-0 scale-75 translate-x-2"
         }`}
       >
-        <Icon name="play" className="w-4 h-4 text-black ml-0.5" />
+        <Icon name="play" className="w-3 h-3 text-black ml-0.5" />
       </div>
+    </Link>
+  );
+};
+
+const GenreCard: React.FC<{ genre: any }> = ({ genre }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  return (
+    <button
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="relative h-28 md:h-32 rounded-xl overflow-hidden transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] shadow-lg group"
+      style={{ backgroundColor: genre.color }}
+    >
+      {/* Shine effect */}
+      <div
+        className={`absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 transition-transform duration-1000 ease-in-out ${
+          isHovered ? "translate-x-full" : "-translate-x-full"
+        }`}
+      />
+      <div className="absolute inset-0 p-4 flex flex-col justify-between">
+        <span className="font-bold text-white text-lg md:text-xl drop-shadow-md">
+          {genre.name}
+        </span>
+        <div className="w-8 h-1 bg-white/30 rounded-full" />
+      </div>
+      <span className="absolute -bottom-2 -right-3 text-5xl md:text-6xl transform rotate-[25deg] opacity-90 transition-transform duration-300 group-hover:rotate-[15deg] group-hover:scale-110 drop-shadow-xl">
+        {genre.icon}
+      </span>
     </button>
   );
 };
 
 // ============================================================================
-// 5. MAIN PAGE & LOGIC
+// 5. MAIN PAGE
 // ============================================================================
 
 const PlaylistsPage: React.FC = () => {
@@ -402,91 +460,102 @@ const PlaylistsPage: React.FC = () => {
       return {
         greeting: "صبح بخیر",
         icon: "🌅",
-        gradient: "from-amber-500/20 via-orange-500/10 to-transparent",
+        gradient: "from-amber-600/30 via-orange-900/10 to-transparent",
         picks: [...FOCUS_PLAYLISTS.slice(0, 3), ...CHILL_PLAYLISTS.slice(0, 3)],
       };
     if (h >= 12 && h < 17)
       return {
         greeting: "ظهر بخیر",
         icon: "☀️",
-        gradient: "from-yellow-500/20 via-amber-500/10 to-transparent",
+        gradient: "from-blue-600/30 via-cyan-900/10 to-transparent",
         picks: [...MADE_FOR_YOU.slice(0, 3), ...WORKOUT_PLAYLISTS.slice(0, 3)],
       };
     if (h >= 17 && h < 21)
       return {
         greeting: "عصر بخیر",
         icon: "🌆",
-        gradient: "from-purple-500/20 via-pink-500/10 to-transparent",
+        gradient: "from-purple-600/30 via-pink-900/10 to-transparent",
         picks: [...PARTY_PLAYLISTS.slice(0, 3), ...CHILL_PLAYLISTS.slice(0, 3)],
       };
     return {
       greeting: "شب بخیر",
       icon: "🌙",
-      gradient: "from-indigo-500/20 via-purple-500/10 to-transparent",
+      gradient: "from-indigo-800/30 via-slate-900/10 to-transparent",
       picks: [...SLEEP_PLAYLISTS, ...CHILL_PLAYLISTS.slice(0, 4)],
     };
   }, []);
 
-  // Helper for rendering different section types
+  // Updated SectionBuilder to support native sticky stacking behavior
+  // The 'relative' class on the section is key: the header sticks relative to this container.
   const SectionBuilder = ({
     config,
   }: {
     config: (typeof SECTIONS_CONFIG)[0];
   }) => (
-    <section>
+    <section className="relative group/section pb-8">
       <SectionHeader
         title={config.title}
         subtitle={config.subtitle}
         icon={config.icon}
       />
-      {config.type === "grid" ? (
-        <div
-          className={`grid ${
-            config.gridCols || "grid-cols-2 md:grid-cols-4"
-          } gap-4`}
-        >
-          {config.data.map((item: any) =>
-            config.component === "Genre" ? (
-              <GenreCard key={item.id} genre={item} />
-            ) : (
+
+      <div className="px-1">
+        {config.type === "grid" ? (
+          <div
+            className={`grid ${
+              config.gridCols || "grid-cols-2 md:grid-cols-4"
+            } gap-4 md:gap-6`}
+          >
+            {config.data.map((item: any) =>
+              config.component === "Genre" ? (
+                <GenreCard key={item.id} genre={item} />
+              ) : (
+                <PlaylistCard
+                  key={item.id}
+                  playlist={item}
+                  size="small"
+                  showMeta={false}
+                />
+              )
+            )}
+          </div>
+        ) : (
+          <HorizontalScroll>
+            {config.data.map((p: any) => (
               <PlaylistCard
-                key={item.id}
-                playlist={item}
-                size="small"
-                showMeta={false}
+                key={p.id}
+                playlist={p}
+                size={config.cardSize as any}
               />
-            )
-          )}
-        </div>
-      ) : (
-        <HorizontalScroll>
-          {config.data.map((p: any) => (
-            <PlaylistCard
-              key={p.id}
-              playlist={p}
-              size={config.cardSize as any}
-            />
-          ))}
-        </HorizontalScroll>
-      )}
+            ))}
+          </HorizontalScroll>
+        )}
+      </div>
     </section>
   );
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-b from-neutral-900 via-neutral-950 to-black text-white"
+      className="min-h-screen bg-neutral-950 text-white selection:bg-green-500/30"
       dir="rtl"
     >
-      {/* Hero */}
+      {/* Background Gradient Mesh */}
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-neutral-800/20 via-neutral-950 to-neutral-950 pointer-events-none" />
+
+      {/* Hero Header */}
       <header
-        className={`relative bg-gradient-to-b ${timeOfDay.gradient} to-transparent pt-8 pb-12`}
+        className={`relative z-10 bg-gradient-to-b ${timeOfDay.gradient} pt-12 pb-4`}
       >
-        <div className="max-w-7xl mx-auto px-4 md:px-6">
-          <div className="flex items-center gap-3 mb-8">
-            <span className="text-4xl">{timeOfDay.icon}</span>
-            <h1 className="text-3xl md:text-4xl ">{timeOfDay.greeting}</h1>
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
+          <div className="flex sticky items-center gap-4 mb-8 animate-fade-in-up">
+            <span className="text-4xl md:text-5xl drop-shadow-lg filter">
+              {timeOfDay.icon}
+            </span>
+            <h1 className="text-2xl md:text-6xl font-black tracking-tight">
+              {timeOfDay.greeting}
+            </h1>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-3 gap-4">
             {timeOfDay.picks.map((p) => (
               <QuickPickCard key={p.id} playlist={p} />
             ))}
@@ -494,30 +563,33 @@ const PlaylistsPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 md:px-6 pb-24 space-y-12">
-        {/* Moods */}
-        <section className="pt-4">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 pb-32 space-y-4">
+        {/* Moods Section - Wrapped in Relative for Sticky Header */}
+        <section className="relative pb-8">
           <SectionHeader
             title="حالت چطوره؟"
             subtitle="یک حال انتخاب کن تا پلی‌لیست مناسب رو پیدا کنیم"
             icon="🎭"
             showSeeAll={false}
           />
-          <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
+          <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide px-1">
             {MOOD_CHIPS.map((m) => (
               <button
                 key={m.id}
                 onClick={() =>
                   setSelectedMood(selectedMood === m.id ? null : m.id)
                 }
-                className={`flex items-center gap-2 px-4 py-2 rounded-full font text-sm transition-all whitespace-nowrap ${
+                className={`flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm transition-all duration-300 whitespace-nowrap border ${
                   selectedMood === m.id
-                    ? `bg-gradient-to-r ${m.gradient} text-white shadow-lg scale-105`
-                    : "bg-neutral-800/80 hover:bg-neutral-700/80 hover:scale-105"
+                    ? `bg-gradient-to-r ${m.gradient} text-white border-transparent shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-105`
+                    : "bg-neutral-900/50 text-neutral-300 border-white/5 hover:border-white/20 hover:bg-neutral-800 hover:scale-105"
                 }`}
               >
-                <span className="text-lg">
-                  {React.createElement(moodIcons[m.iconKey], { size: 24 })}
+                <span className="text-xl">
+                  {React.createElement(moodIcons[m.iconKey], {
+                    size: 20,
+                    weight: "fill",
+                  })}
                 </span>
                 <span>{m.label}</span>
               </button>
@@ -525,8 +597,8 @@ const PlaylistsPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Featured */}
-        <section>
+        {/* Featured Section - Wrapped */}
+        <section className="relative pb-8">
           <SectionHeader
             title="ویژه‌ها"
             icon={<Icon name="fire" className="w-6 h-6 text-orange-500" />}
@@ -534,57 +606,29 @@ const PlaylistsPage: React.FC = () => {
           <FeaturedPlaylistCard playlist={FEATURED_PLAYLISTS[0]} />
         </section>
 
-        {/* Render Configured Sections */}
+        {/* Dynamic Configured Sections */}
         {SECTIONS_CONFIG.map((section, idx) => (
           <SectionBuilder key={idx} config={section} />
         ))}
-
-        {/* Footer */}
       </main>
-      <div className="fixed bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black via-black/95 to-transparent pointer-events-none" />
-    </div>
-  );
-};
 
-const GenreCard: React.FC<{ genre: any }> = ({ genre }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  return (
-    <button
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="relative h-28 rounded-lg overflow-hidden transition-all hover:scale-[1.03] active:scale-[0.98]"
-      style={{ backgroundColor: genre.color }}
-    >
-      <div
-        className={`absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform -skew-x-12 transition-transform duration-700 ${
-          isHovered ? "translate-x-full" : "-translate-x-full"
-        }`}
-      />
-      <div className="absolute inset-0 p-4 flex flex-col justify-between">
-        <span className="font-bold text-white text-lg">{genre.name}</span>
-        <span className="text-white/70 text-xs">
-          {genre.count ? genre.count.replace("+", "+") : ""}
-        </span>
-      </div>
-      <span className="absolute bottom-2 right-2 text-4xl transform rotate-12 opacity-80">
-        {genre.icon}
-      </span>
-    </button>
+      {/* Bottom Gradient Fade */}
+      <div className="fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-neutral-950 via-neutral-950/90 to-transparent pointer-events-none z-50" />
+    </div>
   );
 };
 
 export default PlaylistsPage;
 
 // ============================================================================
-// 6. DATA (Compact)
+// 6. DATA CONFIG
 // ============================================================================
 
-// Config for main page sections to avoid repetitive JSX
 const SECTIONS_CONFIG = [
   {
     title: "مرور بر اساس ژانر",
     subtitle: "موسیقی را بر اساس دسته‌بندی کشف کن",
-    icon: <Palette size={24} className="text-pink-400" />,
+    icon: <Palette size={24} className="text-pink-400" weight="duotone" />,
     data: GENRE_CATEGORIES,
     type: "grid",
     component: "Genre",
@@ -592,50 +636,49 @@ const SECTIONS_CONFIG = [
   },
   {
     title: "برای شما",
-    subtitle: "پیشنهادهای بهتر دریافت کن",
-    icon: <Sparkle size={24} className="text-green-500" />,
+    subtitle: "پیشنهادهای اختصاصی بر اساس سلیقه شما",
+    icon: <Sparkle size={24} className="text-green-500" weight="fill" />,
     data: MADE_FOR_YOU,
     cardSize: "medium",
   },
   {
     title: "محبوب‌ترین‌های امروز",
-    icon: <Fire size={24} className="text-orange-500" />,
+    icon: <Fire size={24} className="text-orange-500" weight="fill" />,
     data: [...FEATURED_PLAYLISTS, ...PARTY_PLAYLISTS],
     cardSize: "large",
   },
   {
     title: "تمرکز و بهره‌وری",
-    subtitle: "موسیقی برای تمرکز بیشتر",
-    icon: <Target size={24} className="text-purple-500" />,
+    subtitle: "موسیقی بدون کلام برای تمرکز بیشتر",
+    icon: <Target size={24} className="text-purple-500" weight="duotone" />,
     data: FOCUS_PLAYLISTS,
     cardSize: "medium",
   },
   {
     title: "ورزش",
     subtitle: "با این پلی‌لیست‌ها انرژی بگیر",
-    icon: <Barbell size={24} className="text-red-500" />,
+    icon: <Barbell size={24} className="text-red-500" weight="fill" />,
     data: WORKOUT_PLAYLISTS,
     cardSize: "medium",
   },
   {
     title: "آرامش",
     subtitle: "ریلکس کن و استراحت کن",
-    icon: <Smiley size={24} className="text-yellow-400" />,
+    icon: <Smiley size={24} className="text-yellow-400" weight="duotone" />,
     data: CHILL_PLAYLISTS,
     cardSize: "medium",
   },
-
   {
     title: "خواب",
     subtitle: "با صداهای آرامش‌بخش بخواب",
-    icon: <Moon size={24} className="text-indigo-400" />,
+    icon: <Moon size={24} className="text-indigo-400" weight="fill" />,
     data: [...SLEEP_PLAYLISTS, ...CHILL_PLAYLISTS.slice(0, 2)],
     cardSize: "medium",
   },
   {
     title: "مهمانی",
     subtitle: "صدا رو زیاد کن!",
-    icon: <Confetti size={24} className="text-pink-500" />,
+    icon: <Confetti size={24} className="text-pink-500" weight="fill" />,
     data: PARTY_PLAYLISTS,
     cardSize: "medium",
   },

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "../contexts/AuthContext";
 import SongCard from "../components/SongCard";
+import { ArrowLeft } from "@phosphor-icons/react";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -229,9 +230,9 @@ export default function ProfilePage() {
           </div>
           <button
             onClick={() => router.back()}
-            className="p-3 bg-white/5 rounded-xl border border-white/10 hover:border-emerald-500/50 transition-colors duration-300 shadow-[0_0_30px_rgba(16,185,129,0.1)]"
+            className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:scale-105"
           >
-            <Icon d={ICONS.back} />
+            <ArrowLeft size={24} className="text-white" />
           </button>
         </div>
 
