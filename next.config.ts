@@ -5,7 +5,10 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   devIndicators: false,
   images: {
-    domains: ['picsum.photos', 'i.scdn.co'],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'picsum.photos' },
+      { protocol: 'https', hostname: 'i.scdn.co' },
+    ],
   },
 };
 

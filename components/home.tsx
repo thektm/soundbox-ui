@@ -296,7 +296,7 @@ export default function Home() {
       <div className="absolute top-[-10%] w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
 
       {/* Mobile Header - only visible on mobile */}
-      <header className="md:hidden sticky top-0 z-50 px-4 pt-4 pb-2 bg-black/90 backdrop-blur-xl transition-all duration-300">
+      <header className="md:hidden sticky top-0 z-50 px-4 pt-4 pb-2 bg-black/90  transition-all duration-300">
         <div className="flex flex-row-reverse items-center justify-between mb-4">
           <div className="flex flex-row-reverse items-center gap-2 fade-in">
             <div className="w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center ring-emerald-500 ring-3 font-bold text-lg">
@@ -306,8 +306,10 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <div className="flex items-center shrink-0">
               <div className="h-10 w-10">
-                <img
+                <Image
                   src="/logo.png"
+                  width={40}
+                  height={40}
                   alt="SedaBox Logo"
                   className="w-full h-full object-contain drop-shadow-lg"
                 />
@@ -337,7 +339,7 @@ export default function Home() {
                 <div
                   role="dialog"
                   aria-label="اعلان‌ها"
-                  className="absolute top-full right-0 mt-2 w-80 max-w-[90vw] bg-zinc-900/95 backdrop-blur-sm rounded-lg p-3 shadow-lg z-50"
+                  className="absolute top-full right-0 mt-2 w-80 max-w-[90vw] bg-zinc-900/95  rounded-lg p-3 shadow-lg z-50"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="font-semibold text-sm">اعلان‌ها</div>
@@ -426,10 +428,10 @@ export default function Home() {
               )}
             </div>
             <button
-              onClick={handleLogout}
+              onClick={() => navigateTo("profile")}
               className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold shadow-md hover:brightness-95 transition-transform transform hover:scale-105"
             >
-              خروج
+              ارتقا پلن +
             </button>
           </div>
         </div>
@@ -578,7 +580,7 @@ export default function Home() {
                     className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300"
                     loading="lazy"
                   />
-                  <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-xs font-bold uppercase tracking-wider">
+                  <div className="absolute bottom-2 right-2 bg-black/60  px-2 py-1 rounded text-xs font-bold uppercase tracking-wider">
                     انتشار جدید
                   </div>
                 </div>
@@ -770,6 +772,25 @@ export default function Home() {
           opacity: 0;
           transform: translateX(-8px);
         }
+
+        /* Premium layered stack animations */
+        .layered-stack {
+          perspective: 1000px;
+        }
+        .layered-stack .layer {
+          transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+          transform-style: preserve-3d;
+        }
+        .layered-stack:hover .layer-1 {
+          transform: translateY(-8px) translateX(4px) rotateZ(-2deg) scale(0.92);
+        }
+        .layered-stack:hover .layer-2 {
+          transform: translateY(-4px) translateX(2px) rotateZ(-1deg) scale(0.96);
+        }
+        .layered-stack:hover .layer-main {
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
+        }
       `}</style>
     </div>
   );
@@ -822,28 +843,76 @@ const HorizontalList = ({
 }: HorizontalListProps) => {
   return (
     <div className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4 will-change-transform">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <div
           key={item.id}
           onClick={() => (onPlay ? onPlay(item) : onItemClick?.(item))}
           className={`snap-start shrink-0 flex flex-col gap-2 group cursor-pointer ${
-            variant === "circle" ? "w-28" : "w-36"
+            variant === "circle"
+              ? "w-28"
+              : variant === "layered"
+              ? "w-40"
+              : "w-36"
           }`}
         >
-          <div className="relative">
+          <div
+            className={`relative ${
+              variant === "layered" ? "layered-stack pt-3 px-1" : ""
+            }`}
+          >
             {variant === "layered" && (
               <>
-                <div className="absolute top-[-4px] left-1/2 -translate-x-1/2 w-[90%] h-full bg-zinc-700 rounded-md z-0 opacity-60" />
-                <div className="absolute top-[-8px] left-1/2 -translate-x-1/2 w-[80%] h-full bg-zinc-800 rounded-md z-[-1] opacity-40" />
+                {/* Third layer (deepest) */}
+                <div
+                  className="layer layer-1 absolute top-0 left-1/2 -translate-x-1/2 w-[75%] h-[calc(100%-12px)] rounded-lg overflow-hidden"
+                  style={{
+                    background: `linear-gradient(135deg, rgba(39, 39, 42, 0.9) 0%, rgba(24, 24, 27, 0.9) 100%)`,
+                    boxShadow: "0 4px 12px -2px rgba(0, 0, 0, 0.3)",
+                  }}
+                >
+                  <img
+                    src={items[(index + 2) % items.length]?.img || item.img}
+                    alt=""
+                    className="w-full h-full object-cover opacity-40"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 to-transparent" />
+                </div>
+
+                {/* Second layer */}
+                <div
+                  className="layer layer-2 absolute top-[6px] left-1/2 -translate-x-1/2 w-[87%] h-[calc(100%-12px)] rounded-lg overflow-hidden"
+                  style={{
+                    background: `linear-gradient(135deg, rgba(52, 52, 56, 0.95) 0%, rgba(39, 39, 42, 0.95) 100%)`,
+                    boxShadow: "0 6px 16px -4px rgba(0, 0, 0, 0.35)",
+                  }}
+                >
+                  <img
+                    src={items[(index + 1) % items.length]?.img || item.img}
+                    alt=""
+                    className="w-full h-full object-cover opacity-50"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-800/70 to-transparent" />
+                </div>
               </>
             )}
 
+            {/* Main image */}
             <div
-              className={`relative overflow-hidden shadow-lg bg-zinc-800 z-10 ${
+              className={`layer layer-main relative overflow-hidden shadow-lg bg-zinc-800 ${
                 variant === "circle"
                   ? "rounded-full aspect-square"
-                  : "rounded-md aspect-square"
-              }`}
+                  : "rounded-lg aspect-square"
+              } ${variant === "layered" ? "z-10" : ""}`}
+              style={
+                variant === "layered"
+                  ? {
+                      boxShadow:
+                        "0 8px 24px -6px rgba(0, 0, 0, 0.4), 0 4px 8px -2px rgba(0, 0, 0, 0.2)",
+                    }
+                  : {}
+              }
             >
               <img
                 src={item.img}
@@ -851,21 +920,59 @@ const HorizontalList = ({
                 className="w-full h-full object-cover group-active:scale-95 transition-transform duration-200 ease-out"
                 loading="lazy"
               />
-              {variant !== "circle" && onPlay && (
+
+              {/* Hover overlay with gradient */}
+              {variant === "layered" && (
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              )}
+
+              {/* Play button */}
+              {variant !== "circle" && (onPlay || variant === "layered") && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onPlay(item);
+                    onPlay?.(item);
                   }}
-                  className="absolute bottom-2 left-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-110"
+                  className="absolute bottom-2 left-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-110 hover:bg-green-400"
                 >
                   <Play fill="black" className="mr-1 w-5 h-5 text-black" />
                 </button>
               )}
+
+              {/* New badge */}
               {item.isNew && (
                 <span className="absolute top-2 right-2 bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow-lg z-20">
                   جدید
                 </span>
+              )}
+
+              {/* Item count indicator for layered variant */}
+              {variant === "layered" && (
+                <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <svg
+                    className="w-3 h-3"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <rect
+                      x="9"
+                      y="9"
+                      width="13"
+                      height="13"
+                      rx="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span>{Math.floor(Math.random() * 15) + 8}</span>
+                </div>
               )}
             </div>
           </div>

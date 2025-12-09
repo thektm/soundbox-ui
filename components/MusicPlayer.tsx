@@ -164,6 +164,65 @@ const Icon = {
       <path d="M18 6L6 18M6 6l12 12" />
     </svg>
   ),
+  Minimize: ({ c = "w-5 h-5" }: { c?: string }) => (
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3" />
+    </svg>
+  ),
+  Lyrics: ({ c = "w-5 h-5" }: { c?: string }) => (
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path d="M9 18V5l12-2v13M9 9l12-2" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
+    </svg>
+  ),
+  Fullscreen: ({ c = "w-5 h-5" }: { c?: string }) => (
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" />
+    </svg>
+  ),
+  Device: ({ c = "w-5 h-5" }: { c?: string }) => (
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+      <path d="M12 18h.01" />
+    </svg>
+  ),
+  Add: ({ c = "w-5 h-5" }: { c?: string }) => (
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 8v8M8 12h8" />
+    </svg>
+  ),
 };
 
 // ============================================================================
@@ -174,7 +233,7 @@ const formatTime = (s: number): string => {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 };
 
-const SWIPE_THRESHOLD = 80; // The pixel distance to trigger next/prev
+const SWIPE_THRESHOLD = 80;
 
 // ============================================================================
 // PROGRESS BAR
@@ -184,12 +243,14 @@ interface ProgressProps {
   duration: number;
   onSeek: (t: number) => void;
   mini?: boolean;
+  variant?: "default" | "desktop";
 }
 
 const ProgressBar = memo<ProgressProps>(
-  ({ progress, duration, onSeek, mini }) => {
+  ({ progress, duration, onSeek, mini, variant = "default" }) => {
     const ref = useRef<HTMLDivElement>(null);
     const [isSeeking, setIsSeeking] = useState(false);
+    const [hoverPosition, setHoverPosition] = useState<number | null>(null);
     const pct = duration > 0 ? (progress / duration) * 100 : 0;
 
     const handleClick = useCallback(
@@ -206,6 +267,16 @@ const ProgressBar = memo<ProgressProps>(
       [duration, onSeek, mini]
     );
 
+    const handleMouseMove = useCallback(
+      (e: React.MouseEvent) => {
+        if (!ref.current) return;
+        const rect = ref.current.getBoundingClientRect();
+        const pos = (e.clientX - rect.left) / rect.width;
+        setHoverPosition(pos * duration);
+      },
+      [duration]
+    );
+
     if (mini) {
       return (
         <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 z-50">
@@ -213,6 +284,52 @@ const ProgressBar = memo<ProgressProps>(
             className="h-full bg-emerald-500 transition-[width] duration-1000 ease-linear"
             style={{ width: `${pct}%` }}
           />
+        </div>
+      );
+    }
+
+    if (variant === "desktop") {
+      return (
+        <div className="w-full">
+          <div
+            ref={ref}
+            className="relative h-1.5 bg-white/10 rounded-full cursor-pointer group"
+            onClick={handleClick}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={() => setHoverPosition(null)}
+          >
+            {/* Hover preview */}
+            {hoverPosition !== null && (
+              <div
+                className="absolute -top-8 px-2 py-1 bg-neutral-800 rounded text-xs text-white transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                style={{
+                  left: `${(hoverPosition / duration) * 100}%`,
+                }}
+              >
+                {formatTime(hoverPosition)}
+              </div>
+            )}
+            {/* Track background on hover */}
+            <div className="absolute inset-0 bg-white/5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+            {/* Progress fill */}
+            <div
+              className={`h-full bg-white group-hover:bg-emerald-500 rounded-full relative ${
+                isSeeking ? "" : "transition-[width] duration-100 ease-linear"
+              }`}
+              style={{ width: `${pct}%` }}
+            >
+              {/* Thumb */}
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          </div>
+          <div className="flex justify-between mt-2">
+            <span className="text-[11px] text-neutral-400 tabular-nums font-medium">
+              {formatTime(progress)}
+            </span>
+            <span className="text-[11px] text-neutral-400 tabular-nums font-medium">
+              {formatTime(duration)}
+            </span>
+          </div>
         </div>
       );
     }
@@ -730,301 +847,694 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
 CollapsedPlayer.displayName = "CollapsedPlayer";
 
 // ============================================================================
-// EXPANDED PLAYER
+// DESKTOP EXPANDED PLAYER - REDESIGNED
 // ============================================================================
-const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
-  const { navigateTo } = useNavigation();
-  const {
-    currentTrack,
-    isPlaying,
-    isLoading,
-    togglePlay,
-    progress,
-    duration,
-    seek,
-    isShuffle,
-    repeatMode,
-    toggleShuffle,
-    cycleRepeat,
-    cycleQuality,
-    next,
-    previous,
-  } = usePlayer();
+const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
+  ({ onCollapse }) => {
+    const { navigateTo } = useNavigation();
+    const {
+      currentTrack,
+      isPlaying,
+      isLoading,
+      togglePlay,
+      progress,
+      duration,
+      seek,
+      isShuffle,
+      repeatMode,
+      toggleShuffle,
+      cycleRepeat,
+      next,
+      previous,
+      playTrack,
+      queue,
+      currentIndex,
+    } = usePlayer();
 
-  const [liked, setLiked] = useState(false);
-  const [isQueueOpen, setIsQueueOpen] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [liked, setLiked] = useState(false);
+    const [activeTab, setActiveTab] = useState<"queue" | "lyrics" | "related">(
+      "queue"
+    );
 
-  const handleArtistClick = () => {
-    if (currentTrack) {
-      const artist = MOCK_ARTISTS.find((a) => a.name === currentTrack.artist);
-      if (artist) {
-        onCollapse();
-        navigateTo("artist-detail", { slug: artist.id });
+    const handleArtistClick = useCallback(() => {
+      if (currentTrack) {
+        const artist = MOCK_ARTISTS.find((a) => a.name === currentTrack.artist);
+        if (artist) {
+          onCollapse();
+          navigateTo("artist-detail", { slug: artist.id });
+        }
       }
-    }
-  };
+    }, [currentTrack, navigateTo, onCollapse]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isMenuOpen && !(event.target as Element).closest(".menu-button")) {
-        setIsMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isMenuOpen]);
+    if (!currentTrack) return null;
 
-  const handleDragEnd = useCallback(
-    (_: unknown, info: PanInfo) => {
-      if (info.velocity.y > 500 || info.offset.y > 100) onCollapse();
-    },
-    [onCollapse]
-  );
-
-  if (!currentTrack) return null;
-
-  return (
-    <motion.div
-      initial={{ y: "100%" }}
-      animate={{ y: 0 }}
-      exit={{ y: "100%" }}
-      transition={{ type: "spring", damping: 30, stiffness: 300 }}
-      drag="y"
-      dragConstraints={{ top: 0, bottom: 0 }}
-      onDragEnd={handleDragEnd}
-      className="fixed inset-0 z-[60] flex flex-col bg-gradient-to-b from-neutral-900 via-neutral-950 to-black overflow-auto"
-      style={{ willChange: "transform" }}
-    >
-      <div className="relative flex flex-col min-h-0 h-full px-3 py-4 sm:px-6 sm:py-8 overflow-hidden">
-        <div className="flex items-center justify-between mb-8">
-          <button
-            onClick={onCollapse}
-            className="w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors"
-          >
-            <Icon.Down c="w-6 h-6 text-white" />
-          </button>
-          <div className="flex flex-col items-center" dir="rtl">
-            <span className="text-xs text-neutral-400 uppercase tracking-wider">
-              در حال پخش
-            </span>
-            <button
-              onClick={handleArtistClick}
-              className="text-sm font-medium text-white hover:underline"
-            >
-              {currentTrack.artist}
-            </button>
-          </div>
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="menu-button w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors relative"
-          >
-            <Icon.More c="w-5 h-5 text-white" />
-          </button>
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.3 }}
+        className="fixed inset-0 z-[60] bg-black"
+      >
+        {/* Dynamic Background */}
+        <div className="absolute inset-0 overflow-hidden">
+          <img
+            src={currentTrack.image}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover scale-110 blur-[100px] opacity-40"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40" />
         </div>
 
-        <div className="flex-1 flex items-center justify-center px-2 sm:px-4">
-          <div
-            className="relative w-full aspect-square"
-            style={{
-              maxWidth: "min(60vh, 90vw)",
-              maxHeight: "min(60vh, 90vw)",
-            }}
-          >
-            <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl">
-              <img
-                src={currentTrack.image}
-                alt=""
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-              {isPlaying && (
-                <div className="absolute bottom-3 right-3">
-                  <PlayingBars />
+        {/* Main Content */}
+        <div className="relative z-10 h-full flex flex-col">
+          {/* Header */}
+          <header className="flex items-center justify-between px-8 py-6">
+            <button
+              onClick={onCollapse}
+              className="group flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+            >
+              <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/20 transition-colors">
+                <Icon.Minimize c="w-5 h-5" />
+              </div>
+              <span className="text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                Minimize
+              </span>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all">
+                <Icon.Share c="w-5 h-5" />
+              </button>
+              <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all">
+                <Icon.More c="w-5 h-5" />
+              </button>
+            </div>
+          </header>
+
+          {/* Main Layout */}
+          <div className="flex-1 flex items-center px-8 pb-8 gap-12 min-h-0">
+            {/* Left Section - Artwork & Info */}
+            <div className="flex-1 flex items-center justify-center">
+              <div className="flex items-center gap-10 max-w-3xl w-full">
+                {/* Album Art */}
+                <div className="relative flex-shrink-0">
+                  <div className="w-72 h-72 xl:w-80 xl:h-80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10">
+                    <img
+                      src={currentTrack.image}
+                      alt={currentTrack.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                 
                 </div>
-              )}
+
+                {/* Track Info & Controls */}
+                <div className="flex-1 min-w-0 space-y-8">
+                  {/* Track Meta */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full">
+                        Now Playing
+                      </span>
+                    </div>
+                    <h1 className="text-4xl xl:text-5xl font-bold text-white tracking-tight leading-tight">
+                      {currentTrack.title}
+                    </h1>
+                    <button
+                      onClick={handleArtistClick}
+                      className="text-xl text-neutral-300 hover:text-white transition-colors hover:underline decoration-2 underline-offset-4"
+                    >
+                      {currentTrack.artist}
+                    </button>
+                  </div>
+
+                  {/* Progress */}
+                  <div className="max-w-md">
+                    <ProgressBar
+                      progress={progress}
+                      duration={duration}
+                      onSeek={seek}
+                      variant="desktop"
+                    />
+                  </div>
+
+                  {/* Controls */}
+                  <div className="flex items-center gap-6">
+                    <button
+                      onClick={toggleShuffle}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                        isShuffle
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      <Icon.Shuffle c="w-5 h-5" />
+                    </button>
+
+                    <button
+                      onClick={previous}
+                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105"
+                    >
+                      <Icon.Prev c="w-7 h-7" />
+                    </button>
+
+                    <button
+                      onClick={togglePlay}
+                      disabled={isLoading}
+                      className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-2xl shadow-white/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50"
+                    >
+                      {isLoading ? (
+                        <Spinner size="w-8 h-8" />
+                      ) : isPlaying ? (
+                        <Icon.Pause c="w-9 h-9 text-black" />
+                      ) : (
+                        <Icon.Play c="w-9 h-9 text-black ml-1" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={next}
+                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105"
+                    >
+                      <Icon.Next c="w-7 h-7" />
+                    </button>
+
+                    <button
+                      onClick={cycleRepeat}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                        repeatMode !== "off"
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      {repeatMode === "one" ? (
+                        <Icon.RepeatOne c="w-5 h-5" />
+                      ) : (
+                        <Icon.Repeat c="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      onClick={() => setLiked((l) => !l)}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full transition-all ${
+                        liked
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      <Icon.Heart c="w-5 h-5" filled={liked} />
+                      <span className="text-sm font-medium">
+                        {liked ? "Liked" : "Like"}
+                      </span>
+                    </button>
+                    <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all">
+                      <Icon.Add c="w-5 h-5" />
+                      <span className="text-sm font-medium">
+                        Add to Playlist
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Section - Queue/Lyrics Panel */}
+            <div className="w-96 xl:w-[420px] h-full flex flex-col bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
+              {/* Tabs */}
+              <div className="flex border-b border-white/10">
+                {(["queue", "lyrics", "related"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex-1 py-4 text-sm font-medium transition-all relative ${
+                      activeTab === tab
+                        ? "text-white"
+                        : "text-neutral-500 hover:text-neutral-300"
+                    }`}
+                  >
+                    {tab === "queue"
+                      ? "Up Next"
+                      : tab === "lyrics"
+                      ? "Lyrics"
+                      : "Related"}
+                    {activeTab === tab && (
+                      <motion.div
+                        layoutId="activeTab"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content */}
+              <div className="flex-1 overflow-hidden">
+                {activeTab === "queue" && (
+                  <div className="h-full overflow-y-auto p-4 space-y-1">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
+                        {queue.length} tracks in queue
+                      </span>
+                      <span className="text-xs text-neutral-500">
+                        {currentIndex + 1} of {queue.length}
+                      </span>
+                    </div>
+                    {queue.map((track, i) => (
+                      <motion.div
+                        key={track.id}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        onClick={() => playTrack(track)}
+                        className={`group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
+                          i === currentIndex
+                            ? "bg-emerald-500/10 border border-emerald-500/20"
+                            : "hover:bg-white/5"
+                        }`}
+                      >
+                        <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                          <img
+                            src={track.image}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                          {i === currentIndex && isPlaying ? (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <PlayingBars />
+                            </div>
+                          ) : (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Icon.Play c="w-5 h-5 text-white" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className={`text-sm font-medium truncate ${
+                              i === currentIndex
+                                ? "text-emerald-400"
+                                : "text-white"
+                            }`}
+                          >
+                            {track.title}
+                          </div>
+                          <div className="text-xs text-neutral-500 truncate">
+                            {track.artist}
+                          </div>
+                        </div>
+                        <span className="text-xs text-neutral-500 tabular-nums">
+                          {track.duration}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+
+                {activeTab === "lyrics" && (
+                  <div className="h-full flex items-center justify-center p-8">
+                    <div className="text-center space-y-4">
+                      <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                        <Icon.Lyrics c="w-8 h-8 text-neutral-500" />
+                      </div>
+                      <div>
+                        <p className="text-neutral-400 font-medium">
+                          Lyrics not available
+                        </p>
+                        <p className="text-sm text-neutral-600 mt-1">
+                          We couldn't find lyrics for this track
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "related" && (
+                  <div className="h-full flex items-center justify-center p-8">
+                    <div className="text-center space-y-4">
+                      <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                        <Icon.Queue c="w-8 h-8 text-neutral-500" />
+                      </div>
+                      <div>
+                        <p className="text-neutral-400 font-medium">
+                          Discover similar tracks
+                        </p>
+                        <p className="text-sm text-neutral-600 mt-1">
+                          Coming soon
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
+      </motion.div>
+    );
+  }
+);
+DesktopExpandedPlayer.displayName = "DesktopExpandedPlayer";
 
-        <div className="mt-4 sm:mt-8 mb-4 sm:mb-6" dir="rtl">
-          <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0">
-              <button
-                onClick={() => {
-                  onCollapse();
-                  navigateTo("home");
-                }}
-                className="text-xl sm:text-2xl font-bold text-white truncate hover:underline text-right w-full"
-              >
-                {currentTrack.title}
-              </button>
+// ============================================================================
+// MOBILE EXPANDED PLAYER
+// ============================================================================
+const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
+  ({ onCollapse }) => {
+    const { navigateTo } = useNavigation();
+    const {
+      currentTrack,
+      isPlaying,
+      isLoading,
+      togglePlay,
+      progress,
+      duration,
+      seek,
+      isShuffle,
+      repeatMode,
+      toggleShuffle,
+      cycleRepeat,
+      cycleQuality,
+      next,
+      previous,
+    } = usePlayer();
+
+    const [liked, setLiked] = useState(false);
+    const [isQueueOpen, setIsQueueOpen] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+    const handleArtistClick = () => {
+      if (currentTrack) {
+        const artist = MOCK_ARTISTS.find((a) => a.name === currentTrack.artist);
+        if (artist) {
+          onCollapse();
+          navigateTo("artist-detail", { slug: artist.id });
+        }
+      }
+    };
+
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (isMenuOpen && !(event.target as Element).closest(".menu-button")) {
+          setIsMenuOpen(false);
+        }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }, [isMenuOpen]);
+
+    const handleDragEnd = useCallback(
+      (_: unknown, info: PanInfo) => {
+        if (info.velocity.y > 500 || info.offset.y > 100) onCollapse();
+      },
+      [onCollapse]
+    );
+
+    if (!currentTrack) return null;
+
+    return (
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        onDragEnd={handleDragEnd}
+        className="fixed inset-0 z-[60] flex flex-col bg-gradient-to-b from-neutral-900 via-neutral-950 to-black overflow-auto"
+        style={{ willChange: "transform" }}
+      >
+        <div className="relative flex flex-col min-h-0 h-full px-3 py-4 sm:px-6 sm:py-8 overflow-hidden">
+          <div className="flex items-center justify-between mb-8">
+            <button
+              onClick={onCollapse}
+              className="w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors"
+            >
+              <Icon.Down c="w-6 h-6 text-white" />
+            </button>
+            <div className="flex flex-col items-center" dir="rtl">
+              <span className="text-xs text-neutral-400 uppercase tracking-wider">
+                در حال پخش
+              </span>
               <button
                 onClick={handleArtistClick}
-                className="text-base sm:text-lg text-neutral-400 truncate mt-1 hover:text-white hover:underline text-right w-full"
+                className="text-sm font-medium text-white hover:underline"
               >
                 {currentTrack.artist}
               </button>
             </div>
             <button
-              onClick={() => setLiked((l) => !l)}
-              className={`ml-4 transition-colors ${
-                liked ? "text-emerald-500" : "text-neutral-400 hover:text-white"
-              }`}
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="menu-button w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors relative"
             >
-              <Icon.Heart c="w-7 h-7" filled={liked} />
-            </button>
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <ProgressBar progress={progress} duration={duration} onSeek={seek} />
-        </div>
-
-        <div className="flex items-center justify-between mb-4 sm:mb-8">
-          <button
-            onClick={toggleShuffle}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-              isShuffle
-                ? "text-emerald-500"
-                : "text-neutral-400 hover:text-white"
-            }`}
-          >
-            <Icon.Shuffle c="w-5 h-5" />
-          </button>
-
-          <div className="flex flex-wrap items-center gap-4">
-            <button
-              onClick={previous}
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors"
-            >
-              <Icon.Prev c="w-10 h-10 sm:w-8 sm:h-8" />
-            </button>
-            <button
-              onClick={togglePlay}
-              disabled={isLoading}
-              className="w-16 h-16 sm:w-16 sm:h-16 rounded-full bg-white flex items-center justify-center shadow-xl active:scale-95 transition-transform disabled:opacity-50"
-            >
-              {isLoading ? (
-                <Spinner size="w-11 h-11" />
-              ) : isPlaying ? (
-                <Icon.Pause c="w-11 h-11 text-neutral-900" />
-              ) : (
-                <Icon.Play c="w-11 h-11 text-neutral-900 ml-1" />
-              )}
-            </button>
-            <button
-              onClick={next}
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors"
-            >
-              <Icon.Next c="w-10 h-10 sm:w-8 sm:h-8" />
+              <Icon.More c="w-5 h-5 text-white" />
             </button>
           </div>
 
-          <button
-            onClick={cycleRepeat}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-              repeatMode !== "off"
-                ? "text-emerald-500"
-                : "text-neutral-400 hover:text-white"
-            }`}
-          >
-            {repeatMode === "one" ? (
-              <Icon.RepeatOne c="w-5 h-5" />
-            ) : (
-              <Icon.Repeat c="w-5 h-5" />
-            )}
-          </button>
-        </div>
+          <div className="flex-1 flex flex-col items-center justify-center px-2 sm:px-4">
+            <div
+              className="relative w-full aspect-square"
+              style={{
+                maxWidth: "min(60vh, 90vw)",
+                maxHeight: "min(60vh, 90vw)",
+              }}
+            >
+              <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl">
+                <img
+                  src={currentTrack.image}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+                {isPlaying && (
+                  <div className="absolute bottom-3 right-3">
+                    <PlayingBars />
+                  </div>
+                )}
+              </div>
+            </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 pb-safe">
-          <button className="text-neutral-400 hover:text-white transition-colors">
-            <Icon.Share c="w-5 h-5" />
-          </button>
+            <div
+              className="mt-4 sm:mt-8 mb-4 sm:mb-6 w-full max-w-[900px]"
+              dir="rtl"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <button
+                    onClick={() => {
+                      onCollapse();
+                      if (currentTrack)
+                        navigateTo("song-detail", { id: currentTrack.id });
+                    }}
+                    className="text-xl sm:text-2xl font-bold text-white truncate hover:underline text-right w-full"
+                  >
+                    {currentTrack.title}
+                  </button>
+                  <button
+                    onClick={handleArtistClick}
+                    className="text-base sm:text-lg text-neutral-400 truncate mt-1 hover:text-white hover:underline text-right w-full"
+                  >
+                    {currentTrack.artist}
+                  </button>
+                </div>
+                <button
+                  onClick={() => setLiked((l) => !l)}
+                  className={`ml-4 transition-colors ${
+                    liked
+                      ? "text-emerald-500"
+                      : "text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  <Icon.Heart c="w-7 h-7" filled={liked} />
+                </button>
+              </div>
+            </div>
 
-          <button
-            onClick={() => setIsQueueOpen(true)}
-            className="text-neutral-400 hover:text-white transition-colors"
-          >
-            <Icon.Queue c="w-5 h-5" />
-          </button>
-        </div>
-      </div>
+            <div className="mb-6 w-full max-w-[900px]">
+              <ProgressBar
+                progress={progress}
+                duration={duration}
+                onSeek={seek}
+              />
+            </div>
 
-      <QueueSheet isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} />
+            <div className="flex items-center justify-between mb-4 sm:mb-8 w-full max-w-[900px]">
+              <button
+                onClick={toggleShuffle}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                  isShuffle
+                    ? "text-emerald-500"
+                    : "text-neutral-400 hover:text-white"
+                }`}
+              >
+                <Icon.Shuffle c="w-5 h-5" />
+              </button>
 
-      <AnimatePresence>
-        {isMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="absolute top-16 right-4 z-[60] bg-neutral-800 rounded-lg shadow-2xl border border-white/10 overflow-hidden min-w-[200px]"
-          >
-            <div className="py-2">
+              <div className="flex flex-wrap items-center gap-4">
+                <button
+                  onClick={previous}
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors"
+                >
+                  <Icon.Prev c="w-10 h-10 sm:w-8 sm:h-8" />
+                </button>
+                <button
+                  onClick={togglePlay}
+                  disabled={isLoading}
+                  className="w-16 h-16 sm:w-16 sm:h-16 rounded-full bg-white flex items-center justify-center shadow-xl active:scale-95 transition-transform disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <Spinner size="w-11 h-11" />
+                  ) : isPlaying ? (
+                    <Icon.Pause c="w-11 h-11 text-neutral-900" />
+                  ) : (
+                    <Icon.Play c="w-11 h-11 text-neutral-900 ml-1" />
+                  )}
+                </button>
+                <button
+                  onClick={next}
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors"
+                >
+                  <Icon.Next c="w-10 h-10 sm:w-8 sm:h-8" />
+                </button>
+              </div>
+
               <button
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  handleArtistClick();
-                }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
+                onClick={cycleRepeat}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                  repeatMode !== "off"
+                    ? "text-emerald-500"
+                    : "text-neutral-400 hover:text-white"
+                }`}
               >
-                <Icon.More c="w-5 h-5" />
-                مشاهده هنرمند
-              </button>
-              <button
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  onCollapse();
-                  if (currentTrack) {
-                    navigateTo("home");
-                  }
-                }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
-              >
-                <Icon.Queue c="w-5 h-5" />
-                جزئیات آهنگ
-              </button>
-              <button
-                onClick={() => {
-                  setIsMenuOpen(false);
-                }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
-              >
-                <Icon.Share c="w-5 h-5" />
-                اشتراک‌گذاری
-              </button>
-              <button
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  setIsQueueOpen(true);
-                }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
-              >
-                <Icon.Queue c="w-5 h-5" />
-                نمایش صف پخش
-              </button>
-              <button
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  cycleQuality();
-                }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
-              >
-                <Icon.Volume c="w-5 h-5" />
-                تغییر کیفیت
+                {repeatMode === "one" ? (
+                  <Icon.RepeatOne c="w-5 h-5" />
+                ) : (
+                  <Icon.Repeat c="w-5 h-5" />
+                )}
               </button>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
+
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 pb-safe w-full max-w-[900px]">
+              <button className="text-neutral-400 hover:text-white transition-colors">
+                <Icon.Share c="w-5 h-5" />
+              </button>
+
+              <button
+                onClick={() => setIsQueueOpen(true)}
+                className="text-neutral-400 hover:text-white transition-colors"
+              >
+                <Icon.Queue c="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <QueueSheet
+          isOpen={isQueueOpen}
+          onClose={() => setIsQueueOpen(false)}
+        />
+
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="absolute top-16 right-4 z-[60] bg-neutral-800 rounded-lg shadow-2xl border border-white/10 overflow-hidden min-w-[200px]"
+            >
+              <div className="py-2">
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    handleArtistClick();
+                  }}
+                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                  dir="rtl"
+                >
+                  <Icon.More c="w-5 h-5" />
+                  مشاهده هنرمند
+                </button>
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onCollapse();
+                    if (currentTrack) {
+                      navigateTo("song-detail", { id: currentTrack.id });
+                    }
+                  }}
+                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                  dir="rtl"
+                >
+                  <Icon.Queue c="w-5 h-5" />
+                  جزئیات آهنگ
+                </button>
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                  dir="rtl"
+                >
+                  <Icon.Share c="w-5 h-5" />
+                  اشتراک‌گذاری
+                </button>
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsQueueOpen(true);
+                  }}
+                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                  dir="rtl"
+                >
+                  <Icon.Queue c="w-5 h-5" />
+                  نمایش صف پخش
+                </button>
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    cycleQuality();
+                  }}
+                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                  dir="rtl"
+                >
+                  <Icon.Volume c="w-5 h-5" />
+                  تغییر کیفیت
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    );
+  }
+);
+MobileExpandedPlayer.displayName = "MobileExpandedPlayer";
+
+// ============================================================================
+// EXPANDED PLAYER WRAPPER
+// ============================================================================
+const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    checkDesktop();
+    window.addEventListener("resize", checkDesktop);
+    return () => window.removeEventListener("resize", checkDesktop);
+  }, []);
+
+  if (isDesktop) {
+    return <DesktopExpandedPlayer onCollapse={onCollapse} />;
+  }
+
+  return <MobileExpandedPlayer onCollapse={onCollapse} />;
 });
 ExpandedPlayer.displayName = "ExpandedPlayer";
 

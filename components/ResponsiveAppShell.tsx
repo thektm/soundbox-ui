@@ -69,14 +69,20 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
   // Tablet / Desktop: use the responsive layout shell (sidebar + rounded content)
   return (
     <>
-      <div className="flex min-h-screen">
-        {/* Sidebar - Hidden on mobile, visible on tablet/desktop */}
-        <Sidebar />
+      <div dir="rtl" className="flex min-h-screen">
+        {/* Sidebar - Hidden on mobile, visible on tablet/desktop when logged in */}
+        {isLoggedIn && <Sidebar />}
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-h-screen md:max-h-screen md:overflow-hidden">
+        <div
+          className={`flex-1 flex flex-col min-h-screen md:max-h-screen md:overflow-hidden ${
+            isLoggedIn
+              ? "md:m-2 md:mr-0 md:bg-linear-to-b md:from-zinc-900 md:via-zinc-900/95 md:to-black md:rounded-lg"
+              : ""
+          }`}
+        >
           <div
-            className="flex-1 md:overflow-y-auto md:m-2 md:mr-0 md:bg-linear-to-b md:from-zinc-900 md:via-zinc-900/95 md:to-black md:rounded-lg"
+            className="flex-1 md:overflow-y-auto"
             ref={registerScrollContainer}
           >
             {children}

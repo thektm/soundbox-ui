@@ -1,9 +1,10 @@
 import React from "react";
-import { NavigationProvider } from "./components/NavigationContext";
-import { AuthProvider } from "./components/AuthContext";
-import { ResponsiveLayoutProvider } from "./components/ResponsiveLayout";
-import { PlayerProvider } from "./components/PlayerContext";
-import MusicPlayer from "./components/MusicPlayer";
+import { NavigationProvider } from "./NavigationContext";
+import { AuthProvider } from "./AuthContext";
+import { ResponsiveLayoutProvider } from "./ResponsiveLayout";
+import { PlayerProvider } from "./PlayerContext";
+import MusicPlayer from "./MusicPlayer";
+import SplashScreen from "./SplashScreen";
 
 interface AppContainerProps {
   children: React.ReactNode;
@@ -16,6 +17,7 @@ const AppContainer: React.FC<AppContainerProps> = ({ children }) => {
         <PlayerProvider>
           <ResponsiveLayoutProvider>{children}</ResponsiveLayoutProvider>
           <MusicPlayer />
+          <SplashScreen />
         </PlayerProvider>
       </AuthProvider>
     </NavigationProvider>

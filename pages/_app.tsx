@@ -4,7 +4,9 @@ import dynamic from "next/dynamic";
 import AppRouter from "../components/AppRouter";
 import ResponsiveAppShell from "../components/ResponsiveAppShell";
 
-const AppContainer = dynamic(() => import("../appcontainer"), { ssr: false });
+const AppContainer = dynamic(() => import("../components/AppContainer"), {
+  ssr: false,
+});
 
 export default function App({ Component, pageProps }: AppProps) {
   return (

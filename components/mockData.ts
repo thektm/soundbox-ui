@@ -884,3 +884,650 @@ export function findPlaylistBySlug(slug: string, allPlaylists: Playlist[]) {
     return normTitle === decoded;
   });
 }
+
+// ============================================================================
+// Profile-related interfaces and data (Followers, Following, Liked Items)
+// ============================================================================
+
+// Follower Interface (Regular users following you)
+export interface Follower {
+  id: string;
+  name: string;
+  username: string;
+  avatar: string;
+  isFollowedByYou: boolean;
+  mutualFollowers?: number;
+}
+
+// Following Interface (Artists you follow - verified style)
+export interface Following {
+  id: string;
+  name: string;
+  avatar: string;
+  type: string;
+  followers: string;
+  verified: boolean;
+}
+
+// Liked Album Interface
+export interface LikedAlbum {
+  id: string;
+  title: string;
+  artist: string;
+  image: string;
+  year: string;
+  songsCount: number;
+}
+
+// Liked Playlist Interface
+export interface LikedPlaylist {
+  id: string;
+  title: string;
+  description: string;
+  image: string;
+  gradient: string;
+  songsCount: number;
+  duration: string;
+  followers?: string;
+  isNew?: boolean;
+  isPremium?: boolean;
+}
+
+// User Playlist Interface
+export interface UserPlaylist {
+  id: string;
+  title: string;
+  description?: string;
+  image: string;
+  gradient: string;
+  songsCount: number;
+  duration: string;
+  isPublic: boolean;
+  createdAt: string;
+}
+
+// ============================================================================
+// Mock Followers Data (Regular users, not verified)
+// ============================================================================
+export const MOCK_FOLLOWERS: Follower[] = [
+  {
+    id: "f1",
+    name: "سارا احمدی",
+    username: "@sara_ahmadi",
+    avatar: "https://picsum.photos/seed/follower1/200/200",
+    isFollowedByYou: true,
+    mutualFollowers: 12,
+  },
+  {
+    id: "f2",
+    name: "محمد رضایی",
+    username: "@m.rezaei92",
+    avatar: "https://picsum.photos/seed/follower2/200/200",
+    isFollowedByYou: false,
+    mutualFollowers: 5,
+  },
+  {
+    id: "f3",
+    name: "نیلوفر کریمی",
+    username: "@nilookar",
+    avatar: "https://picsum.photos/seed/follower3/200/200",
+    isFollowedByYou: true,
+    mutualFollowers: 23,
+  },
+  {
+    id: "f4",
+    name: "امیر حسینی",
+    username: "@amir.h",
+    avatar: "https://picsum.photos/seed/follower4/200/200",
+    isFollowedByYou: false,
+  },
+  {
+    id: "f5",
+    name: "مریم نوری",
+    username: "@maryam_n",
+    avatar: "https://picsum.photos/seed/follower5/200/200",
+    isFollowedByYou: true,
+    mutualFollowers: 8,
+  },
+  {
+    id: "f6",
+    name: "علی محمدی",
+    username: "@ali_mhmd",
+    avatar: "https://picsum.photos/seed/follower6/200/200",
+    isFollowedByYou: false,
+    mutualFollowers: 3,
+  },
+  {
+    id: "f7",
+    name: "زهرا کاظمی",
+    username: "@zahra.k",
+    avatar: "https://picsum.photos/seed/follower7/200/200",
+    isFollowedByYou: true,
+  },
+  {
+    id: "f8",
+    name: "حسین جعفری",
+    username: "@h_jafari",
+    avatar: "https://picsum.photos/seed/follower8/200/200",
+    isFollowedByYou: false,
+    mutualFollowers: 15,
+  },
+  {
+    id: "f9",
+    name: "فاطمه علوی",
+    username: "@fatemeh.alavi",
+    avatar: "https://picsum.photos/seed/follower9/200/200",
+    isFollowedByYou: true,
+    mutualFollowers: 7,
+  },
+  {
+    id: "f10",
+    name: "رضا موسوی",
+    username: "@reza_m",
+    avatar: "https://picsum.photos/seed/follower10/200/200",
+    isFollowedByYou: false,
+  },
+  {
+    id: "f11",
+    name: "لیلا صادقی",
+    username: "@leila.sadeghi",
+    avatar: "https://picsum.photos/seed/follower11/200/200",
+    isFollowedByYou: true,
+    mutualFollowers: 19,
+  },
+  {
+    id: "f12",
+    name: "پویا نیکزاد",
+    username: "@pooya.n",
+    avatar: "https://picsum.photos/seed/follower12/200/200",
+    isFollowedByYou: false,
+    mutualFollowers: 2,
+  },
+];
+
+// ============================================================================
+// Mock Following Data (Artists - Verified)
+// ============================================================================
+export const MOCK_FOLLOWING: Following[] = [
+  {
+    id: "a1",
+    name: "The Weeknd",
+    avatar: "https://i.scdn.co/image/ab6761610000e5eb214f3cf1cbe7139c1e26f1fd",
+    type: "هنرمند",
+    followers: "85.2M",
+    verified: true,
+  },
+  {
+    id: "a2",
+    name: "محسن یگانه",
+    avatar: "https://picsum.photos/seed/mohsen/200/200",
+    type: "خواننده",
+    followers: "15.8M",
+    verified: true,
+  },
+  {
+    id: "a3",
+    name: "Taylor Swift",
+    avatar: "https://i.scdn.co/image/ab6761610000e5eb5a00969a4698c3132a15fbb0",
+    type: "هنرمند",
+    followers: "89.4M",
+    verified: true,
+  },
+  {
+    id: "a4",
+    name: "سیروان خسروی",
+    avatar: "https://picsum.photos/seed/sirvan/200/200",
+    type: "خواننده",
+    followers: "12.3M",
+    verified: true,
+  },
+  {
+    id: "a5",
+    name: "Billie Eilish",
+    avatar: "https://i.scdn.co/image/ab6761610000e5ebd8b9980db67272cb4d2c3daf",
+    type: "هنرمند",
+    followers: "68.3M",
+    verified: true,
+  },
+  {
+    id: "a6",
+    name: "رضا بهرام",
+    avatar: "https://picsum.photos/seed/reza/200/200",
+    type: "خواننده",
+    followers: "8.7M",
+    verified: true,
+  },
+  {
+    id: "a7",
+    name: "Drake",
+    avatar: "https://i.scdn.co/image/ab6761610000e5eb4293385d324db8558179afd9",
+    type: "هنرمند",
+    followers: "76.1M",
+    verified: true,
+  },
+  {
+    id: "a8",
+    name: "ماکان بند",
+    avatar: "https://picsum.photos/seed/makan/200/200",
+    type: "گروه موسیقی",
+    followers: "6.2M",
+    verified: true,
+  },
+  {
+    id: "a9",
+    name: "Dua Lipa",
+    avatar: "https://i.scdn.co/image/ab6761610000e5eb1bbee4a02f85ecc58d385c3e",
+    type: "هنرمند",
+    followers: "45.2M",
+    verified: true,
+  },
+  {
+    id: "a10",
+    name: "علیرضا طلیسچی",
+    avatar: "https://picsum.photos/seed/alireza/200/200",
+    type: "خواننده",
+    followers: "5.4M",
+    verified: true,
+  },
+];
+
+// ============================================================================
+// Liked Songs (Uses existing Song interface)
+// ============================================================================
+export const LIKED_SONGS: Song[] = [
+  {
+    id: "ls1",
+    title: "Blinding Lights",
+    artist: "The Weeknd",
+    album: "After Hours",
+    duration: "3:20",
+    image: "https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls2",
+    title: "در این شب‌های تنهایی",
+    artist: "محسن یگانه",
+    album: "تنهایی",
+    duration: "4:15",
+    image: "https://picsum.photos/seed/persian1/300/300",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls3",
+    title: "Anti-Hero",
+    artist: "Taylor Swift",
+    album: "Midnights",
+    duration: "3:20",
+    image: "https://i.scdn.co/image/ab67616d0000b273bb54dde5369e8c4b45fa8d6c",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls4",
+    title: "خواب",
+    artist: "رضا بهرام",
+    album: "رویا",
+    duration: "4:30",
+    image: "https://picsum.photos/seed/persian3/300/300",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls5",
+    title: "Starboy",
+    artist: "The Weeknd",
+    album: "Starboy",
+    duration: "3:50",
+    image: "https://i.scdn.co/image/ab67616d0000b273a048415db06a5b6fa7ec4e1a",
+    src: "/music.mp3",
+    explicit: true,
+  },
+  {
+    id: "ls6",
+    title: "عشق یعنی تو",
+    artist: "ماکان بند",
+    album: "تو",
+    duration: "4:10",
+    image: "https://picsum.photos/seed/persian5/300/300",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls7",
+    title: "Bad Guy",
+    artist: "Billie Eilish",
+    album: "When We All Fall Asleep",
+    duration: "3:14",
+    image: "https://i.scdn.co/image/ab67616d0000b27350a3147b4edd7701a876c6ce",
+    src: "/music.mp3",
+    explicit: true,
+  },
+  {
+    id: "ls8",
+    title: "یاد تو",
+    artist: "سیروان خسروی",
+    album: "یادها",
+    duration: "3:35",
+    image: "https://picsum.photos/seed/persian6/300/300",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls9",
+    title: "Levitating",
+    artist: "Dua Lipa",
+    album: "Future Nostalgia",
+    duration: "3:23",
+    image: "https://i.scdn.co/image/ab67616d0000b273d4daf28d55fe4197ede848be",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls10",
+    title: "دوست دارم",
+    artist: "علیرضا طلیسچی",
+    album: "عشق",
+    duration: "3:45",
+    image: "https://picsum.photos/seed/persian4/300/300",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls11",
+    title: "Shape of You",
+    artist: "Ed Sheeran",
+    album: "÷ (Divide)",
+    duration: "3:53",
+    image: "https://i.scdn.co/image/ab67616d0000b273ba5db46f4b838ef6027e6f96",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls12",
+    title: "بازم برگرد",
+    artist: "محسن یگانه",
+    album: "برگشت",
+    duration: "3:52",
+    image: "https://picsum.photos/seed/persian2/300/300",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls13",
+    title: "Cruel Summer",
+    artist: "Taylor Swift",
+    album: "Lover",
+    duration: "2:58",
+    image: "https://i.scdn.co/image/ab67616d0000b273e787cffec20aa2a396a61647",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls14",
+    title: "شب‌های تهران",
+    artist: "کیوان",
+    album: "تهران",
+    duration: "3:50",
+    image: "https://picsum.photos/seed/persian8/300/300",
+    src: "/music.mp3",
+    explicit: false,
+  },
+  {
+    id: "ls15",
+    title: "Stay",
+    artist: "The Kid LAROI",
+    album: "F*CK LOVE 3",
+    duration: "2:21",
+    image: "https://i.scdn.co/image/ab67616d0000b273a3a7f38ea2033aa501afd4cf",
+    src: "/music.mp3",
+    explicit: true,
+  },
+];
+
+// ============================================================================
+// Liked Albums Data
+// ============================================================================
+export const LIKED_ALBUMS: LikedAlbum[] = [
+  {
+    id: "la1",
+    title: "After Hours",
+    artist: "The Weeknd",
+    image: "https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36",
+    year: "۱۳۹۹",
+    songsCount: 14,
+  },
+  {
+    id: "la2",
+    title: "تنهایی",
+    artist: "محسن یگانه",
+    image: "https://picsum.photos/seed/album-tanha/400/400",
+    year: "۱۴۰۱",
+    songsCount: 10,
+  },
+  {
+    id: "la3",
+    title: "Midnights",
+    artist: "Taylor Swift",
+    image: "https://i.scdn.co/image/ab67616d0000b273bb54dde5369e8c4b45fa8d6c",
+    year: "۱۴۰۱",
+    songsCount: 13,
+  },
+  {
+    id: "la4",
+    title: "رویا",
+    artist: "رضا بهرام",
+    image: "https://picsum.photos/seed/album-roya/400/400",
+    year: "۱۴۰۰",
+    songsCount: 8,
+  },
+  {
+    id: "la5",
+    title: "Future Nostalgia",
+    artist: "Dua Lipa",
+    image: "https://i.scdn.co/image/ab67616d0000b273d4daf28d55fe4197ede848be",
+    year: "۱۳۹۹",
+    songsCount: 11,
+  },
+  {
+    id: "la6",
+    title: "شب‌های تهران",
+    artist: "سیروان خسروی",
+    image: "https://picsum.photos/seed/tehran-nights/400/400",
+    year: "۱۴۰۱",
+    songsCount: 12,
+  },
+  {
+    id: "la7",
+    title: "When We All Fall Asleep",
+    artist: "Billie Eilish",
+    image: "https://i.scdn.co/image/ab67616d0000b27350a3147b4edd7701a876c6ce",
+    year: "۱۳۹۸",
+    songsCount: 14,
+  },
+  {
+    id: "la8",
+    title: "÷ (Divide)",
+    artist: "Ed Sheeran",
+    image: "https://i.scdn.co/image/ab67616d0000b273ba5db46f4b838ef6027e6f96",
+    year: "۱۳۹۶",
+    songsCount: 16,
+  },
+  {
+    id: "la9",
+    title: "تو",
+    artist: "ماکان بند",
+    image: "https://picsum.photos/seed/album-to/400/400",
+    year: "۱۴۰۲",
+    songsCount: 9,
+  },
+  {
+    id: "la10",
+    title: "Starboy",
+    artist: "The Weeknd",
+    image: "https://i.scdn.co/image/ab67616d0000b273a048415db06a5b6fa7ec4e1a",
+    year: "۱۳۹۵",
+    songsCount: 18,
+  },
+];
+
+// ============================================================================
+// Liked Playlists Data
+// ============================================================================
+export const LIKED_PLAYLISTS: LikedPlaylist[] = [
+  {
+    id: "lp1",
+    title: "برترین‌های امروز",
+    description: "داغ‌ترین آهنگ‌های این لحظه. کاور: Sabrina Carpenter",
+    image: "https://picsum.photos/seed/featured-f1/300/300",
+    gradient: "from-purple-600 via-pink-500 to-orange-400",
+    songsCount: 50,
+    duration: "2hr 45min",
+    followers: "35.2M",
+    isNew: true,
+  },
+  {
+    id: "lp2",
+    title: "آهنگ‌های آرامش‌بخش",
+    description: "با بهترین آهنگ‌های آرامش‌بخش استراحت کن",
+    image: "https://picsum.photos/seed/c1/300/300",
+    gradient: "from-teal-500 to-cyan-700",
+    songsCount: 130,
+    duration: "7hr 20min",
+    followers: "11.3M",
+  },
+  {
+    id: "lp3",
+    title: "میکس روزانه ۱",
+    description: "The Weeknd, Drake, Post Malone",
+    image: "https://picsum.photos/seed/mfy3/300/300",
+    gradient: "from-orange-500 to-red-700",
+    songsCount: 50,
+    duration: "3hr 10min",
+  },
+  {
+    id: "lp4",
+    title: "تمرکز عمیق",
+    description: "آرام باش و تمرکز کن",
+    image: "https://picsum.photos/seed/fc1/300/300",
+    gradient: "from-slate-700 to-slate-900",
+    songsCount: 200,
+    duration: "12hr",
+    followers: "6.2M",
+    isPremium: true,
+  },
+  {
+    id: "lp5",
+    title: "هیولای باشگاه",
+    description: "انرژی بگیر و به جلو حرکت کن",
+    image: "https://picsum.photos/seed/w1/300/300",
+    gradient: "from-red-600 to-orange-700",
+    songsCount: 100,
+    duration: "5hr 30min",
+    followers: "9.4M",
+  },
+  {
+    id: "lp6",
+    title: "پارتی رقص",
+    description: "مهمانی را شروع کن",
+    image: "https://picsum.photos/seed/p2/300/300",
+    gradient: "from-pink-500 to-red-600",
+    songsCount: 100,
+    duration: "5hr 20min",
+    followers: "6.1M",
+    isNew: true,
+  },
+  {
+    id: "lp7",
+    title: "خواب",
+    description: "پیانوی آرام و محیطی",
+    image: "https://picsum.photos/seed/sl1/300/300",
+    gradient: "from-indigo-800 to-slate-900",
+    songsCount: 100,
+    duration: "8hr",
+  },
+  {
+    id: "lp8",
+    title: "جاز ویبس",
+    description: "جاز آرام و پرانرژی",
+    image: "https://picsum.photos/seed/c3/300/300",
+    gradient: "from-amber-600 to-orange-800",
+    songsCount: 150,
+    duration: "8hr 30min",
+    followers: "4.2M",
+  },
+];
+
+// ============================================================================
+// User Playlists Data (Created by user)
+// ============================================================================
+export const USER_PLAYLISTS: UserPlaylist[] = [
+  {
+    id: "up1",
+    title: "آهنگ‌های مورد علاقه",
+    description: "آهنگ‌هایی که بیشتر گوش می‌دم",
+    image: "https://picsum.photos/seed/user-pl1/300/300",
+    gradient: "from-emerald-600 to-teal-700",
+    songsCount: 45,
+    duration: "2hr 30min",
+    isPublic: true,
+    createdAt: "2024-01-15",
+  },
+  {
+    id: "up2",
+    title: "برای رانندگی",
+    description: "آهنگ‌های پرانرژی برای مسیر",
+    image: "https://picsum.photos/seed/user-pl2/300/300",
+    gradient: "from-orange-500 to-red-600",
+    songsCount: 32,
+    duration: "1hr 45min",
+    isPublic: true,
+    createdAt: "2024-02-20",
+  },
+  {
+    id: "up3",
+    title: "شب‌های آرام",
+    description: "موزیک برای استراحت",
+    image: "https://picsum.photos/seed/user-pl3/300/300",
+    gradient: "from-indigo-600 to-purple-700",
+    songsCount: 28,
+    duration: "2hr 10min",
+    isPublic: false,
+    createdAt: "2024-03-10",
+  },
+  {
+    id: "up4",
+    title: "ورزش صبحگاهی",
+    description: "",
+    image: "https://picsum.photos/seed/user-pl4/300/300",
+    gradient: "from-green-500 to-emerald-600",
+    songsCount: 20,
+    duration: "1hr 15min",
+    isPublic: true,
+    createdAt: "2024-04-05",
+  },
+  {
+    id: "up5",
+    title: "یادها",
+    description: "آهنگ‌های خاطره انگیز",
+    image: "",
+    gradient: "from-rose-500 to-pink-600",
+    songsCount: 15,
+    duration: "55min",
+    isPublic: false,
+    createdAt: "2024-05-12",
+  },
+  {
+    id: "up6",
+    title: "کافه",
+    description: "موزیک ملایم برای کار",
+    image: "https://picsum.photos/seed/user-pl6/300/300",
+    gradient: "from-amber-500 to-yellow-600",
+    songsCount: 50,
+    duration: "3hr 20min",
+    isPublic: true,
+    createdAt: "2024-06-01",
+  },
+];

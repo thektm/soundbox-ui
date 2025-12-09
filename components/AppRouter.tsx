@@ -12,6 +12,16 @@ import Profile from "./Profile";
 import PlaylistDetail from "./PlaylistDetail";
 import ArtistDetail from "./ArtistDetail";
 import AlbumDetail from "./AlbumDetail";
+import SongDetail from "./SongDetail";
+import FollowersFollowing from "./FollowersFollowing";
+import LikedSongs from "./LikedSongs";
+import LikedAlbums from "./LikedAlbums";
+import LikedPlaylists from "./LikedPlaylists";
+import MyPlaylists from "./MyPlaylists";
+import Settings from "./Settings";
+import UpgradePlans from "./UpgradePlans";
+import PaymentProcessing from "./PaymentProcessing";
+import PaymentSuccess from "./PaymentSuccess";
 
 const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
@@ -34,12 +44,16 @@ const AppRouter: React.FC = () => {
     switch (currentPage) {
       case "home":
         return <Home />;
+      case "song-detail":
+        return <SongDetail id={currentParams?.id} />;
       case "search":
         return <Search />;
       case "playlists":
         return <Playlists />;
       case "profile":
         return <Profile />;
+      case "settings":
+        return <Settings />;
       case "playlist-detail":
         return <PlaylistDetail slug={currentParams?.slug} />;
       case "artist-detail":
@@ -51,6 +65,24 @@ const AppRouter: React.FC = () => {
             album={currentParams?.album}
           />
         );
+      case "followers-following":
+        return (
+          <FollowersFollowing initialTab={currentParams?.tab || "followers"} />
+        );
+      case "liked-songs":
+        return <LikedSongs />;
+      case "liked-albums":
+        return <LikedAlbums />;
+      case "liked-playlists":
+        return <LikedPlaylists />;
+      case "my-playlists":
+        return <MyPlaylists />;
+      case "upgrade-plans":
+        return <UpgradePlans />;
+      case "payment-processing":
+        return <PaymentProcessing />;
+      case "payment-success":
+        return <PaymentSuccess />;
       default:
         return <Home />;
     }

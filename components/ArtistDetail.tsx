@@ -416,7 +416,7 @@ interface ArtistDetailProps {
 }
 
 export default function ArtistDetail({ slug }: ArtistDetailProps) {
-  const { setCurrentPage } = useNavigation();
+  const { goBack } = useNavigation();
 
   const scrollY = useScrollY();
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -532,7 +532,7 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
         <header className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setCurrentPage("home")}
+              onClick={goBack}
               className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
             >
               <svg
@@ -574,7 +574,7 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
           }}
         >
           <button
-            onClick={() => setCurrentPage("home")}
+            onClick={goBack}
             className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition"
           >
             <Icon name="back" size={24} className="text-white" />
@@ -595,7 +595,7 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
 
         {/* Mobile Back */}
         <button
-          onClick={() => setCurrentPage("home")}
+          onClick={goBack}
           className="fixed top-4 left-4 w-10 h-10 bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
           style={{
             opacity: showHeader ? 0 : 1,

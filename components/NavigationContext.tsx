@@ -10,13 +10,18 @@ import React, {
 interface NavigationContextType {
   currentPage: string;
   currentParams: any;
+  previousPage: string | null;
   setCurrentPage: (page: string) => void;
   setCurrentParams: (params: any) => void;
   navigateTo: (page: string, params?: any) => void;
+  goBack: () => void;
   visibilityMap: Record<string, boolean>;
   setComponentVisibility: (component: string, visible: boolean) => void;
   registerScrollContainer: (element: HTMLElement | null) => void;
   restoreScroll: () => void;
+  scrollToTop: () => void;
+  isResolving: boolean;
+  setIsResolving: (v: boolean) => void;
 }
 
 const NavigationContext = createContext<NavigationContextType | undefined>(
@@ -28,10 +33,12 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [currentPage, setCurrentPage] = useState<string>("home");
   const [currentParams, setCurrentParams] = useState<any>(null);
+  const [previousPage, setPreviousPage] = useState<string | null>(null);
   const [visibilityMap, setVisibilityMap] = useState<Record<string, boolean>>({
     "bottom-navbar": true,
     sidebar: true,
   });
+  const [isResolving, setIsResolving] = useState<boolean>(false);
 
   const scrollPositions = useRef<Record<string, number>>({});
   const scrollContainerRef = useRef<HTMLElement | null>(null);
@@ -63,6 +70,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
       const key = getScrollKey(currentPage, currentParams);
       scrollPositions.current[key] = scrollContainerRef.current.scrollTop;
     }
+    setPreviousPage(currentPage);
     setCurrentPage(page);
     setCurrentParams(params || null);
   };
@@ -80,6 +88,18 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [currentPage, currentParams]);
 
+  const scrollToTop = useCallback(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, []);
+
+  const goBack = useCallback(() => {
+    if (previousPage) {
+      navigateTo(previousPage);
+    }
+  }, [previousPage, navigateTo]);
+
   const setComponentVisibility = (component: string, visible: boolean) => {
     setVisibilityMap((prev) => ({ ...prev, [component]: visible }));
   };
@@ -89,13 +109,18 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
       value={{
         currentPage,
         currentParams,
+        previousPage,
         setCurrentPage,
         setCurrentParams,
         navigateTo,
+        goBack,
         visibilityMap,
         setComponentVisibility,
         registerScrollContainer,
         restoreScroll,
+        scrollToTop,
+        isResolving,
+        setIsResolving,
       }}
     >
       {children}

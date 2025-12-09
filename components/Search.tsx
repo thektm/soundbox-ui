@@ -314,10 +314,22 @@ const GenreCard = memo(
       style={{ backgroundColor: genre.color }}
       onClick={onClick}
     >
-      <div className="absolute inset-0 p-4 flex flex-col">
-        <span className="font-bold text-xl text-white">{genre.name}</span>
+      <Image
+        src={`https://picsum.photos/seed/${genre.id}/200/200`}
+        alt=""
+        fill
+        className="object-cover opacity-40 mix-blend-multiply"
+        onError={(e) => {
+          // Fallback to just color if image fails
+          e.currentTarget.style.display = "none";
+        }}
+      />
+      <div className="absolute inset-0 p-4 flex flex-col justify-end">
+        <span className="font-bold text-xl text-white drop-shadow-lg">
+          {genre.name}
+        </span>
       </div>
-      <div className="absolute bottom-0 right-0 text-6xl transform rotate-25 translate-x-2 translate-y-2 group-hover:scale-110 transition-transform">
+      <div className="absolute inset-0 flex items-center justify-center text-6xl transform rotate-25 group-hover:scale-110 transition-transform drop-shadow-lg">
         {genre.image}
       </div>
     </div>

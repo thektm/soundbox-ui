@@ -199,7 +199,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   slug,
   album: albumProp,
 }) => {
-  const { setCurrentPage } = useNavigation();
+  const { goBack } = useNavigation();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [currentSongIndex, setCurrentSongIndex] = useState<number | null>(null);
@@ -243,7 +243,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
               متاسفانه آلبوم مورد نظر شما یافت نشد.
             </p>
             <button
-              onClick={() => setCurrentPage("home")}
+              onClick={goBack}
               className="inline-flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-400 text-black font-semibold rounded-full transition-colors"
             >
               <Icon name="arrowLeft" className="w-5 h-5" />
@@ -268,7 +268,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
       >
         <div className="absolute top-4 left-4 z-20">
           <button
-            onClick={() => setCurrentPage("home")}
+            onClick={goBack}
             className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-all duration-300 hover:scale-105"
           >
             <Icon name="arrowLeft" className="w-6 h-6 text-white" />
