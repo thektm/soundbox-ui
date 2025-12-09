@@ -7,6 +7,7 @@ export default function Document() {
       <body className="antialiased">
         <Main />
         <NextScript />
+        <div id="music-player-root"></div>
       </body>
     </Html>
   );

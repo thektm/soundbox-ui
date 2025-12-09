@@ -1,14 +1,41 @@
 @import "tailwindcss";
 
+/* Vazir font faces (stored in `public/`) */
+@font-face {
+  font-family: 'Vazir';
+  src: url('/vazir.ttf') format('truetype');
+ 
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazir';
+  src: url('/vazir-semibold.ttf') format('truetype');
+  
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazir';
+  src: url('/vazir-bold.ttf') format('truetype');
+  
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Force dark theme by default so all pages render with dark background
+   regardless of the device's `prefers-color-scheme` setting. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0a0a; /* dark background */
+  --foreground: #ededed; /* light foreground */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: 'Vazir', var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -22,5 +49,60 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Vazir', Arial, Helvetica, sans-serif;
+}
+
+/* Mobile viewport height fix for dynamic browser UI */
+:root {
+  --vh: 1vh;
+}
+
+/* Prevent overscroll and fix mobile viewport */
+html {
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
+  height: 100%;
+}
+
+/* Fix mobile viewport to use actual viewport height */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari specific */
+  html {
+    height: -webkit-fill-available;
+  }
+  body {
+    min-height: -webkit-fill-available;
+  }
+}
+
+/* Prevent pull-to-refresh and overscroll */
+body {
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* Utility to hide native scrollbars while keeping scrolling functional */
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Music Player Playing Bars Animation */
+@keyframes playing-bar {
+  0%, 100% {
+    height: 20%;
+  }
+  50% {
+    height: 100%;
+  }
+}
+
+.playing-bar {
+  animation: playing-bar 0.8s ease-in-out infinite;
 }
