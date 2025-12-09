@@ -69,7 +69,9 @@ export function usePlayer() {
 }
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
-  const FALLBACK_SRC = "/api/audio/music";
+  const DEFAULT_REMOTE =
+    "https://dls.musics-fa.com/tagdl/1401/Mohsen%20Yegane%20-%20Nadaramet%20(320).mp3";
+  const FALLBACK_SRC = `/api/audio-proxy?url=${encodeURIComponent(DEFAULT_REMOTE)}`;
   const [queue, setQueueState] = useState<Track[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -192,7 +194,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setIsVisible(true);
       setProgress(0);
 
-      const initialSrc = track.src || FALLBACK_SRC;
+      // Prefer an external https URL; if track.src is not an http(s) URL
+      // always fall back to the configured remote file so we never use local public files.
+      let initialSrc =
+        track.src && /^https?:\/\//i.test(track.src)
+          ? track.src
+          : DEFAULT_REMOTE;
+
+      // Route the chosen remote URL through our proxy so Range requests work same-origin
+      initialSrc = `/api/audio-proxy?url=${encodeURIComponent(initialSrc)}`;
 
       try {
         audioRef.current.src = initialSrc;

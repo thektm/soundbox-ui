@@ -79,7 +79,7 @@ export const MOCK_SONGS: Song[] = [
     album: "After Hours",
     duration: "3:20",
     image: "https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -89,7 +89,7 @@ export const MOCK_SONGS: Song[] = [
     album: "Starboy",
     duration: "3:50",
     image: "https://i.scdn.co/image/ab67616d0000b273a048415db06a5b6fa7ec4e1a",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: true,
   },
   {
@@ -99,7 +99,7 @@ export const MOCK_SONGS: Song[] = [
     album: "÷ (Divide)",
     duration: "3:53",
     image: "https://i.scdn.co/image/ab67616d0000b273ba5db46f4b838ef6027e6f96",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -109,7 +109,7 @@ export const MOCK_SONGS: Song[] = [
     album: "21",
     duration: "4:45",
     image: "https://i.scdn.co/image/ab67616d0000b2732118bf9b198b05a95ded6300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -119,7 +119,7 @@ export const MOCK_SONGS: Song[] = [
     album: "When We All Fall Asleep",
     duration: "3:14",
     image: "https://i.scdn.co/image/ab67616d0000b27350a3147b4edd7701a876c6ce",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: true,
   },
   {
@@ -129,7 +129,7 @@ export const MOCK_SONGS: Song[] = [
     album: "Uptown Special",
     duration: "4:30",
     image: "https://i.scdn.co/image/ab67616d0000b273e419ccba0baa8bd3f3d7abf2",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: true,
   },
   {
@@ -139,7 +139,7 @@ export const MOCK_SONGS: Song[] = [
     album: "The Kids Are Coming",
     duration: "3:29",
     image: "https://i.scdn.co/image/ab67616d0000b273c6f7af36ecdc3ed6e0a1f169",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -149,7 +149,7 @@ export const MOCK_SONGS: Song[] = [
     album: "Evolve",
     duration: "3:24",
     image: "https://i.scdn.co/image/ab67616d0000b2750469efa6616134d58f6d407f",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -159,7 +159,7 @@ export const MOCK_SONGS: Song[] = [
     album: "F*CK LOVE 3",
     duration: "2:21",
     image: "https://i.scdn.co/image/ab67616d0000b273a3a7f38ea2033aa501afd4cf",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: true,
   },
   {
@@ -169,7 +169,7 @@ export const MOCK_SONGS: Song[] = [
     album: "Future Nostalgia",
     duration: "3:23",
     image: "https://i.scdn.co/image/ab67616d0000b273d4daf28d55fe4197ede848be",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -179,7 +179,7 @@ export const MOCK_SONGS: Song[] = [
     album: "Midnights",
     duration: "3:20",
     image: "https://i.scdn.co/image/ab67616d0000b273bb54dde5369e8c4b45fa8d6c",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -189,7 +189,7 @@ export const MOCK_SONGS: Song[] = [
     album: "Lover",
     duration: "2:58",
     image: "https://i.scdn.co/image/ab67616d0000b273e787cffec20aa2a396a61647",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   // Persian songs
@@ -200,7 +200,7 @@ export const MOCK_SONGS: Song[] = [
     album: "تنهایی",
     duration: "4:15",
     image: "https://picsum.photos/seed/persian1/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -210,7 +210,7 @@ export const MOCK_SONGS: Song[] = [
     album: "برگشت",
     duration: "3:52",
     image: "https://picsum.photos/seed/persian2/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -220,7 +220,7 @@ export const MOCK_SONGS: Song[] = [
     album: "رویا",
     duration: "4:30",
     image: "https://picsum.photos/seed/persian3/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -230,7 +230,7 @@ export const MOCK_SONGS: Song[] = [
     album: "عشق",
     duration: "3:45",
     image: "https://picsum.photos/seed/persian4/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -240,7 +240,7 @@ export const MOCK_SONGS: Song[] = [
     album: "تو",
     duration: "4:10",
     image: "https://picsum.photos/seed/persian5/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -250,7 +250,7 @@ export const MOCK_SONGS: Song[] = [
     album: "یادها",
     duration: "3:35",
     image: "https://picsum.photos/seed/persian6/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -260,7 +260,7 @@ export const MOCK_SONGS: Song[] = [
     album: "احساسات",
     duration: "4:05",
     image: "https://picsum.photos/seed/persian7/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -270,7 +270,7 @@ export const MOCK_SONGS: Song[] = [
     album: "تهران",
     duration: "3:50",
     image: "https://picsum.photos/seed/persian8/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
 ];
@@ -1142,7 +1142,7 @@ export const LIKED_SONGS: Song[] = [
     album: "After Hours",
     duration: "3:20",
     image: "https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1152,7 +1152,7 @@ export const LIKED_SONGS: Song[] = [
     album: "تنهایی",
     duration: "4:15",
     image: "https://picsum.photos/seed/persian1/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1162,7 +1162,7 @@ export const LIKED_SONGS: Song[] = [
     album: "Midnights",
     duration: "3:20",
     image: "https://i.scdn.co/image/ab67616d0000b273bb54dde5369e8c4b45fa8d6c",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1172,7 +1172,7 @@ export const LIKED_SONGS: Song[] = [
     album: "رویا",
     duration: "4:30",
     image: "https://picsum.photos/seed/persian3/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1182,7 +1182,7 @@ export const LIKED_SONGS: Song[] = [
     album: "Starboy",
     duration: "3:50",
     image: "https://i.scdn.co/image/ab67616d0000b273a048415db06a5b6fa7ec4e1a",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: true,
   },
   {
@@ -1192,7 +1192,7 @@ export const LIKED_SONGS: Song[] = [
     album: "تو",
     duration: "4:10",
     image: "https://picsum.photos/seed/persian5/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1202,7 +1202,7 @@ export const LIKED_SONGS: Song[] = [
     album: "When We All Fall Asleep",
     duration: "3:14",
     image: "https://i.scdn.co/image/ab67616d0000b27350a3147b4edd7701a876c6ce",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: true,
   },
   {
@@ -1212,7 +1212,7 @@ export const LIKED_SONGS: Song[] = [
     album: "یادها",
     duration: "3:35",
     image: "https://picsum.photos/seed/persian6/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1222,7 +1222,7 @@ export const LIKED_SONGS: Song[] = [
     album: "Future Nostalgia",
     duration: "3:23",
     image: "https://i.scdn.co/image/ab67616d0000b273d4daf28d55fe4197ede848be",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1232,7 +1232,7 @@ export const LIKED_SONGS: Song[] = [
     album: "عشق",
     duration: "3:45",
     image: "https://picsum.photos/seed/persian4/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1242,7 +1242,7 @@ export const LIKED_SONGS: Song[] = [
     album: "÷ (Divide)",
     duration: "3:53",
     image: "https://i.scdn.co/image/ab67616d0000b273ba5db46f4b838ef6027e6f96",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1252,7 +1252,7 @@ export const LIKED_SONGS: Song[] = [
     album: "برگشت",
     duration: "3:52",
     image: "https://picsum.photos/seed/persian2/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1262,7 +1262,7 @@ export const LIKED_SONGS: Song[] = [
     album: "Lover",
     duration: "2:58",
     image: "https://i.scdn.co/image/ab67616d0000b273e787cffec20aa2a396a61647",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1272,7 +1272,7 @@ export const LIKED_SONGS: Song[] = [
     album: "تهران",
     duration: "3:50",
     image: "https://picsum.photos/seed/persian8/300/300",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: false,
   },
   {
@@ -1282,7 +1282,7 @@ export const LIKED_SONGS: Song[] = [
     album: "F*CK LOVE 3",
     duration: "2:21",
     image: "https://i.scdn.co/image/ab67616d0000b273a3a7f38ea2033aa501afd4cf",
-    src: "/api/audio/music",
+    src: "/music.mp3",
     explicit: true,
   },
 ];
