@@ -8,9 +8,12 @@ import React, {
   useMemo,
   memo,
 } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { MOCK_ARTISTS, MOCK_SONGS, Song, createSlug } from "./mockData";
 import { useNavigation } from "./NavigationContext";
+
+const BILLIE_BIO_FA = `بیلی آیلیش پایرت بیرد اوکانل (زادهٔ ۱۸ دسامبر ۲۰۰۱) خواننده و ترانه‌نویس آمریکایی است. او اولین بار در سال ۲۰۱۵ با تک‌آهنگ «چشم‌های اقیانوسی» توجه‌ها را به خود جلب کرد که پس از انتشار در ساوندکلاود، توسط شرکت‌های دارک‌روم و اینترسکوپ رکوردز منتشر شد. این ترانه توسط برادرش فینیس اوکانل نوشته و تهیه شده‌است که بیلی در موسیقی و برنامه‌های زنده با او همکاری می‌کند. اولین ئی‌پی او، به من لبخند نزن (۲۰۱۷) در میان ۱۵ رتبه برتر جدول‌های فروش ایالات متحده، بریتانیا، کانادا و استرالیا قرار گرفت. اولین آلبوم استودیویی او، وقتی همه می‌خوابیم، کجا می‌ریم؟ (۲۰۱۹) به رتبه اول بیلبورد ۲۰۰ ایالات متحده رسید و به بهترین عملکرد آلبوم در سال ۲۰۱۹ تبدیل شد. او جوان‌ترین فرد و دومین نفری است که موفق به کسب چهار جایزه اصلی گرمی (بهترین هنرمند جدید، ضبط سال، ترانه سال و آلبوم سال) در یک سال شده است. سبک موسیقی او پاپ، الکتروپاپ و ایندی پاپ توصیف شده است. او از هنرمندانی چون لانا دل ری، تایلر، د کریتور و چایلدیش گامبینو تأثیر گرفته است. صدای او سوپرانو است و اغلب با سبک آوازخوانی زمزمه‌وار شناخته می‌شود. او در لس آنجلس بزرگ شده و در خانه آموزش دیده است.`;
 
 // ============== SVG ICON COMPONENT ==============
 type IconName =
@@ -424,6 +427,7 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [following, setFollowing] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [isBioOpen, setIsBioOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -780,16 +784,27 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
         {/* About */}
         <section className="px-6 py-8">
           <h2 className="text-[22px] font-bold mb-5">درباره</h2>
-          <div className="relative rounded-xl overflow-hidden h-[300px]">
+          <div
+            className="relative rounded-xl overflow-hidden h-[300px] cursor-pointer"
+            role="button"
+            aria-label={`Open ${artist.name} bio`}
+            tabIndex={0}
+            onClick={() => setIsBioOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") setIsBioOpen(true);
+            }}
+          >
             <LazyImg
               src={artist.image}
               alt={artist.name}
               className="w-full h-full"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent flex flex-col justify-end p-6">
-              <p className="text-sm text-white/90 leading-relaxed mb-4">
-                {artist.name} یکی از محبوب‌ترین خوانندگان ایرانی است که با سبک
-                منحصر به فرد خود توانسته میلیون‌ها شنونده را جذب کند.
+              <p className="text-base text-white/90 leading-relaxed mb-4 line-clamp-3 font-medium drop-shadow-md">
+                {artist.name.toLowerCase().includes("billie") || artist.name.includes("بیلی")
+                  ? BILLIE_BIO_FA
+                  : (artist as any).bio ||
+                    `${artist.name} یکی از محبوب‌ترین خوانندگان است که با سبک منحصر به فرد خود توانسته میلیون‌ها شنونده را جذب کند.`}
               </p>
               <div className="flex flex-col">
                 <span className="text-2xl font-bold">
@@ -820,6 +835,13 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
 
         <div className="h-[100px]" />
       </div>
+
+      {/* Artist Bio Modal */}
+      <ArtistBioModal
+        artist={artist}
+        open={isBioOpen}
+        onClose={() => setIsBioOpen(false)}
+      />
 
       <style jsx global>{`
         @keyframes equalizer {
@@ -885,3 +907,185 @@ const SongCard = ({
     <p className="text-xs text-neutral-400 truncate">{artist}</p>
   </div>
 );
+
+// ============================================================================
+// ARTIST BIO MODAL
+// ============================================================================
+const SocialIcon = ({
+  type,
+  className = "w-9 h-9",
+}: {
+  type: string;
+  className?: string;
+}) => {
+  const common = { className } as any;
+  switch (type) {
+    case "instagram":
+      return (
+        <svg
+          {...common}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <rect x="3" y="3" width="18" height="18" rx="5" />
+          <path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" />
+          <path d="M17.5 6.5h.01" />
+        </svg>
+      );
+    case "facebook":
+      return (
+        <svg {...common} viewBox="0 0 24 24" fill="currentColor">
+          <path d="M22 12a10 10 0 10-11.5 9.9v-7h-2.2v-2.9h2.2V9.1c0-2.2 1.3-3.4 3.3-3.4.96 0 1.97.17 1.97.17v2.2h-1.12c-1.1 0-1.44.68-1.44 1.37v1.66h2.45l-.39 2.9h-2.06v7A10 10 0 0022 12z" />
+        </svg>
+      );
+    case "twitter":
+      return (
+        <svg
+          {...common}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path d="M23 3a10.9 10.9 0 01-3.14 1.53A4.48 4.48 0 0012 7v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z" />
+        </svg>
+      );
+    case "telegram":
+      return (
+        <svg
+          {...common}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path d="M22 2L11 13" />
+          <path d="M22 2l-7 20-4-8-6-3 17-9z" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+};
+
+const ArtistBioModal = memo(function ArtistBioModal({
+  artist,
+  open,
+  onClose,
+}: {
+  artist: any;
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open || !artist) return null;
+
+  const slug =
+    typeof createSlug === "function"
+      ? createSlug(artist.name)
+      : artist.name.replace(/\s+/g, "-").toLowerCase();
+
+  const isBillie =
+    artist.name.toLowerCase().includes("billie") ||
+    artist.name.includes("بیلی");
+  const bioText = isBillie
+    ? BILLIE_BIO_FA
+    : (artist as any).bio ||
+      `${artist.name} یک هنرمند محبوب است که بیوگرافی او در اینجا نمایش داده می‌شود.`;
+
+  const socials = {
+    instagram: `https://instagram.com/${slug}`,
+    facebook: `https://facebook.com/${slug}`,
+    twitter: `https://twitter.com/${slug}`,
+    telegram: `https://t.me/${slug}`,
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-6"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      <div className="relative w-full max-w-2xl bg-neutral-900 rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex flex-col max-h-[85vh]">
+        {/* Banner Section with Text Overlay */}
+        <div className="relative h-[400px] flex-shrink-0">
+          <img
+            src={artist.image}
+            alt={`${artist.name} banner`}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-neutral-900 via-black/60 to-black/30" />
+
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-4 top-4 w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition z-20"
+          >
+            <svg
+              className="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Scrollable Bio Text Overlay */}
+          <div className="absolute inset-x-0 bottom-0 top-16 px-8 pb-8 overflow-y-auto custom-scrollbar z-10">
+            <h2 className="text-3xl font-bold mb-4 drop-shadow-lg">
+              {artist.name}
+            </h2>
+            <p
+              className="text-lg leading-relaxed text-white/90 font-medium drop-shadow-md text-justify"
+              dir="rtl"
+            >
+              {bioText}
+            </p>
+          </div>
+        </div>
+
+        {/* Footer Section: Avatar & Socials */}
+        <div className="bg-neutral-900 p-6 flex items-center justify-between border-t border-white/5">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/10 shadow-lg">
+              <img
+                src={artist.image}
+                alt={artist.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="hidden sm:block text-right">
+              <div className="text-sm text-white/50">دنبال کنید در</div>
+              <div className="font-semibold">شبکه‌های اجتماعی</div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {Object.entries(socials).map(([key, url]) => (
+              <a
+                key={key}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition hover:scale-110 hover:text-green-400"
+                title={key}
+              >
+                <SocialIcon type={key} className="w-6 h-6" />
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+});
+ArtistBioModal.displayName = "ArtistBioModal";
