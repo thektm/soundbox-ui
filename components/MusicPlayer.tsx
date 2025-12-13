@@ -14,6 +14,7 @@ import {
 } from "framer-motion";
 import QueueSheet from "./QueueSheet";
 import { MOCK_ARTISTS } from "./mockData";
+import { Sparkles, User, UserRoundCog } from "lucide-react";
 
 // ============================================================================
 // ICONS (Inline SVGs)
@@ -234,6 +235,43 @@ const formatTime = (s: number): string => {
 };
 
 const SWIPE_THRESHOLD = 80;
+
+// ============================================================================
+// DESKTOP COLLAPSED: PROFILE PILL BUTTON
+// ============================================================================
+const ProfilePillButton = memo<{ onClick: () => void }>(
+  function ProfilePillButton({ onClick }) {
+    return (
+      <div className="relative w-10 h-10 overflow-visible">
+        <button
+          type="button"
+          onClick={onClick}
+          className="group absolute right-0 top-0 h-10 w-10 hover:w-[115px] will-change-auto transition-[width] duration-300 ease-out rounded-full bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 backdrop-blur-md text-zinc-300 hover:text-white shadow-[0_10px_30px_-15px_rgba(0,0,0,0.8)]"
+          aria-label="پروفایل"
+          title="پروفایل"
+          style={{ willChange: "width" }}
+        >
+          <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-linear-to-r from-emerald-500/10 via-white/5 to-white/0" />
+
+          <span className="relative h-full w-full flex items-center justify-center group-hover:justify-end px-0 gap-0 group-hover:px-3 group-hover:gap-2">
+            <span className="inline-flex items-center  overflow-hidden max-w-0 group-hover:max-w-[70px] transition-[max-width] duration-300 ease-out">
+              <span className="text-sm font-semibold tracking-tight whitespace-nowrap">
+                پروفایل
+              </span>
+            </span>
+
+            <span className="w-px h-4 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+            <span className="w-7 h-7      flex items-center justify-center shrink-0">
+              <User className="w-[18px] h-[18px]" />
+            </span>
+          </span>
+        </button>
+      </div>
+    );
+  }
+);
+ProfilePillButton.displayName = "ProfilePillButton";
 
 // ============================================================================
 // PROGRESS BAR
@@ -575,6 +613,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
   const [dragX, setDragX] = useState(0);
   const [isDesktop, setIsDesktop] = useState(false);
   const [hasDragged, setHasDragged] = useState(false);
+  const { navigateTo } = useNavigation();
   const containerRef = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const width = containerRef.current?.offsetWidth || 350;
@@ -718,7 +757,14 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
           <div className="flex items-center gap-3 w-[30%] min-w-0">
             <div
               className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={onExpand}
+              onClick={() => {
+                if (isDesktop) {
+                  // navigate to song detail on desktop
+                  navigateTo("song-detail", { id: currentTrack.id });
+                } else {
+                  onExpand();
+                }
+              }}
             >
               <img
                 src={currentTrack.image}
@@ -729,11 +775,31 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
             <div className="min-w-0 flex-1">
               <p
                 className="text-sm font-medium text-white truncate cursor-pointer hover:underline"
-                onClick={onExpand}
+                onClick={() => {
+                  if (isDesktop) {
+                    navigateTo("song-detail", { id: currentTrack.id });
+                  } else {
+                    onExpand();
+                  }
+                }}
               >
                 {currentTrack.title}
               </p>
-              <p className="text-xs text-zinc-400 truncate">
+              <p
+                className="text-xs text-zinc-400 truncate cursor-pointer hover:underline"
+                onClick={() => {
+                  if (isDesktop) {
+                    const artist = MOCK_ARTISTS.find(
+                      (a) => a.name === currentTrack.artist
+                    );
+                    if (artist) {
+                      navigateTo("artist-detail", { slug: artist.id });
+                    }
+                  } else {
+                    onExpand();
+                  }
+                }}
+              >
                 {currentTrack.artist}
               </p>
             </div>
@@ -825,6 +891,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
           </div>
 
           <div className="flex items-center justify-end gap-2 w-[30%]">
+            <ProfilePillButton onClick={() => navigateTo("profile")} />
             <button
               className="p-2 text-zinc-400 hover:text-white transition-colors"
               onClick={onExpand}
@@ -883,6 +950,13 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
           onCollapse();
           navigateTo("artist-detail", { slug: artist.id });
         }
+      }
+    }, [currentTrack, navigateTo, onCollapse]);
+
+    const handleTitleClick = useCallback(() => {
+      if (currentTrack) {
+        onCollapse();
+        navigateTo("song-detail", { id: currentTrack.id });
       }
     }, [currentTrack, navigateTo, onCollapse]);
 
@@ -947,7 +1021,6 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                       className="w-full h-full object-cover"
                     />
                   </div>
-                 
                 </div>
 
                 {/* Track Info & Controls */}
@@ -959,9 +1032,12 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                         Now Playing
                       </span>
                     </div>
-                    <h1 className="text-4xl xl:text-5xl font-bold text-white tracking-tight leading-tight">
+                    <button
+                      onClick={handleTitleClick}
+                      className="text-4xl xl:text-5xl font-bold text-white tracking-tight leading-tight text-left hover:underline"
+                    >
                       {currentTrack.title}
-                    </h1>
+                    </button>
                     <button
                       onClick={handleArtistClick}
                       className="text-xl text-neutral-300 hover:text-white transition-colors hover:underline decoration-2 underline-offset-4"

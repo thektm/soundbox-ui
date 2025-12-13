@@ -651,12 +651,12 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   return (
     <div
       ref={containerRef}
-      className="min-h-screen bg-neutral-950 text-white pb-28"
+      className="relative min-h-screen bg-neutral-950 text-white pb-28"
       dir="rtl"
       onContextMenu={handleContextMenu}
     >
       <div
-        className="fixed inset-0 transition-colors duration-700"
+        className="absolute inset-0 transition-colors duration-700 -z-10"
         style={{
           background: `linear-gradient(to bottom, rgb(${dominantColor}) 0%, rgb(18, 18, 18) 50%)`,
         }}

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import Home from "./home";
@@ -9,6 +9,7 @@ import ForgotPassword from "./ForgotPassword";
 import Search from "./Search";
 import Playlists from "./Playlists";
 import Profile from "./Profile";
+import DesktopProfile from "./DesktopProfile";
 import PlaylistDetail from "./PlaylistDetail";
 import ArtistDetail from "./ArtistDetail";
 import AlbumDetail from "./AlbumDetail";
@@ -26,6 +27,17 @@ import PaymentSuccess from "./PaymentSuccess";
 const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
   const { isLoggedIn } = useAuth();
+
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    checkDesktop();
+    window.addEventListener("resize", checkDesktop);
+    return () => window.removeEventListener("resize", checkDesktop);
+  }, []);
 
   if (!isLoggedIn) {
     switch (currentPage) {
@@ -51,7 +63,7 @@ const AppRouter: React.FC = () => {
       case "playlists":
         return <Playlists />;
       case "profile":
-        return <Profile />;
+        return isDesktop ? <DesktopProfile /> : <Profile />;
       case "settings":
         return <Settings />;
       case "playlist-detail":

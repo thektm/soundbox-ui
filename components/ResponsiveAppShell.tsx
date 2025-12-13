@@ -53,6 +53,8 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
             minHeight: "calc(var(--vh, 1vh) * 100)",
             maxHeight: "calc(var(--vh, 1vh) * 100)",
             position: "relative",
+            overscrollBehavior: "contain",
+            willChange: "scroll-position",
           }}
         >
           {children}
@@ -80,10 +82,15 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
               ? "md:m-2 md:mr-0 md:bg-linear-to-b md:from-zinc-900 md:via-zinc-900/95 md:to-black md:rounded-lg"
               : ""
           }`}
+          style={{ contain: "layout style", overscrollBehavior: "contain" }}
         >
           <div
             className="flex-1 md:overflow-y-auto"
             ref={registerScrollContainer}
+            style={{
+              overscrollBehavior: "contain",
+              willChange: "scroll-position",
+            }}
           >
             {children}
           </div>

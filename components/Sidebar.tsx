@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, memo, useMemo } from "react";
 import { useNavigation } from "./NavigationContext";
+import { createSlug, decodeSlug, getAllPlaylists } from "./mockData";
 
 // ============================================================================
 // ICONS - Spotify-style icons
@@ -520,7 +521,20 @@ function Sidebar() {
 
   // Filter library items
   const filteredLibraryItems = useMemo(() => {
-    let items = mockLibraryItems;
+    // Build canonical playlist items from mockData so sidebar uses the same source
+    const canonicalPlaylists: PlaylistItem[] = getAllPlaylists().map((p) => ({
+      id: p.id,
+      name: p.title,
+      type: "playlist",
+      image: p.image,
+      owner: p.followers || undefined,
+      pinned: p.isNew || false,
+    }));
+
+    // Keep non-playlist demo items from mockLibraryItems (artists/albums)
+    const otherItems = mockLibraryItems.filter((it) => it.type !== "playlist");
+
+    let items: PlaylistItem[] = [...canonicalPlaylists, ...otherItems];
 
     // Apply type filter
     if (libraryFilter !== "all") {
@@ -528,7 +542,7 @@ function Sidebar() {
         playlists: "playlist",
         artists: "artist",
         albums: "album",
-      };
+      } as const;
       items = items.filter((item) => item.type === typeMap[libraryFilter]);
     }
 
@@ -740,14 +754,62 @@ function Sidebar() {
                 isCollapsed={isCollapsed}
                 viewMode={viewMode}
                 onClick={() => {
+                  // Navigate to the correct detail page based on item type.
                   if (item.type === "artist") {
-                    navigateTo("search"); // fallback
-                  } else if (
-                    item.type === "playlist" ||
-                    item.type === "album"
-                  ) {
-                    navigateTo("playlists");
+                    navigateTo("artist-detail", {
+                      slug: createSlug(item.name),
+                    });
+                    return;
                   }
+
+                  if (item.type === "album") {
+                    navigateTo("album-detail", {
+                      slug: createSlug(item.name),
+                      album: item,
+                    });
+                    return;
+                  }
+
+                  if (item.type === "playlist") {
+                    // Try to find a matching playlist from the canonical mock data
+                    const all = getAllPlaylists();
+                    const targetSlug = createSlug(item.name);
+                    const found = all.find((p) => {
+                      try {
+                        const s1 = decodeSlug(
+                          createSlug(p.title)
+                        ).toLowerCase();
+                        const s2 = decodeSlug(targetSlug).toLowerCase();
+                        if (s1 === s2) return true;
+                        // fallback: compare normalized titles
+                        const normP = p.title
+                          .toLowerCase()
+                          .replace(/\s+/g, " ")
+                          .trim();
+                        const normItem = item.name
+                          .toLowerCase()
+                          .replace(/\s+/g, " ")
+                          .trim();
+                        return normP === normItem;
+                      } catch (e) {
+                        return false;
+                      }
+                    });
+
+                    if (found) {
+                      navigateTo("playlist-detail", {
+                        slug: createSlug(found.title),
+                      });
+                    } else {
+                      // Last resort: navigate using the item name slug (may show not-found)
+                      navigateTo("playlist-detail", { slug: targetSlug });
+                    }
+
+                    return;
+                  }
+
+                  // Fallback to the playlists list view
+                  navigateTo("playlists");
                 }}
               />
             ))}
