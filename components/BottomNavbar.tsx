@@ -24,6 +24,14 @@ const useMediaQuery = (query: string) => {
   return matches;
 };
 
+// Preload important library icons so toggling doesn't trigger fetch latency
+if (typeof window !== "undefined") {
+  ["/library.svg", "/library-selected.svg", "/premium.svg", "/premium-selected.svg"].forEach((src) => {
+    const img = new Image();
+    img.src = src;
+  });
+}
+
 // --- Clean, Professional Icons ---
 const Icons = {
   Home: ({ active }: { active: boolean }) => (
@@ -60,24 +68,41 @@ const Icons = {
       />
     </svg>
   ),
-  Playlists: ({ active }: { active: boolean }) => (
-    <svg
-      className="w-6 h-6"
-      viewBox="0 0 24 24"
-      fill={active ? "currentColor" : "none"}
-      stroke={active ? "none" : "currentColor"}
-      strokeWidth={2}
-    >
-      {active ? (
-        <path d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.403-4.909l2.311-.66a1.5 1.5 0 001.088-1.442V6.994l-9 2.572v9.737a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.402-4.909l2.31-.66a1.5 1.5 0 001.088-1.442V5.25a.75.75 0 01.544-.721l10.5-3a.75.75 0 01.458.122z" />
-      ) : (
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
-        />
-      )}
-    </svg>
+  Library: ({ active }: { active: boolean }) => (
+    <div className="relative w-6 h-6">
+      <img
+        src="/library.svg"
+        alt="library"
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
+          active ? "opacity-0" : "opacity-70"
+        }`}
+        style={{ filter: "invert(1)" }}
+      />
+      <img
+        src="/library-selected.svg"
+        alt="library-selected"
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
+          active ? "opacity-100" : "opacity-0"
+        }`}
+        style={{ filter: "invert(1)" }}
+      />
+    </div>
+  ),
+  Premium: ({ active }: { active: boolean }) => (
+    <div className="relative w-6 h-6">
+      <img
+        src="/premium.svg"
+        alt="premium"
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-0" : "opacity-100"}`}
+        style={{ filter: "invert(1)" }}
+      />
+      <img
+        src="/premium-selected.svg"
+        alt="premium-selected"
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-100" : "opacity-0"}`}
+        style={{ filter: "invert(1)" }}
+      />
+    </div>
   ),
   Profile: ({ active }: { active: boolean }) => (
     <svg
@@ -108,12 +133,8 @@ const Icons = {
 const tabs = [
   { id: "home", label: "خانه", icon: Icons.Home, path: "/" },
   { id: "search", label: "جستجو", icon: Icons.Search, path: "/search" },
-  {
-    id: "playlists",
-    label: "پلی‌لیست‌ها",
-    icon: Icons.Playlists,
-    path: "/playlists",
-  },
+  { id: "library", label: "کتابخانه", icon: Icons.Library, path: "/library" },
+  { id: "premium", label: "پریمیوم", icon: Icons.Premium, path: "/premium" },
   { id: "profile", label: "پروفایل", icon: Icons.Profile, path: "/profile" },
 ];
 
