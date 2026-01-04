@@ -1,11 +1,23 @@
 import React, { useState } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const Register: React.FC = () => {
   const { setCurrentPage } = useNavigation();
-  const { setPhone, phone, setPassword, password } = useAuth();
+  const {
+    register,
+    setPhone,
+    phone,
+    setPassword,
+    password,
+    setVerificationContext,
+    formatErrorMessage,
+  } = useAuth();
   const [isFocused, setIsFocused] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\D/g, "");
@@ -18,9 +30,26 @@ const Register: React.FC = () => {
   };
 
   const handleRegister = () => {
-    if (phone && password) {
-      setCurrentPage("verify");
-    }
+    if (!phone || !password) return;
+    setError(null);
+    setLoading(true);
+    const promise = register(phone, password);
+
+    toast.promise(promise, {
+      loading: "در حال ایجاد حساب کاربری...",
+      success: () => {
+        setVerificationContext("register");
+        setCurrentPage("verify");
+        return "کد تایید برای شما ارسال شد";
+      },
+      error: (e) => {
+        const msg = formatErrorMessage(e?.error);
+        setError(msg);
+        return msg;
+      },
+    });
+
+    promise.finally(() => setLoading(false));
   };
 
   return (
@@ -139,23 +168,35 @@ const Register: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={phone.length < 9 || !password}
+                disabled={phone.length < 9 || !password || loading}
                 className={`
                   w-full h-14 rounded-xl font-medium text-lg relative overflow-hidden transition-all duration-300 group/btn
                   ${
-                    phone.length < 9 || !password
+                    phone.length < 9 || !password || loading
                       ? "bg-white/5 text-gray-500 cursor-not-allowed"
                       : "bg-white text-black hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_40px_rgba(255,255,255,0.3)]"
                   }
                 `}
               >
                 <span className="absolute inset-0 flex items-center justify-center">
-                  ثبت نام
-                  <span className="mr-2 rotate-180 transform group-hover/btn:-translate-x-1 transition-transform">
-                    →
-                  </span>
+                  {loading ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <>
+                      ثبت نام
+                      <span className="mr-2 rotate-180 transform group-hover/btn:-translate-x-1 transition-transform">
+                        →
+                      </span>
+                    </>
+                  )}
                 </span>
               </button>
+
+              {error && (
+                <div className="mt-3 text-center text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
 
               <div className="text-center pt-6 mt-6 border-t border-white/5">
                 <p className="text-gray-400 text-sm">

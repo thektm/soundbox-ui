@@ -1,12 +1,43 @@
 import React, { useState, useRef } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const Verify: React.FC = () => {
   const { setCurrentPage } = useNavigation();
-  const { verifyOtp, setOtp, otp, phone, password, register, login } =
-    useAuth();
+  const {
+    verifyOtp,
+    verifyLoginOtp,
+    setOtp,
+    otp,
+    phone,
+    requestLoginOtp,
+    verificationContext,
+    formatErrorMessage,
+  } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
   const [digits, setDigits] = useState<string[]>(["", "", "", ""]);
+
+  const handleResend = () => {
+    setError(null);
+    setResendLoading(true);
+    const promise = requestLoginOtp(phone);
+
+    toast.promise(promise, {
+      loading: "در حال ارسال مجدد کد...",
+      success: "کد تایید مجدداً ارسال شد",
+      error: (e) => {
+        const msg = formatErrorMessage(e?.error);
+        setError(msg);
+        return msg;
+      },
+    });
+
+    promise.finally(() => setResendLoading(false));
+  };
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
   const focusAt = (index: number) => {
@@ -67,14 +98,43 @@ const Verify: React.FC = () => {
   const handleVerify = () => {
     const code = digits.join("");
     if (code.length === 4) {
+      setError(null);
+      setLoading(true);
       setOtp(code);
-      verifyOtp();
-      if (password) {
-        register(phone, password);
-      } else {
-        login(phone);
-      }
-      setCurrentPage("home");
+      const verifyMethod =
+        verificationContext === "login" ? verifyLoginOtp : verifyOtp;
+
+      const endpoint =
+        verificationContext === "login"
+          ? "/auth/login/otp/verify/"
+          : "/auth/verify/";
+      console.log(
+        "Sending OTP verification request to:",
+        `https://api.sedabox.com/api${endpoint}`
+      );
+      console.log("Sending OTP verification request with body:", {
+        otp: code,
+        phone: "09" + phone,
+      });
+
+      const promise = verifyMethod(code);
+
+      toast.promise(promise, {
+        loading: "در حال تایید کد...",
+        success: (data) => {
+          console.log("OTP verification successful, response:", data);
+          setCurrentPage("home");
+          return "خوش آمدید!";
+        },
+        error: (e) => {
+          console.log("OTP verification failed, full response:", e);
+          const msg = formatErrorMessage(e?.error);
+          setError(msg);
+          return msg;
+        },
+      });
+
+      promise.finally(() => setLoading(false));
     }
   };
 
@@ -165,28 +225,36 @@ const Verify: React.FC = () => {
               <div className="grid grid-cols-1 gap-3">
                 <button
                   type="submit"
-                  disabled={digits.join("").length < 4}
+                  disabled={digits.join("").length < 4 || loading}
                   className={`
                     w-full h-14 rounded-xl font-medium text-lg relative overflow-hidden transition-all duration-300
                     ${
-                      digits.join("").length < 4
+                      digits.join("").length < 4 || loading
                         ? "bg-white/5 text-gray-500 cursor-not-allowed"
                         : "bg-white text-black hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_40px_rgba(255,255,255,0.3)]"
                     }
                   `}
                 >
                   <span className="absolute inset-0 flex items-center justify-center">
-                    تایید و ورود
+                    {loading ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      "تایید و ورود"
+                    )}
                   </span>
                 </button>
 
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
-                    onClick={() => {}}
-                    className="px-3 py-3 rounded-xl bg-white/5 hover:bg-white/6 transition-all duration-300"
+                    onClick={handleResend}
+                    disabled={resendLoading}
+                    className="px-3 py-3 rounded-xl bg-white/5 hover:bg-white/6 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
                   >
-                    ارسال مجدد کد
+                    {resendLoading && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    {resendLoading ? "در حال ارسال..." : "ارسال مجدد کد"}
                   </button>
                   <button
                     type="button"

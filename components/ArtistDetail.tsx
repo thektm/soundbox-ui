@@ -801,7 +801,8 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent flex flex-col justify-end p-6">
               <p className="text-base text-white/90 leading-relaxed mb-4 line-clamp-3 font-medium drop-shadow-md">
-                {artist.name.toLowerCase().includes("billie") || artist.name.includes("بیلی")
+                {artist.name.toLowerCase().includes("billie") ||
+                artist.name.includes("بیلی")
                   ? BILLIE_BIO_FA
                   : (artist as any).bio ||
                     `${artist.name} یکی از محبوب‌ترین خوانندگان است که با سبک منحصر به فرد خود توانسته میلیون‌ها شنونده را جذب کند.`}

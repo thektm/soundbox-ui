@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
@@ -105,15 +105,6 @@ const createMockTrack = (item: ItemType) => ({
 const createTracksFromItems = (items: ItemType[]) =>
   items.map((item) => createMockTrack(item));
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export default function Home() {
   const { logout } = useAuth();

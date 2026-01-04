@@ -1,6 +1,8 @@
 import React, { useState, useRef } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const ForgotPassword: React.FC = () => {
   const { setCurrentPage } = useNavigation();
@@ -9,14 +11,17 @@ const ForgotPassword: React.FC = () => {
     phone,
     setOtp,
     otp,
-    verifyOtp,
     resetPassword,
     setPassword,
     password,
+    requestPasswordReset,
+    formatErrorMessage,
   } = useAuth();
   const [step, setStep] = useState<"phone" | "verify" | "reset">("phone");
   const [newPassword, setNewPassword] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [digits, setDigits] = useState<string[]>(["", "", "", ""]);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
@@ -86,25 +91,60 @@ const ForgotPassword: React.FC = () => {
   };
 
   const handleSendOtp = () => {
-    if (phone) {
-      setStep("verify");
-    }
+    if (!phone) return;
+    setError(null);
+    setLoading(true);
+    const promise = requestPasswordReset(phone);
+
+    toast.promise(promise, {
+      loading: "در حال ارسال کد بازیابی...",
+      success: () => {
+        setStep("verify");
+        return "کد بازیابی برای شما ارسال شد";
+      },
+      error: (e) => {
+        const msg = formatErrorMessage(e?.error);
+        setError(msg);
+        return msg;
+      },
+    });
+
+    promise.finally(() => setLoading(false));
   };
 
   const handleVerify = () => {
     const code = digits.join("");
     if (code.length === 4) {
       setOtp(code);
-      verifyOtp();
       setStep("reset");
+      toast.success("کد تایید شد. رمز عبور جدید خود را وارد کنید");
     }
   };
 
   const handleReset = () => {
-    if (newPassword) {
-      resetPassword(newPassword);
-      setCurrentPage("login");
+    if (!newPassword) return;
+    if (newPassword !== password) {
+      toast.error("رمز عبور و تکرار آن مطابقت ندارند");
+      return;
     }
+    setError(null);
+    setLoading(true);
+    const promise = resetPassword(newPassword);
+
+    toast.promise(promise, {
+      loading: "در حال تغییر رمز عبور...",
+      success: () => {
+        setCurrentPage("login");
+        return "رمز عبور با موفقیت تغییر کرد. اکنون می‌توانید وارد شوید";
+      },
+      error: (e) => {
+        const msg = formatErrorMessage(e?.error);
+        setError(msg);
+        return msg;
+      },
+    });
+
+    promise.finally(() => setLoading(false));
   };
 
   return (
@@ -210,21 +250,27 @@ const ForgotPassword: React.FC = () => {
 
                   <button
                     type="submit"
-                    disabled={phone.length < 9}
+                    disabled={phone.length < 9 || loading}
                     className={`
                       w-full h-14 rounded-xl font-medium text-lg relative overflow-hidden transition-all duration-300 group/btn
                       ${
-                        phone.length < 9
+                        phone.length < 9 || loading
                           ? "bg-white/5 text-gray-500 cursor-not-allowed"
                           : "bg-white text-black hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_40px_rgba(255,255,255,0.3)]"
                       }
                     `}
                   >
                     <span className="absolute inset-0 flex items-center justify-center">
-                      ارسال کد بازیابی
-                      <span className="mr-2 rotate-180 transform group-hover/btn:-translate-x-1 transition-transform">
-                        →
-                      </span>
+                      {loading ? (
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                      ) : (
+                        <>
+                          ارسال کد بازیابی
+                          <span className="mr-2 rotate-180 transform group-hover/btn:-translate-x-1 transition-transform">
+                            →
+                          </span>
+                        </>
+                      )}
                     </span>
                   </button>
                 </>
@@ -262,18 +308,22 @@ const ForgotPassword: React.FC = () => {
 
                   <button
                     type="submit"
-                    disabled={digits.join("").length < 4}
+                    disabled={digits.join("").length < 4 || loading}
                     className={`
                       w-full h-14 rounded-xl font-medium text-lg relative overflow-hidden transition-all duration-300
                       ${
-                        digits.join("").length < 4
+                        digits.join("").length < 4 || loading
                           ? "bg-white/5 text-gray-500 cursor-not-allowed"
                           : "bg-white text-black hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_40px_rgba(255,255,255,0.3)]"
                       }
                     `}
                   >
                     <span className="absolute inset-0 flex items-center justify-center">
-                      تایید کد
+                      {loading ? (
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                      ) : (
+                        "تایید کد"
+                      )}
                     </span>
                   </button>
                 </>
@@ -315,18 +365,22 @@ const ForgotPassword: React.FC = () => {
 
                   <button
                     type="submit"
-                    disabled={!newPassword || !password}
+                    disabled={!newPassword || !password || loading}
                     className={`
                       w-full h-14 rounded-xl font-medium text-lg relative overflow-hidden transition-all duration-300 group/btn
                       ${
-                        !newPassword || !password
+                        !newPassword || !password || loading
                           ? "bg-white/5 text-gray-500 cursor-not-allowed"
                           : "bg-white text-black hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_40px_rgba(255,255,255,0.3)]"
                       }
                     `}
                   >
                     <span className="absolute inset-0 flex items-center justify-center">
-                      تغییر رمز عبور
+                      {loading ? (
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                      ) : (
+                        "تغییر رمز عبور"
+                      )}
                     </span>
                   </button>
                 </>

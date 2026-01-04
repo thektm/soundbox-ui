@@ -69,7 +69,7 @@ export function usePlayer() {
 }
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
-  const FALLBACK_SRC = "/music.mp3";
+  const FALLBACK_SRC = "https://cdn.sedabox.com/music.mp3";
   const [queue, setQueueState] = useState<Track[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
