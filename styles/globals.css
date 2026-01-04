@@ -149,3 +149,47 @@ body {
     background: rgba(255, 255, 255, 0.5);
   }
 }
+
+/* App-specific styles for react-hot-toast to match app theme */
+
+.sb-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+  max-width: 640px;
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-family: 'Vazir', Arial, Helvetica, sans-serif;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+.sb-toast--success {
+  border-color: rgba(34, 197, 94, 0.18);
+  background: linear-gradient(90deg, rgba(34,197,94,0.04), var(--background));
+}
+
+.sb-toast--error {
+  border-color: rgba(239, 68, 68, 0.18);
+  background: linear-gradient(90deg, rgba(239,68,68,0.04), var(--background));
+}
+
+/* Make the icon within the toast visually consistent */
+.sb-toast svg,
+.sb-toast .toast-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Message area should wrap and remain readable */
+.sb-toast > div {
+  flex: 1 1 auto;
+  word-break: break-word;
+}
