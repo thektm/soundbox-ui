@@ -109,20 +109,7 @@ const Icon = ({
   />
 );
 
-export function findAlbumBySlug(
-  slug: string,
-): (typeof MOCK_ALBUMS)[0] | undefined {
-  const decodedSlug = decodeSlug(slug);
-  return MOCK_ALBUMS.find((album) => {
-    const albumSlug = createSlug(album.title);
-    const decodedAlbumSlug = decodeSlug(albumSlug);
-    return (
-      decodedAlbumSlug.toLowerCase() === decodedSlug.toLowerCase() ||
-      album.title.toLowerCase().replace(/\s+/g, " ").trim() ===
-        decodedSlug.toLowerCase()
-    );
-  });
-}
+// Album slug lookup removed — AlbumDetail fetches by numeric ID from the API.
 
 interface SongRowProps {
   song: ApiSong;
@@ -218,7 +205,9 @@ const SongRow: React.FC<SongRowProps> = ({
             fill={isLiked}
           />
         </button>
-        <span className="text-sm text-neutral-400">{song.duration_display}</span>
+        <span className="text-sm text-neutral-400">
+          {song.duration_display}
+        </span>
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -509,7 +498,9 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
               key={song.id}
               song={song}
               index={index}
-              isPlaying={String(song.id) === currentTrack?.id && isPlayerPlaying}
+              isPlaying={
+                String(song.id) === currentTrack?.id && isPlayerPlaying
+              }
               onPlay={() => handlePlaySong(index)}
               onMore={handleMore}
             />

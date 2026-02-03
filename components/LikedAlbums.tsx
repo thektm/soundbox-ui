@@ -30,7 +30,7 @@ const Icon = memo(
         d={d}
       />
     </svg>
-  )
+  ),
 );
 
 Icon.displayName = "Icon";
@@ -76,7 +76,7 @@ const AlbumCardGrid = memo(
         setIsLiked(!isLiked);
         onLike();
       },
-      [isLiked, onLike]
+      [isLiked, onLike],
     );
 
     return (
@@ -139,7 +139,7 @@ const AlbumCardGrid = memo(
         </p>
       </div>
     );
-  }
+  },
 );
 
 AlbumCardGrid.displayName = "AlbumCardGrid";
@@ -165,7 +165,7 @@ const AlbumCardList = memo(
         setIsLiked(!isLiked);
         onLike();
       },
-      [isLiked, onLike]
+      [isLiked, onLike],
     );
 
     return (
@@ -220,7 +220,7 @@ const AlbumCardList = memo(
         </button>
       </div>
     );
-  }
+  },
 );
 
 AlbumCardList.displayName = "AlbumCardList";
@@ -240,7 +240,7 @@ export default function LikedAlbums() {
     const q = searchQuery.toLowerCase();
     return LIKED_ALBUMS.filter(
       (a) =>
-        a.title.toLowerCase().includes(q) || a.artist.toLowerCase().includes(q)
+        a.title.toLowerCase().includes(q) || a.artist.toLowerCase().includes(q),
     );
   }, [searchQuery]);
 
@@ -252,7 +252,7 @@ export default function LikedAlbums() {
     (album: LikedAlbum) => {
       navigateTo("album-detail", { id: album.id, album });
     },
-    [navigateTo]
+    [navigateTo],
   );
 
   const handleLike = useCallback((albumId: string) => {

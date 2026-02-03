@@ -434,23 +434,33 @@ export default function Home() {
   }, [accessToken]);
 
   const fetchNextPlaylists = async () => {
-    if (
-      !playlistRecommendations ||
-      !playlistRecommendations.next ||
-      !accessToken
-    )
-      return;
+    // playlistRecommendations can be either an array or a paginated response.
+    if (!playlistRecommendations || !accessToken) return;
+    if (Array.isArray(playlistRecommendations)) return; // no pagination available
+
+    const nextUrl = playlistRecommendations.next;
+    if (!nextUrl) return;
     try {
-      const url = playlistRecommendations.next.replace(/^http:/, "https:");
+      const url = nextUrl.replace(/^http:/, "https:");
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (res.ok) {
-        const data = await res.json();
-        setPlaylistRecommendations((prev) => ({
-          ...data,
-          results: [...(prev?.results || []), ...data.results],
-        }));
+          const data = await res.json();
+          setPlaylistRecommendations((prev) => {
+            // prev can be an array or a paginated response
+            if (Array.isArray(prev)) {
+              return {
+                ...data,
+                results: [...prev, ...data.results],
+              } as PaginatedResponse<ApiPlaylist>;
+            }
+
+            return {
+              ...data,
+              results: [...(prev?.results || []), ...data.results],
+            } as PaginatedResponse<ApiPlaylist>;
+          });
       }
     } catch (error) {
       console.error("Error fetching next playlists:", error);
