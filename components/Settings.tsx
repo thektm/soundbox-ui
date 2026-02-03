@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { Drawer } from "vaul";
 import { useNavigation } from "./NavigationContext";
+import { ResponsiveSheet } from "./ResponsiveSheet";
 
 // Reusable Icon Component
 const Icon = ({
@@ -54,98 +56,122 @@ const ProfileEditSheet = ({
   formData: { firstName: string; lastName: string; email: string };
   onChange: (field: string, value: string) => void;
   onSave: () => void;
-}) => (
-  <>
-    {/* Backdrop */}
-    <div
-      className={`fixed inset-0 bg-black/60 md:bg-black/70 backdrop-blur-sm z-50 transition-all duration-300 ${
-        isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-      }`}
-      onClick={onClose}
-    />
-    {/* Modal Container */}
-    <div
-      className={`fixed z-[60] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] border border-white/10 transition-all duration-300 ease-out
-      
-      /* Mobile: Bottom Sheet */
-      bottom-0 left-0 right-0 rounded-t-3xl
-      ${isOpen ? "translate-y-0" : "translate-y-full"}
-      
-      /* Desktop: Floating Modal (Centered) */
-      md:bottom-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2
-      md:w-[480px] md:rounded-2xl md:shadow-2xl md:shadow-black/60
-      ${
-        isOpen
-          ? "md:opacity-100 md:scale-100"
-          : "md:opacity-0 md:scale-95 md:pointer-events-none"
-      }
-      `}
-    >
-      <div className="p-6" dir="rtl">
-        {/* Mobile Handle Bar */}
-        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 md:hidden" />
+}) => {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-white">ویرایش پروفایل</h3>
-          <button
-            onClick={onClose}
-            className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-colors"
-          >
-            <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
-        <div className="space-y-4 mb-8">
-          {[
-            {
-              key: "firstName",
-              label: "نام",
-              placeholder: "نام خود را وارد کنید",
-            },
-            {
-              key: "lastName",
-              label: "نام خانوادگی",
-              placeholder: "نام خانوادگی خود را وارد کنید",
-            },
-            {
-              key: "email",
-              label: "ایمیل",
-              placeholder: "ایمیل خود را وارد کنید",
-              type: "email",
-            },
-          ].map((field) => (
-            <div key={field.key}>
-              <label className="block text-sm font-medium text-gray-400 mb-2">
-                {field.label}
-              </label>
-              <input
-                type={field.type || "text"}
-                value={formData[field.key as keyof typeof formData]}
-                onChange={(e) => onChange(field.key, e.target.value)}
-                placeholder={field.placeholder}
-                className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.02] transition-colors"
-                dir="rtl"
-              />
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={onSave}
-            className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 transition-all transform active:scale-[0.98]"
-          >
-            ذخیره تغییرات
-          </button>
-          <button
-            onClick={onClose}
-            className="px-6 py-3 bg-white/5 border border-white/10 text-gray-300 font-medium rounded-xl hover:bg-white/10 transition-colors"
-          >
-            انصراف
-          </button>
-        </div>
+  const content = (
+    <div className="p-6 h-full flex flex-col" dir="rtl">
+      {!isDesktop && (
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 flex-shrink-0 cursor-grab active:cursor-grabbing" />
+      )}
+
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
+        <h3 className="text-xl font-bold text-white">ویرایش پروفایل</h3>
+        <button
+          onClick={onClose}
+          className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-colors"
+        >
+          <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
+        </button>
+      </div>
+      <div className="space-y-4 mb-8 flex-1 overflow-y-auto">
+        {[
+          {
+            key: "firstName",
+            label: "نام",
+            placeholder: "نام خود را وارد کنید",
+          },
+          {
+            key: "lastName",
+            label: "نام خانوادگی",
+            placeholder: "نام خانوادگی خود را وارد کنید",
+          },
+          {
+            key: "email",
+            label: "ایمیل",
+            placeholder: "ایمیل خود را وارد کنید",
+            type: "email",
+          },
+        ].map((field) => (
+          <div key={field.key}>
+            <label className="block text-sm font-medium text-gray-400 mb-2">
+              {field.label}
+            </label>
+            <input
+              type={field.type || "text"}
+              value={formData[field.key as keyof typeof formData]}
+              onChange={(e) => onChange(field.key, e.target.value)}
+              placeholder={field.placeholder}
+              className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.02] transition-colors"
+              dir="rtl"
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-3 flex-shrink-0">
+        <button
+          onClick={onSave}
+          className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 transition-all transform active:scale-[0.98]"
+        >
+          ذخیره تغییرات
+        </button>
+        <button
+          onClick={onClose}
+          className="px-6 py-3 bg-white/5 border border-white/10 text-gray-300 font-medium rounded-xl hover:bg-white/10 transition-colors"
+        >
+          انصراف
+        </button>
       </div>
     </div>
-  </>
-);
+  );
+
+  if (isDesktop) {
+    return (
+      <>
+        <div
+          className={`fixed inset-0 bg-black/70 backdrop-blur-sm z-50 transition-all duration-300 ${
+            isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+          onClick={onClose}
+        />
+        <div
+          className={`fixed z-[60] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] border border-white/10 transition-all duration-300 ease-out
+          top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] rounded-2xl shadow-2xl shadow-black/60
+          ${
+            isOpen
+              ? "opacity-100 scale-100"
+              : "opacity-0 scale-95 pointer-events-none"
+          }
+          `}
+        >
+          {content}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <Drawer.Root
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      shouldScaleBackground
+    >
+      <Drawer.Portal>
+        <Drawer.Overlay className="fixed inset-0 bg-black/60 z-[70] backdrop-blur-[2px]" />
+        <Drawer.Content className="fixed inset-x-0 bottom-0 z-[70] flex flex-col bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 outline-none max-h-[96%]">
+          {content}
+          <div className="h-safe-area-inset-bottom" />
+        </Drawer.Content>
+      </Drawer.Portal>
+    </Drawer.Root>
+  );
+};
 
 // Quality Selector Modal
 const QualitySheet = ({
@@ -166,85 +192,65 @@ const QualitySheet = ({
   ];
 
   return (
-    <>
-      <div
-        className={`fixed inset-0 bg-black/60 md:bg-black/70 backdrop-blur-sm z-50 transition-all duration-300 ${
-          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={onClose}
-      />
-      <div
-        className={`fixed z-[60] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] border border-white/10 transition-all duration-300 ease-out
-        
-        /* Mobile */
-        bottom-0 left-0 right-0 rounded-t-3xl
-        ${isOpen ? "translate-y-0" : "translate-y-full"}
-        
-        /* Desktop */
-        md:bottom-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2
-        md:w-[450px] md:rounded-2xl md:shadow-2xl md:shadow-black/60
-        ${
-          isOpen
-            ? "md:opacity-100 md:scale-100"
-            : "md:opacity-0 md:scale-95 md:pointer-events-none"
-        }
-        `}
-      >
-        <div className="p-6" dir="rtl">
-          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 md:hidden" />
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-white">کیفیت پخش</h3>
-            <button
-              onClick={onClose}
-              className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hidden md:block"
-            >
-              <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
-
-          <div className="space-y-2 mb-6">
-            {qualities.map((q) => (
-              <button
-                key={q.value}
-                onClick={() => {
-                  onSelect(q.value);
-                  onClose();
-                }}
-                className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all group ${
-                  currentQuality === q.value
-                    ? "bg-emerald-500/10 border-emerald-500/50 shadow-inner shadow-emerald-500/5"
-                    : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
-                }`}
-              >
-                <div className="text-right flex-1">
-                  <div
-                    className={`font-medium transition-colors ${
-                      currentQuality === q.value
-                        ? "text-emerald-400"
-                        : "text-white"
-                    }`}
-                  >
-                    {q.label}
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {q.description}
-                  </div>
-                </div>
-                {currentQuality === q.value && (
-                  <Icon d={ICONS.check} className="w-5 h-5 text-emerald-400" />
-                )}
-              </button>
-            ))}
-          </div>
+    <ResponsiveSheet
+      keyboardDismiss={true}
+      desktopWidth="w-[450px]"
+      isOpen={isOpen}
+      onClose={onClose}
+    >
+      <div className="p-6 h-full flex flex-col" dir="rtl">
+        <div className="flex items-center justify-between mb-6 flex-shrink-0">
+          <h3 className="text-xl font-bold text-white">کیفیت پخش</h3>
           <button
             onClick={onClose}
-            className="w-full py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors md:hidden"
+            className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hidden md:block"
           >
-            بستن
+            <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
           </button>
         </div>
+
+        <div className="space-y-2 mb-6 flex-1 overflow-y-auto">
+          {qualities.map((q) => (
+            <button
+              key={q.value}
+              onClick={() => {
+                onSelect(q.value);
+                onClose();
+              }}
+              className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all group ${
+                currentQuality === q.value
+                  ? "bg-emerald-500/10 border-emerald-500/50 shadow-inner shadow-emerald-500/5"
+                  : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+              }`}
+            >
+              <div className="text-right flex-1">
+                <div
+                  className={`font-medium transition-colors ${
+                    currentQuality === q.value
+                      ? "text-emerald-400"
+                      : "text-white"
+                  }`}
+                >
+                  {q.label}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {q.description}
+                </div>
+              </div>
+              {currentQuality === q.value && (
+                <Icon d={ICONS.check} className="w-5 h-5 text-emerald-400" />
+              )}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors md:hidden"
+        >
+          بستن
+        </button>
       </div>
-    </>
+    </ResponsiveSheet>
   );
 };
 
@@ -269,78 +275,53 @@ const NotificationSheet = ({
   ];
 
   return (
-    <>
-      <div
-        className={`fixed inset-0 bg-black/60 md:bg-black/70 backdrop-blur-sm z-50 transition-all duration-300 ${
-          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={onClose}
-      />
-      <div
-        className={`fixed z-[60] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] border border-white/10 transition-all duration-300 ease-out max-h-[85vh] overflow-y-auto
-        
-        /* Mobile */
-        bottom-0 left-0 right-0 rounded-t-3xl
-        ${isOpen ? "translate-y-0" : "translate-y-full"}
-        
-        /* Desktop */
-        md:bottom-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2
-        md:w-[500px] md:rounded-2xl md:shadow-2xl md:shadow-black/60 md:overflow-visible
-        ${
-          isOpen
-            ? "md:opacity-100 md:scale-100"
-            : "md:opacity-0 md:scale-95 md:pointer-events-none"
-        }
-        `}
-      >
-        <div className="p-6" dir="rtl">
-          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 md:hidden" />
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xl font-bold text-white">تنظیمات اعلان‌ها</h3>
-            <button
-              onClick={onClose}
-              className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hidden md:block"
-            >
-              <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
-
-          <p className="text-sm text-gray-400 mb-6">
-            انتخاب کنید از چه رویدادهایی مطلع شوید
-          </p>
-          <div className="space-y-3 mb-6">
-            {notifTypes.map((item) => (
-              <div
-                key={item.key}
-                onClick={() => onToggle(item.key)}
-                className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/[0.07] cursor-pointer transition-colors"
-              >
-                <span className="text-white font-medium text-sm">
-                  {item.label}
-                </span>
-                <div
-                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-                    preferences[item.key] ? "bg-emerald-500" : "bg-white/20"
-                  }`}
-                >
-                  <div
-                    className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-200 ${
-                      preferences[item.key] ? "left-1" : "right-1"
-                    }`}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+    <ResponsiveSheet desktopWidth="w-[500px]" isOpen={isOpen} onClose={onClose}>
+      <div className="p-6 h-full flex flex-col" dir="rtl">
+        <div className="flex items-center justify-between mb-2 flex-shrink-0">
+          <h3 className="text-xl font-bold text-white">تنظیمات اعلان‌ها</h3>
           <button
             onClick={onClose}
-            className="w-full py-3 bg-emerald-500 text-white font-medium rounded-xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-900/20"
+            className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hidden md:block"
           >
-            تایید
+            <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
           </button>
         </div>
+
+        <p className="text-sm text-gray-400 mb-6 flex-shrink-0">
+          انتخاب کنید از چه رویدادهایی مطلع شوید
+        </p>
+        <div className="space-y-3 mb-6 flex-1 overflow-y-auto">
+          {notifTypes.map((item) => (
+            <div
+              key={item.key}
+              onClick={() => onToggle(item.key)}
+              className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/[0.07] cursor-pointer transition-colors"
+            >
+              <span className="text-white font-medium text-sm">
+                {item.label}
+              </span>
+              <div
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
+                  preferences[item.key] ? "bg-emerald-500" : "bg-white/20"
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                    preferences[item.key] ? "left-1" : "right-1"
+                  }`}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-emerald-500 text-white font-medium rounded-xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-900/20 flex-shrink-0"
+        >
+          تایید
+        </button>
       </div>
-    </>
+    </ResponsiveSheet>
   );
 };
 
@@ -358,102 +339,77 @@ const DevicesSheet = ({
   currentDeviceId: string;
   onLogout: (deviceId: string) => void;
 }) => (
-  <>
-    <div
-      className={`fixed inset-0 bg-black/60 md:bg-black/70 backdrop-blur-sm z-50 transition-all duration-300 ${
-        isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-      }`}
-      onClick={onClose}
-    />
-    <div
-      className={`fixed z-[60] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] border border-white/10 transition-all duration-300 ease-out max-h-[85vh] overflow-y-auto
-      
-      /* Mobile */
-      bottom-0 left-0 right-0 rounded-t-3xl
-      ${isOpen ? "translate-y-0" : "translate-y-full"}
-      
-      /* Desktop */
-      md:bottom-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2
-      md:w-[520px] md:rounded-2xl md:shadow-2xl md:shadow-black/60 md:overflow-visible
-      ${
-        isOpen
-          ? "md:opacity-100 md:scale-100"
-          : "md:opacity-0 md:scale-95 md:pointer-events-none"
-      }
-      `}
-    >
-      <div className="p-6" dir="rtl">
-        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 md:hidden" />
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xl font-bold text-white">دستگاه‌های متصل</h3>
-          <button
-            onClick={onClose}
-            className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hidden md:block"
-          >
-            <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
-
-        <p className="text-sm text-gray-400 mb-6 flex items-center gap-2">
-          شناسه دستگاه فعلی:{" "}
-          <span className="font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-            {currentDeviceId}
-          </span>
-        </p>
-        <div className="space-y-3 mb-6">
-          {devices.map((device) => (
-            <div
-              key={device.id}
-              className={`p-4 rounded-xl border transition-colors ${
-                device.id === currentDeviceId
-                  ? "bg-emerald-500/5 border-emerald-500/30"
-                  : "bg-white/5 border-white/10 hover:bg-white/[0.07]"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Icon
-                      d={
-                        device.id === currentDeviceId
-                          ? ICONS.devices
-                          : ICONS.music
-                      }
-                      className="w-4 h-4 text-gray-500"
-                    />
-                    <div className="font-medium text-white">{device.name}</div>
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1 mr-6">
-                    {device.lastActive}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {device.id === currentDeviceId ? (
-                    <span className="px-2 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded-md border border-emerald-500/30 font-medium">
-                      فعلی
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => onLogout(device.id)}
-                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors"
-                    >
-                      خروج
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+  <ResponsiveSheet desktopWidth="w-[520px]" isOpen={isOpen} onClose={onClose}>
+    <div className="p-6 h-full flex flex-col" dir="rtl">
+      <div className="flex items-center justify-between mb-2 flex-shrink-0">
+        <h3 className="text-xl font-bold text-white">دستگاه‌های متصل</h3>
         <button
           onClick={onClose}
-          className="w-full py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors md:hidden"
+          className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hidden md:block"
         >
-          بستن
+          <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
         </button>
       </div>
+
+      <p className="text-sm text-gray-400 mb-6 flex items-center gap-2 flex-shrink-0">
+        شناسه دستگاه فعلی:{" "}
+        <span className="font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+          {currentDeviceId}
+        </span>
+      </p>
+      <div className="space-y-3 mb-6 flex-1 overflow-y-auto">
+        {devices.map((device) => (
+          <div
+            key={device.id}
+            className={`p-4 rounded-xl border transition-colors ${
+              device.id === currentDeviceId
+                ? "bg-emerald-500/5 border-emerald-500/30"
+                : "bg-white/5 border-white/10 hover:bg-white/[0.07]"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Icon
+                    d={
+                      device.id === currentDeviceId
+                        ? ICONS.devices
+                        : ICONS.music
+                    }
+                    className="w-4 h-4 text-gray-500"
+                  />
+                  <div className="font-medium text-white">{device.name}</div>
+                </div>
+                <div className="text-xs text-gray-400 mt-1 mr-6">
+                  {device.lastActive}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {device.id === currentDeviceId ? (
+                  <span className="px-2 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded-md border border-emerald-500/30 font-medium">
+                    فعلی
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => onLogout(device.id)}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors"
+                  >
+                    خروج
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={onClose}
+        className="w-full py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors md:hidden flex-shrink-0"
+      >
+        بستن
+      </button>
     </div>
-  </>
+  </ResponsiveSheet>
 );
 
 // Password Change Modal
@@ -481,84 +437,59 @@ const SecuritySheet = ({
   };
 
   return (
-    <>
-      <div
-        className={`fixed inset-0 bg-black/60 md:bg-black/70 backdrop-blur-sm z-50 transition-all duration-300 ${
-          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={onClose}
-      />
-      <div
-        className={`fixed z-[60] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] border border-white/10 transition-all duration-300 ease-out
-        
-        /* Mobile */
-        bottom-0 left-0 right-0 rounded-t-3xl
-        ${isOpen ? "translate-y-0" : "translate-y-full"}
-        
-        /* Desktop */
-        md:bottom-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2
-        md:w-[480px] md:rounded-2xl md:shadow-2xl md:shadow-black/60
-        ${
-          isOpen
-            ? "md:opacity-100 md:scale-100"
-            : "md:opacity-0 md:scale-95 md:pointer-events-none"
-        }
-        `}
-      >
-        <div className="p-6" dir="rtl">
-          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 md:hidden" />
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-white">تغییر رمز عبور</h3>
-            <button
-              onClick={onClose}
-              className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hidden md:block"
-            >
-              <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
+    <ResponsiveSheet desktopWidth="w-[480px]" isOpen={isOpen} onClose={onClose}>
+      <div className="p-6 h-full flex flex-col" dir="rtl">
+        <div className="flex items-center justify-between mb-6 flex-shrink-0">
+          <h3 className="text-xl font-bold text-white">تغییر رمز عبور</h3>
+          <button
+            onClick={onClose}
+            className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hidden md:block"
+          >
+            <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
 
-          <div className="space-y-4 mb-8">
-            {[
-              { key: "current", label: "رمز عبور فعلی" },
-              { key: "new", label: "رمز عبور جدید" },
-              { key: "confirm", label: "تکرار رمز عبور جدید" },
-            ].map((field) => (
-              <div key={field.key}>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  {field.label}
-                </label>
-                <input
-                  type="password"
-                  value={passwords[field.key as keyof typeof passwords]}
-                  onChange={(e) =>
-                    setPasswords((prev) => ({
-                      ...prev,
-                      [field.key]: e.target.value,
-                    }))
-                  }
-                  className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.02] transition-colors"
-                  dir="rtl"
-                />
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={handleSave}
-              className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 transition-all transform active:scale-[0.98]"
-            >
-              تغییر رمز عبور
-            </button>
-            <button
-              onClick={onClose}
-              className="px-6 py-3 bg-white/5 border border-white/10 text-gray-300 font-medium rounded-xl hover:bg-white/10 transition-colors"
-            >
-              انصراف
-            </button>
-          </div>
+        <div className="space-y-4 mb-8 flex-1 overflow-y-auto">
+          {[
+            { key: "current", label: "رمز عبور فعلی" },
+            { key: "new", label: "رمز عبور جدید" },
+            { key: "confirm", label: "تکرار رمز عبور جدید" },
+          ].map((field) => (
+            <div key={field.key}>
+              <label className="block text-sm font-medium text-gray-400 mb-2">
+                {field.label}
+              </label>
+              <input
+                type="password"
+                value={passwords[field.key as keyof typeof passwords]}
+                onChange={(e) =>
+                  setPasswords((prev) => ({
+                    ...prev,
+                    [field.key]: e.target.value,
+                  }))
+                }
+                className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.02] transition-colors"
+                dir="rtl"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-3 flex-shrink-0">
+          <button
+            onClick={handleSave}
+            className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 transition-all transform active:scale-[0.98]"
+          >
+            تغییر رمز عبور
+          </button>
+          <button
+            onClick={onClose}
+            className="px-6 py-3 bg-white/5 border border-white/10 text-gray-300 font-medium rounded-xl hover:bg-white/10 transition-colors"
+          >
+            انصراف
+          </button>
         </div>
       </div>
-    </>
+    </ResponsiveSheet>
   );
 };
 

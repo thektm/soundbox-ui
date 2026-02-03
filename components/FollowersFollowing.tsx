@@ -42,7 +42,7 @@ const Icon = memo(
         d={d}
       />
     </svg>
-  )
+  ),
 );
 
 Icon.displayName = "Icon";
@@ -125,7 +125,7 @@ const FollowerCard = memo(
         </button>
       </div>
     );
-  }
+  },
 );
 
 FollowerCard.displayName = "FollowerCard";
@@ -150,11 +150,11 @@ const FollowingCard = memo(
         setIsFollowing(!isFollowing);
         onUnfollow(artist.id);
       },
-      [isFollowing, artist.id, onUnfollow]
+      [isFollowing, artist.id, onUnfollow],
     );
 
     const handleCardClick = useCallback(() => {
-      navigateTo("artist-detail", { slug: artist.id });
+      navigateTo("artist-detail", { id: artist.id });
     }, [navigateTo, artist.id]);
 
     return (
@@ -223,7 +223,7 @@ const FollowingCard = memo(
         </button>
       </div>
     );
-  }
+  },
 );
 
 FollowingCard.displayName = "FollowingCard";
@@ -276,7 +276,8 @@ export default function FollowersFollowing({
     const q = searchQuery.toLowerCase();
     return MOCK_FOLLOWERS.filter(
       (u) =>
-        u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)
+        u.name.toLowerCase().includes(q) ||
+        u.username.toLowerCase().includes(q),
     );
   }, [searchQuery]);
 

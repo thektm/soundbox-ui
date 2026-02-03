@@ -20,6 +20,8 @@ interface NavigationContextType {
   registerScrollContainer: (element: HTMLElement | null) => void;
   restoreScroll: () => void;
   scrollToTop: () => void;
+  homeCache: any;
+  setHomeCache: (data: any) => void;
   isResolving: boolean;
   setIsResolving: (v: boolean) => void;
 }
@@ -39,6 +41,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     sidebar: true,
   });
   const [isResolving, setIsResolving] = useState<boolean>(false);
+  const [homeCache, setHomeCache] = useState<any>(null);
 
   const scrollPositions = useRef<Record<string, number>>({});
   const scrollContainerRef = useRef<HTMLElement | null>(null);
@@ -119,6 +122,8 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
         registerScrollContainer,
         restoreScroll,
         scrollToTop,
+        homeCache,
+        setHomeCache,
         isResolving,
         setIsResolving,
       }}

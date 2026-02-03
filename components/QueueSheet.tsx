@@ -7,7 +7,7 @@ import React, {
   useMemo,
   useLayoutEffect,
 } from "react";
-import { motion, AnimatePresence, PanInfo } from "framer-motion";
+import { Drawer } from "vaul";
 import { usePlayer, Track } from "./PlayerContext";
 
 // ============================================================================
@@ -154,7 +154,7 @@ const QueueTrack = memo<QueueTrackProps>(
         </div>
       </div>
     );
-  }
+  },
 );
 QueueTrack.displayName = "QueueTrack";
 
@@ -175,19 +175,19 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
   const nowPlaying = useMemo(() => currentTrack, [currentTrack]);
   const upNext = useMemo(
     () => queue.slice(currentIndex + 1),
-    [queue, currentIndex]
+    [queue, currentIndex],
   );
   const previousTracks = useMemo(
     () => queue.slice(0, currentIndex),
-    [queue, currentIndex]
+    [queue, currentIndex],
   );
 
   // Scroll to current track when sheet opens
   useLayoutEffect(() => {
     if (isOpen && scrollRef.current && currentIndex >= 0) {
-      const scrollToCurrent = () => {
+      const timer = setTimeout(() => {
         const currentElement = scrollRef.current?.querySelector(
-          `[data-index="${currentIndex}"]`
+          `[data-index="${currentIndex}"]`,
         );
         if (currentElement) {
           currentElement.scrollIntoView({
@@ -195,187 +195,159 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
             block: "center",
           });
         }
-      };
-      const timer = setTimeout(scrollToCurrent, 300);
+      }, 200);
       return () => clearTimeout(timer);
     }
   }, [isOpen, currentIndex]);
-
-  const handleDragEnd = useCallback(
-    (_: unknown, info: PanInfo) => {
-      if (info.velocity.y > 500 || info.offset.y > 150) {
-        onClose();
-      }
-    },
-    [onClose]
-  );
 
   const handleTrackPlay = useCallback(
     (track: Track) => {
       playTrack(track);
     },
-    [playTrack]
+    [playTrack],
   );
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={onClose}
-            style={{ willChange: "opacity" }}
-            className="fixed inset-0 bg-black/60 z-[70]"
-          />
+    <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <Drawer.Portal>
+        <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
+        <Drawer.Content className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]">
+          {/* Handle */}
+          <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-3 mb-2" />
 
-          {/* Sheet */}
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            drag="y"
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0, bottom: 0.3 }}
-            onDragEnd={handleDragEnd}
-            style={{ willChange: "transform" }}
-            className="fixed inset-x-0 bottom-0 z-[70] flex flex-col bg-gradient-to-b from-neutral-900 to-neutral-950 rounded-t-3xl max-h-[85vh] overflow-hidden shadow-2xl"
-          >
-            {/* Drag Handle */}
-            <div className="flex justify-center pt-3 pb-2">
-              <div className="w-10 h-1 bg-neutral-600 rounded-full" />
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <Icon.MusicNote c="w-5 h-5 text-emerald-400" />
+              </div>
+              <div dir="rtl">
+                <Drawer.Title className="text-lg font-bold text-white">
+                  صف پخش
+                </Drawer.Title>
+                <Drawer.Description className="text-xs text-neutral-400">
+                  {queue.length} آهنگ
+                </Drawer.Description>
+              </div>
             </div>
+            <button
+              onClick={onClose}
+              className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+            >
+              <Icon.Close c="w-5 h-5 text-neutral-400" />
+            </button>
+          </div>
 
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                  <Icon.MusicNote c="w-5 h-5 text-emerald-400" />
+          {/* Queue Content */}
+          <div
+            ref={scrollRef}
+            className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 pb-24 space-y-6"
+          >
+            {/* Now Playing Section */}
+            {nowPlaying && (
+              <div>
+                <div className="flex items-center gap-2 px-2 mb-3" dir="rtl">
+                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                  <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">
+                    در حال پخش
+                  </h3>
                 </div>
-                <div dir="rtl">
-                  <h2 className="text-lg font-bold text-white">صف پخش</h2>
-                  <p className="text-xs text-neutral-400">
-                    {queue.length} آهنگ
-                  </p>
+                <div data-index={currentIndex}>
+                  <QueueTrack
+                    track={nowPlaying}
+                    index={currentIndex}
+                    isCurrentTrack={true}
+                    isPlaying={isPlaying}
+                    onPlay={handleTrackPlay}
+                  />
                 </div>
               </div>
-              <button
-                onClick={onClose}
-                className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
-              >
-                <Icon.Close c="w-5 h-5 text-neutral-400" />
-              </button>
-            </div>
+            )}
 
-            {/* Queue Content */}
-            <div
-              ref={scrollRef}
-              className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-6"
-            >
-              {/* Now Playing Section */}
-              {nowPlaying && (
-                <div>
-                  <div className="flex items-center gap-2 px-2 mb-3" dir="rtl">
-                    <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                    <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">
-                      در حال پخش
-                    </h3>
-                  </div>
-                  <div data-index={currentIndex}>
-                    <QueueTrack
-                      track={nowPlaying}
-                      index={currentIndex}
-                      isCurrentTrack={true}
-                      isPlaying={isPlaying}
-                      onPlay={handleTrackPlay}
-                    />
-                  </div>
+            {/* Up Next Section */}
+            {upNext.length > 0 && (
+              <div>
+                <div
+                  className="flex items-center gap-2 px-2 mb-3 mt-6"
+                  dir="rtl"
+                >
+                  <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">
+                    بعدی در صف
+                  </h3>
+                  <span className="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full">
+                    {upNext.length}
+                  </span>
                 </div>
-              )}
-
-              {/* Up Next Section */}
-              {upNext.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 px-2 mb-3" dir="rtl">
-                    <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">
-                      بعدی در صف
-                    </h3>
-                    <span className="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full">
-                      {upNext.length}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    {upNext.map((track, idx) => {
-                      const actualIndex = currentIndex + 1 + idx;
-                      return (
-                        <div key={track.id} data-index={actualIndex}>
-                          <QueueTrack
-                            track={track}
-                            index={actualIndex}
-                            isCurrentTrack={false}
-                            isPlaying={false}
-                            onPlay={handleTrackPlay}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Previously Played Section */}
-              {previousTracks.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 px-2 mb-3" dir="rtl">
-                    <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider">
-                      موارد قبلی لیست
-                    </h3>
-                    <span className="text-xs text-neutral-600 bg-neutral-800/50 px-2 py-0.5 rounded-full">
-                      {previousTracks.length}
-                    </span>
-                  </div>
-                  <div className="space-y-1 opacity-60">
-                    {previousTracks.map((track, idx) => (
-                      <div key={track.id} data-index={idx}>
+                <div className="space-y-1">
+                  {upNext.map((track, idx) => {
+                    const actualIndex = currentIndex + 1 + idx;
+                    return (
+                      <div key={track.id} data-index={actualIndex}>
                         <QueueTrack
                           track={track}
-                          index={idx}
+                          index={actualIndex}
                           isCurrentTrack={false}
                           isPlaying={false}
                           onPlay={handleTrackPlay}
                         />
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Empty State */}
-              {queue.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center mb-4">
-                    <Icon.MusicNote c="w-10 h-10 text-neutral-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-neutral-400 mb-2">
-                    صف پخش خالی است
+            {/* Previously Played Section */}
+            {previousTracks.length > 0 && (
+              <div>
+                <div
+                  className="flex items-center gap-2 px-2 mb-3 mt-6"
+                  dir="rtl"
+                >
+                  <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider">
+                    موارد قبلی لیست
                   </h3>
-                  <p className="text-sm text-neutral-500">
-                    آهنگی برای پخش انتخاب کنید
-                  </p>
+                  <span className="text-xs text-neutral-600 bg-neutral-800/50 px-2 py-0.5 rounded-full">
+                    {previousTracks.length}
+                  </span>
                 </div>
-              )}
-            </div>
+                <div className="space-y-1 opacity-60">
+                  {previousTracks.map((track, idx) => (
+                    <div key={track.id} data-index={idx}>
+                      <QueueTrack
+                        track={track}
+                        index={idx}
+                        isCurrentTrack={false}
+                        isPlaying={false}
+                        onPlay={handleTrackPlay}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {queue.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center mb-4">
+                  <Icon.MusicNote c="w-10 h-10 text-neutral-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-neutral-400 mb-2">
+                  صف پخش خالی است
+                </h3>
+                <p className="text-sm text-neutral-500">
+                  آهنگی برای پخش انتخاب کنید
+                </p>
+              </div>
+            )}
 
             {/* Bottom Safe Area */}
             <div className="h-safe-area-inset-bottom bg-neutral-950" />
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+          </div>
+        </Drawer.Content>
+      </Drawer.Portal>
+    </Drawer.Root>
   );
 });
 

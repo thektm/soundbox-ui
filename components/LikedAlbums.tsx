@@ -250,7 +250,7 @@ export default function LikedAlbums() {
 
   const handleAlbumPress = useCallback(
     (album: LikedAlbum) => {
-      navigateTo("album-detail", { slug: album.id, album });
+      navigateTo("album-detail", { id: album.id, album });
     },
     [navigateTo]
   );

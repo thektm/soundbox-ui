@@ -5,6 +5,7 @@ export interface Song {
   id: string;
   title: string;
   artist: string;
+  artistId?: string | number;
   album: string;
   duration: string;
   image: string;

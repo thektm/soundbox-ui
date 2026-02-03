@@ -1,261 +1,384 @@
 "use client";
 
-import React, { useState, useMemo, memo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  memo,
+  useCallback,
+  useRef,
+} from "react";
 import Image from "next/image";
-import {
-  Playlist,
-  Song,
-  createSlug,
-  decodeSlug,
-  MOCK_SONGS as IMPORTED_MOCK_SONGS,
-  getAllPlaylists,
-  findPlaylistBySlug,
-} from "./mockData";
+import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { useNavigation } from "./NavigationContext";
+import { useAuth } from "./AuthContext";
+import { usePlayer, Track } from "./PlayerContext";
+import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { toast } from "react-hot-toast";
 
-// Reuse the same icons and helpers from the page version
-const SvgIcon = ({
-  d,
-  className,
-  fill = "currentColor",
-  strokeWidth = 0,
-}: {
-  d: string;
-  className?: string;
-  fill?: string;
-  strokeWidth?: number;
-}) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill={fill === "none" ? "none" : fill}
-    stroke={fill === "none" ? "currentColor" : "none"}
-    strokeWidth={strokeWidth}
-  >
-    <path d={d} />
-  </svg>
-);
+// ============== API INTERFACES ==============
 
-const ICON_PATHS = {
-  play: "M8 5v14l11-7z",
-  pause: "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
-  heart:
-    "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z",
-  clock:
-    "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z",
-  music:
-    "M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z",
-  shuffle:
-    "M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z",
-  arrowLeft: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
-  shareNetwork:
-    "M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z",
-  dotsThree:
-    "M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z",
+interface ApiSong {
+  id: number;
+  title: string;
+  artist_id?: number;
+  artist_name: string;
+  album_title?: string;
+  cover_image: string;
+  stream_url: string;
+  duration_seconds: number;
+  is_liked: boolean;
+  genre_names?: string[];
+  tag_names?: string[];
+  mood_names?: string[];
+  sub_genre_names?: string[];
+  play_count?: number;
+}
+
+interface PlaylistResponse {
+  id: number;
+  unique_id?: string;
+  title: string;
+  description: string;
+  cover_image?: string;
+  covers?: string[];
+  created_at: string;
+  created_by?: string;
+  songs: ApiSong[];
+  song_ids?: number[];
+  is_liked?: boolean;
+  likes_count?: number;
+}
+
+// ============== HELPERS ==============
+
+const formatDuration = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 
-const Icon = ({
-  name,
-  className,
-  fill = true,
-}: {
-  name: keyof typeof ICON_PATHS;
-  className?: string;
-  fill?: boolean;
-}) => (
-  <SvgIcon
-    d={ICON_PATHS[name]}
-    className={className}
-    fill={fill ? "currentColor" : "none"}
-    strokeWidth={fill ? 0 : 2}
-  />
+const apiSongToTrack = (song: ApiSong): Track => ({
+  id: String(song.id),
+  title: song.title,
+  artist: song.artist_name,
+  artistId: song.artist_id,
+  image: song.cover_image || "/default-cover.jpg",
+  duration: formatDuration(song.duration_seconds),
+  durationSeconds: song.duration_seconds,
+  src: song.stream_url ? song.stream_url.replace("http://", "https://") : "",
+  isLiked: song.is_liked,
+});
+
+// ============== SVG ICON COMPONENT ==============
+
+type IconName =
+  | "play"
+  | "pause"
+  | "heart"
+  | "shuffle"
+  | "more"
+  | "arrowLeft"
+  | "clock"
+  | "music"
+  | "shareNetwork";
+
+const ICON_PATHS: Record<
+  IconName,
+  { d: string; fill?: boolean; stroke?: boolean }
+> = {
+  play: { d: "M8 5.14v14l11-7-11-7z", fill: true },
+  pause: { d: "M6 4h4v16H6V4zm8 0h4v16h-4V4z", fill: true },
+  heart: {
+    d: "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z",
+    stroke: true,
+  },
+  shuffle: {
+    d: "M16 3l5 0 0 5M4 20L21 3M21 16l0 5-5 0M15 15l6 6M4 4l5 5",
+    stroke: true,
+  },
+  more: {
+    d: "M12 6m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0M12 12m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0M12 18m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0",
+    fill: true,
+  },
+  arrowLeft: {
+    d: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
+    stroke: true,
+  },
+  clock: {
+    d: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z",
+    stroke: true,
+  },
+  music: {
+    d: "M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z",
+    fill: true,
+  },
+  shareNetwork: {
+    d: "M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z",
+    fill: true,
+  },
+};
+
+const Icon = memo(
+  ({
+    name,
+    size = 24,
+    filled,
+    className = "",
+  }: {
+    name: IconName;
+    size?: number;
+    filled?: boolean;
+    className?: string;
+  }) => {
+    const pathInfo = ICON_PATHS[name];
+    if (!pathInfo) return null;
+    const { d, fill, stroke } = pathInfo;
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        className={className}
+        fill={fill || (name === "heart" && filled) ? "currentColor" : "none"}
+        stroke={stroke ? "currentColor" : undefined}
+        strokeWidth={stroke ? 2 : undefined}
+        strokeLinecap={stroke ? "round" : undefined}
+        strokeLinejoin={stroke ? "round" : undefined}
+      >
+        <path d={d} />
+      </svg>
+    );
+  },
+);
+Icon.displayName = "Icon";
+
+// ============== EQUALIZER ==============
+
+const Equalizer = () => (
+  <div className="flex items-end gap-0.5 h-3.5">
+    {[0, 0.2, 0.4, 0.6].map((d, i) => (
+      <span
+        key={i}
+        className="w-[3px] bg-green-500 rounded-sm animate-equalizer"
+        style={{ animationDelay: `${d}s` }}
+      />
+    ))}
+  </div>
 );
 
-export function findPlaylistBySlugLocal(
-  slug: string,
-  allPlaylists: Playlist[]
-): Playlist | undefined {
-  const decodedSlug = decodeSlug(slug);
+// ============== SONG ROW ==============
 
-  return allPlaylists.find((playlist) => {
-    const playlistSlug = createSlug(playlist.title);
-    const decodedPlaylistSlug = decodeSlug(playlistSlug);
-    return (
-      decodedPlaylistSlug.toLowerCase() === decodedSlug.toLowerCase() ||
-      playlist.title.toLowerCase().replace(/\s+/g, " ").trim() ===
-        decodedSlug.toLowerCase()
-    );
-  });
-}
-
-export function getAllPlaylistsLocal(): Playlist[] {
-  return getAllPlaylists();
-}
-
-const MOCK_SONGS = IMPORTED_MOCK_SONGS;
-
-interface SongRowProps {
-  song: Song;
-  index: number;
-  isPlaying?: boolean;
-  onPlay?: () => void;
-}
-
-const SongRow: React.FC<SongRowProps> = memo(
-  ({ song, index, isPlaying = false, onPlay }) => {
-    const [isHovered, setIsHovered] = useState(false);
-    const [isLiked, setIsLiked] = useState(false);
+const SongRow = memo(
+  ({
+    song,
+    idx,
+    current,
+    playing,
+    onPlay,
+    onMore,
+  }: {
+    song: ApiSong;
+    idx: number;
+    current: boolean;
+    playing: boolean;
+    onPlay: () => void;
+    onMore: (song: ApiSong) => void;
+  }) => {
+    const [hover, setHover] = useState(false);
 
     return (
       <div
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         onClick={onPlay}
-        className={`group grid grid-cols-[16px_4fr_minmax(80px,1fr)] md:grid-cols-[16px_4fr_2fr_minmax(80px,1fr)] gap-4 px-1 py-2 rounded-md transition-colors cursor-pointer ${
-          isPlaying
-            ? "bg-white/10"
-            : isHovered
-            ? "bg-white/5"
-            : "hover:bg-white/5"
-        }`}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className="flex items-center gap-4 py-2 pl-6 pr-2 sm:px-0 -mx-6 sm:mx-0 rounded-md cursor-pointer transition-all duration-300 hover:bg-white/[0.08] active:bg-white/[0.12] bg-black/5"
       >
-        <div className="flex items-center justify-center w-4">
-          {isHovered ? (
-            <button className="text-white">
-              {isPlaying ? (
-                <Icon name="pause" className="w-3.5 h-3.5" />
-              ) : (
-                <Icon name="play" className="w-3.5 h-3.5" />
-              )}
-            </button>
-          ) : isPlaying ? (
-            <Icon name="music" className="w-3.5 h-3.5 text-green-500" />
+        <div className="w-5 text-center text-sm text-neutral-400 tabular-nums">
+          {hover ? (
+            <Icon name={current && playing ? "pause" : "play"} size={14} />
+          ) : current && playing ? (
+            <Equalizer />
           ) : (
-            <span className="text-sm text-neutral-400">{index + 1}</span>
+            <span className={current ? "text-green-500" : ""}>{idx + 1}</span>
           )}
         </div>
 
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="relative w-10 h-10 shrink-0 rounded overflow-hidden bg-neutral-800">
-            <Image
-              src={song.image}
-              alt={song.title}
-              fill
-              sizes="40px"
-              quality={75}
-              className="object-cover"
-            />
+        <div className="w-11 h-11 shrink-0 overflow-hidden rounded relative">
+          <ImageWithPlaceholder
+            src={song.cover_image}
+            alt={song.title}
+            className="w-full h-full object-cover"
+          />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div
+            className={`text-[15px] font-medium truncate ${
+              current ? "text-green-500" : "text-white"
+            }`}
+          >
+            {song.title}
           </div>
-          <div className="min-w-0 flex-1">
-            <p
-              className={`text-sm font-medium truncate ${
-                isPlaying ? "text-green-500" : "text-white"
-              }`}
-            >
-              {song.title}
-            </p>
-            <p className="text-xs text-neutral-400 truncate flex items-center gap-1">
-              {song.explicit && (
-                <span className="px-1 py-0.5 text-[9px] bg-neutral-600 text-neutral-300 rounded">
-                  E
-                </span>
-              )}
-              {song.artist}
-            </p>
+          <div className="text-[13px] text-white/60 truncate mt-0.5">
+            {song.artist_name}
           </div>
         </div>
 
-        <div className="hidden md:flex items-center">
-          <p className="text-sm text-neutral-400">۱ هفته پیش</p>
-        </div>
-
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:block text-[13px] text-neutral-400">
+            {formatDuration(song.duration_seconds)}
+          </div>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setIsLiked(!isLiked);
+              onMore(song);
             }}
-            className={`opacity-0 group-hover:opacity-100 transition-opacity ${
-              isLiked ? "opacity-100" : ""
-            }`}
+            className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white"
           >
-            <Icon
-              name="heart"
-              className={`w-4 h-4 ${
-                isLiked ? "text-green-500" : "text-neutral-400 hover:text-white"
-              }`}
-              fill={isLiked}
-            />
-          </button>
-          <span className="text-sm text-neutral-400">{song.duration}</span>
-          <button className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-white">
-            <Icon name="dotsThree" className="w-5 h-5" />
+            <Icon name="more" size={18} />
           </button>
         </div>
       </div>
     );
-  }
+  },
 );
+SongRow.displayName = "SongRow";
+
+// ============== PLAYLIST DETAIL ==============
 
 interface PlaylistDetailProps {
+  id?: number | string;
   slug?: string;
 }
 
-const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ slug }) => {
+const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
   const { goBack } = useNavigation();
+  const { accessToken } = useAuth();
+  const { setQueue, currentTrack, isPlaying } = usePlayer();
 
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [playlist, setPlaylist] = useState<PlaylistResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
-  const [currentSongIndex, setCurrentSongIndex] = useState<number | null>(null);
+  const [isLiking, setIsLiking] = useState(false);
 
-  const allPlaylists = useMemo(() => getAllPlaylistsLocal(), []);
+  const [selectedSong, setSelectedSong] = useState<any | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const playlist = useMemo(() => {
-    if (!slug) return null;
-    return findPlaylistBySlugLocal(slug, allPlaylists);
-  }, [slug, allPlaylists]);
+  const fetchPlaylist = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      // Use the recommendation endpoint if the ID is a unique mixed-string ID (smart_rec_...)
+      const isRecommended =
+        typeof id === "string" && id.startsWith("smart_rec_");
+      const url = isRecommended
+        ? `https://api.sedabox.com/api/home/playlist-recommendations/${id}/`
+        : `https://api.sedabox.com/api/playlists/${id}/`;
 
-  const playlistSongs = useMemo(() => {
-    return [...MOCK_SONGS].sort(() => Math.random() - 0.5).slice(0, 15);
-  }, [playlist?.id]);
+      const resp = await fetch(url, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setPlaylist(data);
+        setIsLiked(!!data.is_liked);
+      } else {
+        toast.error("خطا در بارگذاری پلی‌لیست");
+      }
+    } catch (err) {
+      console.error("Fetch playlist error:", err);
+      toast.error("خطای شبکه");
+    } finally {
+      setLoading(false);
+    }
+  }, [id, accessToken]);
 
-  const handlePlayAll = () => {
-    setIsPlaying(!isPlaying);
-    if (!isPlaying && currentSongIndex === null) {
-      setCurrentSongIndex(0);
+  useEffect(() => {
+    fetchPlaylist();
+  }, [fetchPlaylist]);
+
+  const handleToggleLike = async () => {
+    if (!playlist || !accessToken) {
+      toast.error("لطفا ابتدا وارد حساب خود شوید");
+      return;
+    }
+    setIsLiking(true);
+    try {
+      const resp = await fetch(
+        `https://api.sedabox.com/api/playlists/${playlist.id}/like/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        setIsLiked(data.liked);
+        if (playlist) {
+          setPlaylist({ ...playlist, likes_count: data.likes_count });
+        }
+      } else {
+        toast.error("خطا در انجام عملیات");
+      }
+    } catch (err) {
+      console.error("Like error:", err);
+      toast.error("خطای شبکه");
+    } finally {
+      setIsLiking(false);
     }
   };
 
-  const handlePlaySong = (index: number) => {
-    setCurrentSongIndex(index);
-    setIsPlaying(true);
+  const handleMore = useCallback((song: ApiSong) => {
+    setSelectedSong(song);
+    setIsDrawerOpen(true);
+  }, []);
+
+  const handlePlaySong = (idx: number) => {
+    if (!playlist) return;
+    const tracks = playlist.songs.map(apiSongToTrack);
+    setQueue(tracks, idx);
   };
+
+  const handlePlayAll = () => {
+    if (!playlist || playlist.songs.length === 0) return;
+    const tracks = playlist.songs.map(apiSongToTrack);
+    setQueue(tracks, 0);
+  };
+
+  const totalDuration = useMemo(() => {
+    if (!playlist) return "0:00";
+    const totalSecs = playlist.songs.reduce(
+      (sum, s) => sum + s.duration_seconds,
+      0,
+    );
+    const hours = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    if (hours > 0) return `${hours} ساعت و ${mins} دقیقه`;
+    return `${mins} دقیقه`;
+  }, [playlist]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!playlist) {
     return (
-      <div
-        className="min-h-screen bg-linear-to-b from-neutral-900 to-neutral-950 text-white"
-        dir="rtl"
-      >
-        <div className="max-w-7xl mx-auto px-4 py-20">
-          <div className="text-center">
-            <Icon
-              name="music"
-              className="w-16 h-16 mx-auto text-neutral-600 mb-4"
-            />
-            <h1 className="text-2xl font-bold mb-2">پلی‌لیست پیدا نشد</h1>
-            <p className="text-neutral-400 mb-6">
-              متاسفانه پلی‌لیست مورد نظر شما یافت نشد.
-            </p>
-            <button
-              onClick={goBack}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-400 text-black font-semibold rounded-full transition-colors"
-            >
-              <Icon name="arrowLeft" className="w-5 h-5" />
-              بازگشت به پلی‌لیست‌ها
-            </button>
-          </div>
-        </div>
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
+        <Icon name="music" size={64} className="text-neutral-700 mb-4" />
+        <h2 className="text-2xl font-bold mb-2">پلی‌لیست یافت نشد</h2>
+        <button
+          onClick={goBack}
+          className="mt-4 px-6 py-2 bg-green-500 text-black rounded-full font-bold"
+        >
+          بازگشت
+        </button>
       </div>
     );
   }
@@ -268,7 +391,14 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ slug }) => {
       <header
         className="relative w-full h-96 md:h-[500px] bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.8) 100%), url(${playlist.image})`,
+          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.8) 100%), url(${
+            playlist.cover_image ||
+            (playlist.covers && playlist.covers[0]) ||
+            (playlist.songs && playlist.songs.length > 0
+              ? playlist.songs[0].cover_image
+              : "") ||
+            "/default-cover.jpg"
+          })`,
         }}
       >
         <div className="absolute top-4 left-4 z-20">
@@ -292,36 +422,23 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ slug }) => {
               {playlist.description}
             </p>
             <div className="flex items-center gap-3 text-sm text-neutral-300">
-              {playlist.followers && (
+              {playlist.likes_count !== undefined && (
                 <>
                   <span className="text-white font-bold">
-                    {playlist.followers}
+                    {playlist.likes_count}
                   </span>
                   <span>لایک</span>
                   <span>•</span>
                 </>
               )}
-              <span>{playlist.songsCount} آهنگ</span>
+              <span>{playlist.songs.length} آهنگ</span>
               <span>•</span>
               <span className="flex items-center gap-1">
                 <Icon name="clock" className="w-4 h-4" />
-                {playlist.duration}
+                {totalDuration}
               </span>
             </div>
           </div>
-        </div>
-
-        <div className="absolute top-4 right-4 z-20 flex gap-2">
-          {playlist.isPremium && (
-            <div className="px-3 py-1 text-xs font-bold bg-linear-to-r from-amber-400 to-orange-500 text-black rounded-full shadow-lg">
-              Premium
-            </div>
-          )}
-          {playlist.isNew && (
-            <div className="px-3 py-1 text-xs font-bold bg-blue-500 text-white rounded-full shadow-lg">
-              New
-            </div>
-          )}
         </div>
       </header>
 
@@ -331,24 +448,21 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ slug }) => {
             onClick={handlePlayAll}
             className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-400 hover:scale-110 flex items-center justify-center shadow-2xl transition-all duration-300"
           >
-            {isPlaying ? (
-              <Icon name="pause" className="w-7 h-7 text-black" />
-            ) : (
-              <Icon name="play" className="w-7 h-7 text-black ml-1" />
-            )}
-          </button>
-
-          <button className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-green-500 transition-colors duration-200">
-            <Icon name="shuffle" className="w-7 h-7" />
+            <Icon name="play" className="w-7 h-7 text-black ml-1" />
           </button>
 
           <button
-            onClick={() => setIsLiked(!isLiked)}
+            onClick={handleToggleLike}
+            disabled={isLiking}
             className={`w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors duration-200 ${
               isLiked ? "text-green-500" : "text-neutral-400 hover:text-white"
             }`}
           >
-            <Icon name="heart" className="w-7 h-7" fill={isLiked} />
+            {isLiking ? (
+              <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Icon name="heart" className="w-7 h-7" filled={isLiked} />
+            )}
           </button>
 
           <button className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200">
@@ -356,35 +470,47 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ slug }) => {
           </button>
 
           <button className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200">
-            <Icon name="dotsThree" className="w-7 h-7" />
+            <Icon name="more" className="w-7 h-7" />
           </button>
         </div>
       </div>
 
-      <main className="px-6 md:px-12">
-        <div className="grid grid-cols-[16px_4fr_minmax(80px,1fr)] md:grid-cols-[16px_4fr_2fr_minmax(80px,1fr)] gap-4 px-4 py-3 border-b border-white/10 text-neutral-400 text-sm font-medium">
-          <div className="flex items-center justify-center">#</div>
-          <div>Title</div>
-          <div className="hidden md:block">Date Added</div>
-          <div className="flex items-center justify-end">
-            <Icon name="clock" className="w-[18px] h-[18px]" />
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-1">
-          {playlistSongs.map((song, index) => (
-            <SongRow
-              key={song.id}
-              song={song}
-              index={index}
-              isPlaying={currentSongIndex === index && isPlaying}
-              onPlay={() => handlePlaySong(index)}
-            />
-          ))}
-        </div>
+      <main className="px-6 md:px-12 mt-4 space-y-1">
+        {playlist.songs.map((song, index) => (
+          <SongRow
+            key={song.id}
+            song={song}
+            idx={index}
+            current={String(song.id) === currentTrack?.id}
+            playing={isPlaying}
+            onPlay={() => handlePlaySong(index)}
+            onMore={handleMore}
+          />
+        ))}
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 h-24 bg-linear-to-t from-black via-black/95 to-transparent pointer-events-none" />
+      <SongOptionsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        song={selectedSong}
+      />
+
+      <style jsx global>{`
+        @keyframes equalizer {
+          0% {
+            height: 4px;
+          }
+          50% {
+            height: 14px;
+          }
+          100% {
+            height: 4px;
+          }
+        }
+        .animate-equalizer {
+          animation: equalizer 0.6s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 };

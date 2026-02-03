@@ -12,6 +12,72 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import { MOCK_ARTISTS, MOCK_SONGS, Song, createSlug } from "./mockData";
 import { useNavigation } from "./NavigationContext";
+import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { SongOptionsDrawer } from "./SongOptionsDrawer";
+import { useAuth } from "./AuthContext";
+import { toast } from "react-hot-toast";
+
+interface ApiArtist {
+  id: number;
+  name: string;
+  artistic_name: string;
+  user_id: number | null;
+  bio: string;
+  profile_image: string;
+  banner_image: string;
+  verified: boolean;
+  followers_count: number;
+  followings_count: number;
+  monthly_listeners_count: number;
+  is_following: boolean;
+  social_accounts: {
+    id: number;
+    platform_name: string;
+    url: string;
+    username: string;
+  }[];
+}
+
+interface ApiSong {
+  id: number;
+  title: string;
+  artist: number;
+  artist_id?: number;
+  artist_name: string;
+  cover_image: string;
+  duration_display: string;
+  likes_count: number;
+  is_liked: boolean;
+  display_title: string;
+  stream_url: string;
+  plays?: number;
+}
+
+interface ApiAlbum {
+  id: number;
+  title: string;
+  artist: number;
+  artist_name: string;
+  cover_image: string;
+  release_date?: string;
+}
+
+interface ApiPlaylistSnippet {
+  type: "playlist";
+  id: number;
+  title: string;
+  image: string;
+  source: string;
+}
+
+interface ArtistResponse {
+  artist: ApiArtist;
+  top_songs: { items: ApiSong[]; total: number };
+  albums: { items: ApiAlbum[]; total: number };
+  latest_songs: { items: ApiSong[]; total: number };
+  similar_artists: ApiArtist[];
+  discovered_on?: ApiPlaylistSnippet[];
+}
 
 const BILLIE_BIO_FA = `بیلی آیلیش پایرت بیرد اوکانل (زادهٔ ۱۸ دسامبر ۲۰۰۱) خواننده و ترانه‌نویس آمریکایی است. او اولین بار در سال ۲۰۱۵ با تک‌آهنگ «چشم‌های اقیانوسی» توجه‌ها را به خود جلب کرد که پس از انتشار در ساوندکلاود، توسط شرکت‌های دارک‌روم و اینترسکوپ رکوردز منتشر شد. این ترانه توسط برادرش فینیس اوکانل نوشته و تهیه شده‌است که بیلی در موسیقی و برنامه‌های زنده با او همکاری می‌کند. اولین ئی‌پی او، به من لبخند نزن (۲۰۱۷) در میان ۱۵ رتبه برتر جدول‌های فروش ایالات متحده، بریتانیا، کانادا و استرالیا قرار گرفت. اولین آلبوم استودیویی او، وقتی همه می‌خوابیم، کجا می‌ریم؟ (۲۰۱۹) به رتبه اول بیلبورد ۲۰۰ ایالات متحده رسید و به بهترین عملکرد آلبوم در سال ۲۰۱۹ تبدیل شد. او جوان‌ترین فرد و دومین نفری است که موفق به کسب چهار جایزه اصلی گرمی (بهترین هنرمند جدید، ضبط سال، ترانه سال و آلبوم سال) در یک سال شده است. سبک موسیقی او پاپ، الکتروپاپ و ایندی پاپ توصیف شده است. او از هنرمندانی چون لانا دل ری، تایلر، د کریتور و چایلدیش گامبینو تأثیر گرفته است. صدای او سوپرانو است و اغلب با سبک آوازخوانی زمزمه‌وار شناخته می‌شود. او در لس آنجلس بزرگ شده و در خانه آموزش دیده است.`;
 
@@ -40,7 +106,7 @@ const iconPaths: Record<
     stroke: true,
   },
   more: {
-    d: "M12 12m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0M20 12m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0M4 12m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0",
+    d: "M12 6m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0M12 12m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0M12 18m-2 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0",
     fill: true,
   },
   verified: {
@@ -78,7 +144,7 @@ const Icon = memo(
         <path d={d} />
       </svg>
     );
-  }
+  },
 );
 Icon.displayName = "Icon";
 
@@ -113,7 +179,7 @@ const useVisible = (margin = "50px") => {
     if (!el) return;
     const obs = new IntersectionObserver(
       ([e]) => setVisible(e.isIntersecting),
-      { threshold: 0.1, rootMargin: margin }
+      { threshold: 0.1, rootMargin: margin },
     );
     obs.observe(el);
     return () => obs.disconnect();
@@ -142,7 +208,7 @@ const LazyImg = memo(
       if (priority || !ref.current) return;
       const obs = new IntersectionObserver(
         ([e]) => e.isIntersecting && (setLoad(true), obs.disconnect()),
-        { rootMargin: "100px" }
+        { rootMargin: "100px" },
       );
       obs.observe(ref.current);
       return () => obs.disconnect();
@@ -161,7 +227,7 @@ const LazyImg = memo(
         )}
       </div>
     );
-  }
+  },
 );
 LazyImg.displayName = "LazyImg";
 
@@ -189,7 +255,7 @@ const AnimNum = memo(
         {n.toLocaleString("fa-IR")}
       </span>
     );
-  }
+  },
 );
 AnimNum.displayName = "AnimNum";
 
@@ -201,16 +267,18 @@ const SongRow = memo(
     current,
     playing,
     onPlay,
+    onMore,
     delay,
   }: {
-    song: Song;
+    song: ApiSong;
     idx: number;
     current: boolean;
     playing: boolean;
     onPlay: () => void;
+    onMore: (song: ApiSong) => void;
     delay: number;
   }) => {
-    const [liked, setLiked] = useState(false);
+    const [liked, setLiked] = useState(song.is_liked);
     const [hover, setHover] = useState(false);
     const { ref, visible } = useVisible();
 
@@ -220,7 +288,7 @@ const SongRow = memo(
         onClick={onPlay}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-        className="flex items-center gap-4 p-2.5 rounded-md cursor-pointer transition-all duration-300 hover:bg-white/[0.08] active:bg-white/[0.12]"
+        className="flex items-center gap-4 py-2 pl-6 pr-2 sm:px-0 -mx-6 sm:mx-0 rounded-md cursor-pointer transition-all duration-300 hover:bg-white/[0.08] active:bg-white/[0.12] bg-black/5"
         style={{
           transform: visible ? "translateY(0)" : "translateY(20px)",
           opacity: visible ? 1 : 0,
@@ -237,11 +305,13 @@ const SongRow = memo(
           )}
         </div>
 
-        <LazyImg
-          src={song.image}
-          alt={song.title}
-          className="w-11 h-11 rounded shrink-0"
-        />
+        <div className="w-11 h-11 shrink-0 overflow-hidden rounded relative">
+          <ImageWithPlaceholder
+            src={song.cover_image}
+            alt={song.title}
+            className="w-full h-full object-cover"
+          />
+        </div>
 
         <div className="flex-1 min-w-0">
           <div
@@ -252,46 +322,24 @@ const SongRow = memo(
             {song.title}
           </div>
           <div className="text-[13px] text-white/60 truncate mt-0.5">
-            {song.explicit && (
-              <span className="inline-flex items-center justify-center w-4 h-4 bg-white/15 text-white/80 text-[9px] font-bold rounded-sm ml-1.5 align-middle">
-                E
-              </span>
-            )}
-            {song.artist}
+            {song.plays}
           </div>
-        </div>
-
-        <div className="hidden md:block text-[13px] text-white/50 whitespace-nowrap">
-          {Math.floor(Math.random() * 50 + 5).toLocaleString("fa-IR")} میلیون
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setLiked(!liked);
+              onMore(song);
             }}
-            className={`w-8 h-8 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 ${
-              liked
-                ? "text-green-500 !opacity-100"
-                : "text-white/40 hover:text-white"
-            }`}
-          >
-            <Icon name="heart" size={18} filled={liked} />
-          </button>
-          <span className="text-[13px] text-white/50 tabular-nums min-w-[40px] text-left">
-            {song.duration}
-          </span>
-          <button
-            onClick={(e) => e.stopPropagation()}
-            className="w-8 h-8 flex items-center justify-center text-white/40 opacity-0 group-hover:opacity-100 transition hover:text-white"
+            className="w-8 h-8 flex items-center justify-center text-white/40 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition hover:text-white"
           >
             <Icon name="more" size={18} />
           </button>
         </div>
       </div>
     );
-  }
+  },
 );
 SongRow.displayName = "SongRow";
 
@@ -309,59 +357,45 @@ const Equalizer = () => (
 );
 
 // ============== CARD COMPONENTS ==============
-const AlbumCard = memo(
-  ({
-    album,
-    idx,
-  }: {
-    album: {
-      id: string;
-      title: string;
-      image: string;
-      year: string;
-      type: string;
-    };
-    idx: number;
-  }) => {
-    const { navigateTo } = useNavigation();
-    const [hover, setHover] = useState(false);
-    const { ref, visible } = useVisible();
+const AlbumCard = memo(({ album, idx }: { album: ApiAlbum; idx: number }) => {
+  const { navigateTo } = useNavigation();
+  const [hover, setHover] = useState(false);
+  const { ref, visible } = useVisible();
 
-    return (
-      <div
-        ref={ref}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        onClick={() => navigateTo("album-detail", { album: album })}
-        className="cursor-pointer transition-all duration-400"
-        style={{
-          transform: visible ? "translateY(0)" : "translateY(30px)",
-          opacity: visible ? 1 : 0,
-          transitionDelay: `${idx * 80}ms`,
-        }}
-      >
-        <div className="relative aspect-square rounded-lg overflow-hidden mb-3">
-          <LazyImg
-            src={album.image}
-            alt={album.title}
-            className="w-full h-full"
-          />
-          <PlayBtn show={hover} className="bottom-2 left-2" />
-        </div>
-        <h3 className="text-[15px] font-semibold truncate px-1">
-          {album.title}
-        </h3>
-        <p className="text-[13px] text-white/60 px-1">
-          {album.year} • {album.type}
-        </p>
+  return (
+    <div
+      ref={ref}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={() => navigateTo("album-detail", { id: album.id })}
+      className="cursor-pointer transition-all duration-400"
+      style={{
+        transform: visible ? "translateY(0)" : "translateY(30px)",
+        opacity: visible ? 1 : 0,
+        transitionDelay: `${idx * 80}ms`,
+      }}
+    >
+      <div className="relative aspect-square rounded-lg overflow-hidden mb-3">
+        <ImageWithPlaceholder
+          src={album.cover_image}
+          alt={album.title}
+          className="w-full h-full object-cover"
+        />
+        <PlayBtn show={hover} className="bottom-2 left-2" />
       </div>
-    );
-  }
-);
+      <h3 className="text-[15px] font-semibold truncate px-1">{album.title}</h3>
+      <p className="text-[13px] text-white/60 px-1">
+        {album.release_date
+          ? `${album.release_date.split("-")[0]} • آلبوم`
+          : "آلبوم"}
+      </p>
+    </div>
+  );
+});
 AlbumCard.displayName = "AlbumCard";
 
 const ArtistCard = memo(
-  ({ artist, idx }: { artist: (typeof MOCK_ARTISTS)[0]; idx: number }) => {
+  ({ artist, idx }: { artist: ApiArtist; idx: number }) => {
     const { navigateTo } = useNavigation();
     const [hover, setHover] = useState(false);
     const { ref, visible } = useVisible();
@@ -380,18 +414,21 @@ const ArtistCard = memo(
         }}
       >
         <div className="relative w-full pb-[100%] rounded-full overflow-hidden mb-3">
-          <LazyImg
-            src={artist.image}
-            alt={artist.name}
-            className="absolute inset-0 w-full h-full rounded-full"
-          />
+          <div className="absolute inset-0">
+            <ImageWithPlaceholder
+              src={artist.profile_image}
+              alt={artist.name}
+              className="w-full h-full rounded-full object-cover"
+              type="artist"
+            />
+          </div>
           <PlayBtn show={hover} className="bottom-2 left-1/2 -ml-[22px]" />
         </div>
         <h3 className="text-[15px] font-semibold truncate">{artist.name}</h3>
         <p className="text-[13px] text-white/60">خواننده</p>
       </div>
     );
-  }
+  },
 );
 ArtistCard.displayName = "ArtistCard";
 
@@ -415,113 +452,214 @@ const PlayBtn = ({
 
 // ============== MAIN PAGE ==============
 interface ArtistDetailProps {
-  slug?: string;
+  id?: string | number; // Changed from slug to id
 }
 
-export default function ArtistDetail({ slug }: ArtistDetailProps) {
-  const { goBack } = useNavigation();
+const ArtistSkeleton = () => (
+  <div className="min-h-screen bg-[#0a0a0a] text-white animate-pulse" dir="rtl">
+    {/* Hero Skeleton */}
+    <div className="relative h-[45vh] min-h-[340px] bg-zinc-900" />
+
+    {/* Actions Skeleton */}
+    <div className="flex items-center justify-between px-6 py-6">
+      <div className="flex gap-4">
+        <div className="w-28 h-10 bg-zinc-800 rounded-full" />
+        <div className="w-10 h-10 bg-zinc-800 rounded-full" />
+      </div>
+      <div className="flex gap-4">
+        <div className="w-12 h-12 bg-zinc-800 rounded-full" />
+        <div className="w-14 h-14 bg-zinc-800 rounded-full" />
+      </div>
+    </div>
+
+    {/* Content Skeleton */}
+    <div className="px-6 space-y-8">
+      <div>
+        <div className="w-32 h-6 bg-zinc-800 rounded mb-6" />
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="flex items-center gap-4 mb-4">
+            <div className="w-5 h-4 bg-zinc-800 rounded" />
+            <div className="w-11 h-11 bg-zinc-800 rounded" />
+            <div className="flex-1 space-y-2">
+              <div className="w-1/3 h-4 bg-zinc-800 rounded" />
+              <div className="w-1/4 h-3 bg-zinc-800 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Playlists Skeleton */}
+      <div>
+        <div className="w-40 h-6 bg-zinc-800 rounded mb-6" />
+        <div className="flex gap-4 overflow-hidden">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex-shrink-0 w-36 sm:w-44 space-y-3">
+              <div className="aspect-square bg-zinc-800 rounded-lg" />
+              <div className="w-2/3 h-4 bg-zinc-800 rounded" />
+              <div className="w-1/2 h-3 bg-zinc-800 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+export default function ArtistDetail({ id }: ArtistDetailProps) {
+  const { goBack, currentParams } = useNavigation();
+  const artistId = id || currentParams?.id;
 
   const scrollY = useScrollY();
   const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const [artist, setArtist] = useState<(typeof MOCK_ARTISTS)[0] | null>(null);
-  const [songs, setSongs] = useState<Song[]>([]);
+  const [data, setData] = useState<ArtistResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [following, setFollowing] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [isBioOpen, setIsBioOpen] = useState(false);
 
+  const [selectedSong, setSelectedSong] = useState<ApiSong | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
   useEffect(() => {
-    if (!slug) return;
-    const found = MOCK_ARTISTS.find((a) => a.id === slug);
-    if (found) {
-      setArtist(found);
-      const artistSongs = MOCK_SONGS.filter((s) => s.artist === found.name);
-      const extended = [...artistSongs];
-      while (extended.length < 10 && artistSongs[0]) {
-        extended.push({
-          ...artistSongs[0],
-          id: `${artistSongs[0].id}-${extended.length}`,
-          title: `آهنگ شماره ${extended.length + 1}`,
-        });
+    if (!artistId) return;
+
+    const fetchArtist = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `https://api.sedabox.com/api/artists/${artistId}/`,
+        );
+        const json = await res.json();
+        setData(json);
+        setFollowing(json.artist.is_following);
+      } catch (err) {
+        console.error("Error fetching artist:", err);
+      } finally {
+        setLoading(false);
       }
-      setSongs(extended);
-    }
-  }, [slug]);
+    };
+
+    fetchArtist();
+  }, [artistId]);
 
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
   const showHeader = scrollY > 340;
 
-  const albums = useMemo(
-    () =>
-      artist
-        ? [
-            {
-              id: "1",
-              title: "آلبوم اول",
-              image: artist.image,
-              year: "۱۴۰۲",
-              type: "آلبوم",
-              description: "اولین آلبوم رسمی هنرمند",
-            },
-            {
-              id: "2",
-              title: "تک آهنگ جدید",
-              image: artist.image,
-              year: "۱۴۰۳",
-              type: "سینگل",
-              description: "تک آهنگ جدید و هیجان انگیز",
-            },
-            {
-              id: "3",
-              title: "بهترین‌ها",
-              image: artist.image,
-              year: "۱۴۰۱",
-              type: "کامپایل",
-              description: "مجموعه بهترین آهنگ‌ها",
-            },
-            {
-              id: "4",
-              title: "ریمیکس‌ها",
-              image: artist.image,
-              year: "۱۴۰۲",
-              type: "EP",
-              description: "ریمیکس‌های جذاب و مدرن",
-            },
-          ]
-        : [],
-    [artist]
-  );
+  const artist = data?.artist;
+  const songs = data?.top_songs.items || [];
+  const albums = data?.albums.items || [];
+  const similarArtists = data?.similar_artists || [];
+  const discoveredOn = data?.discovered_on || [];
 
-  const collaborations = useMemo(() => MOCK_SONGS.slice(0, 5), []);
-  const popularSongs = useMemo(() => MOCK_SONGS.slice(5, 10), []);
-
-  const related = useMemo(
-    () => MOCK_ARTISTS.filter((a) => a.id !== slug).slice(0, 6),
-    [slug]
-  );
   const displayed = useMemo(
     () => (showAll ? songs : songs.slice(0, 5)),
-    [showAll, songs]
+    [showAll, songs],
   );
 
-  const playSong = useCallback((song: Song) => {
-    // Mock play
+  const playSong = useCallback((song: any) => {
+    // This should probably interface with usePlayer
     console.log("Playing", song.title);
   }, []);
 
   const playAll = useCallback(
     () => songs[0] && playSong(songs[0]),
-    [songs, playSong]
+    [songs, playSong],
   );
+
   const shuffle = useCallback(
     () =>
       songs.length && playSong(songs[Math.floor(Math.random() * songs.length)]),
-    [songs, playSong]
+    [songs, playSong],
   );
 
+  const handleMore = useCallback((song: ApiSong) => {
+    setSelectedSong(song);
+    setIsDrawerOpen(true);
+  }, []);
+
+  const { accessToken } = useAuth();
+
+  const handleAction = async (action: string, song: any) => {
+    console.log(`Action ${action} on song ${song.title}`);
+    if (action === "toggle-like") {
+      if (!song) return;
+      if (!accessToken) {
+        toast.error("برای لایک کردن لطفا وارد شوید");
+        return Promise.reject(new Error("not-authenticated"));
+      }
+      try {
+        const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;
+        const headers: Record<string, string> = {};
+        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+        const resp = await fetch(url, { method: "POST", headers });
+        if (!resp.ok) {
+          toast.error("خطا در بروزرسانی لایک");
+          const errText = await resp.text().catch(() => "");
+          throw new Error(`like-failed ${resp.status} ${errText}`);
+        }
+        const data = await resp.json();
+
+        // Update local data state (top_songs list)
+        setData((prev) => {
+          if (!prev) return prev;
+          const items = prev.top_songs.items.map((it) =>
+            it.id === song.id
+              ? { ...it, is_liked: data.liked, likes_count: data.likes_count }
+              : it,
+          );
+          return { ...prev, top_songs: { ...prev.top_songs, items } };
+        });
+
+        // Update selectedSong if it's the same one shown in drawer
+        setSelectedSong((prev) =>
+          prev && prev.id === song.id
+            ? { ...prev, is_liked: data.liked, likes_count: data.likes_count }
+            : prev,
+        );
+
+        // Notify player and other listeners
+        window.dispatchEvent(
+          new CustomEvent("song-like-changed", {
+            detail: {
+              id: String(song.id),
+              liked: data.liked,
+              likes_count: data.likes_count,
+            },
+          }),
+        );
+
+        toast.success(data.liked ? "به لایک‌ها اضافه شد" : "از لایک‌ها حذف شد");
+        return data;
+      } catch (err) {
+        console.error("Failed to toggle like (ArtistDetail):", err);
+        toast.error("خطا در بروزرسانی لایک");
+        throw err;
+      }
+    }
+
+    if (action === "share") {
+      try {
+        if (typeof navigator !== "undefined" && navigator.clipboard) {
+          await navigator.clipboard.writeText(window.location.href);
+          toast.success("لینک کپی شد");
+        }
+      } catch (err) {
+        console.error("Share failed:", err);
+        toast.error("کپی لینک ناموفق بود");
+      }
+      return;
+    }
+
+    // other actions: no-op for now
+    return;
+  };
+
+  if (loading) return <ArtistSkeleton />;
   if (!artist)
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="w-12 h-12 border-3 border-green-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center text-white">
+        هنرمند یافت نشد
       </div>
     );
 
@@ -618,11 +756,11 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
               opacity: Math.max(1 - scrollY / 400, 0),
             }}
           >
-            <LazyImg
-              src={artist.image}
+            <ImageWithPlaceholder
+              src={artist.banner_image}
               alt={artist.name}
-              className="w-full h-full"
-              priority
+              className="w-full h-full object-cover"
+              type="artist"
             />
           </div>
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0a0a]/30 via-50% to-[#0a0a0a]" />
@@ -637,17 +775,13 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
               {artist.name}
             </h1>
             <p className="text-white/70 text-sm">
-              <AnimNum
-                value={parseInt(
-                  artist.followers?.replace(/\D/g, "") || "5000000"
-                )}
-              />{" "}
-              شنونده ماهانه
+              {artist.monthly_listeners_count.toLocaleString("fa-IR")} شنونده
+              ماهانه
             </p>
           </div>
 
           {/* Circular profile overlay: 40% bigger than main play button (w-14 -> ~w-20) */}
-          <div className="absolute z-40 bottom-5  left-5 pointer-events-auto">
+          <div className="absolute z-40 bottom-5 left-5 pointer-events-auto">
             <div
               className="w-30 h-30 md:w-24 md:h-24 rounded-full overflow-hidden bg-neutral-900 shadow-[0_12px_30px_rgba(2,6,23,0.6)]"
               style={{
@@ -655,10 +789,11 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
                 boxShadow: "0 10px 30px rgba(16,24,40,0.6)",
               }}
             >
-              <LazyImg
-                src={(artist as any).profileImage || artist.image}
+              <ImageWithPlaceholder
+                src={artist.profile_image}
                 alt={`${artist.name} avatar`}
-                className="w-full h-full rounded-full"
+                className="w-full h-full rounded-full object-cover"
+                type="artist"
               />
             </div>
           </div>
@@ -699,11 +834,9 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
 
         {/* Discography */}
         <section className="px-6 py-4">
-          <h2 className="text-[22px] font-bold mb-5">دیسکوگرافی</h2>
-
           {/* Songs */}
           <div className="mb-8">
-            <h3 className="text-lg font-semibold mb-4">آهنگ‌ها</h3>
+            <h3 className="text-lg font-semibold mb-4">اهنگ های برتر</h3>
             <div className="flex flex-col group">
               {displayed.map((song, i) => (
                 <SongRow
@@ -713,6 +846,7 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
                   current={false}
                   playing={false}
                   onPlay={() => playSong(song)}
+                  onMore={() => handleMore(song)}
                   delay={i * 50}
                 />
               ))}
@@ -743,35 +877,16 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
           </div>
         </section>
 
-        {/* Collaborations */}
+        {/* Latest Songs */}
         <section className="px-6 py-4">
-          <h2 className="text-[22px] font-bold mb-5">همکاریها</h2>
+          <h2 className="text-[22px] font-bold mb-5">آخرین آهنگ‌ها</h2>
           <div className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar">
-            {collaborations.map((song) => (
+            {(data?.latest_songs.items || []).map((song) => (
               <SongCard
                 key={song.id}
-                image={song.image}
+                image={song.cover_image}
                 title={song.title}
-                artist={song.artist}
-                onClick={() => playSong(song)}
-              />
-            ))}
-            <button className="flex-shrink-0 text-white/70 text-sm font-semibold hover:text-white transition px-4 py-2">
-              مشاهده همه
-            </button>
-          </div>
-        </section>
-
-        {/* Popular Songs */}
-        <section className="px-6 py-4">
-          <h2 className="text-[22px] font-bold mb-5">آهنگ های محبوب</h2>
-          <div className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar">
-            {popularSongs.map((song) => (
-              <SongCard
-                key={song.id}
-                image={song.image}
-                title={song.title}
-                artist={song.artist}
+                artist={song.artist_name}
                 onClick={() => playSong(song)}
               />
             ))}
@@ -794,22 +909,24 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
               if (e.key === "Enter" || e.key === " ") setIsBioOpen(true);
             }}
           >
-            <LazyImg
-              src={artist.image}
+            <ImageWithPlaceholder
+              src={artist.profile_image}
               alt={artist.name}
-              className="w-full h-full"
+              className="w-full h-full object-cover -z-10 opacity-55"
+              type="artist"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent flex flex-col justify-end p-6">
               <p className="text-base text-white/90 leading-relaxed mb-4 line-clamp-3 font-medium drop-shadow-md">
-                {artist.name.toLowerCase().includes("billie") ||
-                artist.name.includes("بیلی")
-                  ? BILLIE_BIO_FA
-                  : (artist as any).bio ||
-                    `${artist.name} یکی از محبوب‌ترین خوانندگان است که با سبک منحصر به فرد خود توانسته میلیون‌ها شنونده را جذب کند.`}
+                {artist.bio ||
+                  `${artist.name} یکی از هنرمندان برجسته‌ای است که با آثار خود شناخته می‌شود.`}
               </p>
               <div className="flex flex-col">
                 <span className="text-2xl font-bold">
-                  <AnimNum value={5200000} />
+                  {artist.monthly_listeners_count > 1000 ? (
+                    <AnimNum value={artist.monthly_listeners_count} />
+                  ) : (
+                    artist.monthly_listeners_count.toLocaleString("fa-IR")
+                  )}
                 </span>
                 <span className="text-xs text-white/60 mt-0.5">
                   شنونده ماهانه
@@ -818,7 +935,17 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
             </div>
           </div>
         </section>
-
+        {/* Discovered On (Playlists) */}
+        {discoveredOn.length > 0 && (
+          <section className="px-6 py-4">
+            <h2 className="text-[22px] font-bold mb-5"> کشف‌شده در </h2>
+            <div className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar">
+              {discoveredOn.map((playlist) => (
+                <PlaylistSnippetCard key={playlist.id} playlist={playlist} />
+              ))}
+            </div>
+          </section>
+        )}
         {/* Related */}
         <section className="px-6 py-8">
           <div className="flex items-center justify-between mb-5">
@@ -828,7 +955,7 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
             </button>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 sm:gap-5">
-            {related.map((a, i) => (
+            {similarArtists.map((a, i) => (
               <ArtistCard key={a.id} artist={a} idx={i} />
             ))}
           </div>
@@ -842,6 +969,13 @@ export default function ArtistDetail({ slug }: ArtistDetailProps) {
         artist={artist}
         open={isBioOpen}
         onClose={() => setIsBioOpen(false)}
+      />
+
+      <SongOptionsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        song={selectedSong}
+        onAction={handleAction}
       />
 
       <style jsx global>{`
@@ -897,17 +1031,50 @@ const SongCard = ({
 }) => (
   <div
     onClick={onClick}
-    className="flex-shrink-0 w-48 bg-neutral-800 rounded-lg p-3 hover:bg-neutral-700 transition cursor-pointer"
+    className="flex-shrink-0 w-56 bg-neutral-800 rounded-lg p-3 hover:bg-neutral-700 transition cursor-pointer"
   >
-    <img
-      src={image}
-      alt={title}
-      className="w-full aspect-square rounded mb-2"
-    />
+    <div className="w-full aspect-square rounded mb-2 overflow-hidden relative">
+      <ImageWithPlaceholder
+        src={image}
+        alt={title}
+        className="w-full h-full object-cover"
+      />
+    </div>
     <h3 className="font-semibold text-sm truncate">{title}</h3>
     <p className="text-xs text-neutral-400 truncate">{artist}</p>
   </div>
 );
+
+const PlaylistSnippetCard = ({
+  playlist,
+}: {
+  playlist: ApiPlaylistSnippet;
+}) => {
+  const { navigateTo } = useNavigation();
+  return (
+    <div
+      onClick={() =>
+        navigateTo("playlist-detail", { slug: String(playlist.id) })
+      }
+      className="flex-shrink-0 w-36 sm:w-44 bg-white/[0.03] border border-white/[0.05] rounded-xl p-3 hover:bg-white/[0.06] transition-all cursor-pointer group"
+    >
+      <div className="w-full aspect-square rounded-lg mb-3 overflow-hidden relative shadow-lg">
+        <ImageWithPlaceholder
+          src={playlist.image}
+          alt={playlist.title}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        />
+        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
+      </div>
+      <h3 className="font-bold text-[13px] sm:text-sm truncate mb-1 text-right">
+        {playlist.title}
+      </h3>
+      <p className="text-[11px] text-white/50 truncate uppercase tracking-wider text-right">
+        {playlist.source === "admin" ? "پلی‌لیست رسمی" : "پلی‌لیست"}
+      </p>
+    </div>
+  );
+};
 
 // ============================================================================
 // ARTIST BIO MODAL
@@ -976,31 +1143,15 @@ const ArtistBioModal = memo(function ArtistBioModal({
   open,
   onClose,
 }: {
-  artist: any;
+  artist: ApiArtist;
   open: boolean;
   onClose: () => void;
 }) {
   if (!open || !artist) return null;
 
-  const slug =
-    typeof createSlug === "function"
-      ? createSlug(artist.name)
-      : artist.name.replace(/\s+/g, "-").toLowerCase();
-
-  const isBillie =
-    artist.name.toLowerCase().includes("billie") ||
-    artist.name.includes("بیلی");
-  const bioText = isBillie
-    ? BILLIE_BIO_FA
-    : (artist as any).bio ||
-      `${artist.name} یک هنرمند محبوب است که بیوگرافی او در اینجا نمایش داده می‌شود.`;
-
-  const socials = {
-    instagram: `https://instagram.com/${slug}`,
-    facebook: `https://facebook.com/${slug}`,
-    twitter: `https://twitter.com/${slug}`,
-    telegram: `https://t.me/${slug}`,
-  };
+  const bioText =
+    artist.bio ||
+    `${artist.name} یک هنرمند محبوب است که بیوگرافی او در اینجا نمایش داده می‌شود.`;
 
   return createPortal(
     <div
@@ -1016,10 +1167,11 @@ const ArtistBioModal = memo(function ArtistBioModal({
       <div className="relative w-full max-w-2xl bg-neutral-900 rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex flex-col max-h-[85vh]">
         {/* Banner Section with Text Overlay */}
         <div className="relative h-[400px] flex-shrink-0">
-          <img
-            src={artist.image}
+          <ImageWithPlaceholder
+            src={artist.banner_image || artist.profile_image}
             alt={`${artist.name} banner`}
             className="absolute inset-0 w-full h-full object-cover"
+            type="artist"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-neutral-900 via-black/60 to-black/30" />
 
@@ -1041,7 +1193,7 @@ const ArtistBioModal = memo(function ArtistBioModal({
 
           {/* Scrollable Bio Text Overlay */}
           <div className="absolute inset-x-0 bottom-0 top-16 px-8 pb-8 overflow-y-auto custom-scrollbar z-10">
-            <h2 className="text-3xl font-bold mb-4 drop-shadow-lg">
+            <h2 className="text-3xl font-bold mb-4 drop-shadow-lg text-right">
               {artist.name}
             </h2>
             <p
@@ -1054,13 +1206,17 @@ const ArtistBioModal = memo(function ArtistBioModal({
         </div>
 
         {/* Footer Section: Avatar & Socials */}
-        <div className="bg-neutral-900 p-6 flex items-center justify-between border-t border-white/5">
+        <div
+          className="bg-neutral-900 p-6 flex items-center justify-between border-t border-white/5"
+          dir="rtl"
+        >
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/10 shadow-lg">
-              <img
-                src={artist.image}
+              <ImageWithPlaceholder
+                src={artist.profile_image}
                 alt={artist.name}
                 className="w-full h-full object-cover"
+                type="artist"
               />
             </div>
             <div className="hidden sm:block text-right">
@@ -1070,23 +1226,26 @@ const ArtistBioModal = memo(function ArtistBioModal({
           </div>
 
           <div className="flex items-center gap-3">
-            {Object.entries(socials).map(([key, url]) => (
+            {artist.social_accounts?.map((social) => (
               <a
-                key={key}
-                href={url}
+                key={social.id}
+                href={social.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white transition hover:scale-110 hover:text-green-400"
-                title={key}
+                title={social.platform_name}
               >
-                <SocialIcon type={key} className="w-6 h-6" />
+                <SocialIcon
+                  type={social.platform_name.toLowerCase()}
+                  className="w-6 h-6"
+                />
               </a>
             ))}
           </div>
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 });
 ArtistBioModal.displayName = "ArtistBioModal";

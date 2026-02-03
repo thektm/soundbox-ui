@@ -6,8 +6,8 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: 'picsum.photos' },
-      { protocol: 'https', hostname: 'i.scdn.co' },
+      { protocol: 'https', hostname: '*' },
+      { protocol: 'http', hostname: '*' }
     ],
   },
 };

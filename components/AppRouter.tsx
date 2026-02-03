@@ -23,6 +23,11 @@ import Settings from "./Settings";
 import UpgradePlans from "./UpgradePlans";
 import PaymentProcessing from "./PaymentProcessing";
 import PaymentSuccess from "./PaymentSuccess";
+import PopularArtistsPage from "./PopularArtistsPage";
+import LatestReleasesPage from "./LatestReleasesPage";
+import PopularAlbumsPage from "./PopularAlbumsPage";
+import NewDiscoveriesPage from "./NewDiscoveriesPage";
+import ChartPage from "./ChartPage";
 
 const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
@@ -67,12 +72,15 @@ const AppRouter: React.FC = () => {
       case "settings":
         return <Settings />;
       case "playlist-detail":
-        return <PlaylistDetail slug={currentParams?.slug} />;
+        return (
+          <PlaylistDetail id={currentParams?.id} slug={currentParams?.slug} />
+        );
       case "artist-detail":
-        return <ArtistDetail slug={currentParams?.slug} />;
+        return <ArtistDetail id={currentParams?.id} />;
       case "album-detail":
         return (
           <AlbumDetail
+            id={currentParams?.id}
             slug={currentParams?.slug}
             album={currentParams?.album}
           />
@@ -95,6 +103,22 @@ const AppRouter: React.FC = () => {
         return <PaymentProcessing />;
       case "payment-success":
         return <PaymentSuccess />;
+      case "popular-artists":
+        return <PopularArtistsPage />;
+      case "latest-releases":
+        return <LatestReleasesPage />;
+      case "popular-albums":
+        return <PopularAlbumsPage />;
+      case "new-discoveries":
+        return <NewDiscoveriesPage />;
+      case "chart-detail":
+        return (
+          <ChartPage
+            title={currentParams?.title}
+            type={currentParams?.type}
+            initialData={currentParams?.initialData}
+          />
+        );
       default:
         return <Home />;
     }

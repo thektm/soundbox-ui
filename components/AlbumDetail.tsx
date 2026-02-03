@@ -1,15 +1,55 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
-import {
-  MOCK_SONGS,
-  MOCK_ALBUMS,
-  Song,
-  createSlug,
-  decodeSlug,
-} from "./mockData";
+import { useAuth } from "./AuthContext";
+import { usePlayer, Track } from "./PlayerContext";
+import { SongOptionsDrawer } from "./SongOptionsDrawer";
+
+// API Interfaces based on the provided format
+interface ApiSong {
+  id: number;
+  title: string;
+  artist_id: number;
+  artist_name: string;
+  featured_artists: any[];
+  album: number;
+  album_title: string;
+  is_single: boolean;
+  stream_url: string;
+  cover_image: string;
+  duration_seconds: number;
+  duration_display: string;
+  plays: number;
+  likes_count: number;
+  is_liked: boolean;
+  status: string;
+  release_date: string | null;
+  language: string;
+  description: string;
+  created_at: string;
+  display_title: string;
+}
+
+interface ApiAlbumResponse {
+  id: number;
+  title: string;
+  artist_id: number;
+  artist_name: string;
+  cover_image: string;
+  release_date: string | null;
+  description: string;
+  created_at: string;
+  likes_count: number;
+  is_liked: boolean;
+  genre_ids: number[];
+  sub_genre_ids: number[];
+  mood_ids: number[];
+  songs: ApiSong[];
+  song_genre_names: string[];
+  song_mood_names: string[];
+}
 
 // Reuse the same icons and helpers from the page version
 const SvgIcon = ({
@@ -70,7 +110,7 @@ const Icon = ({
 );
 
 export function findAlbumBySlug(
-  slug: string
+  slug: string,
 ): (typeof MOCK_ALBUMS)[0] | undefined {
   const decodedSlug = decodeSlug(slug);
   return MOCK_ALBUMS.find((album) => {
@@ -85,10 +125,11 @@ export function findAlbumBySlug(
 }
 
 interface SongRowProps {
-  song: Song;
+  song: ApiSong;
   index: number;
   isPlaying?: boolean;
   onPlay?: () => void;
+  onMore: (song: ApiSong) => void;
 }
 
 const SongRow: React.FC<SongRowProps> = ({
@@ -96,9 +137,10 @@ const SongRow: React.FC<SongRowProps> = ({
   index,
   isPlaying = false,
   onPlay,
+  onMore,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
+  const [isLiked, setIsLiked] = useState(song.is_liked);
 
   return (
     <div
@@ -109,8 +151,8 @@ const SongRow: React.FC<SongRowProps> = ({
         isPlaying
           ? "bg-white/10"
           : isHovered
-          ? "bg-white/5"
-          : "hover:bg-white/5"
+            ? "bg-white/5"
+            : "hover:bg-white/5"
       }`}
     >
       <div className="flex items-center justify-center w-4">
@@ -132,7 +174,7 @@ const SongRow: React.FC<SongRowProps> = ({
       <div className="flex items-center gap-3 min-w-0">
         <div className="relative w-10 h-10 shrink-0 rounded overflow-hidden bg-neutral-800">
           <Image
-            src={song.image}
+            src={song.cover_image || "/default-cover.jpg"}
             alt={song.title}
             fill
             sizes="40px"
@@ -149,12 +191,7 @@ const SongRow: React.FC<SongRowProps> = ({
             {song.title}
           </p>
           <p className="text-xs text-neutral-400 truncate flex items-center gap-1">
-            {song.explicit && (
-              <span className="px-1 py-0.5 text-[10px] font-bold bg-neutral-600 text-white rounded">
-                E
-              </span>
-            )}
-            {song.artist}
+            {song.artist_name}
           </p>
         </div>
       </div>
@@ -181,8 +218,14 @@ const SongRow: React.FC<SongRowProps> = ({
             fill={isLiked}
           />
         </button>
-        <span className="text-sm text-neutral-400">{song.duration}</span>
-        <button className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-white">
+        <span className="text-sm text-neutral-400">{song.duration_display}</span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onMore(song);
+          }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-white"
+        >
           <Icon name="dotsThree" className="w-5 h-5" />
         </button>
       </div>
@@ -190,43 +233,147 @@ const SongRow: React.FC<SongRowProps> = ({
   );
 };
 
+const AlbumSkeleton = () => (
+  <div className="min-h-screen bg-[#0a0a0a] text-white animate-pulse" dir="rtl">
+    {/* Hero Skeleton */}
+    <div className="relative h-96 md:h-[500px] bg-zinc-900" />
+
+    {/* Actions Skeleton */}
+    <div className="flex items-center gap-6 px-6 md:px-12 py-6">
+      <div className="w-16 h-16 bg-zinc-800 rounded-full" />
+      <div className="w-12 h-12 bg-zinc-800 rounded-full" />
+      <div className="w-12 h-12 bg-zinc-800 rounded-full" />
+      <div className="w-12 h-12 bg-zinc-800 rounded-full" />
+    </div>
+
+    {/* Content Skeleton */}
+    <div className="px-6 md:px-12 space-y-4">
+      <div className="h-10 border-b border-white/10 flex items-center gap-4 px-4">
+        <div className="w-4 h-4 bg-zinc-800 rounded" />
+        <div className="w-1/4 h-4 bg-zinc-800 rounded" />
+        <div className="w-1/4 h-4 bg-zinc-800 rounded ml-auto" />
+      </div>
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div key={i} className="flex items-center gap-4 px-4 py-2">
+          <div className="w-4 h-4 bg-zinc-800 rounded" />
+          <div className="w-10 h-10 bg-zinc-800 rounded" />
+          <div className="flex-1 space-y-2">
+            <div className="w-1/3 h-4 bg-zinc-800 rounded" />
+            <div className="w-1/4 h-3 bg-zinc-800 rounded" />
+          </div>
+          <div className="w-12 h-4 bg-zinc-800 rounded" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 interface AlbumDetailProps {
+  id?: string | number;
   slug?: string;
-  album?: (typeof MOCK_ALBUMS)[0];
+  album?: any;
 }
 
 const AlbumDetail: React.FC<AlbumDetailProps> = ({
+  id: idProp,
   slug,
   album: albumProp,
 }) => {
-  const { goBack } = useNavigation();
-  const [isPlaying, setIsPlaying] = useState(false);
+  const { goBack, currentParams } = useNavigation();
+  const { accessToken } = useAuth();
+  const { setQueue, currentTrack, isPlaying: isPlayerPlaying } = usePlayer();
+
+  const albumId = idProp || currentParams?.id;
+
+  const [albumData, setAlbumData] = useState<ApiAlbumResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
-  const [currentSongIndex, setCurrentSongIndex] = useState<number | null>(null);
 
-  const album = useMemo(() => {
-    if (albumProp) return albumProp;
-    if (!slug) return null;
-    return findAlbumBySlug(slug);
-  }, [slug, albumProp]);
+  const [selectedSong, setSelectedSong] = useState<any | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const albumSongs = useMemo(() => {
-    return [...MOCK_SONGS].sort(() => Math.random() - 0.5).slice(0, 12);
-  }, [album?.id]);
+  useEffect(() => {
+    const fetchAlbum = async () => {
+      if (!albumId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await fetch(
+          `https://api.sedabox.com/api/albums/${albumId}/`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        );
+        if (response.ok) {
+          const data: ApiAlbumResponse = await response.json();
+          setAlbumData(data);
+          setIsLiked(data.is_liked);
+        }
+      } catch (error) {
+        console.error("Error fetching album:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAlbum();
+  }, [albumId, accessToken]);
+
+  const handleMore = useCallback((song: ApiSong) => {
+    setSelectedSong(song);
+    setIsDrawerOpen(true);
+  }, []);
+
+  const handleAction = (action: string, song: any) => {
+    console.log(`Action ${action} on song ${song.title}`);
+  };
 
   const handlePlayAll = () => {
-    setIsPlaying(!isPlaying);
-    if (!isPlaying && currentSongIndex === null) {
-      setCurrentSongIndex(0);
-    }
+    if (!albumData || albumData.songs.length === 0) return;
+
+    const tracks: Track[] = albumData.songs.map((song) => ({
+      id: String(song.id),
+      title: song.title,
+      artist: song.artist_name,
+      artistId: song.artist_id,
+      image: song.cover_image,
+      duration: song.duration_display,
+      durationSeconds: song.duration_seconds,
+      src: song.stream_url.replace("http://", "https://"),
+      isLiked: song.is_liked,
+    }));
+
+    setQueue(tracks, 0);
   };
 
   const handlePlaySong = (index: number) => {
-    setCurrentSongIndex(index);
-    setIsPlaying(true);
+    if (!albumData) return;
+
+    const tracks: Track[] = albumData.songs.map((song) => ({
+      id: String(song.id),
+      title: song.title,
+      artist: song.artist_name,
+      artistId: song.artist_id,
+      image: song.cover_image,
+      duration: song.duration_display,
+      durationSeconds: song.duration_seconds,
+      src: song.stream_url.replace("http://", "https://"),
+      isLiked: song.is_liked,
+    }));
+
+    setQueue(tracks, index);
   };
 
-  if (!album) {
+  if (loading) {
+    return <AlbumSkeleton />;
+  }
+
+  if (!albumData) {
     return (
       <div
         className="min-h-screen bg-linear-to-b from-neutral-900 to-neutral-950 text-white"
@@ -263,7 +410,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
       <header
         className="relative w-full h-96 md:h-[500px] bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.8) 100%), url(${album.image})`,
+          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.8) 100%), url(${albumData.cover_image})`,
         }}
       >
         <div className="absolute top-4 left-4 z-20">
@@ -278,27 +425,33 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
         <div className="absolute inset-0 flex items-end justify-end px-6 md:px-12 pb-8">
           <div className="text-right max-w-lg w-full">
             <p className="text-sm font-semibold text-green-400 mb-2 uppercase tracking-wide">
-              {album.type}
+              آلبوم
             </p>
             <h1 className="text-4xl md:text-6xl lg:text-8xl font-black mb-4 text-white drop-shadow-lg">
-              {album.title}
+              {albumData.title}
             </h1>
-            <p className="text-neutral-200 text-base md:text-lg mb-6 leading-relaxed">
-              {album.description}
-            </p>
+            {albumData.description && (
+              <p className="text-neutral-200 text-base md:text-lg mb-6 leading-relaxed">
+                {albumData.description}
+              </p>
+            )}
             <div className="flex items-center gap-3 text-sm text-neutral-300">
-              <span className="font-medium">{album.artist}</span>
+              <span className="font-medium">{albumData.artist_name}</span>
+              {albumData.release_date && (
+                <>
+                  <span>•</span>
+                  <span>{new Date(albumData.release_date).getFullYear()}</span>
+                </>
+              )}
               <span>•</span>
-              <span>{album.year}</span>
-              <span>•</span>
-              <span>{albumSongs.length} آهنگ</span>
+              <span>{albumData.songs.length} آهنگ</span>
             </div>
           </div>
         </div>
 
         <div className="absolute top-4 right-4 z-20 flex gap-2">
           <div className="px-3 py-1 text-xs font-bold bg-green-500 text-black rounded-full shadow-lg">
-            {album.type}
+            آلبوم
           </div>
         </div>
       </header>
@@ -309,7 +462,8 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
             onClick={handlePlayAll}
             className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-400 hover:scale-110 flex items-center justify-center shadow-2xl transition-all duration-300"
           >
-            {isPlaying ? (
+            {isPlayerPlaying &&
+            albumData.songs.some((s) => String(s.id) === currentTrack?.id) ? (
               <Icon name="pause" className="w-7 h-7 text-black" />
             ) : (
               <Icon name="play" className="w-7 h-7 text-black ml-1" />
@@ -350,19 +504,27 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
         </div>
 
         <div className="mt-4 space-y-1">
-          {albumSongs.map((song, index) => (
+          {albumData.songs.map((song, index) => (
             <SongRow
               key={song.id}
               song={song}
               index={index}
-              isPlaying={currentSongIndex === index && isPlaying}
+              isPlaying={String(song.id) === currentTrack?.id && isPlayerPlaying}
               onPlay={() => handlePlaySong(index)}
+              onMore={handleMore}
             />
           ))}
         </div>
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 h-24 bg-linear-to-t from-black via-black/95 to-transparent pointer-events-none" />
+
+      <SongOptionsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        song={selectedSong}
+        onAction={handleAction}
+      />
     </div>
   );
 };

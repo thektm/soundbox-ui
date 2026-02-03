@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
+import { SongOptionsDrawer } from "./SongOptionsDrawer";
 
 // ============ TYPES & MOCKS ============
 import {
@@ -67,14 +68,14 @@ const useSearchHistory = () => {
           type,
         };
         const filtered = prev.filter(
-          (h) => h.query.toLowerCase() !== query.toLowerCase()
+          (h) => h.query.toLowerCase() !== query.toLowerCase(),
         );
         const next = [newItem, ...filtered];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next.slice(0, 20)));
         return next;
       });
     },
-    []
+    [],
   );
 
   const remove = useCallback((id: string) => {
@@ -117,10 +118,10 @@ const useSearch = (query: string) => {
         (s: Song) =>
           s.title.toLowerCase().includes(q) ||
           s.artist.toLowerCase().includes(q) ||
-          s.album.toLowerCase().includes(q)
+          s.album.toLowerCase().includes(q),
       );
       const artists = MOCK_ARTISTS.filter((a: Artist) =>
-        a.name.toLowerCase().includes(q)
+        a.name.toLowerCase().includes(q),
       );
 
       setResults({ songs, artists });
@@ -192,7 +193,16 @@ const ICONS = {
 // ============ SUB-COMPONENTS (Memoized) ============
 
 const SongCard = memo(
-  ({ song, onPlay }: { song: Song; index?: number; onPlay: () => void }) => {
+  ({
+    song,
+    onPlay,
+    onMore,
+  }: {
+    song: Song;
+    index?: number;
+    onPlay: () => void;
+    onMore: (song: Song) => void;
+  }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [error, setError] = useState(false);
 
@@ -253,6 +263,10 @@ const SongCard = memo(
             {song.duration}
           </span>
           <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMore(song);
+            }}
             className={`p-1 text-[#a7a7a7] hover:text-white transition-opacity ${
               isHovered ? "opacity-100" : "opacity-0"
             }`}
@@ -262,7 +276,7 @@ const SongCard = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 const ArtistCard = memo(
@@ -304,7 +318,7 @@ const ArtistCard = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 const GenreCard = memo(
@@ -333,7 +347,7 @@ const GenreCard = memo(
         {genre.image}
       </div>
     </div>
-  )
+  ),
 );
 
 const HistoryItem = memo(
@@ -366,7 +380,7 @@ const HistoryItem = memo(
         <ICONS.Close />
       </button>
     </div>
-  )
+  ),
 );
 
 const LoadingSkeleton = memo(() => (
@@ -404,8 +418,25 @@ export default function Search() {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   const [isFocused, setIsFocused] = useState(false);
+
+  const [selectedSong, setSelectedSong] = useState<any | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const handleMore = useCallback((song: any) => {
+    setSelectedSong({
+      ...song,
+      cover_image: song.image,
+      artist_name: song.artist,
+    });
+    setIsDrawerOpen(true);
+  }, []);
+
+  const handleAction = (action: string, song: any) => {
+    console.log(`Action ${action} on song ${song.title}`);
+  };
+
   const [activeFilter, setActiveFilter] = useState<"all" | "songs" | "artists">(
-    "all"
+    "all",
   );
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -423,7 +454,7 @@ export default function Search() {
     (q: string) => {
       if (q.trim()) addToHistory(q);
     },
-    [addToHistory]
+    [addToHistory],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -439,15 +470,15 @@ export default function Search() {
       addToHistory(`${song.title} - ${song.artist}`, "song");
       console.log("Playing:", song);
     },
-    [addToHistory]
+    [addToHistory],
   );
 
   const handleArtistClick = useCallback(
     (artist: Artist) => {
       addToHistory(artist.name, "artist");
-      navigateTo("artist-detail", { slug: artist.id });
+      navigateTo("artist-detail", { id: artist.id });
     },
-    [addToHistory, navigateTo]
+    [addToHistory, navigateTo],
   );
 
   const handleGenreClick = useCallback(
@@ -455,7 +486,7 @@ export default function Search() {
       setQuery(genre.name);
       handleSearch(genre.name);
     },
-    [handleSearch]
+    [handleSearch],
   );
 
   const handleHistorySelect = useCallback(
@@ -463,7 +494,7 @@ export default function Search() {
       setQuery(item.query);
       handleSearch(item.query);
     },
-    [handleSearch]
+    [handleSearch],
   );
 
   // Derived State
@@ -655,6 +686,7 @@ export default function Search() {
                         song={song}
                         index={i}
                         onPlay={() => handlePlaySong(song)}
+                        onMore={handleMore}
                       />
                     ))}
                   </div>
@@ -694,6 +726,7 @@ export default function Search() {
                       song={song}
                       index={i}
                       onPlay={() => handlePlaySong(song)}
+                      onMore={handleMore}
                     />
                   ))}
                 </div>
@@ -756,6 +789,12 @@ export default function Search() {
           </div>
         )}
       </main>
+      <SongOptionsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        song={selectedSong}
+        onAction={handleAction}
+      />
       <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
     </div>
   );

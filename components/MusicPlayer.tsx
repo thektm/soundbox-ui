@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
+import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { usePlayer, Track } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
@@ -236,6 +237,18 @@ const formatTime = (s: number): string => {
 
 const SWIPE_THRESHOLD = 80;
 
+// Normalize URLs: convert protocol-relative and http:// links to https:// when possible
+function ensureHttps(u?: string | null): string | undefined {
+  if (!u) return u ?? undefined;
+  try {
+    if (/^\/\//.test(u)) return "https:" + u;
+    if (/^http:\/\//i.test(u)) return u.replace(/^http:\/\//i, "https://");
+  } catch (e) {
+    // ignore
+  }
+  return u;
+}
+
 // ============================================================================
 // DESKTOP COLLAPSED: PROFILE PILL BUTTON
 // ============================================================================
@@ -269,7 +282,7 @@ const ProfilePillButton = memo<{ onClick: () => void }>(
         </button>
       </div>
     );
-  }
+  },
 );
 ProfilePillButton.displayName = "ProfilePillButton";
 
@@ -298,11 +311,11 @@ const ProgressBar = memo<ProgressProps>(
         setIsSeeking(true);
         onSeek(
           Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) *
-            duration
+            duration,
         );
         setTimeout(() => setIsSeeking(false), 50);
       },
-      [duration, onSeek, mini]
+      [duration, onSeek, mini],
     );
 
     const handleMouseMove = useCallback(
@@ -312,7 +325,7 @@ const ProgressBar = memo<ProgressProps>(
         const pos = (e.clientX - rect.left) / rect.width;
         setHoverPosition(pos * duration);
       },
-      [duration]
+      [duration],
     );
 
     if (mini) {
@@ -398,7 +411,7 @@ const ProgressBar = memo<ProgressProps>(
         </span>
       </div>
     );
-  }
+  },
 );
 ProgressBar.displayName = "ProgressBar";
 
@@ -464,11 +477,11 @@ const TrackSlide = memo<{
         </button>
       )}
       <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 shadow-lg">
-        <img
-          src={track.image}
-          alt=""
+        <ImageWithPlaceholder
+          src={ensureHttps(track.image) || track.image}
+          alt={track.title}
           className="w-full h-full object-cover"
-          loading="lazy"
+          type="song"
         />
         {current && playing && (
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
@@ -561,10 +574,11 @@ const ActionPreview = memo<{
           </div>
         )}
 
-        <img
-          src={track.image}
+        <ImageWithPlaceholder
+          src={ensureHttps(track.image) || track.image}
           className="w-10 h-10 rounded object-cover flex-shrink-0 shadow-md bg-neutral-800"
-          alt=""
+          alt={track.title}
+          type="song"
         />
 
         {align === "left" && (
@@ -608,6 +622,9 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
     toggleShuffle,
     repeatMode,
     cycleRepeat,
+    isLiked,
+    isLiking,
+    toggleLike,
   } = usePlayer();
 
   const [dragX, setDragX] = useState(0);
@@ -654,7 +671,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
       setDragX(0);
       setTimeout(() => setHasDragged(false), 100);
     },
-    [next, previous, nextTrack, previousTrack, x]
+    [next, previous, nextTrack, previousTrack, x],
   );
 
   const handleExpandClick = useCallback(
@@ -665,7 +682,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
       }
       onExpand();
     },
-    [hasDragged, onExpand]
+    [hasDragged, onExpand],
   );
 
   if (!currentTrack) return null;
@@ -766,10 +783,11 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 }
               }}
             >
-              <img
+              <ImageWithPlaceholder
                 src={currentTrack.image}
                 alt={currentTrack.title}
                 className="w-full h-full object-cover"
+                type="song"
               />
             </div>
             <div className="min-w-0 flex-1">
@@ -789,11 +807,12 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 className="text-xs text-zinc-400 truncate cursor-pointer hover:underline"
                 onClick={() => {
                   if (isDesktop) {
-                    const artist = MOCK_ARTISTS.find(
-                      (a) => a.name === currentTrack.artist
-                    );
-                    if (artist) {
-                      navigateTo("artist-detail", { slug: artist.id });
+                    const artistId =
+                      currentTrack.artistId || (currentTrack as any).artist_id;
+                    if (artistId) {
+                      navigateTo("artist-detail", {
+                        id: artistId,
+                      });
                     }
                   } else {
                     onExpand();
@@ -803,8 +822,23 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 {currentTrack.artist}
               </p>
             </div>
-            <button className="p-2 text-zinc-400 hover:text-white transition-colors flex-shrink-0">
-              <Icon.Heart c="w-4 h-4" />
+            <button
+              onClick={toggleLike}
+              disabled={isLiking}
+              className={`p-2 transition-all flex-shrink-0 relative ${
+                isLiked ? "text-emerald-500" : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              <div className="relative flex items-center justify-center">
+                <div className={isLiking ? "opacity-30" : "opacity-100"}>
+                  <Icon.Heart c="w-5 h-5" filled={isLiked} />
+                </div>
+                {isLiking && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Spinner size="w-3 h-3" />
+                  </div>
+                )}
+              </div>
             </button>
           </div>
 
@@ -847,18 +881,24 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 <Icon.Next c="w-5 h-5" />
               </button>
               <button
-                onClick={cycleRepeat}
-                className={`p-2 transition-colors ${
-                  repeatMode !== "off"
+                onClick={toggleLike}
+                disabled={isLiking}
+                className={`p-2 transition-all relative ${
+                  isLiked
                     ? "text-emerald-500"
                     : "text-zinc-400 hover:text-white"
                 }`}
               >
-                {repeatMode === "one" ? (
-                  <Icon.RepeatOne c="w-4 h-4" />
-                ) : (
-                  <Icon.Repeat c="w-4 h-4" />
-                )}
+                <div className="relative flex items-center justify-center">
+                  <div className={isLiking ? "opacity-30" : "opacity-100"}>
+                    <Icon.Heart c="w-5 h-5" filled={isLiked} />
+                  </div>
+                  {isLiking && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Spinner size="w-3 h-3" />
+                    </div>
+                  )}
+                </div>
               </button>
             </div>
             <div className="w-full flex items-center gap-2">
@@ -936,19 +976,24 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
       playTrack,
       queue,
       currentIndex,
+      isLiked,
+      likesCount,
+      isLiking,
+      toggleLike,
     } = usePlayer();
 
-    const [liked, setLiked] = useState(false);
     const [activeTab, setActiveTab] = useState<"queue" | "lyrics" | "related">(
-      "queue"
+      "queue",
     );
 
     const handleArtistClick = useCallback(() => {
       if (currentTrack) {
-        const artist = MOCK_ARTISTS.find((a) => a.name === currentTrack.artist);
-        if (artist) {
+        const artistId =
+          currentTrack.artistId || (currentTrack as any).artist_id;
+        if (artistId) {
           onCollapse();
-          navigateTo("artist-detail", { slug: artist.id });
+          navigateTo("artist-detail", { id: artistId });
+          return;
         }
       }
     }, [currentTrack, navigateTo, onCollapse]);
@@ -973,7 +1018,7 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
         {/* Dynamic Background */}
         <div className="absolute inset-0 overflow-hidden">
           <img
-            src={currentTrack.image}
+            src={ensureHttps(currentTrack.image) || currentTrack.image}
             alt=""
             className="absolute inset-0 w-full h-full object-cover scale-110 blur-[100px] opacity-40"
           />
@@ -1015,10 +1060,13 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                 {/* Album Art */}
                 <div className="relative flex-shrink-0">
                   <div className="w-72 h-72 xl:w-80 xl:h-80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10">
-                    <img
-                      src={currentTrack.image}
+                    <ImageWithPlaceholder
+                      src={
+                        ensureHttps(currentTrack.image) || currentTrack.image
+                      }
                       alt={currentTrack.title}
                       className="w-full h-full object-cover"
+                      type="song"
                     />
                   </div>
                 </div>
@@ -1098,36 +1146,31 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                     </button>
 
                     <button
-                      onClick={cycleRepeat}
+                      onClick={toggleLike}
+                      disabled={isLiking}
                       className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                        repeatMode !== "off"
+                        isLiked
                           ? "bg-emerald-500/20 text-emerald-400"
                           : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
-                      }`}
+                      } ${isLiking ? "cursor-wait" : ""}`}
                     >
-                      {repeatMode === "one" ? (
-                        <Icon.RepeatOne c="w-5 h-5" />
-                      ) : (
-                        <Icon.Repeat c="w-5 h-5" />
-                      )}
+                      <div className="relative flex items-center justify-center">
+                        <div
+                          className={isLiking ? "opacity-30" : "opacity-100"}
+                        >
+                          <Icon.Heart c="w-7 h-7" filled={isLiked} />
+                        </div>
+                        {isLiking && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Spinner size="w-4 h-4" />
+                          </div>
+                        )}
+                      </div>
                     </button>
                   </div>
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-3 pt-2">
-                    <button
-                      onClick={() => setLiked((l) => !l)}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full transition-all ${
-                        liked
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
-                      }`}
-                    >
-                      <Icon.Heart c="w-5 h-5" filled={liked} />
-                      <span className="text-sm font-medium">
-                        {liked ? "Liked" : "Like"}
-                      </span>
-                    </button>
                     <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all">
                       <Icon.Add c="w-5 h-5" />
                       <span className="text-sm font-medium">
@@ -1156,8 +1199,8 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                     {tab === "queue"
                       ? "Up Next"
                       : tab === "lyrics"
-                      ? "Lyrics"
-                      : "Related"}
+                        ? "Lyrics"
+                        : "Related"}
                     {activeTab === tab && (
                       <motion.div
                         layoutId="activeTab"
@@ -1194,10 +1237,11 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                         }`}
                       >
                         <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
-                          <img
-                            src={track.image}
-                            alt=""
+                          <ImageWithPlaceholder
+                            src={ensureHttps(track.image) || track.image}
+                            alt={track.title}
                             className="w-full h-full object-cover"
+                            type="song"
                           />
                           {i === currentIndex && isPlaying ? (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -1272,7 +1316,7 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
         </div>
       </motion.div>
     );
-  }
+  },
 );
 DesktopExpandedPlayer.displayName = "DesktopExpandedPlayer";
 
@@ -1297,18 +1341,22 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
       cycleQuality,
       next,
       previous,
+      isLiked,
+      isLiking,
+      toggleLike,
     } = usePlayer();
 
-    const [liked, setLiked] = useState(false);
     const [isQueueOpen, setIsQueueOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     const handleArtistClick = () => {
       if (currentTrack) {
-        const artist = MOCK_ARTISTS.find((a) => a.name === currentTrack.artist);
-        if (artist) {
+        const artistId =
+          currentTrack.artistId || (currentTrack as any).artist_id;
+        if (artistId) {
           onCollapse();
-          navigateTo("artist-detail", { slug: artist.id });
+          navigateTo("artist-detail", { id: artistId });
+          return;
         }
       }
     };
@@ -1328,7 +1376,7 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
       (_: unknown, info: PanInfo) => {
         if (info.velocity.y > 500 || info.offset.y > 100) onCollapse();
       },
-      [onCollapse]
+      [onCollapse],
     );
 
     if (!currentTrack) return null;
@@ -1346,7 +1394,7 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
         style={{ willChange: "transform" }}
       >
         <div className="relative flex flex-col min-h-0 h-full px-3 py-4 sm:px-6 sm:py-8 overflow-hidden">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-start justify-between mb-8">
             <button
               onClick={onCollapse}
               className="w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors"
@@ -1359,9 +1407,18 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
               </span>
               <button
                 onClick={handleArtistClick}
-                className="text-sm font-medium text-white hover:underline"
+                className="text-sm font-medium mt-12 text-white hover:underline"
               >
                 {currentTrack.artist}
+              </button>
+              <button
+                onClick={() => {
+                  onCollapse();
+                  navigateTo("song-detail", { id: currentTrack.id });
+                }}
+                className="text-[16px] text-neutral-300 truncate mt-1 max-w-[160px] text-center hover:underline"
+              >
+                {currentTrack.title}
               </button>
             </div>
             <button
@@ -1372,7 +1429,7 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
             </button>
           </div>
 
-          <div className="flex-1 flex flex-col items-center justify-center px-2 sm:px-4">
+          <div className="flex-1 flex flex-col items-center px-2 sm:px-4">
             <div
               className="relative w-full aspect-square"
               style={{
@@ -1381,11 +1438,11 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
               }}
             >
               <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl">
-                <img
-                  src={currentTrack.image}
-                  alt=""
+                <ImageWithPlaceholder
+                  src={ensureHttps(currentTrack.image) || currentTrack.image}
+                  alt={currentTrack.title}
                   className="w-full h-full object-cover"
-                  loading="lazy"
+                  type="song"
                 />
                 {isPlaying && (
                   <div className="absolute bottom-3 right-3">
@@ -1398,115 +1455,134 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
             <div
               className="mt-4 sm:mt-8 mb-4 sm:mb-6 w-full max-w-[900px]"
               dir="rtl"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
+            ></div>
+
+            <div className="w-full max-w-[900px] flex flex-col items-center flex-grow justify-center">
+              <div className="w-full mb-6">
+                <ProgressBar
+                  progress={progress}
+                  duration={duration}
+                  onSeek={seek}
+                />
+              </div>
+
+              <div className="flex items-center justify-between w-full mb-4 sm:mb-8">
+                <div className="flex items-center gap-2">
+                  {/**
+                   * Single mode button cycles: repeat-all -> shuffle -> repeat-one -> repeat-all ...
+                   * Implementation uses available `toggleShuffle` and `cycleRepeat` helpers.
+                   */}
                   <button
-                    onClick={() => {
-                      onCollapse();
-                      if (currentTrack)
-                        navigateTo("song-detail", { id: currentTrack.id });
-                    }}
-                    className="text-xl sm:text-2xl font-bold text-white truncate hover:underline text-right w-full"
+                    onClick={
+                      (() => {
+                        // create handler inline to capture latest values
+                        // but call the actual logic in a micro-task to avoid stale state issues
+                        setTimeout(() => {
+                          // Determine next state based on current flags
+                          if (isShuffle) {
+                            // shuffle -> turn off shuffle and advance repeat once (prefer becoming 'one')
+                            toggleShuffle();
+                            cycleRepeat();
+                          } else if (repeatMode === "one") {
+                            // one -> advance twice to reach 'all'
+                            cycleRepeat();
+                            cycleRepeat();
+                          } else {
+                            // assume repeat-all or off -> enable shuffle
+                            toggleShuffle();
+                          }
+                        }, 0);
+                      }) as unknown as React.MouseEventHandler
+                    }
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors relative ${
+                      isShuffle || repeatMode === "one" || repeatMode === "all"
+                        ? "text-emerald-500"
+                        : "text-neutral-400 hover:text-white"
+                    }`}
                   >
-                    {currentTrack.title}
-                  </button>
-                  <button
-                    onClick={handleArtistClick}
-                    className="text-base sm:text-lg text-neutral-400 truncate mt-1 hover:text-white hover:underline text-right w-full"
-                  >
-                    {currentTrack.artist}
+                    {isShuffle ? (
+                      <Icon.Shuffle c="w-5 h-5" />
+                    ) : repeatMode === "one" ? (
+                      <>
+                        <Icon.Repeat c="w-5 h-5" />
+                        <span className="absolute -top-1 -right-1 text-[10px] font-semibold text-emerald-500">
+                          1
+                        </span>
+                      </>
+                    ) : (
+                      <Icon.Repeat c="w-5 h-5" />
+                    )}
                   </button>
                 </div>
-                <button
-                  onClick={() => setLiked((l) => !l)}
-                  className={`ml-4 transition-colors ${
-                    liked
-                      ? "text-emerald-500"
-                      : "text-neutral-400 hover:text-white"
-                  }`}
-                >
-                  <Icon.Heart c="w-7 h-7" filled={liked} />
-                </button>
+
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={previous}
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors"
+                  >
+                    <Icon.Prev c="w-10 h-10 sm:w-8 sm:h-8" />
+                  </button>
+                  <button
+                    onClick={togglePlay}
+                    disabled={isLoading}
+                    className="w-16 h-16 sm:w-16 sm:h-16 rounded-full bg-white flex items-center justify-center shadow-xl active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    {isLoading ? (
+                      <Spinner size="w-11 h-11" />
+                    ) : isPlaying ? (
+                      <Icon.Pause c="w-11 h-11 text-neutral-900" />
+                    ) : (
+                      <Icon.Play c="w-11 h-11 text-neutral-900 ml-1" />
+                    )}
+                  </button>
+                  <button
+                    onClick={next}
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors"
+                  >
+                    <Icon.Next c="w-10 h-10 sm:w-8 sm:h-8" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={toggleLike}
+                    disabled={isLiking}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all relative ${
+                      isLiked
+                        ? "text-emerald-500"
+                        : "text-neutral-400 hover:text-white"
+                    }`}
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <div className={isLiking ? "opacity-30" : "opacity-100"}>
+                        <Icon.Heart c="w-7 h-7" filled={isLiked} />
+                      </div>
+                      {isLiking && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Spinner size="w-6 h-6" />
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
 
-            <div className="mb-6 w-full max-w-[900px]">
-              <ProgressBar
-                progress={progress}
-                duration={duration}
-                onSeek={seek}
-              />
-            </div>
+        {/* Bottom fixed: Share and Queue buttons placed at lowest position with m-2 */}
+        <div className="fixed left-0 right-0 bottom-0 z-[70] pointer-events-auto">
+          <div className="max-w-[900px] mx-auto m-2 px-2 pb-safe flex items-center justify-between">
+            <button className="m-2 text-neutral-400 hover:text-white transition-colors">
+              <Icon.Share c="w-5 h-5" />
+            </button>
 
-            <div className="flex items-center justify-between mb-4 sm:mb-8 w-full max-w-[900px]">
-              <button
-                onClick={toggleShuffle}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                  isShuffle
-                    ? "text-emerald-500"
-                    : "text-neutral-400 hover:text-white"
-                }`}
-              >
-                <Icon.Shuffle c="w-5 h-5" />
-              </button>
-
-              <div className="flex flex-wrap items-center gap-4">
-                <button
-                  onClick={previous}
-                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors"
-                >
-                  <Icon.Prev c="w-10 h-10 sm:w-8 sm:h-8" />
-                </button>
-                <button
-                  onClick={togglePlay}
-                  disabled={isLoading}
-                  className="w-16 h-16 sm:w-16 sm:h-16 rounded-full bg-white flex items-center justify-center shadow-xl active:scale-95 transition-transform disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <Spinner size="w-11 h-11" />
-                  ) : isPlaying ? (
-                    <Icon.Pause c="w-11 h-11 text-neutral-900" />
-                  ) : (
-                    <Icon.Play c="w-11 h-11 text-neutral-900 ml-1" />
-                  )}
-                </button>
-                <button
-                  onClick={next}
-                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors"
-                >
-                  <Icon.Next c="w-10 h-10 sm:w-8 sm:h-8" />
-                </button>
-              </div>
-
-              <button
-                onClick={cycleRepeat}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                  repeatMode !== "off"
-                    ? "text-emerald-500"
-                    : "text-neutral-400 hover:text-white"
-                }`}
-              >
-                {repeatMode === "one" ? (
-                  <Icon.RepeatOne c="w-5 h-5" />
-                ) : (
-                  <Icon.Repeat c="w-5 h-5" />
-                )}
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 pb-safe w-full max-w-[900px]">
-              <button className="text-neutral-400 hover:text-white transition-colors">
-                <Icon.Share c="w-5 h-5" />
-              </button>
-
-              <button
-                onClick={() => setIsQueueOpen(true)}
-                className="text-neutral-400 hover:text-white transition-colors"
-              >
-                <Icon.Queue c="w-5 h-5" />
-              </button>
-            </div>
+            <button
+              onClick={() => setIsQueueOpen(true)}
+              className="m-2 text-neutral-400 hover:text-white transition-colors"
+            >
+              <Icon.Queue c="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -1587,7 +1663,7 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
         </AnimatePresence>
       </motion.div>
     );
-  }
+  },
 );
 MobileExpandedPlayer.displayName = "MobileExpandedPlayer";
 
@@ -1644,6 +1720,6 @@ export default function MusicPlayer() {
         <CollapsedPlayer key="collapsed" onExpand={expand} />
       )}
     </AnimatePresence>,
-    portalRoot
+    portalRoot,
   );
 }

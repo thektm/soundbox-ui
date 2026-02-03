@@ -9,6 +9,7 @@ import LikedAlbums from "./LikedAlbums";
 import LikedPlaylists from "./LikedPlaylists";
 import MyPlaylists from "./MyPlaylists";
 import Settings from "./Settings";
+import { ResponsiveSheet } from "./ResponsiveSheet";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -221,7 +222,7 @@ export default function DesktopProfile() {
                   onClick={() =>
                     navigateTo(
                       stat.action,
-                      stat.tab ? { tab: stat.tab } : undefined
+                      stat.tab ? { tab: stat.tab } : undefined,
                     )
                   }
                   className="text-center py-6 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/30 hover:bg-white/8 active:scale-95 transition-all duration-300 will-change-transform"
@@ -303,7 +304,7 @@ export default function DesktopProfile() {
                         <span className="text-lg text-gray-300">اعتبار تا</span>
                         <span className="text-lg font-medium text-white">
                           {new Date(
-                            Date.now() + 30 * 24 * 60 * 60 * 1000
+                            Date.now() + 30 * 24 * 60 * 60 * 1000,
                           ).toLocaleDateString("fa-IR")}
                         </span>
                       </div>
@@ -549,80 +550,71 @@ export default function DesktopProfile() {
       </div>
 
       {/* Edit Sheet */}
-      {isSheetOpen && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/60 z-50 transition-opacity duration-300"
-            onClick={() => setIsSheetOpen(false)}
-          />
-          <div
-            className={`fixed bottom-0 left-0 right-0 z-60 bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 transition-transform duration-300 ease-out translate-y-0`}
-          >
-            <div className="p-8" dir="rtl">
-              <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-8" />
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-bold text-white">
-                  ویرایش پروفایل
-                </h2>
-                <button
-                  onClick={() => setIsSheetOpen(false)}
-                  className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:border-red-500/50 transition"
-                >
-                  <Icon d={ICONS.close} className="w-6 h-6 text-gray-400" />
-                </button>
-              </div>
-              <div className="space-y-6 mb-8">
-                {[
-                  {
-                    key: "firstName",
-                    label: "نام",
-                    placeholder: "نام خود را وارد کنید",
-                  },
-                  {
-                    key: "lastName",
-                    label: "نام خانوادگی",
-                    placeholder: "نام خانوادگی خود را وارد کنید",
-                  },
-                  {
-                    key: "email",
-                    label: "ایمیل",
-                    placeholder: "ایمیل خود را وارد کنید",
-                    type: "email",
-                  },
-                ].map((field) => (
-                  <div key={field.key}>
-                    <label className="block text-lg font-medium text-gray-400 mb-3">
-                      {field.label}
-                    </label>
-                    <input
-                      type={field.type || "text"}
-                      value={formData[field.key as keyof typeof formData]}
-                      onChange={(e) => handleChange(field.key, e.target.value)}
-                      placeholder={field.placeholder}
-                      className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition-colors text-lg"
-                      dir="rtl"
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-4">
-                <button
-                  onClick={handleSave}
-                  className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-2xl hover:from-emerald-600 hover:to-emerald-700 transition-all will-change-transform"
-                >
-                  ذخیره تغییرات
-                </button>
-                <button
-                  onClick={() => setIsSheetOpen(false)}
-                  className="px-8 py-4 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-2xl hover:border-white/20 transition-colors"
-                >
-                  انصراف
-                </button>
-              </div>
-            </div>
+      <ResponsiveSheet
+        isOpen={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        desktopWidth="w-[500px]"
+      >
+        <div className="p-8 h-full flex flex-col" dir="rtl">
+          <div className="flex items-center justify-between mb-8 flex-shrink-0">
+            <h2 className="text-2xl font-bold text-white">ویرایش پروفایل</h2>
+            <button
+              onClick={() => setIsSheetOpen(false)}
+              className="p-3 bg-white/5 rounded-2xl border border-white/10 hover:border-red-500/50 transition hidden md:block"
+            >
+              <Icon d={ICONS.close} className="w-6 h-6 text-gray-400" />
+            </button>
           </div>
-        </>
-      )}
+          <div className="space-y-6 mb-8 flex-1 overflow-y-auto">
+            {[
+              {
+                key: "firstName",
+                label: "نام",
+                placeholder: "نام خود را وارد کنید",
+              },
+              {
+                key: "lastName",
+                label: "نام خانوادگی",
+                placeholder: "نام خانوادگی خود را وارد کنید",
+              },
+              {
+                key: "email",
+                label: "ایمیل",
+                placeholder: "ایمیل خود را وارد کنید",
+                type: "email",
+              },
+            ].map((field) => (
+              <div key={field.key}>
+                <label className="block text-lg font-medium text-gray-400 mb-3">
+                  {field.label}
+                </label>
+                <input
+                  type={field.type || "text"}
+                  value={formData[field.key as keyof typeof formData]}
+                  onChange={(e) => handleChange(field.key, e.target.value)}
+                  placeholder={field.placeholder}
+                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition-colors text-lg"
+                  dir="rtl"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-4 flex-shrink-0">
+            <button
+              onClick={handleSave}
+              className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-2xl hover:from-emerald-600 hover:to-emerald-700 transition-all will-change-transform"
+            >
+              ذخیره تغییرات
+            </button>
+            <button
+              onClick={() => setIsSheetOpen(false)}
+              className="px-8 py-4 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-2xl hover:border-white/20 transition-colors"
+            >
+              انصراف
+            </button>
+          </div>
+        </div>
+      </ResponsiveSheet>
     </div>
   );
 }

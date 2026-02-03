@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import Image from "next/image";
+import { Drawer } from "vaul";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -237,7 +238,7 @@ export default function Profile() {
                     onClick={() =>
                       navigateTo(
                         stat.action,
-                        stat.tab ? { tab: stat.tab } : undefined
+                        stat.tab ? { tab: stat.tab } : undefined,
                       )
                     }
                     className="text-center py-2 rounded-xl bg-white/4 border border-white/8 hover:border-emerald-500/30 hover:bg-white/6 active:scale-[0.98] transition-all duration-200"
@@ -338,7 +339,7 @@ export default function Profile() {
                             </span>
                             <span className="text-sm font-medium text-white">
                               {new Date(
-                                Date.now() + 30 * 24 * 60 * 60 * 1000
+                                Date.now() + 30 * 24 * 60 * 60 * 1000,
                               ).toLocaleDateString("fa-IR")}
                             </span>
                           </div>
@@ -613,85 +614,88 @@ export default function Profile() {
       </div>
 
       {/* Bottom Sheet */}
-      <div
-        className={`fixed inset-0 bg-black/60  z-50 transition-opacity duration-300 ${
-          isSheetOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={() => setIsSheetOpen(false)}
-      />
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-60 bg-linear-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 transition-transform duration-300 ease-out ${
-          isSheetOpen ? "translate-y-0" : "translate-y-full"
-        }`}
+      <Drawer.Root
+        open={isSheetOpen}
+        onOpenChange={(open) => !open && setIsSheetOpen(false)}
+        shouldScaleBackground
       >
-        <div className="p-6" dir="rtl">
-          {/* Handle */}
-          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6" />
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/60 z-[70] backdrop-blur-[2px]" />
+          <Drawer.Content className="fixed inset-x-0 bottom-0 z-[70] flex flex-col bg-linear-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 max-h-[96%] outline-none">
+            <div className="p-6" dir="rtl">
+              {/* Handle */}
+              <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 flex-shrink-0 cursor-grab active:cursor-grabbing" />
 
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-white">ویرایش پروفایل</h3>
-            <button
-              onClick={() => setIsSheetOpen(false)}
-              className="p-2 bg-white/5 rounded-xl border border-white/10 hover:border-red-500/50 transition"
-            >
-              <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
-
-          {/* Form Fields */}
-          <div className="space-y-4 mb-6">
-            {[
-              {
-                key: "firstName",
-                label: "نام",
-                placeholder: "نام خود را وارد کنید",
-              },
-              {
-                key: "lastName",
-                label: "نام خانوادگی",
-                placeholder: "نام خانوادگی خود را وارد کنید",
-              },
-              {
-                key: "email",
-                label: "ایمیل",
-                placeholder: "ایمیل خود را وارد کنید",
-                type: "email",
-              },
-            ].map((field) => (
-              <div key={field.key}>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  {field.label}
-                </label>
-                <input
-                  type={field.type || "text"}
-                  value={formData[field.key as keyof typeof formData]}
-                  onChange={(e) => handleChange(field.key, e.target.value)}
-                  placeholder={field.placeholder}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition-colors"
-                  dir="rtl"
-                />
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <Drawer.Title className="text-xl font-bold text-white">
+                  ویرایش پروفایل
+                </Drawer.Title>
+                <button
+                  onClick={() => setIsSheetOpen(false)}
+                  className="p-2 bg-white/5 rounded-xl border border-white/10 hover:border-red-500/50 transition"
+                >
+                  <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
+                </button>
               </div>
-            ))}
-          </div>
 
-          {/* Actions */}
-          <div className="flex gap-3">
-            <button
-              onClick={handleSave}
-              className="flex-1 py-3 bg-linear-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all"
-            >
-              ذخیره تغییرات
-            </button>
-            <button
-              onClick={() => setIsSheetOpen(false)}
-              className="px-6 py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:border-white/20 transition-colors"
-            >
-              انصراف
-            </button>
-          </div>
-        </div>
-      </div>
+              {/* Form Fields */}
+              <div className="space-y-4 mb-6">
+                {[
+                  {
+                    key: "firstName",
+                    label: "نام",
+                    placeholder: "نام خود را وارد کنید",
+                  },
+                  {
+                    key: "lastName",
+                    label: "نام خانوادگی",
+                    placeholder: "نام خانوادگی خود را وارد کنید",
+                  },
+                  {
+                    key: "email",
+                    label: "ایمیل",
+                    placeholder: "ایمیل خود را وارد کنید",
+                    type: "email",
+                  },
+                ].map((field) => (
+                  <div key={field.key}>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                      {field.label}
+                    </label>
+                    <input
+                      type={field.type || "text"}
+                      value={formData[field.key as keyof typeof formData]}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      placeholder={field.placeholder}
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                      dir="rtl"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSave}
+                  className="flex-1 py-3 bg-linear-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all"
+                >
+                  ذخیره تغییرات
+                </button>
+                <button
+                  onClick={() => setIsSheetOpen(false)}
+                  className="px-6 py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:border-white/20 transition-colors"
+                >
+                  انصراف
+                </button>
+              </div>
+              {/* Bottom padding for safe area */}
+              <div className="h-safe-area-inset-bottom " />
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
     </div>
   );
 }

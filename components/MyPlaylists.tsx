@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useCallback, memo } from "react";
 import { useNavigation } from "./NavigationContext";
 import { USER_PLAYLISTS, UserPlaylist, createSlug } from "./mockData";
+import { ResponsiveSheet } from "./ResponsiveSheet";
 
 // ============================================================================
 // Icon Component - Optimized with memo
@@ -30,7 +31,7 @@ const Icon = memo(
         d={d}
       />
     </svg>
-  )
+  ),
 );
 
 Icon.displayName = "Icon";
@@ -86,109 +87,102 @@ const CreatePlaylistModal = memo(
       }
     }, [name, isPublic, onCreate, onClose]);
 
-    if (!isOpen) return null;
-
     return (
-      <>
-        {/* Backdrop */}
-        <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 transition-opacity duration-300"
-          onClick={onClose}
-        />
+      <ResponsiveSheet
+        isOpen={isOpen}
+        onClose={onClose}
+        desktopWidth="w-[450px]"
+      >
+        <div className="h-full flex flex-col" dir="rtl">
+          {/* Header */}
+          <div className="relative p-6 pb-4 flex-shrink-0">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <Icon d={ICONS.plus} className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-xl font-bold text-white text-center">
+              پلی‌لیست جدید
+            </h2>
+            <p className="text-gray-400 text-sm text-center mt-1">
+              یک پلی‌لیست جدید بسازید
+            </p>
+          </div>
 
-        {/* Modal */}
-        <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 max-w-md mx-auto">
-          <div className="bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
-            {/* Header */}
-            <div className="relative p-6 pb-4">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                <Icon d={ICONS.plus} className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-white text-center">
-                پلی‌لیست جدید
-              </h2>
-              <p className="text-gray-400 text-sm text-center mt-1">
-                یک پلی‌لیست جدید بسازید
-              </p>
+          {/* Form */}
+          <div className="px-6 pb-6 space-y-4 flex-1 overflow-y-auto">
+            {/* Name Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-2">
+                نام پلی‌لیست
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="پلی‌لیست من..."
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                autoFocus
+              />
             </div>
 
-            {/* Form */}
-            <div className="px-6 pb-6 space-y-4" dir="rtl">
-              {/* Name Input */}
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">
-                  نام پلی‌لیست
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="پلی‌لیست من..."
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
-                  autoFocus
-                />
-              </div>
-
-              {/* Privacy Toggle */}
-              <div className="flex items-center justify-between p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      isPublic ? "bg-emerald-500/20" : "bg-gray-500/20"
-                    }`}
-                  >
-                    <Icon
-                      d={isPublic ? ICONS.globe : ICONS.lock}
-                      className={`w-5 h-5 ${
-                        isPublic ? "text-emerald-400" : "text-gray-400"
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-white">
-                      {isPublic ? "عمومی" : "خصوصی"}
-                    </span>
-                    <p className="text-xs text-gray-500">
-                      {isPublic ? "همه می‌توانند ببینند" : "فقط شما می‌بینید"}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsPublic(!isPublic)}
-                  className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
-                    isPublic ? "bg-emerald-500" : "bg-zinc-700"
+            {/* Privacy Toggle */}
+            <div className="flex items-center justify-between p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isPublic ? "bg-emerald-500/20" : "bg-gray-500/20"
                   }`}
                 >
-                  <div
-                    className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
-                      isPublic ? "right-1" : "right-6"
+                  <Icon
+                    d={isPublic ? ICONS.globe : ICONS.lock}
+                    className={`w-5 h-5 ${
+                      isPublic ? "text-emerald-400" : "text-gray-400"
                     }`}
                   />
-                </button>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-white">
+                    {isPublic ? "عمومی" : "خصوصی"}
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    {isPublic ? "همه می‌توانند ببینند" : "فقط شما می‌بینید"}
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={() => setIsPublic(!isPublic)}
+                className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                  isPublic ? "bg-emerald-500" : "bg-zinc-700"
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                    isPublic ? "right-1" : "right-6"
+                  }`}
+                />
+              </button>
+            </div>
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={onClose}
-                  className="flex-1 py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors"
-                >
-                  انصراف
-                </button>
-                <button
-                  onClick={handleCreate}
-                  disabled={!name.trim()}
-                  className="flex-1 py-3 bg-emerald-500 text-white font-medium rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  ایجاد
-                </button>
-              </div>
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors"
+              >
+                انصراف
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={!name.trim()}
+                className="flex-1 py-3 bg-emerald-500 text-white font-medium rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ایجاد
+              </button>
             </div>
           </div>
         </div>
-      </>
+      </ResponsiveSheet>
     );
-  }
+  },
 );
 
 CreatePlaylistModal.displayName = "CreatePlaylistModal";
@@ -242,7 +236,7 @@ const PlaylistCardGrid = memo(
         <div className="relative aspect-square rounded-xl overflow-hidden bg-zinc-800/50 shadow-lg mb-3">
           <div
             className={`absolute inset-0 bg-gradient-to-br ${getRandomGradient(
-              playlist.id
+              playlist.id,
             )} opacity-20`}
           />
           <img
@@ -306,7 +300,7 @@ const PlaylistCardGrid = memo(
         </p>
       </div>
     );
-  }
+  },
 );
 
 PlaylistCardGrid.displayName = "PlaylistCardGrid";
@@ -449,7 +443,7 @@ const PlaylistCard = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 PlaylistCard.displayName = "PlaylistCard";
@@ -499,7 +493,7 @@ export default function MyPlaylists() {
     return playlists.filter(
       (p) =>
         p.title.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q)
+        p.description?.toLowerCase().includes(q),
     );
   }, [searchQuery, playlists]);
 
@@ -511,7 +505,7 @@ export default function MyPlaylists() {
     (playlist: UserPlaylist) => {
       navigateTo("playlist-detail", { slug: createSlug(playlist.title) });
     },
-    [navigateTo]
+    [navigateTo],
   );
 
   const handleCreatePlaylist = useCallback(
@@ -529,7 +523,7 @@ export default function MyPlaylists() {
       };
       setPlaylists((prev) => [newPlaylist, ...prev]);
     },
-    []
+    [],
   );
 
   const handleEditPlaylist = useCallback((playlistId: string) => {

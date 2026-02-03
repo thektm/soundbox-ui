@@ -1,26 +1,165 @@
 import Image from "next/image";
+import ImageWithPlaceholder from "./ImageWithPlaceholder";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import HeroSection from "./HeroSection";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
-import {
-  MOCK_ARTISTS,
-  MOCK_SONGS,
-  MOCK_ALBUMS,
-  createSlug,
-  Song,
-} from "./mockData";
 import type { Track } from "./PlayerContext";
 
-// Utility function to convert Song to Track
-const songToTrack = (song: Song): Track => ({
-  id: song.id,
+// API Interfaces
+interface ApiSong {
+  id: number;
+  title: string;
+  artist_name: string;
+  album_title: string;
+  cover_image: string;
+  stream_url: string;
+  duration_seconds: number;
+  is_liked: boolean;
+  genre_names: string[];
+  tag_names: string[];
+  mood_names: string[];
+  sub_genre_names: string[];
+  play_count?: number;
+}
+
+interface ApiArtist {
+  id: number;
+  name: string;
+  profile_image: string;
+  is_following: boolean;
+  verified: boolean;
+  followers_count: number;
+}
+
+interface ApiAlbum {
+  id: number;
+  title: string;
+  artist_name: string;
+  cover_image: string;
+  is_liked: boolean;
+  genre_names: string[];
+  mood_names: string[];
+  sub_genre_names: string[];
+}
+
+interface ApiPlaylist {
+  id: number;
+  unique_id: string;
+  title: string;
+  description: string;
+  cover_image: string;
+  top_three_song_covers?: string[];
+  covers?: string[];
+  songs_count: number;
+  is_liked: boolean;
+}
+
+interface HomeSummaryResponse {
+  songs_recommendations: {
+    type: string;
+    message: string;
+    count?: number;
+    next?: string | null;
+    songs: ApiSong[];
+  };
+  latest_releases: {
+    count: number;
+    next: string | null;
+    results: ApiSong[];
+  };
+  popular_artists: {
+    count: number;
+    next: string | null;
+    results: ApiArtist[];
+  };
+  popular_albums: {
+    count: number;
+    next: string | null;
+    results: ApiAlbum[];
+  };
+  playlist_recommendations:
+    | {
+        count: number;
+        next: string | null;
+        results: ApiPlaylist[];
+      }
+    | ApiPlaylist[];
+  discoveries: {
+    count: number;
+    next: string | null;
+    results: ApiSong[];
+  };
+  sections: number;
+}
+
+interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
+interface ApiTopAlbum {
+  id: number;
+  title: string;
+  artist_name: string;
+  cover_image: string;
+  release_date: string;
+  likes_count: string;
+  is_liked: string;
+  total_song_plays: number;
+  score: number;
+}
+
+interface ApiTopArtist {
+  id: number;
+  name: string;
+  artistic_name: string;
+  profile_image: string;
+  verified: boolean;
+  followers_count: string;
+  monthly_listeners_count: string;
+  is_following: string;
+}
+
+interface ApiTopSong {
+  id: number;
+  title: string;
+  artist_name: string;
+  album_title: string;
+  cover_image: string;
+  stream_url: string;
+  duration_seconds: number;
+  plays: string;
+  likes_count: string;
+  is_liked: string;
+}
+
+// Utility function to format duration
+const formatDuration = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+};
+
+// Utility function to convert ApiSong to Track
+const apiSongToTrack = (song: any): Track => ({
+  id: String(song.id),
   title: song.title,
-  artist: song.artist,
-  image: song.image,
-  duration: song.duration,
-  src: song.src || "/music.mp3",
+  artist: song.artist_name,
+  artistId: song.artist_id || song.artist,
+  image: song.cover_image || "/default-cover.jpg",
+  duration: formatDuration(song.duration_seconds),
+  durationSeconds: song.duration_seconds,
+  src: song.stream_url ? song.stream_url.replace("http://", "https://") : "",
+  isLiked:
+    String(song.is_liked) === "true" ||
+    song.is_liked === true ||
+    song.is_liked === "1",
+  likesCount: parseInt(String(song.likes_count || "0")),
 });
 
 // Inline SVG icons
@@ -29,7 +168,7 @@ const Bell = ({ className }: { className?: string }) => (
     className={className}
     viewBox="0 0 24 24"
     fill="none"
-    stroke="currentColor"
+    stroke="white"
     strokeWidth={2}
   >
     <path
@@ -44,8 +183,8 @@ const Play = ({ className, fill }: { className?: string; fill?: string }) => (
   <svg
     className={className}
     viewBox="0 0 24 24"
-    fill={fill || "none"}
-    stroke="currentColor"
+    fill={fill || "white"}
+    stroke="white"
     strokeWidth={2}
   >
     <polygon
@@ -60,8 +199,8 @@ const MoreHorizontal = ({ className }: { className?: string }) => (
   <svg
     className={className}
     viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
+    fill="white"
+    stroke="white"
     strokeWidth={2}
   >
     <circle cx="12" cy="12" r="1" />
@@ -74,43 +213,72 @@ type ItemType = {
   id: number | string;
   title: string;
   subtitle: string;
-  img: string;
+  img: string | string[];
   duration?: string;
   isNew: boolean;
 };
 
-const generateItems = (
-  count: number,
-  type: "square" | "artist" = "square",
-  withNewBadge: boolean = false,
-  seedPrefix: string = ""
-): ItemType[] =>
-  Array.from({ length: count }).map((_, i) => ({
-    id: i,
-    title: type === "artist" ? `هنرمند ${i + 1}` : `عنوان ${i + 1}`,
-    subtitle: type === "artist" ? "هنرمند" : `توضیحات برای آیتم ${i + 1}`,
-    img: `https://picsum.photos/seed/${seedPrefix}-${type}-${i}/300/300`,
-    isNew: withNewBadge ? i % 2 === 0 : false,
-  }));
+type HeroHighlight = {
+  key: string;
+  pill: string;
+  title: string;
+  subtitle: string;
+  image: string;
+  meshGradient: string;
+  highlight: string;
+  metaRight: string;
+  type?: "song" | "playlist" | "album";
+  item?: any;
+};
 
-const createMockTrack = (item: ItemType) => ({
-  id: String(item.id),
-  title: item.title,
-  artist: item.subtitle,
-  image: item.img,
-  duration: item.duration || "3:45",
-  src: "/music.mp3",
-});
-
-const createTracksFromItems = (items: ItemType[]) =>
-  items.map((item) => createMockTrack(item));
-
+export function createSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/ /g, "-")
+    .replace(/[^\w-]+/g, "");
+}
 
 export default function Home() {
-  const { logout } = useAuth();
-  const { setCurrentPage, navigateTo } = useNavigation();
-  const { playTrack, setQueue } = usePlayer();
+  const { logout, accessToken } = useAuth();
+  const { setCurrentPage, navigateTo, homeCache, setHomeCache } =
+    useNavigation();
+  const { setQueue } = usePlayer();
 
+  const [homeData, setHomeData] = useState<HomeSummaryResponse | null>(
+    (homeCache as HomeSummaryResponse) ?? null,
+  );
+
+  // Extra sections state
+  const [dailyTopAlbums, setDailyTopAlbums] =
+    useState<PaginatedResponse<ApiTopAlbum> | null>(null);
+  const [dailyTopArtists, setDailyTopArtists] =
+    useState<PaginatedResponse<ApiTopArtist> | null>(null);
+  const [dailyTopSongs, setDailyTopSongs] =
+    useState<PaginatedResponse<ApiTopSong> | null>(null);
+  const [playlistRecommendations, setPlaylistRecommendations] = useState<
+    PaginatedResponse<ApiPlaylist> | ApiPlaylist[] | null
+  >(null);
+  const [weeklyTopAlbums, setWeeklyTopAlbums] =
+    useState<PaginatedResponse<ApiTopAlbum> | null>(null);
+  const [weeklyTopArtists, setWeeklyTopArtists] =
+    useState<PaginatedResponse<ApiTopArtist> | null>(null);
+  const [weeklyTopSongs, setWeeklyTopSongs] =
+    useState<PaginatedResponse<ApiTopSong> | null>(null);
+
+  const [loadingExtra, setLoadingExtra] = useState({
+    dailyTopAlbums: true,
+    dailyTopArtists: true,
+    dailyTopSongs: true,
+    playlistRecommendations: true,
+    weeklyTopAlbums: true,
+    weeklyTopArtists: true,
+    weeklyTopSongs: true,
+  });
+
+  // if we already have cached home data, don't show skeleton on mount
+  const [isLoading, setIsLoading] = useState<boolean>(() =>
+    homeCache ? false : true,
+  );
   const [showBrandText, setShowBrandText] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([
@@ -134,87 +302,304 @@ export default function Home() {
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
   const navRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
+  const lastFetchedToken = useRef<string | null>(null);
 
   const sectionTitles = [
     "برای شما",
     "جدیدترین ریلیز ها ",
     "هنرمندان محبوب",
     "آلبوم‌های محبوب",
-    "10 برتر هفته",
-    "اکتشافات جدید",
-    "10 برتر هیپ‌هاپ",
-    "لیست‌های پخش جدید برای شما",
+    "پلی لیست‌های جدید برای شما",
+    "برترین آهنگ‌های روز",
+    "برترین آلبوم‌های روز",
+    "برترین هنرمندان روز",
+    "برترین آهنگ‌های هفته",
+    "برترین آلبوم‌های هفته",
+    "برترین هنرمندان هفته",
   ];
+
+  useEffect(() => {
+    if (!accessToken || accessToken === lastFetchedToken.current) return;
+    lastFetchedToken.current = accessToken;
+
+    // If we have cached data, we show it immediately but still refresh in the background
+    const isBackground = Boolean(homeCache);
+    if (homeCache) {
+      setHomeData(homeCache as HomeSummaryResponse);
+      setIsLoading(false);
+    }
+
+    const fetchHomeData = async (background: boolean) => {
+      try {
+        const authHeaders = { Authorization: `Bearer ${accessToken}` };
+
+        const response = await fetch(
+          "https://api.sedabox.com/api/home/summary/",
+          {
+            headers: authHeaders,
+          },
+        );
+        if (response.ok) {
+          const data = await response.json();
+
+          // Ensure songs_recommendations always has a songs array
+          if (!data.songs_recommendations) {
+            data.songs_recommendations = { type: "", message: "", songs: [] };
+          } else if (!Array.isArray(data.songs_recommendations.songs)) {
+            // If API returns an error field instead, set empty songs and preserve error/message
+            data.songs_recommendations.songs = [];
+            if (
+              !data.songs_recommendations.message &&
+              data.songs_recommendations.error
+            ) {
+              data.songs_recommendations.message =
+                data.songs_recommendations.error;
+            }
+          }
+
+          // Only update if data is actually different to avoid unnecessary re-renders
+          const hasChanged = JSON.stringify(data) !== JSON.stringify(homeCache);
+
+          if (!background || hasChanged) {
+            setHomeData(data);
+            try {
+              setHomeCache(data);
+            } catch (e) {
+              /* noop if context setter unavailable */
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching home data:", error);
+      } finally {
+        if (!background) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchHomeData(isBackground);
+  }, [accessToken, homeCache, setHomeCache]);
+
+  // Fetch extra sections
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const fetchExtra = async (
+      endpoint: string,
+      setter: (data: any) => void,
+      key: string,
+    ) => {
+      try {
+        const response = await fetch(
+          `https://api.sedabox.com/api/home/${endpoint}/`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          },
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setter(data);
+        }
+      } catch (error) {
+        console.error(`Error fetching ${endpoint}:`, error);
+      } finally {
+        setLoadingExtra((prev) => ({ ...prev, [key]: false }));
+      }
+    };
+
+    fetchExtra("daily-top-albums-global", setDailyTopAlbums, "dailyTopAlbums");
+    fetchExtra(
+      "daily-top-artists-global",
+      setDailyTopArtists,
+      "dailyTopArtists",
+    );
+    fetchExtra("daily-top-songs-global", setDailyTopSongs, "dailyTopSongs");
+    fetchExtra(
+      "playlist-recommendations",
+      setPlaylistRecommendations,
+      "playlistRecommendations",
+    );
+    fetchExtra(
+      "weekly-top-albums-global",
+      setWeeklyTopAlbums,
+      "weeklyTopAlbums",
+    );
+    fetchExtra(
+      "weekly-top-artists-global",
+      setWeeklyTopArtists,
+      "weeklyTopArtists",
+    );
+    fetchExtra("weekly-top-songs-global", setWeeklyTopSongs, "weeklyTopSongs");
+  }, [accessToken]);
+
+  const fetchNextPlaylists = async () => {
+    if (
+      !playlistRecommendations ||
+      !playlistRecommendations.next ||
+      !accessToken
+    )
+      return;
+    try {
+      const url = playlistRecommendations.next.replace(/^http:/, "https:");
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPlaylistRecommendations((prev) => ({
+          ...data,
+          results: [...(prev?.results || []), ...data.results],
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching next playlists:", error);
+    }
+  };
 
   const handleLogout = () => {
     logout();
     setCurrentPage("login");
   };
 
-  const handlePlaySong = (song: Song, allSongs: Song[]) => {
-    const tracks = allSongs.map(songToTrack);
-    const startIndex = allSongs.findIndex((s) => s.id === song.id);
+  const handlePlaySong = (songId: number | string, allSongs: ApiSong[]) => {
+    const tracks = allSongs.map(apiSongToTrack);
+    const startIndex = allSongs.findIndex(
+      (s) => String(s.id) === String(songId),
+    );
     setQueue(tracks, startIndex >= 0 ? startIndex : 0);
   };
 
-  // Simplified data for sections
-  const sectionData = {
-    forYou: MOCK_SONGS.slice(0, 6).map((song) => ({
-      id: song.id,
-      title: song.title,
-      subtitle: song.artist,
-      img: song.image,
-      duration: song.duration,
-      isNew: false,
-    })),
-    hottestDrops: MOCK_SONGS.slice(6, 11).map((song) => ({
-      id: song.id,
-      title: song.title,
-      subtitle: song.artist,
-      img: song.image,
-      duration: song.duration,
-      isNew: true,
-    })),
-    popularArtists: MOCK_ARTISTS.map((artist) => ({
-      id: artist.id,
-      title: artist.name,
-      subtitle: "Artist",
-      img: artist.image,
-      isNew: false,
-    })),
-    popularAlbums: MOCK_ALBUMS.slice(0, 6).map((album) => ({
-      id: album.id,
-      title: album.title,
-      subtitle: album.artist,
-      img: album.image,
-      isNew: false,
-    })),
-    top10Week: MOCK_SONGS.slice(12, 22).map((song, index) => ({
-      id: song.id,
-      title: song.title,
-      subtitle: song.artist,
-      img: song.image,
-      duration: song.duration,
-      isNew: index < 3,
-    })),
-    newDiscoveries: MOCK_SONGS.slice(0, 6).map((song) => ({
-      id: song.id,
-      title: song.title,
-      subtitle: song.artist,
-      img: song.image,
-      duration: song.duration,
-      isNew: false,
-    })),
-    top10HipHop: MOCK_SONGS.slice(6, 16).map((song, index) => ({
-      id: song.id,
-      title: song.title,
-      subtitle: song.artist,
-      img: song.image,
-      duration: song.duration,
-      isNew: index < 3,
-    })),
-    newPlaylists: generateItems(6, "square", false, "section7"),
+  // Fetch the next page for a given paginated section and append results
+  const fetchNextFor = async (
+    sectionKey:
+      | "latest_releases"
+      | "popular_artists"
+      | "popular_albums"
+      | "playlist_recommendations"
+      | "songs_recommendations"
+      | "discoveries",
+  ) => {
+    if (!homeData || !accessToken) return;
+    const section = (homeData as any)[sectionKey];
+    if (!section || !section.next) return;
+    try {
+      const authHeaders = { Authorization: `Bearer ${accessToken}` };
+      const url = section.next.replace(/^http:/, "https:");
+      const res = await fetch(url, { headers: authHeaders });
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      const page = await res.json();
+
+      // compute updated value from current homeData and the fetched page, then update both local state and the shared cache
+      const updated = { ...(homeData as any) } as any;
+      if (sectionKey === "songs_recommendations") {
+        const newSongs = Array.isArray(page)
+          ? page
+          : page.songs || page.results || [];
+        const existing = updated.songs_recommendations || { songs: [] };
+        updated.songs_recommendations = {
+          ...existing,
+          songs: [...(existing.songs || []), ...newSongs],
+          next: page.next || null,
+        };
+      } else {
+        const newResults = Array.isArray(page) ? page : page.results || [];
+        const existing = updated[sectionKey] || { results: [] };
+        updated[sectionKey] = {
+          ...existing,
+          results: [...(existing.results || []), ...newResults],
+          next: page.next || null,
+        };
+      }
+
+      setHomeData(updated);
+      try {
+        setHomeCache(updated);
+      } catch (e) {
+        // ignore if cache setter not available
+      }
+    } catch (error) {
+      console.error("Error fetching next page for", sectionKey, error);
+    }
   };
+
+  // Derived data for sections
+  const sectionData = homeData
+    ? {
+        forYou: homeData.songs_recommendations.songs.map((song) => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist_name,
+          img: song.cover_image,
+          duration: formatDuration(song.duration_seconds),
+          isNew: false,
+        })),
+        hottestDrops: homeData.latest_releases.results
+          .slice(0, 5)
+          .map((song) => ({
+            id: song.id,
+            title: song.title,
+            subtitle: song.artist_name,
+            img: song.cover_image,
+            duration: formatDuration(song.duration_seconds),
+            isNew: true,
+          })),
+        popularArtists: homeData.popular_artists.results.map((artist) => ({
+          id: artist.id,
+          title: artist.name,
+          subtitle: "Artist",
+          img: artist.profile_image || "",
+          isNew: false,
+        })),
+        popularAlbums: homeData.popular_albums.results.map((album) => ({
+          id: album.id,
+          title: album.title,
+          subtitle: album.artist_name,
+          img: album.cover_image || "",
+          isNew: false,
+        })),
+        top10Week: homeData.latest_releases.results
+          .slice(0, 10)
+          .map((song, index) => ({
+            id: song.id,
+            title: song.title,
+            subtitle: song.artist_name,
+            img: song.cover_image,
+            duration: formatDuration(song.duration_seconds),
+            isNew: index < 3,
+          })),
+        newDiscoveries: homeData.discoveries.results
+          .slice(0, 6)
+          .map((song) => ({
+            id: song.id,
+            title: song.title,
+            subtitle: song.artist_name,
+            img: song.cover_image,
+            duration: formatDuration(song.duration_seconds),
+            isNew: false,
+          })),
+        top10HipHop: homeData.latest_releases.results
+          .slice(10, 20)
+          .map((song, index) => ({
+            id: song.id,
+            title: song.title,
+            subtitle: song.artist_name,
+            img: song.cover_image,
+            duration: formatDuration(song.duration_seconds),
+            isNew: index < 3,
+          })),
+        newPlaylists: (Array.isArray(homeData.playlist_recommendations)
+          ? homeData.playlist_recommendations
+          : homeData.playlist_recommendations?.results || []
+        ).map((playlist: any) => ({
+          id: playlist.unique_id,
+          title: playlist.title,
+          subtitle: playlist.description,
+          img: playlist.top_three_song_covers || playlist.covers || [],
+          isNew: false,
+        })),
+      }
+    : null;
 
   useEffect(() => {
     const delay = isInitialMount.current ? 2700 : 700;
@@ -235,7 +620,7 @@ export default function Home() {
           }
         });
       },
-      { rootMargin: "-100px 0px -40% 0px", threshold: 0.4 }
+      { rootMargin: "-100px 0px -40% 0px", threshold: 0.4 },
     );
     sectionRefs.current.forEach((el) => el && observer.observe(el));
     return () => observer.disconnect();
@@ -245,7 +630,7 @@ export default function Home() {
     const nav = navRef.current;
     if (nav) {
       const activeBtn = nav.querySelector(
-        `[data-index="${activeIndex}"]`
+        `[data-index="${activeIndex}"]`,
       ) as HTMLElement;
       activeBtn?.scrollIntoView({
         behavior: "smooth",
@@ -275,6 +660,682 @@ export default function Home() {
       document.removeEventListener("keydown", handleKey);
     };
   }, [showNotifications]);
+
+  if (isLoading || !sectionData || !homeData) {
+    return (
+      <div
+        dir="rtl"
+        className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
+        style={{ minHeight: "calc(var(--vh, 1vh) * 100)" }}
+      >
+        <div className="pt-4">
+          <div className="px-4 text-right">
+            <div className="h-8 w-48 rounded bg-zinc-800 animate-pulse" />
+          </div>
+          <div className="flex flex-col gap-8 mt-4">
+            {/* Four placeholder sections */}
+            <div className="flex flex-col gap-3">
+              <div className="px-4 text-right">
+                <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
+              </div>
+              <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="snap-start shrink-0 w-36 flex flex-col gap-2"
+                  >
+                    <div className="aspect-square rounded-lg bg-zinc-800 animate-pulse" />
+                    <div className="h-3 w-28 rounded bg-zinc-800 animate-pulse" />
+                    <div className="h-2 w-20 rounded bg-zinc-800 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div className="px-4 text-right">
+                <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
+              </div>
+              <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="snap-start shrink-0 w-40 flex flex-col gap-2"
+                  >
+                    <div className="aspect-square rounded-lg bg-zinc-800 animate-pulse" />
+                    <div className="h-3 w-28 rounded bg-zinc-800 animate-pulse" />
+                    <div className="h-2 w-20 rounded bg-zinc-800 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div className="px-4 text-right">
+                <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
+              </div>
+              <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="snap-start shrink-0 w-28 flex flex-col gap-2"
+                  >
+                    <div className="aspect-square rounded-full bg-zinc-800 animate-pulse" />
+                    <div className="h-3 w-24 rounded bg-zinc-800 animate-pulse" />
+                    <div className="h-2 w-16 rounded bg-zinc-800 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div className="px-4 text-right">
+                <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
+              </div>
+              <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="snap-start shrink-0 w-40 flex flex-col gap-2"
+                  >
+                    <div className="aspect-square rounded-lg bg-zinc-800 animate-pulse" />
+                    <div className="h-3 w-28 rounded bg-zinc-800 animate-pulse" />
+                    <div className="h-2 w-20 rounded bg-zinc-800 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Build the list of sections to show based on the server response
+  const availableSections: Array<{
+    key: string;
+    title: string;
+    subtitle?: string;
+    content: React.ReactNode;
+    showMore?: boolean;
+    onShowMore?: () => void;
+  }> = [];
+
+  if (homeData.songs_recommendations && homeData.songs_recommendations.songs) {
+    availableSections.push({
+      key: "songs_recommendations",
+      title: "برای شما",
+      subtitle:
+        homeData.songs_recommendations.type === "trending" &&
+        homeData.songs_recommendations.message ===
+          "Start listening to get personalized recommendations!"
+          ? "شروع کنید به کاوش .."
+          : "بر اساس فعالیت های اخیر شما",
+      content: (
+        <HorizontalList
+          items={sectionData.forYou}
+          onPlay={(item: ItemType) =>
+            handlePlaySong(item.id, homeData.songs_recommendations.songs)
+          }
+        />
+      ),
+      showMore: !!homeData.songs_recommendations.next,
+      onShowMore: () => fetchNextFor("songs_recommendations"),
+    });
+  }
+
+  if (homeData.latest_releases && homeData.latest_releases.results) {
+    availableSections.push({
+      key: "latest_releases",
+      title: "جدیدترین ریلیز ها",
+      content: (
+        <div
+          className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4"
+          style={{ direction: "rtl" }}
+        >
+          {sectionData.hottestDrops.map((item) => (
+            <div
+              key={item.id}
+              onClick={() =>
+                handlePlaySong(item.id, homeData.latest_releases.results)
+              }
+              className="snap-center shrink-0 w-[85vw] sm:w-80 relative group cursor-pointer"
+            >
+              <div className="relative aspect-video bg-zinc-800 rounded-lg overflow-hidden shadow-lg">
+                <ImageWithPlaceholder
+                  src={item.img}
+                  alt={item.title}
+                  className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300"
+                  type="song"
+                />
+                <div className="absolute bottom-2 right-2 bg-black/60  px-2 py-1 rounded text-xs font-bold uppercase tracking-wider">
+                  انتشار جدید
+                </div>
+              </div>
+              <h3 className="mt-2 font-bold text-lg truncate">{item.title}</h3>
+              <p className="text-zinc-400 text-sm truncate">{item.subtitle}</p>
+            </div>
+          ))}
+        </div>
+      ),
+      showMore: !!homeData.latest_releases.next,
+      onShowMore: () => navigateTo("latest-releases"),
+    });
+  }
+
+  if (homeData.popular_artists && homeData.popular_artists.results) {
+    availableSections.push({
+      key: "popular_artists",
+      title: "هنرمندان محبوب",
+      content: (
+        <HorizontalList
+          items={sectionData.popularArtists}
+          variant="circle"
+          onItemClick={(item) => navigateTo("artist-detail", { id: item.id })}
+        />
+      ),
+      showMore: !!homeData.popular_artists.next,
+      onShowMore: () => navigateTo("popular-artists"),
+    });
+  }
+
+  if (homeData.popular_albums && homeData.popular_albums.results) {
+    availableSections.push({
+      key: "popular_albums",
+      title: "آلبوم‌های محبوب",
+      content: (
+        <GlassAlbumGrid
+          items={sectionData.popularAlbums}
+          onItemClick={(item) =>
+            navigateTo("album-detail", {
+              id: item.id,
+              slug: createSlug(item.title),
+            })
+          }
+          maxItems={4}
+          showMore={true}
+          onShowMore={() => navigateTo("popular-albums")}
+          overlayHeight="75%"
+        />
+      ),
+      showMore: !!homeData.popular_albums.next,
+      onShowMore: () => navigateTo("popular-albums"),
+    });
+  }
+
+  if (homeData.discoveries && homeData.discoveries.results) {
+    availableSections.push({
+      key: "discoveries",
+      title: "اکتشافات جدید",
+      content: (
+        <HorizontalList
+          items={sectionData.newDiscoveries}
+          onPlay={(item: ItemType) =>
+            handlePlaySong(item.id, homeData.discoveries.results)
+          }
+        />
+      ),
+      showMore: !!homeData.discoveries.next,
+      onShowMore: () => navigateTo("new-discoveries"),
+    });
+  }
+
+  if (loadingExtra.playlistRecommendations) {
+    availableSections.push({
+      key: "playlist_recommendations_skeleton",
+      title: "پلی لیست‌های جدید برای شما",
+      content: (
+        <SectionSkeleton
+          title="پلی لیست‌های جدید برای شما"
+          variant="horizontal"
+        />
+      ),
+    });
+  } else if (
+    playlistRecommendations &&
+    (Array.isArray(playlistRecommendations)
+      ? playlistRecommendations.length > 0
+      : playlistRecommendations.results?.length > 0)
+  ) {
+    const playlists = Array.isArray(playlistRecommendations)
+      ? playlistRecommendations
+      : playlistRecommendations.results;
+
+    availableSections.push({
+      key: "playlist_recommendations",
+      title: "پلی لیست‌های جدید برای شما",
+      content: (
+        <HorizontalList
+          items={playlists.map((p: any) => ({
+            id: p.unique_id,
+            title: p.title,
+            subtitle: p.description,
+            img: p.covers || p.top_three_song_covers || p.cover_image,
+            isNew: false,
+          }))}
+          variant="layered"
+          onItemClick={(item) =>
+            navigateTo("playlist-detail", {
+              id: item.id,
+              slug: createSlug(item.title),
+            })
+          }
+        />
+      ),
+      showMore:
+        !Array.isArray(playlistRecommendations) &&
+        !!playlistRecommendations?.next,
+      onShowMore: fetchNextPlaylists,
+    });
+  }
+
+  // Daily Top Songs
+  if (loadingExtra.dailyTopSongs) {
+    availableSections.push({
+      key: "daily_top_songs_skeleton",
+      title: "برترین آهنگ‌های روز",
+      content: (
+        <SectionSkeleton title="برترین آهنگ‌های روز" variant="horizontal" />
+      ),
+    });
+  } else if (dailyTopSongs && dailyTopSongs.results.length > 0) {
+    availableSections.push({
+      key: "daily_top_songs",
+      title: "برترین آهنگ‌های روز",
+      subtitle: "پرشنونده‌ترین‌های امروز در سراسر جهان",
+      content: (
+        <PremiumChartList
+          items={dailyTopSongs.results.map((s) => ({
+            id: s.id,
+            title: s.title,
+            subtitle: s.artist_name,
+            img: s.cover_image,
+            isNew: false,
+          }))}
+          onPlay={(item) =>
+            handlePlaySong(item.id, dailyTopSongs.results as any)
+          }
+        />
+      ),
+      showMore: true,
+      onShowMore: () =>
+        navigateTo("chart-detail", {
+          title: "برترین آهنگ‌های روز",
+          type: "songs",
+          initialData: dailyTopSongs,
+        }),
+    });
+  }
+
+  // Daily Top Albums
+  if (loadingExtra.dailyTopAlbums) {
+    availableSections.push({
+      key: "daily_top_albums_skeleton",
+      title: "برترین آلبوم‌های روز",
+      content: <SectionSkeleton title="برترین آلبوم‌های روز" variant="grid" />,
+    });
+  } else if (dailyTopAlbums && dailyTopAlbums.results.length > 0) {
+    availableSections.push({
+      key: "daily_top_albums",
+      title: "برترین آلبوم‌های روز",
+      subtitle: "آلبوم‌های ترند شده امروز",
+      content: (
+        <GlassAlbumGrid
+          items={dailyTopAlbums.results.map((a) => ({
+            id: a.id,
+            title: a.title,
+            subtitle: a.artist_name,
+            img: a.cover_image,
+            isNew: false,
+          }))}
+          onItemClick={(item) =>
+            navigateTo("album-detail", {
+              id: item.id,
+              slug: createSlug(item.title),
+            })
+          }
+          maxItems={4}
+          showMore={true}
+          onShowMore={() =>
+            navigateTo("chart-detail", {
+              title: "برترین آلبوم‌های روز",
+              type: "albums",
+              initialData: dailyTopAlbums,
+            })
+          }
+          overlayHeight="50%"
+        />
+      ),
+      showMore: true,
+      onShowMore: () =>
+        navigateTo("chart-detail", {
+          title: "برترین آلبوم‌های روز",
+          type: "albums",
+          initialData: dailyTopAlbums,
+        }),
+    });
+  }
+
+  // Daily Top Artists
+  if (loadingExtra.dailyTopArtists) {
+    availableSections.push({
+      key: "daily_top_artists_skeleton",
+      title: "برترین هنرمندان روز",
+      content: <SectionSkeleton title="برترین هنرمندان روز" variant="artist" />,
+    });
+  } else if (dailyTopArtists && dailyTopArtists.results.length > 0) {
+    availableSections.push({
+      key: "daily_top_artists",
+      title: "برترین هنرمندان روز",
+      subtitle: "هنرمندانی که امروز بیشترین مخاطب را داشتند",
+      content: (
+        <SpotlightArtistList
+          items={dailyTopArtists.results.map((a) => ({
+            id: a.id,
+            title: a.name,
+            subtitle: "Artist",
+            img: a.profile_image,
+            isNew: false,
+          }))}
+          onItemClick={(item) => navigateTo("artist-detail", { id: item.id })}
+        />
+      ),
+      showMore: true,
+      onShowMore: () =>
+        navigateTo("chart-detail", {
+          title: "برترین هنرمندان روز",
+          type: "artists",
+          initialData: dailyTopArtists,
+        }),
+    });
+  }
+
+  // Weekly Top Songs
+  if (loadingExtra.weeklyTopSongs) {
+    availableSections.push({
+      key: "weekly_top_songs_skeleton",
+      title: "برترین آهنگ‌های هفته",
+      content: (
+        <SectionSkeleton title="برترین آهنگ‌های هفته" variant="horizontal" />
+      ),
+    });
+  } else if (weeklyTopSongs && weeklyTopSongs.results.length > 0) {
+    availableSections.push({
+      key: "weekly_top_songs",
+      title: "برترین آهنگ‌های هفته",
+      subtitle: "محبوب‌ترین‌های ۷ روز گذشته",
+      content: (
+        <PremiumChartList
+          items={weeklyTopSongs.results.map((s) => ({
+            id: s.id,
+            title: s.title,
+            subtitle: s.artist_name,
+            img: s.cover_image,
+            isNew: false,
+          }))}
+          onPlay={(item) =>
+            handlePlaySong(item.id, weeklyTopSongs.results as any)
+          }
+        />
+      ),
+      showMore: true,
+      onShowMore: () =>
+        navigateTo("chart-detail", {
+          title: "برترین آهنگ‌های هفته",
+          type: "songs",
+          initialData: weeklyTopSongs,
+        }),
+    });
+  }
+
+  // Weekly Top Albums
+  if (loadingExtra.weeklyTopAlbums) {
+    availableSections.push({
+      key: "weekly_top_albums_skeleton",
+      title: "برترین آلبوم‌های هفته",
+      content: <SectionSkeleton title="برترین آلبوم‌های هفته" variant="grid" />,
+    });
+  } else if (weeklyTopAlbums && weeklyTopAlbums.results.length > 0) {
+    availableSections.push({
+      key: "weekly_top_albums",
+      title: "برترین آلبوم‌های هفته",
+      subtitle: "آلبوم‌های برتر هفته اخیر",
+      content: (
+        <GlassAlbumGrid
+          items={weeklyTopAlbums.results.map((a) => ({
+            id: a.id,
+            title: a.title,
+            subtitle: a.artist_name,
+            img: a.cover_image,
+            isNew: false,
+          }))}
+          onItemClick={(item) =>
+            navigateTo("album-detail", {
+              id: item.id,
+              slug: createSlug(item.title),
+            })
+          }
+          maxItems={4}
+          showMore={true}
+          onShowMore={() =>
+            navigateTo("chart-detail", {
+              title: "برترین آلبوم‌های هفته",
+              type: "albums",
+              initialData: weeklyTopAlbums,
+            })
+          }
+          overlayHeight="50%"
+        />
+      ),
+      showMore: true,
+      onShowMore: () =>
+        navigateTo("chart-detail", {
+          title: "برترین آلبوم‌های هفته",
+          type: "albums",
+          initialData: weeklyTopAlbums,
+        }),
+    });
+  }
+
+  // Weekly Top Artists
+  if (loadingExtra.weeklyTopArtists) {
+    availableSections.push({
+      key: "weekly_top_artists_skeleton",
+      title: "برترین هنرمندان هفته",
+      content: (
+        <SectionSkeleton title="برترین هنرمندان هفته" variant="artist" />
+      ),
+    });
+  } else if (weeklyTopArtists && weeklyTopArtists.results.length > 0) {
+    availableSections.push({
+      key: "weekly_top_artists",
+      title: "برترین هنرمندان هفته",
+      subtitle: "ستارگان هفته صداباکس",
+      content: (
+        <SpotlightArtistList
+          items={weeklyTopArtists.results.map((a) => ({
+            id: a.id,
+            title: a.name,
+            subtitle: "Artist",
+            img: a.profile_image,
+            isNew: false,
+          }))}
+          onItemClick={(item) => navigateTo("artist-detail", { id: item.id })}
+        />
+      ),
+      showMore: true,
+      onShowMore: () =>
+        navigateTo("chart-detail", {
+          title: "برترین هنرمندان هفته",
+          type: "artists",
+          initialData: weeklyTopArtists,
+        }),
+    });
+  }
+
+  // Hero highlights built from all home sections
+  const heroHighlights: HeroHighlight[] = [];
+  const meshGradients = [
+    "radial-gradient(circle at 0% 0%, rgba(16,185,129,0.55), transparent 55%), radial-gradient(circle at 100% 0%, rgba(45,212,191,0.4), transparent 55%), radial-gradient(circle at 50% 100%, rgba(22,163,74,0.65), transparent 55%)",
+    "radial-gradient(circle at 0% 0%, rgba(129,140,248,0.55), transparent 55%), radial-gradient(circle at 100% 0%, rgba(236,72,153,0.35), transparent 55%), radial-gradient(circle at 50% 100%, rgba(56,189,248,0.5), transparent 55%)",
+    "radial-gradient(circle at 0% 0%, rgba(245,158,11,0.6), transparent 55%), radial-gradient(circle at 100% 0%, rgba(239,68,68,0.4), transparent 55%), radial-gradient(circle at 50% 100%, rgba(244,63,94,0.5), transparent 55%)",
+    "radial-gradient(circle at 0% 0%, rgba(56,189,248,0.55), transparent 55%), radial-gradient(circle at 100% 0%, rgba(59,130,246,0.45), transparent 55%), radial-gradient(circle at 50% 100%, rgba(45,212,191,0.55), transparent 55%)",
+  ];
+
+  const firstRec = homeData.songs_recommendations.songs[0];
+  if (firstRec) {
+    const idx = heroHighlights.length % meshGradients.length;
+    heroHighlights.push({
+      key: `personal-${firstRec.id}`,
+      pill: "پخش شخصی",
+      title: firstRec.title,
+      subtitle: `${firstRec.artist_name} • بر اساس فعالیت‌های اخیرت`,
+      image: firstRec.cover_image || "/default-cover.jpg",
+      meshGradient: meshGradients[idx],
+      highlight:
+        firstRec.genre_names?.slice(0, 2).join(" • ") || "چند ژانر منتخب",
+      metaRight: formatDuration(firstRec.duration_seconds),
+      type: "song",
+      item: firstRec,
+    });
+  }
+
+  const latest = homeData.latest_releases.results[0];
+  if (latest && latest.id !== firstRec?.id) {
+    const idx = heroHighlights.length % meshGradients.length;
+    heroHighlights.push({
+      key: `latest-${latest.id}`,
+      pill: "آخرین ریلیز",
+      title: latest.title,
+      subtitle: `${latest.artist_name} • تازه روی صداباکس`,
+      image: latest.cover_image || "/default-cover.jpg",
+      meshGradient: meshGradients[idx],
+      highlight: "انتشار تازه",
+      metaRight: formatDuration(latest.duration_seconds),
+      type: "song",
+      item: latest,
+    });
+  }
+
+  const discovery = homeData.discoveries.results[0];
+  if (
+    discovery &&
+    discovery.id !== firstRec?.id &&
+    discovery.id !== latest?.id
+  ) {
+    const idx = heroHighlights.length % meshGradients.length;
+    heroHighlights.push({
+      key: `discovery-${discovery.id}`,
+      pill: "کشف تازه",
+      title: discovery.title,
+      subtitle: `${discovery.artist_name} • پیشنهادی برای کشف جدید`,
+      image: discovery.cover_image || "/default-cover.jpg",
+      meshGradient: meshGradients[idx],
+      highlight:
+        discovery.mood_names?.slice(0, 2).join(" • ") || "حال‌وهوای خاص",
+      metaRight: formatDuration(discovery.duration_seconds),
+      type: "song",
+      item: discovery,
+    });
+  }
+
+  const playlistForHero =
+    (Array.isArray(playlistRecommendations)
+      ? playlistRecommendations[0]
+      : playlistRecommendations?.results?.[0]) ||
+    (Array.isArray(homeData.playlist_recommendations)
+      ? homeData.playlist_recommendations[0]
+      : homeData.playlist_recommendations?.results?.[0]);
+  if (playlistForHero) {
+    const idx = heroHighlights.length % meshGradients.length;
+    heroHighlights.push({
+      key: `playlist-${playlistForHero.unique_id || playlistForHero.id}`,
+      pill: "لیست پخش منتخب",
+      title: playlistForHero.title,
+      subtitle: playlistForHero.description || "منتخب صداباکس برای حال تو",
+      image: playlistForHero.cover_image || "/default-cover.jpg",
+      meshGradient: meshGradients[idx],
+      highlight: `${playlistForHero.songs_count} ترک`,
+      metaRight: "لیست پخش آماده پخش",
+      type: "playlist",
+      item: playlistForHero,
+    });
+  }
+
+  type HeroStats = {
+    totalTracks: number;
+    totalArtists: number;
+    totalPlaylists: number;
+  };
+
+  const heroStats: HeroStats = {
+    totalTracks:
+      (homeData.songs_recommendations.songs?.length || 0) +
+      (homeData.latest_releases?.count ||
+        homeData.latest_releases?.results?.length ||
+        0) +
+      (homeData.discoveries?.count ||
+        homeData.discoveries?.results?.length ||
+        0),
+    totalArtists:
+      homeData.popular_artists?.count ||
+      homeData.popular_artists?.results?.length ||
+      0,
+    totalPlaylists:
+      (Array.isArray(playlistRecommendations)
+        ? playlistRecommendations.length
+        : playlistRecommendations?.count ||
+          playlistRecommendations?.results?.length ||
+          0) +
+      (Array.isArray(homeData.playlist_recommendations)
+        ? homeData.playlist_recommendations.length
+        : homeData.playlist_recommendations?.count ||
+          homeData.playlist_recommendations?.results?.length ||
+          0),
+  };
+
+  const scrollToSectionByKey = (key: string) => {
+    const index = availableSections.findIndex((s) => s.key === key);
+    if (index === -1) return;
+    const el = sectionRefs.current[index];
+    if (el) {
+      el.scrollIntoView({ behavior: "auto", block: "start" });
+      setActiveIndex(index);
+    }
+  };
+
+  const handleHeroPrimaryPlay = () => {
+    const sources: ApiSong[][] = [];
+    if (homeData.songs_recommendations.songs.length) {
+      sources.push(homeData.songs_recommendations.songs);
+    }
+    if (homeData.discoveries.results.length) {
+      sources.push(homeData.discoveries.results);
+    }
+    if (homeData.latest_releases.results.length) {
+      sources.push(homeData.latest_releases.results);
+    }
+    const list = sources[0];
+    if (!list || !list.length) return;
+    handlePlaySong(list[0].id, list);
+  };
+
+  const handleHeroCardPlay = (item: HeroHighlight) => {
+    if (item.type === "song" && item.item) {
+      if (item.key.startsWith("personal-")) {
+        handlePlaySong(item.item.id, homeData.songs_recommendations.songs);
+      } else if (item.key.startsWith("latest-")) {
+        handlePlaySong(item.item.id, homeData.latest_releases.results);
+      } else if (item.key.startsWith("discovery-")) {
+        handlePlaySong(item.item.id, homeData.discoveries.results);
+      }
+    } else if (item.type === "playlist" && item.item) {
+      navigateTo("playlist-detail", {
+        id: item.item.unique_id || item.item.id,
+        slug: createSlug(item.item.title),
+      });
+    }
+  };
 
   return (
     <div
@@ -360,8 +1421,8 @@ export default function Home() {
                             onClick={() => {
                               setNotifications((prev) =>
                                 prev.map((p) =>
-                                  p.id === n.id ? { ...p, checked: true } : p
-                                )
+                                  p.id === n.id ? { ...p, checked: true } : p,
+                                ),
                               );
                               setTimeout(
                                 () =>
@@ -369,17 +1430,17 @@ export default function Home() {
                                     prev.map((p) =>
                                       p.id === n.id
                                         ? { ...p, removing: true }
-                                        : p
-                                    )
+                                        : p,
+                                    ),
                                   ),
-                                220
+                                220,
                               );
                               setTimeout(
                                 () =>
                                   setNotifications((prev) =>
-                                    prev.filter((p) => p.id !== n.id)
+                                    prev.filter((p) => p.id !== n.id),
                                   ),
-                                560
+                                560,
                               );
                             }}
                             className={`notif-checkbox flex items-center justify-center shrink-0 w-7 h-7 rounded-md border-2 transition-all duration-200 ${
@@ -430,16 +1491,17 @@ export default function Home() {
         <div
           ref={navRef}
           className="flex gap-3 overflow-x-auto no-scrollbar pb-2 items-center will-change-transform"
+          style={{ direction: "rtl" }}
           aria-label="بخش‌های خانه"
         >
-          {sectionTitles.map((t, i) => (
+          {availableSections.map((s, i) => (
             <button
-              key={t}
+              key={s.key}
               data-index={i}
               onClick={() => {
                 const el = sectionRefs.current[i];
                 if (el) {
-                  el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  el.scrollIntoView({ behavior: "auto", block: "start" });
                   setActiveIndex(i);
                 }
               }}
@@ -449,7 +1511,7 @@ export default function Home() {
                   : "bg-zinc-800 text-white hover:bg-zinc-700"
               }`}
             >
-              {t}
+              {s.title}
             </button>
           ))}
         </div>
@@ -502,14 +1564,14 @@ export default function Home() {
 
           {/* Center: Section navigation pills */}
           <div className="flex-1 flex justify-center">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-2xl">
-              {sectionTitles.slice(0, 5).map((t, i) => (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-3xl">
+              {availableSections.map((s, i) => (
                 <button
-                  key={t}
+                  key={s.key}
                   onClick={() => {
                     const el = sectionRefs.current[i];
                     if (el) {
-                      el.scrollIntoView({ behavior: "smooth", block: "start" });
+                      el.scrollIntoView({ behavior: "auto", block: "start" });
                       setActiveIndex(i);
                     }
                   }}
@@ -519,7 +1581,7 @@ export default function Home() {
                       : "bg-zinc-800 text-white hover:bg-zinc-700"
                   }`}
                 >
-                  {t}
+                  {s.title}
                 </button>
               ))}
             </div>
@@ -538,134 +1600,28 @@ export default function Home() {
       </header>
 
       <main className="relative z-10 flex flex-col gap-8 pt-2 md:gap-10 md:pt-4">
-        <Section
-          title="برای شما , برای علی رضایی"
-          subtitle="بر اساس فعالیت های اخیر شما"
-          sectionRef={(el) => (sectionRefs.current[0] = el)}
-          dataIndex={0}
-        >
-          <HorizontalList
-            items={sectionData.forYou}
-            onPlay={(item) => {
-              const song = MOCK_SONGS.find((s) => s.id === item.id);
-              if (song) handlePlaySong(song, MOCK_SONGS.slice(0, 6));
-            }}
-          />
-        </Section>
-
-        <Section
-          title="جدیدترین ریلیز ها "
-          sectionRef={(el) => (sectionRefs.current[1] = el)}
-          dataIndex={1}
-        >
-          <div className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4">
-            {sectionData.hottestDrops.map((item) => (
-              <div
-                key={item.id}
-                className="snap-center shrink-0 w-[85vw] sm:w-80 relative group cursor-pointer"
-              >
-                <div className="relative aspect-video bg-zinc-800 rounded-lg overflow-hidden shadow-lg">
-                  <img
-                    src={item.img}
-                    alt={item.title}
-                    className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300"
-                    loading="lazy"
-                  />
-                  <div className="absolute bottom-2 right-2 bg-black/60  px-2 py-1 rounded text-xs font-bold uppercase tracking-wider">
-                    انتشار جدید
-                  </div>
-                </div>
-                <h3 className="mt-2 font-bold text-lg truncate">
-                  {item.title}
-                </h3>
-                <p className="text-zinc-400 text-sm truncate">
-                  {item.subtitle}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Section>
-
-        <Section
-          title="هنرمندان محبوب"
-          sectionRef={(el) => (sectionRefs.current[2] = el)}
-          dataIndex={2}
-        >
-          <HorizontalList
-            items={sectionData.popularArtists}
-            variant="circle"
-            onItemClick={(item) =>
-              navigateTo("artist-detail", { slug: item.id })
-            }
-          />
-        </Section>
-
-        <Section
-          title="آلبوم‌های محبوب"
-          sectionRef={(el) => (sectionRefs.current[3] = el)}
-          dataIndex={3}
-        >
-          <HorizontalList
-            items={sectionData.popularAlbums}
-            variant="layered"
-            onItemClick={(item) =>
-              navigateTo("album-detail", { slug: createSlug(item.title) })
-            }
-          />
-        </Section>
-
-        <Section
-          title="10 عنوان برتر هفته"
-          subtitle="50 برتر جهانی"
-          sectionRef={(el) => (sectionRefs.current[4] = el)}
-          dataIndex={4}
-        >
-          <ChartList
-            items={sectionData.top10Week}
-            onPlay={(item) => {
-              const song = MOCK_SONGS.find((s) => s.id === item.id);
-              if (song) handlePlaySong(song, MOCK_SONGS.slice(12, 22));
-            }}
-          />
-        </Section>
-
-        <Section
-          title="اکتشافات جدید"
-          sectionRef={(el) => (sectionRefs.current[5] = el)}
-          dataIndex={5}
-        >
-          <HorizontalList
-            items={sectionData.newDiscoveries}
-            onPlay={(item) => {
-              const song = MOCK_SONGS.find((s) => s.id === item.id);
-              if (song) handlePlaySong(song, MOCK_SONGS.slice(0, 6));
-            }}
-          />
-        </Section>
-
-        <Section
-          title="10 عنوان برتر پاپ"
-          subtitle="جدول ماهانه"
-          sectionRef={(el) => (sectionRefs.current[6] = el)}
-          dataIndex={6}
-        >
-          <ChartList
-            items={sectionData.top10HipHop}
-            color="text-orange-500"
-            onPlay={(item) => {
-              const song = MOCK_SONGS.find((s) => s.id === item.id);
-              if (song) handlePlaySong(song, MOCK_SONGS.slice(6, 16));
-            }}
-          />
-        </Section>
-
-        <Section
-          title="لیست‌های پخش جدید برای شما"
-          sectionRef={(el) => (sectionRefs.current[7] = el)}
-          dataIndex={7}
-        >
-          <HorizontalList items={sectionData.newPlaylists} variant="layered" />
-        </Section>
+        <HeroSection
+          homeData={homeData}
+          sectionData={sectionData}
+          heroHighlights={heroHighlights}
+          stats={heroStats}
+          onPrimaryPlay={handleHeroPrimaryPlay}
+          onGoToDiscover={() => scrollToSectionByKey("discoveries")}
+          onCardPlay={handleHeroCardPlay}
+        />
+        {availableSections.map((s, i) => (
+          <Section
+            key={s.key}
+            title={s.title}
+            subtitle={s.subtitle}
+            sectionRef={(el) => (sectionRefs.current[i] = el)}
+            dataIndex={i}
+            showMore={s.showMore}
+            onShowMore={s.onShowMore}
+          >
+            {s.content}
+          </Section>
+        ))}
       </main>
 
       <style jsx global>{`
@@ -703,7 +1659,9 @@ export default function Home() {
           transform: translateZ(0);
         }
         .notif-checkbox svg {
-          transition: transform 200ms ease, opacity 200ms ease;
+          transition:
+            transform 200ms ease,
+            opacity 200ms ease;
           will-change: transform, opacity;
           backface-visibility: hidden;
           transform: translateZ(0);
@@ -728,7 +1686,9 @@ export default function Home() {
         .notif-item {
           transform: translateX(0);
           opacity: 1;
-          transition: transform 320ms ease, opacity 280ms ease;
+          transition:
+            transform 320ms ease,
+            opacity 280ms ease;
           will-change: transform, opacity;
           backface-visibility: hidden;
           transform: translateZ(0);
@@ -749,8 +1709,10 @@ export default function Home() {
           font-weight: 700;
           font-size: 1rem;
           color: #10b981;
-          transition: max-width 480ms cubic-bezier(0.22, 0.9, 0.3, 1),
-            padding 480ms cubic-bezier(0.22, 0.9, 0.3, 1), opacity 360ms ease,
+          transition:
+            max-width 480ms cubic-bezier(0.22, 0.9, 0.3, 1),
+            padding 480ms cubic-bezier(0.22, 0.9, 0.3, 1),
+            opacity 360ms ease,
             transform 360ms ease;
           will-change: max-width, padding, transform, opacity;
           backface-visibility: hidden;
@@ -782,10 +1744,45 @@ export default function Home() {
           transform: translateY(-2px) scale(1.02);
           box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
         }
+
+        /* Hero section */
+        .hero-shell {
+          isolation: isolate;
+          backdrop-filter: blur(22px);
+          -webkit-backdrop-filter: blur(22px);
+        }
+        .hero-bg-img {
+          background-size: cover;
+          background-position: center;
+          filter: saturate(1.3);
+          will-change: opacity, transform;
+        }
+        .hero-slider-shell {
+          touch-action: pan-y;
+          -webkit-tap-highlight-color: transparent;
+          will-change: transform;
+        }
+        .hero-card {
+          will-change: transform, opacity, filter;
+          transition:
+            transform 420ms cubic-bezier(0.22, 0.9, 0.3, 1),
+            opacity 260ms ease-out,
+            filter 260ms ease-out;
+        }
+        .hero-card:hover {
+          transform: translateY(-4px) scale(1.01) !important;
+        }
+        @media (max-width: 768px) {
+          .hero-shell {
+            border-radius: 1.5rem;
+          }
+        }
       `}</style>
     </div>
   );
 }
+
+/* HeroSection extracted to components/HeroSection.tsx */
 
 /* Reusable components */
 
@@ -795,6 +1792,8 @@ type SectionProps = {
   children: React.ReactNode;
   sectionRef?: (el: HTMLElement | null) => void;
   dataIndex?: number;
+  showMore?: boolean;
+  onShowMore?: () => void;
 };
 const Section = ({
   title,
@@ -802,19 +1801,53 @@ const Section = ({
   children,
   sectionRef,
   dataIndex,
+  showMore,
+  onShowMore,
 }: SectionProps) => (
   <section
     ref={sectionRef}
     data-index={dataIndex}
-    className="flex flex-col gap-3 fade-in"
+    className="flex flex-col gap-3 fade-in scroll-mt-[135px] md:scroll-mt-24"
   >
-    <div className="px-4 text-right">
-      <h2 className="text-2xl font-bold tracking-tight leading-none">
-        {title}
-      </h2>
-      {subtitle && (
-        <p className="text-zinc-400 text-xs font-medium mt-1">{subtitle}</p>
+    <div className="px-4 text-right relative">
+      {showMore && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onShowMore?.();
+          }}
+          aria-label="نمایش بیشتر"
+          className="absolute left-4 top-1/2 -translate-y-1/2 inline-flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-medium bg-transparent px-2 py-1 rounded transition"
+        >
+          <span className="flex items-center gap-2">
+            <span className="leading-none">نمایش بیشتر</span>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              className="w-4 h-4 text-zinc-400 transition-transform duration-150"
+              aria-hidden
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15 18l-6-6 6-6"
+              />
+            </svg>
+          </span>
+        </button>
       )}
+      <div className="w-full flex flex-col items-end">
+        <h2 className="text-2xl font-bold tracking-tight leading-none text-right w-full">
+          {title}
+        </h2>
+        {subtitle && (
+          <p className="text-zinc-400 text-xs font-medium text-right w-full mt-1">
+            {subtitle}
+          </p>
+        )}
+      </div>
     </div>
     {children}
   </section>
@@ -833,7 +1866,10 @@ const HorizontalList = ({
   onPlay,
 }: HorizontalListProps) => {
   return (
-    <div className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4 will-change-transform">
+    <div
+      className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4 will-change-transform"
+      style={{ direction: "rtl" }}
+    >
       {items.map((item, index) => (
         <div
           key={item.id}
@@ -842,8 +1878,8 @@ const HorizontalList = ({
             variant === "circle"
               ? "w-28"
               : variant === "layered"
-              ? "w-40"
-              : "w-36"
+                ? "w-40"
+                : "w-36"
           }`}
         >
           <div
@@ -861,11 +1897,15 @@ const HorizontalList = ({
                     boxShadow: "0 4px 12px -2px rgba(0, 0, 0, 0.3)",
                   }}
                 >
-                  <img
-                    src={items[(index + 2) % items.length]?.img || item.img}
+                  <ImageWithPlaceholder
+                    src={
+                      Array.isArray(item.img)
+                        ? item.img[0]
+                        : items[(index + 2) % items.length]?.img || item.img
+                    }
                     alt=""
                     className="w-full h-full object-cover opacity-40"
-                    loading="lazy"
+                    type="song"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 to-transparent" />
                 </div>
@@ -878,11 +1918,15 @@ const HorizontalList = ({
                     boxShadow: "0 6px 16px -4px rgba(0, 0, 0, 0.35)",
                   }}
                 >
-                  <img
-                    src={items[(index + 1) % items.length]?.img || item.img}
+                  <ImageWithPlaceholder
+                    src={
+                      Array.isArray(item.img)
+                        ? item.img[1]
+                        : items[(index + 1) % items.length]?.img || item.img
+                    }
                     alt=""
                     className="w-full h-full object-cover opacity-50"
-                    loading="lazy"
+                    type="song"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-800/70 to-transparent" />
                 </div>
@@ -905,11 +1949,11 @@ const HorizontalList = ({
                   : {}
               }
             >
-              <img
-                src={item.img}
+              <ImageWithPlaceholder
+                src={Array.isArray(item.img) ? item.img[2] : item.img}
                 alt={item.title}
                 className="w-full h-full object-cover group-active:scale-95 transition-transform duration-200 ease-out"
-                loading="lazy"
+                type={variant === "circle" ? "artist" : "song"}
               />
 
               {/* Hover overlay with gradient */}
@@ -1015,10 +2059,11 @@ const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
               {index + 1}
             </span>
             <div className="h-16 w-16 shrink-0 relative rounded shadow-md overflow-hidden">
-              <img
+              <ImageWithPlaceholder
                 src={item.img}
                 className="h-full w-full object-cover"
-                loading="lazy"
+                alt={item.title}
+                type="song"
               />
             </div>
             <div className="flex flex-col overflow-hidden flex-1 min-w-0 text-right">
@@ -1041,3 +2086,209 @@ const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
     </div>
   );
 };
+
+const PremiumChartList = ({
+  items,
+  onPlay,
+}: {
+  items: ItemType[];
+  onPlay?: (item: ItemType) => void;
+}) => (
+  <div
+    className="flex overflow-x-auto gap-6 px-4 snap-x snap-mandatory no-scrollbar pb-6"
+    style={{ direction: "rtl" }}
+  >
+    {items.map((item, index) => (
+      <div
+        key={item.id}
+        onClick={() => onPlay?.(item)}
+        className="snap-start shrink-0 w-[75vw] sm:w-80 group cursor-pointer relative"
+      >
+        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur opacity-0 group-hover:opacity-20 transition duration-500" />
+        <div className="relative flex items-center gap-4 bg-zinc-900/40 backdrop-blur-md border border-white/5 p-3 rounded-2xl hover:bg-zinc-800/60 transition-all duration-300">
+          <div className="relative shrink-0">
+            <div className="w-20 h-20 rounded-xl overflow-hidden shadow-2xl">
+              <ImageWithPlaceholder
+                src={item.img}
+                alt={item.title}
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                type="song"
+              />
+            </div>
+            <div className="absolute -top-2 -right-2 w-8 h-8 bg-emerald-500 text-black rounded-full flex items-center justify-center font-black text-sm shadow-lg border-2 border-zinc-900">
+              {index + 1}
+            </div>
+          </div>
+          <div className="flex-1 min-w-0 text-right">
+            <h4 className="text-white font-bold truncate text-base">
+              {item.title}
+            </h4>
+            <p className="text-zinc-400 text-xs truncate mt-0.5">
+              {item.subtitle}
+            </p>
+            <div className="flex items-center justify-end gap-2 mt-2">
+              <span className="text-[10px] text-emerald-500 font-medium px-2 py-0.5 bg-emerald-500/10 rounded-full">
+                TOP CHART
+              </span>
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500 transition-colors duration-300">
+            <Play
+              fill="currentColor"
+              className="w-4 h-4 text-emerald-500 group-hover:text-black translate-x-0.5"
+            />
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const GlassAlbumGrid = ({
+  items,
+  onItemClick,
+  maxItems = 10,
+  showMore = false,
+  onShowMore,
+  overlayHeight = "50%",
+}: {
+  items: ItemType[];
+  onItemClick?: (item: ItemType) => void;
+  maxItems?: number;
+  showMore?: boolean;
+  onShowMore?: () => void;
+  overlayHeight?: string;
+}) => (
+  <div className="relative">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 px-4">
+      {items.slice(0, maxItems).map((item) => (
+        <div
+          key={item.id}
+          onClick={() => onItemClick?.(item)}
+          className="group cursor-pointer"
+        >
+          <div className="relative aspect-square rounded-2xl overflow-hidden mb-3 shadow-xl">
+            <ImageWithPlaceholder
+              src={item.img}
+              alt={item.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+              type="song"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
+            <div className="absolute bottom-3 right-3 left-3">
+              <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-xl p-2 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                <p className="text-white text-[10px] font-bold truncate text-center ">
+                  مشاهده آلبوم
+                </p>
+              </div>
+            </div>
+          </div>
+          <h4 className="text-white font-bold text-sm truncate text-right px-1">
+            {item.title}
+          </h4>
+          <p className="text-zinc-500 text-[11px] truncate text-right px-1 mt-0.5">
+            {item.subtitle}
+          </p>
+        </div>
+      ))}
+    </div>
+    {showMore && (
+      <>
+        <div
+          className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none"
+          style={{ height: overlayHeight }}
+        />
+        <button
+          onClick={onShowMore}
+          className="absolute bottom-[20%] left-1/2 transform -translate-x-1/2 bg-emerald-500 text-black px-4 py-2 rounded-full font-semibold hover:bg-emerald-400 transition-colors z-10"
+        >
+          مشاهده بیشتر
+        </button>
+      </>
+    )}
+  </div>
+);
+
+const SpotlightArtistList = ({
+  items,
+  onItemClick,
+}: {
+  items: ItemType[];
+  onItemClick?: (item: ItemType) => void;
+}) => (
+  <div
+    className="flex overflow-x-auto gap-8 px-6 no-scrollbar pb-4"
+    style={{ direction: "rtl" }}
+  >
+    {items.map((item) => (
+      <div
+        key={item.id}
+        onClick={() => onItemClick?.(item)}
+        className="shrink-0 group cursor-pointer flex flex-col items-center"
+      >
+        <div className="relative w-32 h-32 sm:w-40 sm:h-40 mb-4">
+          <div className="absolute inset-0 bg-emerald-500 rounded-full blur-2xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
+          <div className="relative w-full h-full rounded-full overflow-hidden ring-4 ring-zinc-800 group-hover:ring-emerald-500 transition-all duration-500 shadow-2xl">
+            <ImageWithPlaceholder
+              src={item.img}
+              alt={item.title}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+              type="artist"
+            />
+          </div>
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[10px] font-black px-3 py-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+            VERIFIED
+          </div>
+        </div>
+        <h4 className="text-white font-bold text-sm group-hover:text-emerald-400 transition-colors">
+          {item.title}
+        </h4>
+        <p className="text-zinc-500 text-[10px] mt-1 uppercase tracking-widest font-medium">
+          Artist
+        </p>
+      </div>
+    ))}
+  </div>
+);
+
+const SectionSkeleton = ({
+  title,
+  variant = "horizontal",
+}: {
+  title: string;
+  variant?: "horizontal" | "grid" | "artist";
+}) => (
+  <div className="flex flex-col gap-4 px-4 animate-pulse">
+    <div className="flex flex-row-reverse items-center justify-between">
+      <div className="h-8 w-48 bg-zinc-800 rounded-lg" />
+      <div className="h-4 w-20 bg-zinc-800/50 rounded-full" />
+    </div>
+    {variant === "horizontal" && (
+      <div className="flex gap-4 overflow-hidden">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="shrink-0 w-72 h-24 bg-zinc-800/30 rounded-2xl"
+          />
+        ))}
+      </div>
+    )}
+    {variant === "grid" && (
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="aspect-square bg-zinc-800/30 rounded-2xl" />
+        ))}
+      </div>
+    )}
+    {variant === "artist" && (
+      <div className="flex gap-8 overflow-hidden">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="shrink-0 w-32 h-32 rounded-full bg-zinc-800/30"
+          />
+        ))}
+      </div>
+    )}
+  </div>
+);

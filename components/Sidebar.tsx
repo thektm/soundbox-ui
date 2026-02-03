@@ -385,7 +385,7 @@ const NavItemComponent = memo(
         </span>
       )}
     </button>
-  )
+  ),
 );
 
 NavItemComponent.displayName = "NavItemComponent";
@@ -500,7 +500,7 @@ const LibraryItemComponent = memo(
         </div>
       </button>
     );
-  }
+  },
 );
 
 LibraryItemComponent.displayName = "LibraryItemComponent";
@@ -552,7 +552,7 @@ function Sidebar() {
       items = items.filter(
         (item) =>
           item.name.toLowerCase().includes(query) ||
-          item.owner?.toLowerCase().includes(query)
+          item.owner?.toLowerCase().includes(query),
       );
     }
 
@@ -570,7 +570,7 @@ function Sidebar() {
       if (path === "/") return currentPage === "home";
       return currentPage === path.slice(1);
     },
-    [currentPage]
+    [currentPage],
   );
 
   // Hide on login/verify pages
@@ -757,13 +757,14 @@ function Sidebar() {
                   // Navigate to the correct detail page based on item type.
                   if (item.type === "artist") {
                     navigateTo("artist-detail", {
-                      slug: createSlug(item.name),
+                      id: item.id,
                     });
                     return;
                   }
 
                   if (item.type === "album") {
                     navigateTo("album-detail", {
+                      id: item.id,
                       slug: createSlug(item.name),
                       album: item,
                     });
@@ -777,7 +778,7 @@ function Sidebar() {
                     const found = all.find((p) => {
                       try {
                         const s1 = decodeSlug(
-                          createSlug(p.title)
+                          createSlug(p.title),
                         ).toLowerCase();
                         const s2 = decodeSlug(targetSlug).toLowerCase();
                         if (s1 === s2) return true;

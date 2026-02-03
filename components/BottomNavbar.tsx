@@ -26,7 +26,12 @@ const useMediaQuery = (query: string) => {
 
 // Preload important library icons so toggling doesn't trigger fetch latency
 if (typeof window !== "undefined") {
-  ["/library.svg", "/library-selected.svg", "/premium.svg", "/premium-selected.svg"].forEach((src) => {
+  [
+    "/library.svg",
+    "/library-selected.svg",
+    "/premium.svg",
+    "/premium-selected.svg",
+  ].forEach((src) => {
     const img = new Image();
     img.src = src;
   });
@@ -93,13 +98,17 @@ const Icons = {
       <img
         src="/premium.svg"
         alt="premium"
-        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-0" : "opacity-100"}`}
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
+          active ? "opacity-0" : "opacity-100"
+        }`}
         style={{ filter: "invert(1)" }}
       />
       <img
         src="/premium-selected.svg"
         alt="premium-selected"
-        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-100" : "opacity-0"}`}
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
+          active ? "opacity-100" : "opacity-0"
+        }`}
         style={{ filter: "invert(1)" }}
       />
     </div>

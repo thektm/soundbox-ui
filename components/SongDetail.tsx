@@ -10,7 +10,48 @@ import React, {
 } from "react";
 import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
+import { useAuth } from "./AuthContext";
+import { toast } from "react-hot-toast";
 import { MOCK_SONGS as CENTRALIZED_SONGS } from "./mockData";
+import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { SongOptionsDrawer } from "./SongOptionsDrawer";
+
+interface ApiSong {
+  id: number;
+  title: string;
+  artist: number;
+  artist_id?: number;
+  artist_name: string;
+  cover_image: string;
+  duration_display: string;
+  is_liked: boolean;
+  likes_count: number;
+  plays: number;
+  added_to_playlists_count: number;
+  lyrics: string;
+  credits: string;
+  producers: string[];
+  composers: string[];
+  lyricists: string[];
+  label?: string;
+  similar_songs?: {
+    items: {
+      id: number;
+      title: string;
+      artist_name: string;
+      artist_id?: number;
+      artist?: number;
+      cover_image: string;
+      duration_display?: string;
+      duration_seconds?: number;
+      stream_url?: string;
+      audio_file?: string;
+    }[];
+  };
+  audio_file: string;
+  stream_url: string;
+  display_title?: string;
+}
 
 interface LyricLine {
   time: number;
@@ -26,6 +67,7 @@ interface Song {
   id: string;
   title: string;
   artist: string;
+  artistId?: number | string;
   duration: string;
   image: string;
   src: string;
@@ -151,9 +193,18 @@ const Icon = memo(
         <path d={d} />
       </svg>
     );
-  }
+  },
 );
 Icon.displayName = "Icon";
+
+// ============================================================================
+// LOADING SPINNER
+// ============================================================================
+const Spinner = ({ size = "w-5 h-5" }: { size?: string }) => (
+  <div
+    className={`${size} border-2 border-neutral-800 border-t-transparent rounded-full animate-spin`}
+  />
+);
 
 const useScrollY = () => {
   const [y, setY] = useState(0);
@@ -229,6 +280,12 @@ function formatNumber(num: number): string {
   return num.toString();
 }
 
+function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
 function cn(...classes: (string | boolean | undefined)[]): string {
   return classes.filter(Boolean).join(" ");
 }
@@ -262,7 +319,7 @@ const IconButton: React.FC<{
         "rounded-full flex items-center justify-center transition-all duration-200",
         "hover:bg-white/10 active:scale-95",
         sizes[size],
-        active ? activeColor : "text-neutral-400 hover:text-white"
+        active ? activeColor : "text-neutral-400 hover:text-white",
       )}
     >
       {children}
@@ -288,7 +345,7 @@ const PlayButton: React.FC<{
         "rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/25",
         "hover:bg-emerald-400 hover:scale-105 active:scale-100",
         "transition-all duration-200 ease-out",
-        sizes[size].button
+        sizes[size].button,
       )}
     >
       {isPlaying ? (
@@ -328,21 +385,21 @@ const TrackRow = memo(
         className={cn(
           "group flex items-center gap-4 p-3 rounded-lg cursor-pointer",
           "transition-colors duration-150",
-          "hover:bg-white/5"
+          "hover:bg-white/5",
         )}
       >
         <div className="w-10 h-10 shrink-0 relative overflow-hidden rounded">
-          <img
+          <ImageWithPlaceholder
             src={track.image}
             alt={track.title}
             className="w-full h-full object-cover"
-            loading="lazy"
+            type="song"
           />
           <div
             className={cn(
               "absolute inset-0 bg-black/60 flex items-center justify-center",
               "transition-opacity duration-150",
-              isHovered ? "opacity-100" : "opacity-0"
+              isHovered ? "opacity-100" : "opacity-0",
             )}
           >
             <Icon name="play" size={18} className="text-white" />
@@ -357,7 +414,7 @@ const TrackRow = memo(
         <span className="text-neutral-500 text-xs">{track.duration}</span>
       </div>
     );
-  }
+  },
 );
 
 TrackRow.displayName = "TrackRow";
@@ -400,7 +457,7 @@ const LyricsSection: React.FC<{
               "text-lg leading-relaxed transition-colors duration-300",
               currentTime >= line.time
                 ? "text-white font-medium"
-                : "text-neutral-400"
+                : "text-neutral-400",
             )}
           >
             {line.text}
@@ -412,7 +469,7 @@ const LyricsSection: React.FC<{
           onClick={() => setIsExpanded(!isExpanded)}
           className={cn(
             "mt-5 flex items-center gap-2 text-sm font-medium",
-            "text-neutral-400 hover:text-white transition-colors"
+            "text-neutral-400 hover:text-white transition-colors",
           )}
         >
           {isExpanded ? (
@@ -453,7 +510,8 @@ const ContextMenu: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   position: { x: number; y: number };
-}> = ({ isOpen, onClose, position }) => {
+  onArtistClick?: () => void;
+}> = ({ isOpen, onClose, position, onArtistClick }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -487,10 +545,35 @@ const ContextMenu: React.FC<{
   if (!isOpen) return null;
 
   const menuItems = [
-    { icon: <Icon name="listPlus" size={20} />, label: "افزودن به پلی‌لیست" },
-    { icon: <Icon name="queue" size={20} />, label: "افزودن به صف پخش" },
-    { icon: <Icon name="shareNetwork" size={20} />, label: "اشتراک‌گذاری" },
-    { icon: <Icon name="copy" size={20} />, label: "کپی لینک" },
+    ...(onArtistClick
+      ? [
+          {
+            icon: <Icon name="user" size={20} />,
+            label: "مشاهده هنرمند",
+            onClick: onArtistClick,
+          },
+        ]
+      : []),
+    {
+      icon: <Icon name="listPlus" size={20} />,
+      label: "افزودن به پلی‌لیست",
+      onClick: onClose,
+    },
+    {
+      icon: <Icon name="queue" size={20} />,
+      label: "افزودن به صف پخش",
+      onClick: onClose,
+    },
+    {
+      icon: <Icon name="shareNetwork" size={20} />,
+      label: "اشتراک‌گذاری",
+      onClick: onClose,
+    },
+    {
+      icon: <Icon name="copy" size={20} />,
+      label: "کپی لینک",
+      onClick: onClose,
+    },
   ];
 
   return (
@@ -499,16 +582,16 @@ const ContextMenu: React.FC<{
       style={{ top: position.y, left: position.x }}
       className={cn(
         "fixed z-50 min-w-[200px] py-2 bg-neutral-800 rounded-lg shadow-xl",
-        "border border-white/10 animate-in fade-in zoom-in-95 duration-150"
+        "border border-white/10 animate-in fade-in zoom-in-95 duration-150",
       )}
     >
       {menuItems.map((item, idx) => (
         <button
           key={idx}
-          onClick={onClose}
+          onClick={item.onClick}
           className={cn(
             "w-full flex items-center gap-3 px-4 py-2.5 text-sm text-right",
-            "text-neutral-200 hover:bg-white/10 transition-colors"
+            "text-neutral-200 hover:bg-white/10 transition-colors",
           )}
         >
           <span className="text-neutral-400">{item.icon}</span>
@@ -533,7 +616,7 @@ const Toast: React.FC<{
       type === "success" ? "bg-emerald-500" : "bg-neutral-700",
       isVisible
         ? "opacity-100 translate-y-0"
-        : "opacity-0 translate-y-4 pointer-events-none"
+        : "opacity-0 translate-y-4 pointer-events-none",
     )}
   >
     {type === "success" && (
@@ -543,9 +626,14 @@ const Toast: React.FC<{
   </div>
 );
 
+const Skeleton = ({ className }: { className?: string }) => (
+  <div className={cn("animate-pulse bg-white/10 rounded", className)} />
+);
+
 export default function SongDetail({ id: propId }: { id?: string }) {
   const { navigateTo, goBack, currentPage, currentParams } = useNavigation();
   const { currentTrack, isPlaying, playTrack, togglePlay } = usePlayer();
+  const { accessToken } = useAuth();
 
   const id = useMemo(() => {
     if (propId) return propId;
@@ -558,16 +646,68 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   const scrollY = useScrollY();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [song, setSong] = useState<Song | null>(null);
+  const [fullSongData, setFullSongData] = useState<ApiSong | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(0);
+  const [isLiking, setIsLiking] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0 });
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const handleAction = (action: string, song: any) => {
+    console.log(`Action ${action} on song ${song.title}`);
+  };
 
   useEffect(() => {
-    if (!id) return;
-    const foundSong = MOCK_SONGS.find((s) => s.id === id);
-    setSong(foundSong || null);
-  }, [id]);
+    const fetchSongDetail = async () => {
+      if (!id) return;
+      setLoading(true);
+      try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (accessToken) {
+          headers["Authorization"] = `Bearer ${accessToken}`;
+        }
+
+        const resp = await fetch(`https://api.sedabox.com/api/songs/${id}/`, {
+          headers,
+        });
+
+        if (resp.ok) {
+          const data: ApiSong = await resp.json();
+          setFullSongData(data);
+          setSong({
+            id: data.id.toString(),
+            title: data.title,
+            artist: data.artist_name,
+            artistId: data.artist_id || data.artist,
+            duration: data.duration_display,
+            image: data.cover_image,
+            src: data.stream_url
+              ? data.stream_url.replace("http://", "https://")
+              : "",
+          });
+          setIsLiked(data.is_liked);
+          setLikesCount(data.likes_count);
+        } else {
+          // Fallback to mock if needed or show error
+          const foundSong = MOCK_SONGS.find((s) => s.id === id);
+          setSong(foundSong || null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch song detail:", err);
+        const foundSong = MOCK_SONGS.find((s) => s.id === id);
+        setSong(foundSong || null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSongDetail();
+  }, [id, accessToken]);
 
   const dominantColor = useImageColor(song?.image || "");
   const isCurrentTrack = currentTrack?.id === song?.id;
@@ -575,16 +715,69 @@ export default function SongDetail({ id: propId }: { id?: string }) {
 
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
 
-  const similarTracks = useMemo(
-    () => MOCK_SONGS.filter((s) => s.id !== id).slice(0, 4),
-    [id]
-  );
+  const similarTracks = useMemo(() => {
+    if (fullSongData?.similar_songs?.items) {
+      return fullSongData.similar_songs.items.map((item) => ({
+        id: item.id.toString(),
+        title: item.title,
+        artist: item.artist_name,
+        artistId: item.artist_id || item.artist,
+        duration:
+          item.duration_display ||
+          (item.duration_seconds ? formatDuration(item.duration_seconds) : ""),
+        image: item.cover_image,
+        src: item.stream_url
+          ? item.stream_url.replace("http://", "https://")
+          : "",
+      }));
+    }
+    return MOCK_SONGS.filter((s) => s.id !== id).slice(0, 4);
+  }, [id, fullSongData]);
 
-  const showNotification = useCallback((message: string) => {
-    setToastMessage(message);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 2500);
-  }, []);
+  const apiLyrics = useMemo((): LyricLine[] => {
+    if (!fullSongData?.lyrics) return mockLyrics;
+    // If API provides a string, we might need to parse it if it's lrc format
+    // For now assuming it's a plain text or we show it as one line if no timing
+    return [{ time: 0, text: fullSongData.lyrics }];
+  }, [fullSongData]);
+
+  const apiCredits = useMemo((): Credit[] => {
+    if (!fullSongData) return mockCredits;
+    const credits: Credit[] = [];
+    if (fullSongData.producers?.length)
+      credits.push({
+        role: "تهیه‌کننده",
+        name: fullSongData.producers.join("، "),
+      });
+    if (fullSongData.composers?.length)
+      credits.push({
+        role: "آهنگساز",
+        name: fullSongData.composers.join("، "),
+      });
+    if (fullSongData.lyricists?.length)
+      credits.push({
+        role: "ترانه‌سرا",
+        name: fullSongData.lyricists.join("، "),
+      });
+    if (fullSongData.label)
+      credits.push({ role: "ناشر", name: fullSongData.label });
+    return credits.length ? credits : mockCredits;
+  }, [fullSongData]);
+
+  const showNotification = useCallback(
+    (message: string, type: "success" | "error" = "success") => {
+      try {
+        if (type === "success") toast.success(message);
+        else toast.error(message);
+      } catch (e) {
+        // fall back to local toast state
+        setToastMessage(message);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 2500);
+      }
+    },
+    [],
+  );
 
   const handlePlay = useCallback(() => {
     if (!song) return;
@@ -595,10 +788,39 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     playTrack(song);
   }, [song, playTrack, currentTrack, togglePlay]);
 
-  const handleLike = useCallback(() => {
-    setIsLiked((prev) => !prev);
-    showNotification(isLiked ? "از لایک‌ها حذف شد" : "به لایک‌ها اضافه شد");
-  }, [isLiked, showNotification]);
+  const handleLike = useCallback(async () => {
+    if (!song || !accessToken || isLiking) return;
+
+    setIsLiking(true);
+    try {
+      const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      }
+
+      const resp = await fetch(url, {
+        method: "POST",
+        headers,
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        setIsLiked(data.liked);
+        setLikesCount(data.likes_count);
+        showNotification(
+          data.liked ? "به لایک‌ها اضافه شد" : "از لایک‌ها حذف شد",
+        );
+      } else {
+        showNotification("خطا در بروزرسانی لایک");
+      }
+    } catch (err) {
+      console.error("Failed to toggle like:", err);
+      showNotification("خطا در بروزرسانی لایک");
+    } finally {
+      setIsLiking(false);
+    }
+  }, [song, accessToken, isLiking, showNotification]);
 
   const handleShare = useCallback(() => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -612,11 +834,83 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     setContextMenu({ isOpen: true, x: e.clientX, y: e.clientY });
   }, []);
 
+  // Sync like state when other components (drawer/player) update a song
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      try {
+        const detail = (ev as CustomEvent)?.detail;
+        if (!detail) return;
+        const sid = String(detail.id);
+        if (song && String(song.id) === sid) {
+          if (detail.liked !== undefined) setIsLiked(Boolean(detail.liked));
+          if (detail.likes_count !== undefined)
+            setLikesCount(Number(detail.likes_count));
+        }
+        if (fullSongData && String(fullSongData.id) === sid) {
+          setFullSongData((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  is_liked: detail.liked ?? prev.is_liked,
+                  likes_count: detail.likes_count ?? prev.likes_count,
+                }
+              : prev,
+          );
+        }
+      } catch (err) {
+        console.error("Error handling song-like-changed in SongDetail:", err);
+      }
+    };
+
+    window.addEventListener("song-like-changed", handler as EventListener);
+    return () =>
+      window.removeEventListener("song-like-changed", handler as EventListener);
+  }, [song, fullSongData]);
+
   useEffect(() => {
     if (containerRef.current) {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-white pb-28" dir="rtl">
+        <header className="fixed top-0 left-0 right-0 z-40 h-16 flex flex-row-reverse items-center justify-between px-4 md:px-6">
+          <Skeleton className="w-10 h-10 rounded-full" />
+          <Skeleton className="w-32 h-6" />
+          <div className="w-10" />
+        </header>
+
+        <section className="relative pt-20 pb-8 px-6 md:px-12">
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10">
+            <Skeleton className="w-52 h-52 md:w-64 md:h-64 rounded-lg" />
+            <div className="flex-1 space-y-4 text-center md:text-right w-full">
+              <Skeleton className="h-4 w-20 mx-auto md:mr-0" />
+              <Skeleton className="h-12 w-3/4 mx-auto md:mr-0" />
+              <Skeleton className="h-6 w-1/2 mx-auto md:mr-0" />
+            </div>
+          </div>
+        </section>
+
+        <section className="relative px-6 md:px-12 py-6">
+          <div className="max-w-5xl mx-auto flex items-center gap-4">
+            <Skeleton className="w-14 h-14 rounded-full" />
+            <Skeleton className="w-10 h-10 rounded-full" />
+            <Skeleton className="w-10 h-10 rounded-full" />
+            <Skeleton className="w-10 h-10 rounded-full" />
+          </div>
+        </section>
+
+        <main className="relative px-6 md:px-12 py-8 space-y-10">
+          <div className="max-w-5xl mx-auto space-y-10">
+            <Skeleton className="w-full h-48 rounded-2xl" />
+            <Skeleton className="w-full h-32 rounded-2xl" />
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (!song) {
     return (
@@ -637,7 +931,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             className={cn(
               "inline-flex items-center gap-2 px-6 py-3",
               "bg-white text-black font-semibold rounded-full",
-              "hover:scale-105 active:scale-100 transition-transform"
+              "hover:scale-105 active:scale-100 transition-transform",
             )}
           >
             <Icon name="arrowLeft" size={20} />
@@ -666,7 +960,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         className={cn(
           "fixed top-0 left-0 right-0 z-40 h-16",
           "flex flex-row-reverse items-center justify-between px-4 md:px-6",
-          "transition-all duration-300"
+          "transition-all duration-300",
         )}
         style={{
           backgroundColor: `rgba(18, 18, 18, ${headerOpacity})`,
@@ -676,7 +970,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           onClick={goBack}
           className={cn(
             "w-10 h-10 rounded-full flex items-center justify-center",
-            "bg-black/40 hover:bg-black/60 transition-colors"
+            "bg-black/40 hover:bg-black/60 transition-colors",
           )}
         >
           <Icon name="arrowLeft" size={22} className="text-white" />
@@ -685,7 +979,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         <div
           className={cn(
             "absolute left-1/2 -translate-x-1/2 transition-opacity duration-200",
-            headerOpacity > 0.7 ? "opacity-100" : "opacity-0"
+            headerOpacity > 0.7 ? "opacity-100" : "opacity-0",
           )}
         >
           <span className="font-semibold text-white">{song.title}</span>
@@ -701,14 +995,14 @@ export default function SongDetail({ id: propId }: { id?: string }) {
               "w-52 h-52 md:w-64 md:h-64 shrink-0",
               "rounded-lg overflow-hidden shadow-2xl shadow-black/50",
               "transition-transform duration-500",
-              isCurrentlyPlaying && "scale-[1.02]"
+              isCurrentlyPlaying && "scale-[1.02]",
             )}
           >
-            <img
+            <ImageWithPlaceholder
               src={song.image}
               alt={song.title}
               className="w-full h-full object-cover"
-              loading="eager"
+              type="song"
             />
           </div>
 
@@ -722,7 +1016,10 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-2 text-sm text-neutral-300">
               <button
                 onClick={() => {
-                  navigateTo("artist-detail", { slug: song.artist });
+                  const artistId = song?.artistId || (song as any)?.artist_id;
+                  if (artistId) {
+                    navigateTo("artist-detail", { id: artistId });
+                  }
                 }}
                 className="font-semibold text-white hover:underline cursor-pointer"
               >
@@ -734,7 +1031,12 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                 {song.duration}
               </span>
               <span className="text-neutral-500">•</span>
-              <span>{formatNumber(1240000)} پخش</span>
+              <span>
+                {fullSongData
+                  ? formatNumber(fullSongData.plays)
+                  : formatNumber(1240000)}{" "}
+                پخش
+              </span>
             </div>
           </div>
         </div>
@@ -754,7 +1056,11 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             activeColor="text-emerald-400"
             label={isLiked ? "حذف از لایک‌ها" : "افزودن به لایک‌ها"}
           >
-            <Icon name="heart" size={28} filled={isLiked} />
+            {isLiking ? (
+              <Spinner size="w-7 h-7" />
+            ) : (
+              <Icon name="heart" size={28} filled={isLiked} />
+            )}
           </IconButton>
 
           <IconButton onClick={handleShare} label="اشتراک‌گذاری">
@@ -762,15 +1068,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           </IconButton>
 
           <IconButton
-            onClick={(e) => {
-              const ev = e as React.MouseEvent;
-              // small offset so the cursor doesn't overlap menu
-              setContextMenu({
-                isOpen: true,
-                x: ev.clientX + 8,
-                y: ev.clientY + 8,
-              });
-            }}
+            onClick={() => setIsDrawerOpen(true)}
             label="گزینه‌های بیشتر"
           >
             <Icon name="dotsThree" size={28} />
@@ -787,8 +1085,8 @@ export default function SongDetail({ id: propId }: { id?: string }) {
 
       <main className="relative px-6 md:px-12 py-8 space-y-10">
         <div className="max-w-5xl mx-auto space-y-10">
-          <LyricsSection lyrics={mockLyrics} currentTime={8} />
-          <CreditsSection credits={mockCredits} />
+          <LyricsSection lyrics={apiLyrics} currentTime={0} />
+          <CreditsSection credits={apiCredits} />
 
           <section className="bg-neutral-900/50 rounded-2xl p-6 border border-white/5">
             <SectionHeader
@@ -804,10 +1102,21 @@ export default function SongDetail({ id: propId }: { id?: string }) {
 
           <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "پخش‌ها", value: "۱.۲M" },
-              { label: "لایک‌ها", value: "۸۵K" },
+              {
+                label: "پخش‌ها",
+                value: fullSongData ? formatNumber(fullSongData.plays) : "۱.۲M",
+              },
+              {
+                label: "لایک‌ها",
+                value: formatNumber(likesCount),
+              },
               { label: "اشتراک‌ها", value: "۱۲K" },
-              { label: "اضافه به پلی‌لیست", value: "۴۵K" },
+              {
+                label: "اضافه به پلی‌لیست",
+                value: fullSongData
+                  ? formatNumber(fullSongData.added_to_playlists_count)
+                  : "۴۵K",
+              },
             ].map((stat, idx) => (
               <div
                 key={idx}
@@ -827,9 +1136,28 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         isOpen={contextMenu.isOpen}
         onClose={() => setContextMenu((prev) => ({ ...prev, isOpen: false }))}
         position={{ x: contextMenu.x, y: contextMenu.y }}
+        onArtistClick={
+          song?.artistId || (song as any)?.artist_id
+            ? () => {
+                setContextMenu((prev) => ({ ...prev, isOpen: false }));
+                navigateTo("artist-detail", {
+                  id: song.artistId || (song as any).artist_id,
+                });
+              }
+            : undefined
+        }
       />
 
-      <Toast message={toastMessage} isVisible={showToast} />
+      <SongOptionsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        song={
+          song
+            ? { ...song, cover_image: song.image, artist_name: song.artist }
+            : null
+        }
+        onAction={handleAction}
+      />
 
       <style jsx global>{`
         @keyframes fade-in {
@@ -849,7 +1177,9 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           }
         }
         .animate-in {
-          animation: fade-in 150ms ease-out, zoom-in-95 150ms ease-out;
+          animation:
+            fade-in 150ms ease-out,
+            zoom-in-95 150ms ease-out;
         }
       `}</style>
     </div>
