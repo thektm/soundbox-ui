@@ -9,9 +9,11 @@ import {
   ListMusic,
   Info,
   Check,
+  Download,
 } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "./AuthContext";
+import { usePlayer } from "./PlayerContext";
 import { toast } from "react-hot-toast";
 
 interface SongOptionsDrawerProps {
@@ -36,11 +38,31 @@ export const SongOptionsDrawer = ({
   if (!song) return null;
 
   const { accessToken } = useAuth();
+  const { download } = usePlayer();
   const [processing, setProcessing] = useState<string | null>(null);
 
   const handleActionClick = useCallback(
     async (actionId: string) => {
       if (processing) return;
+
+      if (actionId === "download") {
+        const url =
+          (song as any).src ||
+          (song as any).stream_url ||
+          (song as any).audio_file ||
+          `https://api.sedabox.com/api/songs/${song.id}/stream/`;
+        download({
+          id: String(song.id),
+          title: song.title,
+          artist: song.artist_name || "Unknown Artist",
+          image: song.cover_image,
+          duration: "0:00",
+          src: url,
+        });
+        onClose();
+        return;
+      }
+
       // Only special-case toggle-like to wait for response and sync
       if (actionId === "toggle-like") {
         setProcessing(actionId);
@@ -185,6 +207,12 @@ export const SongOptionsDrawer = ({
       label: "اشتراک‌گذاری",
       icon: <Share2 className="w-5 h-5" />,
       onClick: () => onAction?.("share", song),
+    },
+    {
+      id: "download",
+      label: "دانلود آهنگ",
+      icon: <Download className="w-5 h-5" />,
+      onClick: () => handleActionClick("download"),
     },
     {
       id: "toggle-like",

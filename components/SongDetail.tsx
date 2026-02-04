@@ -640,7 +640,13 @@ const Skeleton = ({ className }: { className?: string }) => (
 
 export default function SongDetail({ id: propId }: { id?: string }) {
   const { navigateTo, goBack, currentPage, currentParams } = useNavigation();
-  const { currentTrack, isPlaying, playTrack, togglePlay } = usePlayer();
+  const {
+    currentTrack,
+    isPlaying,
+    playTrack,
+    togglePlay,
+    download,
+  } = usePlayer();
   const { accessToken } = useAuth();
 
   const id = useMemo(() => {
@@ -829,6 +835,12 @@ export default function SongDetail({ id: propId }: { id?: string }) {
       setIsLiking(false);
     }
   }, [song, accessToken, isLiking, showNotification]);
+
+  const handleDownload = useCallback(() => {
+    if (song) {
+      download(song);
+    }
+  }, [song, download]);
 
   const handleShare = useCallback(() => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -1073,6 +1085,10 @@ export default function SongDetail({ id: propId }: { id?: string }) {
 
           <IconButton onClick={handleShare} label="اشتراک‌گذاری">
             <Icon name="shareNetwork" size={26} />
+          </IconButton>
+
+          <IconButton onClick={handleDownload} label="دانلود آهنگ">
+            <Icon name="downloadSimple" size={28} />
           </IconButton>
 
           <IconButton

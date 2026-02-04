@@ -225,6 +225,21 @@ const Icon = {
       <path d="M12 8v8M8 12h8" />
     </svg>
   ),
+  Download: ({ c = "w-5 h-5" }: { c?: string }) => (
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  ),
 };
 
 // ============================================================================
@@ -981,6 +996,7 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
       isLiking,
       toggleLike,
       lyrics,
+      download,
     } = usePlayer();
 
     const [activeTab, setActiveTab] = useState<"queue" | "lyrics" | "related">(
@@ -1178,6 +1194,13 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                         Add to Playlist
                       </span>
                     </button>
+                    <button
+                      onClick={() => download(currentTrack!)}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all"
+                    >
+                      <Icon.Download c="w-5 h-5" />
+                      <span className="text-sm font-medium">Download</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1361,6 +1384,7 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
       isLiking,
       toggleLike,
       lyrics,
+      download,
     } = usePlayer();
 
     const [isQueueOpen, setIsQueueOpen] = useState(false);
@@ -1702,6 +1726,17 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
                 >
                   <Icon.More c="w-5 h-5" />
                   مشاهده هنرمند
+                </button>
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    download(currentTrack);
+                  }}
+                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                  dir="rtl"
+                >
+                  <Icon.Download c="w-5 h-5" />
+                  دانلود آهنگ
                 </button>
                 <button
                   onClick={() => {

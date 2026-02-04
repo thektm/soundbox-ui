@@ -80,6 +80,7 @@ interface PlayerContextType {
   next: () => void;
   previous: () => void;
   toggleLike: () => Promise<void>;
+  download: (track?: Track) => Promise<void>;
   close: () => void;
 }
 
@@ -964,6 +965,92 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     uniqueOtplayIdRef.current = null;
   }, []);
 
+  const download = useCallback(
+    async (track?: Track) => {
+      const targetTrack = track || currentTrack;
+      if (!targetTrack) return;
+
+      try {
+        const headers: Record<string, string> = {
+          Accept: "audio/mpeg, audio/*, application/json, */*",
+        };
+        if (accessTokenRef.current) {
+          headers["Authorization"] = `Bearer ${accessTokenRef.current}`;
+        }
+
+        let resolvedUrl = (ensureHttps(targetTrack.src) as string);
+        let resp = await fetch(resolvedUrl, { headers, mode: "cors" });
+
+        // Handle token expiration / redirect as in playAtIndex
+        if (resp.status === 413) {
+          try {
+            const data = await resp.json();
+            const newUrl = data.new_stream_url || data.new_stream_uri;
+            if (newUrl) {
+              resolvedUrl = (ensureHttps(newUrl) as string);
+              resp = await fetch(resolvedUrl, { headers, mode: "cors" });
+            }
+          } catch (e) {}
+        }
+
+        // Handle JSON wrapper (often returns 200 with the real stream link)
+        const ct = resp.headers.get("content-type") || "";
+        if (resp.ok && ct.includes("application/json")) {
+          try {
+            const data = await resp.json();
+            const candidate =
+              data.stream_url ||
+              data.url ||
+              data.file ||
+              data.stream ||
+              (data.data && (data.data.stream_url || data.data.url));
+
+            if (candidate && typeof candidate === "string") {
+              resolvedUrl = (ensureHttps(candidate) as string);
+              // Fetch the real song data now
+              // Some CDNs don't like Auth headers, so we try with them first then without
+              resp = await fetch(resolvedUrl, { headers, mode: "cors" });
+              if (!resp.ok) {
+                resp = await fetch(resolvedUrl, { mode: "cors" });
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (!resp.ok) throw new Error(`Fetch failed with status ${resp.status}`);
+
+        const blob = await resp.blob();
+        if (blob.size === 0) {
+          // If blob is still empty, maybe it's a redirection we should follow natively
+          window.open(resolvedUrl, "_blank");
+          return;
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        document.body.appendChild(a);
+        a.style.display = "none";
+        a.href = url;
+        const filename = `${targetTrack.title} - ${targetTrack.artist}.mp3`.replace(
+          /[<>:"/\\|?*]/g,
+          "",
+        );
+        a.download = filename;
+        a.click();
+
+        // Delay cleanup so browser handles the link
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        }, 2000);
+      } catch (error) {
+        console.error("Download failed:", error);
+        window.open(targetTrack.src, "_blank");
+      }
+    },
+    [currentTrack],
+  );
+
   const value: PlayerContextType = {
     currentTrack,
     previousTrack,
@@ -1003,6 +1090,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     toggleLike,
     next,
     previous,
+    download,
     close,
   };
 
