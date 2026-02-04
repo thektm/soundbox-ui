@@ -134,6 +134,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const isActuallyPlayingRef = useRef<boolean>(false);
   const submittedForCurrentRef = useRef<boolean>(false);
   const submittedUidsRef = useRef<Set<string>>(new Set());
+  const resolvedUrlsRef = useRef<Map<string, string>>(new Map());
 
   // Derived state for current, previous, and next tracks
   const currentTrack = useMemo(
@@ -650,6 +651,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             (ensureHttps(resolvedSrc as string) as string) ||
             (resolvedSrc as string);
           console.debug("Resolved media source:", resolvedSrc);
+          // Store the resolved URL for downloading
+          if (track && track.id) {
+            resolvedUrlsRef.current.set(String(track.id), resolvedSrc);
+          }
         } catch (e) {
           console.debug("Resolved media source:", resolvedSrc);
         }
@@ -971,78 +976,75 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (!targetTrack) return;
 
       try {
-        const headers: Record<string, string> = {
-          Accept: "audio/mpeg, audio/*, application/json, */*",
-        };
-        if (accessTokenRef.current) {
-          headers["Authorization"] = `Bearer ${accessTokenRef.current}`;
-        }
+        let finalUrl = resolvedUrlsRef.current.get(String(targetTrack.id));
 
-        let resolvedUrl = (ensureHttps(targetTrack.src) as string);
-        let resp = await fetch(resolvedUrl, { headers, mode: "cors" });
+        // If not cached, we need to resolve it (just once)
+        if (!finalUrl) {
+          const headers: Record<string, string> = {
+            Accept: "audio/mpeg, audio/*, application/json, */*",
+          };
+          if (accessTokenRef.current) {
+            headers["Authorization"] = `Bearer ${accessTokenRef.current}`;
+          }
 
-        // Handle token expiration / redirect as in playAtIndex
-        if (resp.status === 413) {
-          try {
-            const data = await resp.json();
-            const newUrl = data.new_stream_url || data.new_stream_uri;
-            if (newUrl) {
-              resolvedUrl = (ensureHttps(newUrl) as string);
-              resp = await fetch(resolvedUrl, { headers, mode: "cors" });
-            }
-          } catch (e) {}
-        }
+          let resolvedUrl = ensureHttps(targetTrack.src) as string;
+          let resp = await fetch(resolvedUrl, { headers, mode: "cors" });
 
-        // Handle JSON wrapper (often returns 200 with the real stream link)
-        const ct = resp.headers.get("content-type") || "";
-        if (resp.ok && ct.includes("application/json")) {
-          try {
-            const data = await resp.json();
-            const candidate =
-              data.stream_url ||
-              data.url ||
-              data.file ||
-              data.stream ||
-              (data.data && (data.data.stream_url || data.data.url));
-
-            if (candidate && typeof candidate === "string") {
-              resolvedUrl = (ensureHttps(candidate) as string);
-              // Fetch the real song data now
-              // Some CDNs don't like Auth headers, so we try with them first then without
-              resp = await fetch(resolvedUrl, { headers, mode: "cors" });
-              if (!resp.ok) {
-                resp = await fetch(resolvedUrl, { mode: "cors" });
+          if (resp.status === 413) {
+            try {
+              const data = await resp.json();
+              const newUrl = data.new_stream_url || data.new_stream_uri;
+              if (newUrl) {
+                resolvedUrl = ensureHttps(newUrl) as string;
+                resp = await fetch(resolvedUrl, { headers, mode: "cors" });
               }
+            } catch (e) {}
+          }
+
+          if (resp.ok) {
+            const ct = resp.headers.get("content-type") || "";
+            if (ct.includes("application/json")) {
+              try {
+                const data = await resp.json();
+                const candidate =
+                  data.stream_url ||
+                  data.url ||
+                  data.file ||
+                  data.stream ||
+                  (data.data && (data.data.stream_url || data.data.url));
+
+                if (candidate && typeof candidate === "string") {
+                  finalUrl = ensureHttps(candidate) as string;
+                }
+              } catch (e) {}
+            } else {
+              // It's already the direct link
+              finalUrl = resp.url && resp.url !== "" ? resp.url : resolvedUrl;
             }
-          } catch (e) {}
+          }
+
+          if (!finalUrl) finalUrl = resolvedUrl;
+
+          // Cache it for next time
+          resolvedUrlsRef.current.set(String(targetTrack.id), finalUrl);
         }
 
-        if (!resp.ok) throw new Error(`Fetch failed with status ${resp.status}`);
+        console.log("Triggering download for final link:", finalUrl);
 
-        const blob = await resp.blob();
-        if (blob.size === 0) {
-          // If blob is still empty, maybe it's a redirection we should follow natively
-          window.open(resolvedUrl, "_blank");
-          return;
-        }
-
-        const url = window.URL.createObjectURL(blob);
+        // On mobile, direct download is best handled by the browser
         const a = document.createElement("a");
+        a.href = finalUrl;
+        const filename =
+          `${targetTrack.title} - ${targetTrack.artist}.mp3`.replace(
+            /[<>:"/\\|?*]/g,
+            "",
+          );
+        // Force the browser to treat it as a download if possible
+        a.setAttribute("download", filename);
+        a.setAttribute("target", "_blank");
         document.body.appendChild(a);
-        a.style.display = "none";
-        a.href = url;
-        const filename = `${targetTrack.title} - ${targetTrack.artist}.mp3`.replace(
-          /[<>:"/\\|?*]/g,
-          "",
-        );
-        a.download = filename;
         a.click();
-
-        // Delay cleanup so browser handles the link
-        setTimeout(() => {
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-        }, 2000);
+        setTimeout(() => document.body.removeChild(a), 200);
       } catch (error) {
         console.error("Download failed:", error);
         window.open(targetTrack.src, "_blank");

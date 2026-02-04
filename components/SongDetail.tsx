@@ -640,13 +640,8 @@ const Skeleton = ({ className }: { className?: string }) => (
 
 export default function SongDetail({ id: propId }: { id?: string }) {
   const { navigateTo, goBack, currentPage, currentParams } = useNavigation();
-  const {
-    currentTrack,
-    isPlaying,
-    playTrack,
-    togglePlay,
-    download,
-  } = usePlayer();
+  const { currentTrack, isPlaying, playTrack, togglePlay, download } =
+    usePlayer();
   const { accessToken } = useAuth();
 
   const id = useMemo(() => {
