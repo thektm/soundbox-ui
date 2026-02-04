@@ -1279,14 +1279,11 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                 {activeTab === "lyrics" && (
                   <div className="h-full overflow-y-auto p-8">
                     {lyrics ? (
-                      <div
-                        className="space-y-6 text-center lg:text-right"
-                        dir="auto"
-                      >
+                      <div className="space-y-6 text-right" dir="rtl">
                         {lyrics.split("\n").map((line, i) => (
                           <p
                             key={i}
-                            className="text-xl md:text-2xl font-bold text-white/90 hover:text-white transition-colors cursor-default"
+                            className="text-xl md:text-2xl font-bold text-white/90 hover:text-white transition-colors cursor-default whitespace-pre-wrap"
                           >
                             {line}
                           </p>
@@ -1369,6 +1366,14 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
     const [isQueueOpen, setIsQueueOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [showLyricsOverlay, setShowLyricsOverlay] = useState(false);
+    const lyricsRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+      if (showLyricsOverlay && lyricsRef.current) {
+        // ensure overlay always starts scrolled to the top when opened
+        lyricsRef.current.scrollTop = 0;
+      }
+    }, [showLyricsOverlay, lyrics]);
 
     const handleArtistClick = () => {
       if (currentTrack) {
@@ -1466,6 +1471,7 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
                   type="song"
                 />
 
+                {/* always-visible "Show Lyrics" button (hidden when overlay open) */}
                 <AnimatePresence>
                   {!showLyricsOverlay && (
                     <motion.button
@@ -1482,9 +1488,7 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
                       نمایش اشعار
                     </motion.button>
                   )}
-                </AnimatePresence>
 
-                <AnimatePresence>
                   {showLyricsOverlay && (
                     <motion.div
                       initial={{ opacity: 0 }}
@@ -1504,14 +1508,15 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
                         </button>
                       </div>
                       <div
-                        className="overflow-y-auto flex-1 space-y-4 py-4 w-full text-center flex flex-col justify-center"
-                        dir="auto"
+                        ref={lyricsRef}
+                        className="overflow-y-auto flex-1 space-y-4 py-4 w-full text-right"
+                        dir="rtl"
                       >
                         {lyrics ? (
                           lyrics.split("\n").map((line, i) => (
                             <p
                               key={i}
-                              className="text-white text-lg font-bold leading-relaxed"
+                              className="text-white text-lg font-bold leading-relaxed whitespace-pre-wrap"
                             >
                               {line}
                             </p>
