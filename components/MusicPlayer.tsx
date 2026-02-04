@@ -980,6 +980,7 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
       likesCount,
       isLiking,
       toggleLike,
+      lyrics,
     } = usePlayer();
 
     const [activeTab, setActiveTab] = useState<"queue" | "lyrics" | "related">(
@@ -1276,20 +1277,38 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                 )}
 
                 {activeTab === "lyrics" && (
-                  <div className="h-full flex items-center justify-center p-8">
-                    <div className="text-center space-y-4">
-                      <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
-                        <Icon.Lyrics c="w-8 h-8 text-neutral-500" />
+                  <div className="h-full overflow-y-auto p-8">
+                    {lyrics ? (
+                      <div
+                        className="space-y-6 text-center lg:text-right"
+                        dir="auto"
+                      >
+                        {lyrics.split("\n").map((line, i) => (
+                          <p
+                            key={i}
+                            className="text-xl md:text-2xl font-bold text-white/90 hover:text-white transition-colors cursor-default"
+                          >
+                            {line}
+                          </p>
+                        ))}
                       </div>
-                      <div>
-                        <p className="text-neutral-400 font-medium">
-                          Lyrics not available
-                        </p>
-                        <p className="text-sm text-neutral-600 mt-1">
-                          We couldn't find lyrics for this track
-                        </p>
+                    ) : (
+                      <div className="h-full flex items-center justify-center">
+                        <div className="text-center space-y-4">
+                          <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                            <Icon.Lyrics c="w-8 h-8 text-neutral-500" />
+                          </div>
+                          <div>
+                            <p className="text-neutral-400 font-medium">
+                              متن آهنگ یافت نشد
+                            </p>
+                            <p className="text-sm text-neutral-600 mt-1">
+                              هنوز متنی برای این آهنگ ثبت نشده است
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
@@ -1344,10 +1363,12 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
       isLiked,
       isLiking,
       toggleLike,
+      lyrics,
     } = usePlayer();
 
     const [isQueueOpen, setIsQueueOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [showLyricsOverlay, setShowLyricsOverlay] = useState(false);
 
     const handleArtistClick = () => {
       if (currentTrack) {
@@ -1437,15 +1458,81 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
                 maxHeight: "min(60vh, 90vw)",
               }}
             >
-              <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl">
+              <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl group">
                 <ImageWithPlaceholder
                   src={ensureHttps(currentTrack.image) || currentTrack.image}
                   alt={currentTrack.title}
                   className="w-full h-full object-cover"
                   type="song"
                 />
-                {isPlaying && (
-                  <div className="absolute bottom-3 right-3">
+
+                <AnimatePresence>
+                  {!showLyricsOverlay && (
+                    <motion.button
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowLyricsOverlay(true);
+                      }}
+                      className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-2.5 bg-black/60 backdrop-blur-md border border-white/20 rounded-full text-white text-sm font-medium flex items-center gap-2 hover:bg-black/80 transition-all z-20"
+                    >
+                      <Icon.Lyrics c="w-4 h-4" />
+                      نمایش اشعار
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+
+                <AnimatePresence>
+                  {showLyricsOverlay && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-black/70 backdrop-blur-md flex flex-col p-6 z-30"
+                    >
+                      <div className="flex justify-end mb-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowLyricsOverlay(false);
+                          }}
+                          className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                        >
+                          <Icon.Close c="w-6 h-6" />
+                        </button>
+                      </div>
+                      <div
+                        className="overflow-y-auto flex-1 space-y-4 py-4 w-full text-center flex flex-col justify-center"
+                        dir="auto"
+                      >
+                        {lyrics ? (
+                          lyrics.split("\n").map((line, i) => (
+                            <p
+                              key={i}
+                              className="text-white text-lg font-bold leading-relaxed"
+                            >
+                              {line}
+                            </p>
+                          ))
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="text-white text-xl font-bold">
+                              متن آهنگ یافت نشد
+                            </p>
+                            <p className="text-neutral-400 text-sm">
+                              هنوز متنی برای این آهنگ ثبت نشده است
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {isPlaying && !showLyricsOverlay && (
+                  <div className="absolute bottom-3 right-3 z-20">
                     <PlayingBars />
                   </div>
                 )}

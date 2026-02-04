@@ -35,6 +35,7 @@ export interface Track {
   src: string;
   isLiked?: boolean;
   likesCount?: number;
+  lyrics?: string;
 }
 
 interface PlayerContextType {
@@ -59,6 +60,7 @@ interface PlayerContextType {
   isLiked: boolean;
   likesCount: number;
   isLiking: boolean;
+  lyrics: string | null;
 
   // Actions
   playTrack: (track: Track) => void;
@@ -110,6 +112,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isLiked, setIsLiked] = useState<boolean>(false);
   const [likesCount, setLikesCount] = useState<number>(0);
   const [isLiking, setIsLiking] = useState<boolean>(false);
+  const [lyrics, setLyrics] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -421,6 +424,39 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setIsLiked(!!track.isLiked);
       setLikesCount(track.likesCount || 0);
       setIsLiking(false);
+      setLyrics(track.lyrics || null);
+
+      // Fetch full details (including lyrics) in background
+      (async () => {
+        try {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (accessTokenRef.current)
+            headers["Authorization"] = `Bearer ${accessTokenRef.current}`;
+          const resp = await fetch(
+            `https://api.sedabox.com/api/songs/${track.id}/`,
+            { headers },
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            setLyrics(data.lyrics || null);
+            // Also update the track in queue to cache the lyrics
+            setQueueState((prev) =>
+              prev.map((t) =>
+                String(t.id) === String(track.id)
+                  ? { ...t, lyrics: data.lyrics || undefined }
+                  : t,
+              ),
+            );
+            // Update like state too
+            setIsLiked(data.is_liked);
+            setLikesCount(data.likes_count);
+          }
+        } catch (err) {
+          console.error("Failed to fetch song details for player:", err);
+        }
+      })();
 
       const initialSrc = (ensureHttps(track.src) as string) || FALLBACK_SRC;
 
@@ -949,6 +985,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     isLiked,
     likesCount,
     isLiking,
+    lyrics,
     playTrack,
     setQueue,
     togglePlay,

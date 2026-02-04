@@ -450,19 +450,27 @@ const LyricsSection: React.FC<{
         <h2 className="text-xl font-bold text-white">متن آهنگ</h2>
       </div>
       <div className="space-y-3">
-        {displayedLyrics.map((line, idx) => (
-          <p
-            key={idx}
-            className={cn(
-              "text-lg leading-relaxed transition-colors duration-300",
-              currentTime >= line.time
-                ? "text-white font-medium"
-                : "text-neutral-400",
-            )}
-          >
-            {line.text}
-          </p>
-        ))}
+        {lyrics.length > 0 ? (
+          displayedLyrics.map((line, idx) => (
+            <p
+              key={idx}
+              className={cn(
+                "text-lg leading-relaxed transition-colors duration-300",
+                currentTime >= line.time
+                  ? "text-white font-medium"
+                  : "text-neutral-400",
+              )}
+            >
+              {line.text}
+            </p>
+          ))
+        ) : (
+          <div className="py-4">
+            <p className="text-lg text-neutral-400 font-medium">
+              هنوز متنی برای این آهنگ ثبت نشده است
+            </p>
+          </div>
+        )}
       </div>
       {lyrics.length > 5 && (
         <button
@@ -735,7 +743,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   }, [id, fullSongData]);
 
   const apiLyrics = useMemo((): LyricLine[] => {
-    if (!fullSongData?.lyrics) return mockLyrics;
+    if (!fullSongData?.lyrics) return [];
     // If API provides a string, we might need to parse it if it's lrc format
     // For now assuming it's a plain text or we show it as one line if no timing
     return [{ time: 0, text: fullSongData.lyrics }];

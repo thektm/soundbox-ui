@@ -446,21 +446,21 @@ export default function Home() {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (res.ok) {
-          const data = await res.json();
-          setPlaylistRecommendations((prev) => {
-            // prev can be an array or a paginated response
-            if (Array.isArray(prev)) {
-              return {
-                ...data,
-                results: [...prev, ...data.results],
-              } as PaginatedResponse<ApiPlaylist>;
-            }
-
+        const data = await res.json();
+        setPlaylistRecommendations((prev) => {
+          // prev can be an array or a paginated response
+          if (Array.isArray(prev)) {
             return {
               ...data,
-              results: [...(prev?.results || []), ...data.results],
+              results: [...prev, ...data.results],
             } as PaginatedResponse<ApiPlaylist>;
-          });
+          }
+
+          return {
+            ...data,
+            results: [...(prev?.results || []), ...data.results],
+          } as PaginatedResponse<ApiPlaylist>;
+        });
       }
     } catch (error) {
       console.error("Error fetching next playlists:", error);
