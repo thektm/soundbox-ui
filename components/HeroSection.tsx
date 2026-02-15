@@ -62,7 +62,7 @@ export type HeroStats = {
 
 type Props = {
   homeData: HomeSummaryResponse;
-  sectionData: HomeSectionData;
+  sectionData: HeroSectionData;
   heroHighlights: HeroHighlight[];
   stats: HeroStats;
   onPrimaryPlay: () => void;

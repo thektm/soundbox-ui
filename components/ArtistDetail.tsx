@@ -19,6 +19,8 @@ import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
 
+const FALLBACK_SRC = "https://cdn.sedabox.com/music.mp3";
+
 interface ApiArtist {
   id: number;
   name: string;
@@ -601,7 +603,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         artistId: song.artist_id || song.artist,
         image: song.cover_image,
         duration: song.duration_display,
-        src: ensureHttps(song.stream_url),
+        src: (ensureHttps(song.stream_url) as string) || FALLBACK_SRC,
         isLiked: song.is_liked,
         likesCount: song.likes_count,
       };
@@ -619,7 +621,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
       artistId: song.artist_id || song.artist,
       image: song.cover_image,
       duration: song.duration_display,
-      src: ensureHttps(song.stream_url),
+      src: (ensureHttps(song.stream_url) as string) || FALLBACK_SRC,
       isLiked: song.is_liked,
       likesCount: song.likes_count,
     }));
@@ -636,7 +638,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
       artistId: song.artist_id || song.artist,
       image: song.cover_image,
       duration: song.duration_display,
-      src: ensureHttps(song.stream_url),
+      src: (ensureHttps(song.stream_url) as string) || FALLBACK_SRC,
       isLiked: song.is_liked,
       likesCount: song.likes_count,
     }));

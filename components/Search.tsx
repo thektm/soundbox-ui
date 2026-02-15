@@ -915,7 +915,7 @@ export default function Search() {
   const { results, isLoading } = useSearch(
     debouncedQuery,
     activeFilter,
-    accessToken,
+    accessToken ?? undefined,
   );
   const {
     history,
@@ -925,10 +925,10 @@ export default function Search() {
   } = useSearchHistory();
 
   const { currentEvent, isLoading: isEventLoading } =
-    useEventPlaylists(accessToken);
+    useEventPlaylists(accessToken ?? undefined);
 
   const { sections, isLoading: isSectionsLoading } =
-    useSearchSections(accessToken);
+    useSearchSections(accessToken ?? undefined);
 
   // Handlers (Memoized)
   const handleSearch = useCallback(
