@@ -1,48 +1,95 @@
-import React, { useRef } from "react";
+import React, { useRef, useEffect, useCallback } from "react";
 import { useNavigation } from "./NavigationContext";
-import { motion, useScroll, useTransform } from "framer-motion";
 
 const Premium: React.FC = () => {
   const { navigateTo } = useNavigation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>(0);
+  const lastScrollY = useRef<number>(0);
+  const ticking = useRef<boolean>(false);
 
-  // monitor vertical scroll position of the container
-  const { scrollY } = useScroll({
-    container: containerRef,
-  });
+  const applyTransforms = useCallback((scrollY: number) => {
+    if (!headerRef.current) return;
 
-  // Scale down and fade out based on scroll pixels (0 to 400px)
-  const scale = useTransform(scrollY, [0, 400], [1, 0.7]);
-  const opacity = useTransform(scrollY, [0, 400], [1, 0]);
-  const blur = useTransform(scrollY, [0, 400], ["blur(0px)", "blur(10px)"]);
+    const progress = Math.min(scrollY / 400, 1);
+
+    const scale = 1 - progress * 0.3;
+    const opacity = 1 - progress;
+    const blurValue = progress * 10;
+
+    headerRef.current.style.transform = `translate3d(0,0,0) scale3d(${scale},${scale},1)`;
+    headerRef.current.style.opacity = `${opacity}`;
+    headerRef.current.style.filter =
+      blurValue > 0.5 ? `blur(${blurValue}px)` : "none";
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onScroll = () => {
+      lastScrollY.current = container.scrollTop;
+
+      if (!ticking.current) {
+        ticking.current = true;
+        rafRef.current = requestAnimationFrame(() => {
+          applyTransforms(lastScrollY.current);
+          ticking.current = false;
+        });
+      }
+    };
+
+    container.addEventListener("scroll", onScroll, { passive: true });
+
+    // Initial apply
+    applyTransforms(0);
+
+    return () => {
+      container.removeEventListener("scroll", onScroll);
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [applyTransforms]);
 
   return (
     <div
       ref={containerRef}
       className="flex flex-col h-screen bg-[#121212] text-white overflow-y-auto overflow-x-hidden scroll-smooth no-scrollbar"
     >
-      {/* Premium Header Image - Animated and Sticky */}
-      <motion.div
-        style={{ scale, opacity, filter: blur }}
+      {/* Premium Header Image - GPU-accelerated */}
+      <div
+        ref={headerRef}
         className="sticky top-0 w-full h-[35vh] flex-shrink-0 z-0 origin-center overflow-hidden rounded-b-[3rem]"
+        style={{
+          willChange: "transform, opacity",
+          backfaceVisibility: "hidden",
+          WebkitBackfaceVisibility: "hidden",
+          perspective: 1000,
+          WebkitPerspective: 1000,
+          contain: "layout style paint",
+        }}
       >
         <img
           src="/premium-bg.jpg"
           alt="Premium background"
-          className="w-full h-full  rounded-b-[3rem] object-cover"
+          className="w-full h-full rounded-b-[3rem] object-cover"
+          loading="eager"
+          decoding="async"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent " />
-      </motion.div>
+        <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent" />
+      </div>
 
       {/* Content Area */}
       <div className="px-6 -mt-32 relative z-10 pb-32 max-w-4xl mx-auto w-full">
         {/* Title above the cards */}
         <div className="mb-10 text-right">
           <h2 className="text-3xl md:text-4xl font-black mb-3 text-white drop-shadow-lg">
-           پرمیوم
+            پرمیوم
           </h2>
           <p className="text-zinc-300 text-lg md:text-xl font-medium drop-shadow-md">
-           بهترین تجربه موسیقی را با صداباکس داشته باشید
+            بهترین تجربه موسیقی را با صداباکس داشته باشید
           </p>
         </div>
 
