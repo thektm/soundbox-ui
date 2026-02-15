@@ -1,9 +1,28 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, memo } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  memo,
+  useEffect,
+  useRef,
+} from "react";
 import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
-import { LIKED_SONGS, Song } from "./mockData";
+import { useAuth } from "./AuthContext";
+import { Song } from "./mockData";
+
+// ============================================================================
+// Utility
+// ============================================================================
+function ensureHttps(u?: string | null): string | undefined {
+  if (!u) return undefined;
+  if (u.startsWith("http://")) {
+    return u.replace("http://", "https://");
+  }
+  return u;
+}
 
 // ============================================================================
 // Icon Component - Optimized with memo
@@ -31,7 +50,7 @@ const Icon = memo(
         d={d}
       />
     </svg>
-  )
+  ),
 );
 
 Icon.displayName = "Icon";
@@ -80,7 +99,7 @@ const SongRow = memo(
         setIsLiked(!isLiked);
         onLike();
       },
-      [isLiked, onLike]
+      [isLiked, onLike],
     );
 
     return (
@@ -160,7 +179,7 @@ const SongRow = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 SongRow.displayName = "SongRow";
@@ -176,54 +195,142 @@ type SortOption = "recent" | "title" | "artist";
 export default function LikedSongs() {
   const { navigateTo, goBack, scrollToTop } = useNavigation();
   const { currentTrack, isPlaying, playTrack, togglePlay } = usePlayer();
+  const { accessToken } = useAuth();
+
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [nextPage, setNextPage] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("recent");
   const [showSortMenu, setShowSortMenu] = useState(false);
 
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchLikedSongs = useCallback(
+    async (url?: string) => {
+      if (!accessToken) return;
+
+      const targetUrl =
+        url || "https://api.sedabox.com/api/profile/liked-songs/";
+
+      if (!url) setIsLoading(true);
+      else setIsFetchingMore(true);
+
+      try {
+        const response = await fetch(targetUrl, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const newSongs = data.results.map((item: any) => ({
+            id: item.id.toString(),
+            title: item.title,
+            artist: item.artist_name,
+            image: ensureHttps(item.cover_image) || "",
+            duration: item.duration_display,
+            src: item.stream_url,
+            album: item.album_title || "Single",
+            explicit: false,
+          }));
+
+          setSongs((prev) => (url ? [...prev, ...newSongs] : newSongs));
+          setNextPage(data.next);
+          setTotalCount(data.count);
+        }
+      } catch (error) {
+        console.error("Error fetching liked songs:", error);
+      } finally {
+        setIsLoading(false);
+        setIsFetchingMore(false);
+      }
+    },
+    [accessToken],
+  );
+
+  useEffect(() => {
+    fetchLikedSongs();
+  }, [fetchLikedSongs]);
+
+  // Infinite Scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          nextPage &&
+          !isFetchingMore &&
+          !isLoading
+        ) {
+          fetchLikedSongs(nextPage);
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" },
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [nextPage, isFetchingMore, isLoading, fetchLikedSongs]);
+
   // Filter and sort songs
   const displayedSongs = useMemo(() => {
-    let songs = [...LIKED_SONGS];
+    let s = [...songs];
 
     // Filter by search
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      songs = songs.filter(
-        (s) =>
-          s.title.toLowerCase().includes(q) ||
-          s.artist.toLowerCase().includes(q)
+      s = s.filter(
+        (song) =>
+          song.title.toLowerCase().includes(q) ||
+          song.artist.toLowerCase().includes(q),
       );
     }
 
     // Sort
     switch (sortBy) {
       case "title":
-        songs.sort((a, b) => a.title.localeCompare(b.title, "fa"));
+        s.sort((a, b) => a.title.localeCompare(b.title, "fa"));
         break;
       case "artist":
-        songs.sort((a, b) => a.artist.localeCompare(b.artist, "fa"));
+        s.sort((a, b) => a.artist.localeCompare(b.artist, "fa"));
         break;
       default:
         // Keep original order for "recent"
         break;
     }
 
-    return songs;
-  }, [searchQuery, sortBy]);
+    return s;
+  }, [songs, searchQuery, sortBy]);
 
   const totalDuration = useMemo(() => {
-    const totalMinutes = LIKED_SONGS.reduce((acc, song) => {
-      const [min, sec] = song.duration.split(":").map(Number);
-      return acc + min + sec / 60;
+    const totalSeconds = songs.reduce((acc, song) => {
+      const parts = song.duration.split(":").map(Number);
+      let seconds = 0;
+      if (parts.length === 2) {
+        seconds = parts[0] * 60 + parts[1];
+      } else if (parts.length === 3) {
+        seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+      return acc + seconds;
     }, 0);
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = Math.round(totalMinutes % 60);
-    return hours > 0 ? `${hours} ساعت و ${mins} دقیقه` : `${mins} دقیقه`;
-  }, []);
 
-  const handleBack = useCallback(() => {
-    goBack();
-  }, [goBack]);
+    const hours = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+
+    if (hours > 0) {
+      return `${hours} ساعت و ${mins} دقیقه`;
+    }
+    return `${mins} دقیقه`;
+  }, [songs]);
 
   const handlePlay = useCallback(
     (song: Song) => {
@@ -241,7 +348,7 @@ export default function LikedSongs() {
         });
       }
     },
-    [currentTrack, playTrack, togglePlay]
+    [currentTrack, playTrack, togglePlay],
   );
 
   const handlePlayAll = useCallback(() => {
@@ -273,9 +380,33 @@ export default function LikedSongs() {
     }
   }, [displayedSongs, playTrack]);
 
-  const handleLike = useCallback((songId: string) => {
-    console.log("Unlike song:", songId);
-  }, []);
+  const handleLike = useCallback(
+    async (songId: string) => {
+      if (!accessToken) return;
+      try {
+        const response = await fetch(
+          `https://api.sedabox.com/api/songs/${songId}/like/`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        );
+        if (response.ok) {
+          setSongs((prev) => prev.filter((s) => s.id !== songId));
+          setTotalCount((prev) => Math.max(0, prev - 1));
+        }
+      } catch (error) {
+        console.error("Error unliking song:", error);
+      }
+    },
+    [accessToken],
+  );
+
+  const handleBack = useCallback(() => {
+    goBack();
+  }, [goBack]);
 
   const toggleSearch = useCallback(() => {
     scrollToTop();
@@ -364,7 +495,7 @@ export default function LikedSongs() {
             آهنگ‌های لایک‌شده
           </h1>
           <p className="text-gray-400 text-sm text-center mb-1">
-            {LIKED_SONGS.length} آهنگ • {totalDuration}
+            {totalCount} آهنگ • {totalDuration}
           </p>
 
           {/* Play & Shuffle Buttons */}
@@ -412,22 +543,35 @@ export default function LikedSongs() {
 
       {/* Songs List */}
       <div className="relative z-10 px-4 pb-32 space-y-1">
-        {displayedSongs.length === 0 ? (
+        {isLoading && songs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+            <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-sm">در حال بارگذاری...</p>
+          </div>
+        ) : displayedSongs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-500">
             <Icon d={ICONS.heart} className="w-12 h-12 mb-3 opacity-40" />
             <p className="text-sm">آهنگی یافت نشد</p>
           </div>
         ) : (
-          displayedSongs.map((song, index) => (
-            <SongRow
-              key={song.id}
-              song={song}
-              index={index}
-              isPlaying={currentTrack?.id === song.id && isPlaying}
-              onPlay={() => handlePlay(song)}
-              onLike={() => handleLike(song.id)}
-            />
-          ))
+          <>
+            {displayedSongs.map((song, index) => (
+              <SongRow
+                key={song.id}
+                song={song}
+                index={index}
+                isPlaying={currentTrack?.id === song.id && isPlaying}
+                onPlay={() => handlePlay(song)}
+                onLike={() => handleLike(song.id)}
+              />
+            ))}
+            {isFetchingMore && (
+              <div className="flex justify-center py-4">
+                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            <div ref={loadMoreRef} className="h-4" />
+          </>
         )}
       </div>
     </div>
