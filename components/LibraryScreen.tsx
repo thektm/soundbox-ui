@@ -13,8 +13,17 @@ import {
   MoreHorizontal,
   LayoutGrid,
   List,
+  Heart,
 } from "lucide-react";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
+
+function ensureHttps(u?: string | null): string | undefined {
+  if (!u) return undefined;
+  if (u.startsWith("http://")) {
+    return u.replace("http://", "https://");
+  }
+  return u;
+}
 
 const LibraryItem = ({
   title,
@@ -173,6 +182,10 @@ const LibraryScreen: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedSong, setSelectedSong] = useState<any>(null);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [likedSongsCount, setLikedSongsCount] = useState<number>(0);
+  const [latestLikedSongCover, setLatestLikedSongCover] = useState<
+    string | null
+  >(null);
 
   const filters = [
     { id: "artist", label: "هنرمندان" },
@@ -180,6 +193,29 @@ const LibraryScreen: React.FC = () => {
     { id: "playlist", label: "پلی‌لیست‌ها" },
     { id: "album", label: "آلبوم‌ها" },
   ];
+
+  const fetchLikedSongs = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const response = await fetch(
+        "https://api.sedabox.com/api/profile/liked-songs/",
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setLikedSongsCount(data.count || 0);
+        if (data.results && data.results.length > 0) {
+          setLatestLikedSongCover(data.results[0].cover_image);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching liked songs count:", error);
+    }
+  }, [accessToken]);
 
   const fetchHistory = useCallback(
     async (pageNum: number, type?: string) => {
@@ -274,6 +310,7 @@ const LibraryScreen: React.FC = () => {
   useEffect(() => {
     setPage(1);
     fetchHistory(1, activeFilter || undefined);
+    fetchLikedSongs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -418,9 +455,28 @@ const LibraryScreen: React.FC = () => {
     searchQuery.trim().length > 0 ? !searchHasNextPage : !hasNextPage;
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-black relative">
+      {/* Dynamic Background Cover with Fade */}
+      <AnimatePresence>
+        {latestLikedSongCover && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.3 }}
+            exit={{ opacity: 0 }}
+            className="absolute top-0 left-0 right-0 h-[400px] pointer-events-none overflow-hidden z-0"
+          >
+            <img
+              src={ensureHttps(latestLikedSongCover)}
+              alt="Background"
+              className="w-full h-full object-cover blur-3xl scale-110"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/60 to-black" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Sticky Header with Glassmorphism */}
-      <header className="sticky top-0 z-50 bg-[#121212]/80 backdrop-blur-xl border-b border-white/5 px-4 pt-4 pb-3">
+      <header className="sticky top-0 z-50 bg-[#121212]/60 backdrop-blur-2xl border-b border-white/5 px-4 pt-4 pb-3">
         <div className="max-w-xl mx-auto">
           {/* Header First Row */}
           <div className="relative h-12 flex items-center justify-between overflow-hidden">
@@ -436,13 +492,7 @@ const LibraryScreen: React.FC = () => {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10">
-                      {user?.id ? (
-                        <div className="text-sm font-bold text-emerald-500 uppercase">
-                          {user.phone.slice(-2)}
-                        </div>
-                      ) : (
-                        <User className="w-6 h-6 text-zinc-400" />
-                      )}
+                      <User className="w-6 h-6 text-zinc-400" />
                     </div>
                     <h1 className="text-xl font-bold text-white">
                       کتابخانه شما
@@ -554,6 +604,23 @@ const LibraryScreen: React.FC = () => {
               : "flex flex-col space-y-2"
           }`}
         >
+          {/* Liked Songs Special Item */}
+          {!searchQuery.trim() &&
+            (activeFilter === null || activeFilter === "song") && (
+              <LibraryItem
+                title="آهنگ‌های لایک شده"
+                subtitle={`${likedSongsCount} آهنگ`}
+                viewMode={viewMode}
+                type="playlist"
+                icon={
+                  <div className="w-full h-full bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-800 flex items-center justify-center relative shadow-[inset_0_0_20px_rgba(0,0,0,0.3)]">
+                    <Heart className="w-8 h-8 text-white fill-white animate-pulse drop-shadow-[0_0_15px_rgba(16,185,129,0.9)]" />
+                  </div>
+                }
+                onClick={() => navigateTo("liked-songs")}
+              />
+            )}
+
           {isLoading ? (
             <>
               {Array.from({ length: 9 }).map((_, i) => (

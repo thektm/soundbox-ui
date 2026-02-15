@@ -924,11 +924,13 @@ export default function Search() {
     clear: clearHistory,
   } = useSearchHistory();
 
-  const { currentEvent, isLoading: isEventLoading } =
-    useEventPlaylists(accessToken ?? undefined);
+  const { currentEvent, isLoading: isEventLoading } = useEventPlaylists(
+    accessToken ?? undefined,
+  );
 
-  const { sections, isLoading: isSectionsLoading } =
-    useSearchSections(accessToken ?? undefined);
+  const { sections, isLoading: isSectionsLoading } = useSearchSections(
+    accessToken ?? undefined,
+  );
 
   // Handlers (Memoized)
   const handleSearch = useCallback(
@@ -1001,7 +1003,7 @@ export default function Search() {
 
   return (
     <div
-      className="relative min-h-screen bg-transparent text-white pb-24 md:pb-4 overflow-hidden"
+      className="relative min-h-screen bg-transparent text-white pb-24 md:pb-4"
       dir="rtl"
     >
       {!query.trim() && <ModernBackground />}
