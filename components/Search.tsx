@@ -1,13 +1,6 @@
 "use client";
 
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-  memo,
-} from "react";
+import React, { useState, useEffect, useCallback, useRef, memo } from "react";
 import Image from "next/image";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useNavigation } from "./NavigationContext";
@@ -64,6 +57,16 @@ interface SearchHistory {
   query: string;
   timestamp: number;
   type: "song" | "artist" | "query";
+}
+
+interface EventPlaylistSong {
+  id: number;
+  cover_image?: string;
+}
+
+interface EventPlaylistDetail {
+  id: number;
+  songs: EventPlaylistSong[];
 }
 
 // ============ UTILS & HOOKS ============
@@ -711,12 +714,15 @@ const SectionCard = memo(
   }) => {
     const title = item.title;
     const subTitle = item.artist_name || item.name || item.description || "";
-    let image = item.cover_image || item.image;
+    const mainImage = item.cover_image || item.image;
 
-    // For playlists without cover, use first song's cover
-    if (type === "playlist" && !image && item.songs?.length > 0) {
-      image = item.songs[0].cover_image;
-    }
+    // Playlist multi-cover logic
+    const playlistSongs = type === "playlist" ? item.songs || [] : [];
+    const needsGeneratedCover =
+      type === "playlist" && !mainImage && playlistSongs.length > 0;
+    const stackImages = needsGeneratedCover
+      ? playlistSongs.slice(0, 3).map((s: any) => s.cover_image)
+      : [];
 
     return (
       <div
@@ -724,12 +730,50 @@ const SectionCard = memo(
         className="group min-w-[160px] md:min-w-[190px] p-4 rounded-xl bg-[#181818]/20 hover:bg-[#282828]/60 border border-transparent hover:border-white/5 transition-all duration-300 cursor-pointer flex flex-col items-center text-center shadow-lg"
       >
         <div className="relative mb-4 w-full aspect-square group-hover:-translate-y-1 transition-transform duration-300">
-          <ImageWithPlaceholder
-            src={image}
-            alt={title}
-            className="w-full h-full object-cover rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.5)] group-hover:shadow-[0_12px_32px_rgba(0,0,0,0.6)]"
-            type="song"
-          />
+          {needsGeneratedCover && stackImages.length > 1 ? (
+            <div className="relative w-full h-full flex items-center justify-center">
+              {/* Backmost image (3rd) */}
+              {stackImages[2] && (
+                <div className="absolute inset-0 scale-[0.88] translate-x-6 -translate-y-2 rotate-6 opacity-50">
+                  <div className="w-full h-full rounded-lg overflow-hidden shadow-2xl border border-white/5 bg-zinc-900">
+                    <img
+                      src={stackImages[2]}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              )}
+              {/* Middle image (2nd) */}
+              {stackImages[1] && (
+                <div className="absolute inset-0 scale-[0.94] translate-x-3 -translate-y-1 rotate-3 opacity-80">
+                  <div className="w-full h-full rounded-lg overflow-hidden shadow-2xl border border-white/5 bg-zinc-800">
+                    <img
+                      src={stackImages[1]}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              )}
+              {/* Front image (1st) */}
+              <div className="relative w-full h-full z-10">
+                <ImageWithPlaceholder
+                  src={stackImages[0]}
+                  alt={title}
+                  className="w-full h-full object-cover rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.6)] group-hover:shadow-[0_12px_40px_rgba(0,0,0,0.7)]"
+                  type="song"
+                />
+              </div>
+            </div>
+          ) : (
+            <ImageWithPlaceholder
+              src={mainImage || (stackImages.length > 0 ? stackImages[0] : "")}
+              alt={title}
+              className="w-full h-full object-cover rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.5)] group-hover:shadow-[0_12px_32px_rgba(0,0,0,0.6)]"
+              type="song"
+            />
+          )}
           <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors rounded-lg" />
           <button
             onClick={onPlay}
@@ -931,6 +975,72 @@ export default function Search() {
   const { sections, isLoading: isSectionsLoading } = useSearchSections(
     accessToken ?? undefined,
   );
+
+  const [playlistDetails, setPlaylistDetails] = useState<
+    Record<number, EventPlaylistDetail>
+  >({});
+  const fetchedPlaylistIdsRef = useRef<Set<number>>(new Set());
+  const prevEventIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const newEventId = currentEvent?.id ?? null;
+    if (newEventId === prevEventIdRef.current) return;
+    prevEventIdRef.current = newEventId;
+    fetchedPlaylistIdsRef.current.clear();
+    setPlaylistDetails({});
+  }, [currentEvent?.id]);
+
+  useEffect(() => {
+    if (!currentEvent) {
+      fetchedPlaylistIdsRef.current.clear();
+      setPlaylistDetails({});
+      return;
+    }
+
+    const toFetch = currentEvent.playlists.filter(
+      (playlist) => !fetchedPlaylistIdsRef.current.has(playlist.id),
+    );
+
+    if (toFetch.length === 0) return;
+
+    const controllers: Record<number, AbortController> = {};
+
+    toFetch.forEach((playlist) => {
+      const controller = new AbortController();
+      controllers[playlist.id] = controller;
+
+      fetch(`https://api.sedabox.com/api/playlists/${playlist.id}/`, {
+        signal: controller.signal,
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("Failed to fetch playlist detail");
+          }
+          return response.json();
+        })
+        .then((data) => {
+          const songs = Array.isArray(data?.songs) ? data.songs : [];
+          fetchedPlaylistIdsRef.current.add(playlist.id);
+          setPlaylistDetails((prev) => ({
+            ...prev,
+            [playlist.id]: {
+              id: playlist.id,
+              songs,
+            },
+          }));
+        })
+        .catch((error) => {
+          if (error.name !== "AbortError") {
+            console.error("Failed to load playlist detail", error);
+          }
+        });
+    });
+
+    return () => {
+      Object.values(controllers).forEach((controller) => controller.abort());
+    };
+  }, [currentEvent, accessToken]);
 
   // Handlers (Memoized)
   const handleSearch = useCallback(
@@ -1327,36 +1437,81 @@ export default function Search() {
                   {currentEvent.title}
                 </h2>
                 <div className="space-y-3">
-                  {currentEvent.playlists.map((playlist: EventPlaylist) => (
-                    <button
-                      key={playlist.id}
-                      onClick={() =>
-                        handleEventPlaylistPress(currentEvent.id, playlist.id)
-                      }
-                      className="w-full flex items-center justify-between gap-4 p-3 rounded-lg bg-[#101010] hover:bg-[#1b1b1b] transition-all duration-200 shadow-inner"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex flex-col text-right">
-                          <span className="text-white font-medium">
-                            {playlist.title}
-                          </span>
-                          {playlist.description && (
-                            <span className="text-sm text-[#a7a7a7]">
-                              {playlist.description}
-                            </span>
-                          )}
+                  {currentEvent.playlists.map((playlist: EventPlaylist) => {
+                    const playlistDetail = playlistDetails[playlist.id];
+                    const songCoverImages =
+                      playlistDetail?.songs
+                        ?.map((song) => song.cover_image)
+                        .filter((image): image is string => Boolean(image)) ??
+                      [];
+                    const recentCovers = songCoverImages.slice(-2).reverse();
+
+                    return (
+                      <button
+                        key={playlist.id}
+                        type="button"
+                        onClick={() =>
+                          handleEventPlaylistPress(currentEvent.id, playlist.id)
+                        }
+                        className="w-full flex items-start gap-4 p-4 rounded-2xl bg-[#101010] hover:bg-[#1b1b1b] transition-all duration-200 shadow-[0_10px_30px_rgba(0,0,0,0.45)] border border-white/5"
+                      >
+                        <div className="w-16 h-16 flex-shrink-0 rounded-2xl overflow-hidden shadow-lg border border-white/10">
+                          <ImageWithPlaceholder
+                            src={playlist.cover_image}
+                            alt={playlist.title}
+                            className="object-cover w-full h-full"
+                            type="song"
+                          />
                         </div>
-                      </div>
-                      <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden shadow-lg">
-                        <ImageWithPlaceholder
-                          src={playlist.cover_image}
-                          alt={playlist.title}
-                          className="object-cover w-full h-full"
-                          type="song"
-                        />
-                      </div>
-                    </button>
-                  ))}
+                        <div className="flex-1 flex flex-col gap-2">
+                          <div className="flex flex-col text-right gap-1">
+                            <span className="text-white font-bold text-lg leading-tight">
+                              {playlist.title}
+                            </span>
+                            {playlist.description && (
+                              <span className="text-sm text-[#a7a7a7]">
+                                {playlist.description}
+                              </span>
+                            )}
+                          </div>
+                          <div className="relative mt-0">
+                            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-white/10 via-[#1db954]/30 to-transparent opacity-70" />
+                            <div className="absolute inset-y-0 right-0 w-16 pointer-events-none bg-gradient-to-l from-[#050505]/0 via-[#050505]/80 to-[#050505] rounded-2xl" />
+                            <div className="relative z-10 flex items-center gap-3 pr-2 pl-1 min-h-[52px]">
+                              <div className="flex items-center">
+                                {recentCovers.length > 0 ? (
+                                  recentCovers.map((cover, index) => (
+                                    <div
+                                      key={`${playlist.id}-${index}-${cover}`}
+                                      className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 shadow-[0_12px_30px_rgba(0,0,0,0.5)]"
+                                      style={{
+                                        marginLeft: index === 0 ? 0 : -14,
+                                        zIndex: recentCovers.length - index,
+                                      }}
+                                    >
+                                      <img
+                                        src={cover}
+                                        alt={`${playlist.title} cover ${index}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="w-12 h-12 rounded-xl border border-dashed border-white/20 bg-white/5 flex items-center justify-center text-[10px] text-white/60">
+                                    در حال آماده‌سازی
+                                  </div>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-white/70 whitespace-nowrap">
+                                آخرین ترک
+                                {recentCovers.length === 1 ? "" : "‌ها"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </section>
             )}
