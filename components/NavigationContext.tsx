@@ -24,10 +24,11 @@ interface NavigationContextType {
   setHomeCache: (data: any) => void;
   isResolving: boolean;
   setIsResolving: (v: boolean) => void;
+  scrollContainer: HTMLElement | null;
 }
 
 const NavigationContext = createContext<NavigationContextType | undefined>(
-  undefined
+  undefined,
 );
 
 export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
@@ -126,6 +127,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
         setHomeCache,
         isResolving,
         setIsResolving,
+        scrollContainer: scrollContainerRef.current,
       }}
     >
       {children}

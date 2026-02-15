@@ -226,6 +226,26 @@ const Icons = {
       />
     </svg>
   ),
+  Premium: ({ active }: { active: boolean }) => (
+    <div className="relative w-6 h-6">
+      <img
+        src="/premium.svg"
+        alt="premium"
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
+          active ? "opacity-0" : "opacity-100"
+        }`}
+        style={{ filter: "invert(1)" }}
+      />
+      <img
+        src="/premium-selected.svg"
+        alt="premium-selected"
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
+          active ? "opacity-100" : "opacity-0"
+        }`}
+        style={{ filter: "invert(1)" }}
+      />
+    </div>
+  ),
 };
 
 // ============================================================================
@@ -259,6 +279,13 @@ const mainNavItems: NavItem[] = [
     labelFa: "جستجو",
     icon: Icons.Search,
     path: "/search",
+  },
+  {
+    id: "premium",
+    label: "Premium",
+    labelFa: "پریمیوم",
+    icon: Icons.Premium,
+    path: "/premium",
   },
 ];
 

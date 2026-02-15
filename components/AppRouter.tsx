@@ -28,6 +28,8 @@ import LatestReleasesPage from "./LatestReleasesPage";
 import PopularAlbumsPage from "./PopularAlbumsPage";
 import NewDiscoveriesPage from "./NewDiscoveriesPage";
 import ChartPage from "./ChartPage";
+import LibraryScreen from "./LibraryScreen";
+import Premium from "./Premium";
 
 const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
@@ -65,6 +67,8 @@ const AppRouter: React.FC = () => {
         return <SongDetail id={currentParams?.id} />;
       case "search":
         return <Search />;
+      case "library":
+        return <LibraryScreen />;
       case "playlists":
         return <Playlists />;
       case "profile":
@@ -95,6 +99,8 @@ const AppRouter: React.FC = () => {
         return <LikedAlbums />;
       case "liked-playlists":
         return <LikedPlaylists />;
+      case "premium":
+        return <Premium />;
       case "my-playlists":
         return <MyPlaylists />;
       case "upgrade-plans":

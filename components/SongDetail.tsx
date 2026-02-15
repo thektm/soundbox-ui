@@ -206,21 +206,25 @@ const Spinner = ({ size = "w-5 h-5" }: { size?: string }) => (
   />
 );
 
-const useScrollY = () => {
+const useScrollY = (element?: HTMLElement | null) => {
   const [y, setY] = useState(0);
   const raf = useRef<number | undefined>(undefined);
 
   useEffect(() => {
+    const target: any = element || window;
     const onScroll = () => {
-      if (raf.current) cancelAnimationFrame(raf.current);
-      raf.current = requestAnimationFrame(() => setY(window.scrollY));
+      if (raf.current) return;
+      raf.current = requestAnimationFrame(() => {
+        setY(element ? element.scrollTop : window.scrollY);
+        raf.current = undefined;
+      });
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
+    target.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      if (raf.current) cancelAnimationFrame(raf.current);
-      window.removeEventListener("scroll", onScroll);
+      target.removeEventListener("scroll", onScroll);
+      raf.current && cancelAnimationFrame(raf.current);
     };
-  }, []);
+  }, [element]);
   return y;
 };
 
@@ -423,15 +427,19 @@ const SectionHeader: React.FC<{
   title: string;
   action?: { label: string; onClick: () => void };
 }> = ({ title, action }) => (
-  <div className="flex items-center justify-between mb-5">
-    <h2 className="text-xl font-bold text-white">{title}</h2>
+  <div className="relative flex items-center mb-5">
+    <h2 className="text-xl font-bold text-white absolute left-1/2 -translate-x-1/2">
+      {title}
+    </h2>
     {action && (
-      <button
-        onClick={action.onClick}
-        className="text-sm text-neutral-400 hover:text-white transition-colors"
-      >
-        {action.label}
-      </button>
+      <div className="ml-auto">
+        <button
+          onClick={action.onClick}
+          className="text-sm text-neutral-400 hover:text-white transition-colors"
+        >
+          {action.label}
+        </button>
+      </div>
     )}
   </div>
 );
@@ -441,54 +449,68 @@ const LyricsSection: React.FC<{
   currentTime?: number;
 }> = ({ lyrics, currentTime = 0 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const displayedLyrics = isExpanded ? lyrics : lyrics.slice(0, 5);
 
   return (
-    <section className="bg-neutral-900/50 rounded-2xl p-6 border border-white/5">
-      <div className="flex items-center gap-3 mb-5">
-        <Icon name="microphone" size={22} className="text-emerald-400" />
+    <section className="bg-neutral-900/50 rounded-2xl p-6 border border-white/5 relative overflow-hidden transition-all duration-500">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+          <Icon name="microphone" size={20} className="text-emerald-400" />
+        </div>
         <h2 className="text-xl font-bold text-white">متن آهنگ</h2>
       </div>
-      <div className="space-y-3">
-        {lyrics.length > 0 ? (
-          displayedLyrics.map((line, idx) => (
-            <p
-              key={idx}
-              className={cn(
-                "text-lg leading-relaxed transition-colors duration-300",
-                currentTime >= line.time
-                  ? "text-white font-medium"
-                  : "text-neutral-400",
-              )}
-            >
-              {line.text}
-            </p>
-          ))
-        ) : (
-          <div className="py-4">
-            <p className="text-lg text-neutral-400 font-medium">
-              هنوز متنی برای این آهنگ ثبت نشده است
-            </p>
-          </div>
+
+      <div
+        className={cn(
+          "relative transition-all duration-700 ease-in-out px-1",
+          isExpanded ? "max-h-[9999px]" : "max-h-[260px] overflow-hidden",
+        )}
+      >
+        <div className="space-y-4">
+          {lyrics.length > 0 ? (
+            lyrics.map((line, idx) => (
+              <p
+                key={idx}
+                className={cn(
+                  "text-xl md:text-2xl font-bold leading-relaxed transition-all duration-300",
+                  "text-white/90 hover:text-white cursor-default",
+                )}
+              >
+                {line.text}
+              </p>
+            ))
+          ) : (
+            <div className="py-8">
+              <p className="text-lg text-neutral-500 font-medium italic">
+                هنوز متنی برای این آهنگ ثبت نشده است
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Improved Masking Overlay */}
+        {!isExpanded && lyrics.length > 5 && (
+          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-zinc-900 via-zinc-900/60 to-transparent pointer-events-none" />
         )}
       </div>
+
       {lyrics.length > 5 && (
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className={cn(
-            "mt-5 flex items-center gap-2 text-sm font-medium",
-            "text-neutral-400 hover:text-white transition-colors",
+            "mt-6 w-full py-3 px-6 rounded-xl font-bold text-sm",
+            "bg-white/5 hover:bg-white/10 text-white transition-all flex items-center justify-center gap-2",
+            "border border-white/5 active:scale-[0.98]",
           )}
         >
           {isExpanded ? (
             <>
-              <Icon name="caretUp" size={16} />
               نمایش کمتر
+              <Icon name="caretUp" size={18} />
             </>
           ) : (
             <>
-              <Icon name="caretDown" size={16} />
-              نمایش بیشتر
+              نمایش کامل متن
+              <Icon name="caretDown" size={18} />
             </>
           )}
         </button>
@@ -639,7 +661,8 @@ const Skeleton = ({ className }: { className?: string }) => (
 );
 
 export default function SongDetail({ id: propId }: { id?: string }) {
-  const { navigateTo, goBack, currentPage, currentParams } = useNavigation();
+  const { navigateTo, goBack, currentPage, currentParams, scrollContainer } =
+    useNavigation();
   const { currentTrack, isPlaying, playTrack, togglePlay, download } =
     usePlayer();
   const { accessToken } = useAuth();
@@ -652,7 +675,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     return match ? decodeURIComponent(match[1]) : null;
   }, [propId, currentParams, currentPage]);
 
-  const scrollY = useScrollY();
+  const scrollY = useScrollY(scrollContainer);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [song, setSong] = useState<Song | null>(null);
   const [fullSongData, setFullSongData] = useState<ApiSong | null>(null);
@@ -723,6 +746,8 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   const isCurrentlyPlaying = isCurrentTrack && isPlaying;
 
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
+  const headerRef = useRef<HTMLElement | null>(null);
+  const showHeader = scrollY > 50;
 
   const similarTracks = useMemo(() => {
     if (fullSongData?.similar_songs?.items) {
@@ -745,9 +770,14 @@ export default function SongDetail({ id: propId }: { id?: string }) {
 
   const apiLyrics = useMemo((): LyricLine[] => {
     if (!fullSongData?.lyrics) return [];
-    // If API provides a string, we might need to parse it if it's lrc format
-    // For now assuming it's a plain text or we show it as one line if no timing
-    return [{ time: 0, text: fullSongData.lyrics }];
+    // Split lyrics by newline to handle plain text strings correctly in the UI
+    return fullSongData.lyrics
+      .split(/\r?\n/)
+      .map((line, index) => ({
+        time: index * 4, // Dummy timing if not provided
+        text: line.trim(),
+      }))
+      .filter((l) => l.text.length > 0);
   }, [fullSongData]);
 
   const apiCredits = useMemo((): Credit[] => {
@@ -971,37 +1001,83 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         }}
       />
 
+      {/* Desktop Header */}
+      <header className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={goBack}
+            className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+          >
+            <svg
+              className="w-5 h-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </button>
+          <span className="text-lg font-bold text-white mr-4">
+            {song.title}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handlePlay}
+            className="px-6 py-2 bg-emerald-500 rounded-full flex items-center gap-2 text-black font-semibold hover:scale-105 hover:bg-emerald-400 transition-all"
+          >
+            <Icon name="play" size={18} />
+            پخش
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile Sticky Header */}
       <header
-        className={cn(
-          "fixed top-0 left-0 right-0 z-40 h-16",
-          "flex flex-row-reverse items-center justify-between px-4 md:px-6",
-          "transition-all duration-300",
-        )}
+        ref={headerRef}
+        className="md:hidden fixed flex-row-reverse top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
         style={{
-          backgroundColor: `rgba(18, 18, 18, ${headerOpacity})`,
+          transform: showHeader ? "translateY(0)" : "translateY(-100%)",
+          opacity: showHeader ? 1 : 0,
         }}
       >
         <button
           onClick={goBack}
-          className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center",
-            "bg-black/40 hover:bg-black/60 transition-colors",
-          )}
+          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition"
         >
-          <Icon name="arrowLeft" size={22} className="text-white" />
+          <Icon name="arrowLeft" size={24} className="text-white" />
         </button>
-
-        <div
-          className={cn(
-            "absolute left-1/2 -translate-x-1/2 transition-opacity duration-200",
-            headerOpacity > 0.7 ? "opacity-100" : "opacity-0",
-          )}
+        <span
+          className="flex-1 px-4 text-base font-bold transition-opacity"
+          style={{ opacity: headerOpacity }}
         >
-          <span className="font-semibold text-white">{song.title}</span>
-        </div>
-
-        <div className="w-10" />
+          {song.title}
+        </span>
+        <button
+          onClick={handlePlay}
+          className="w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black transition hover:scale-105 hover:bg-emerald-400 active:scale-95"
+        >
+          <Icon name="play" size={20} />
+        </button>
       </header>
+
+      {/* Mobile Back (shown when header is hidden) */}
+      <button
+        onClick={goBack}
+        className="fixed top-4 left-4 w-10 h-10 bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
+        style={{
+          opacity: showHeader ? 0 : 1,
+          pointerEvents: showHeader ? "none" : "auto",
+        }}
+      >
+        <Icon name="arrowLeft" size={24} className="text-white" />
+      </button>
 
       <section className="relative pt-20 pb-8 px-6 md:px-12">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10">
@@ -1119,7 +1195,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             </div>
           </section>
 
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <section className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {[
               {
                 label: "پخش‌ها",
@@ -1129,7 +1205,6 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                 label: "لایک‌ها",
                 value: formatNumber(likesCount),
               },
-              { label: "اشتراک‌ها", value: "۱۲K" },
               {
                 label: "اضافه به پلی‌لیست",
                 value: fullSongData
@@ -1139,7 +1214,10 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             ].map((stat, idx) => (
               <div
                 key={idx}
-                className="bg-white/5 rounded-xl p-5 text-center hover:bg-white/10 transition-colors"
+                className={cn(
+                  "bg-white/5 rounded-xl p-5 text-center hover:bg-white/10 transition-colors",
+                  idx === 2 ? "col-span-2 md:col-span-1" : "",
+                )}
               >
                 <p className="text-2xl font-bold text-white">{stat.value}</p>
                 <p className="text-sm text-neutral-400 mt-1">{stat.label}</p>

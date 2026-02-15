@@ -9,18 +9,55 @@ import React, {
   memo,
 } from "react";
 import Image from "next/image";
+import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useNavigation } from "./NavigationContext";
+import { usePlayer } from "./PlayerContext";
+import { useAuth } from "./AuthContext";
+import { toast } from "react-hot-toast";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 
 // ============ TYPES & MOCKS ============
 import {
   MOCK_SONGS,
   MOCK_ARTISTS,
-  BROWSE_GENRES,
   Song,
   Artist,
-  Genre,
+  Album,
+  Playlist,
 } from "./mockData";
+
+interface SearchResults {
+  songs: Song[];
+  artists: Artist[];
+  albums: Album[];
+  playlists: Playlist[];
+}
+
+interface EventPlaylist {
+  id: number;
+  title: string;
+  description: string;
+  cover_image: string;
+}
+
+interface EventPlaylistEntry {
+  id: number;
+  title: string;
+  time_of_day: "morning" | "evening" | "night";
+  playlists: EventPlaylist[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface SearchSection {
+  id: number;
+  type: "song" | "playlist" | "album";
+  title: string;
+  item_size: string;
+  songs: any[];
+  albums: any[];
+  playlists: any[];
+}
 
 interface SearchHistory {
   id: string;
@@ -94,42 +131,210 @@ const useSearchHistory = () => {
   return { history, add, remove, clear };
 };
 
+const useEventPlaylists = (accessToken?: string) => {
+  const [eventData, setEventData] = useState<EventPlaylistEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchEventPlaylists = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(
+          "https://api.sedabox.com/api/search/event-playlists/",
+          {
+            headers: accessToken
+              ? { Authorization: `Bearer ${accessToken}` }
+              : {},
+          },
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setEventData(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch event playlists", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchEventPlaylists();
+  }, [accessToken]);
+
+  const getTimeOfDay = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return "morning";
+    if (hour >= 12 && hour < 20) return "evening";
+    return "night";
+  };
+
+  const currentEvent = eventData.find((e) => e.time_of_day === getTimeOfDay());
+
+  return { currentEvent, isLoading };
+};
+
+const useSearchSections = (accessToken?: string) => {
+  const [sections, setSections] = useState<SearchSection[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchSections = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(
+          "https://api.sedabox.com/api/search/sections/",
+          {
+            headers: accessToken
+              ? { Authorization: `Bearer ${accessToken}` }
+              : {},
+          },
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setSections(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch search sections", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSections();
+  }, [accessToken]);
+
+  return { sections, isLoading };
+};
+
 // Hook: Handle API Logic
-const useSearch = (query: string) => {
-  const [results, setResults] = useState<{ songs: Song[]; artists: Artist[] }>({
+const useSearch = (
+  query: string,
+  filter: "all" | "songs" | "artists" | "albums" | "playlists",
+  accessToken?: string,
+) => {
+  const [results, setResults] = useState<SearchResults>({
     songs: [],
     artists: [],
+    albums: [],
+    playlists: [],
   });
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!query.trim()) {
-      setResults({ songs: [], artists: [] });
+      setResults({ songs: [], artists: [], albums: [], playlists: [] });
       return;
     }
 
-    const fetch = async () => {
+    const abortController = new AbortController();
+
+    const fetchResults = async () => {
       setIsLoading(true);
-      // Simulate API
-      await new Promise((r) => setTimeout(r, 300 + Math.random() * 400));
+      try {
+        const typeMapping: Record<string, string> = {
+          all: "",
+          songs: "song",
+          artists: "artist",
+          albums: "album",
+          playlists: "playlist",
+        };
 
-      const q = query.toLowerCase().trim();
-      const songs = MOCK_SONGS.filter(
-        (s: Song) =>
-          s.title.toLowerCase().includes(q) ||
-          s.artist.toLowerCase().includes(q) ||
-          s.album.toLowerCase().includes(q),
-      );
-      const artists = MOCK_ARTISTS.filter((a: Artist) =>
-        a.name.toLowerCase().includes(q),
-      );
+        const typeParam = typeMapping[filter];
+        const params = new URLSearchParams({
+          q: query,
+          page_size: "40",
+        });
+        if (typeParam) params.append("type", typeParam);
 
-      setResults({ songs, artists });
-      setIsLoading(false);
+        const response = await fetch(
+          `https://api.sedabox.com/api/search/?${params.toString()}`,
+          {
+            signal: abortController.signal,
+            headers: accessToken
+              ? { Authorization: `Bearer ${accessToken}` }
+              : {},
+          },
+        );
+
+        if (!response.ok) throw new Error("Search failed");
+
+        const data = await response.json();
+
+        // Standardize the results from SearchResultSerializer
+        const songs: Song[] = [];
+        const artists: Artist[] = [];
+        const albums: Album[] = [];
+        const playlists: Playlist[] = [];
+
+        (data.results || []).forEach((item: any) => {
+          switch (item.type) {
+            case "song":
+              const durationSeconds = item.data?.duration_seconds || 0;
+              const minutes = Math.floor(durationSeconds / 60);
+              const seconds = durationSeconds % 60;
+              const formattedDuration = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+              songs.push({
+                id: item.id.toString(),
+                title: item.title,
+                artist: item.data?.artist_name || "Unknown Artist",
+                album: item.data?.album_name || "",
+                duration: formattedDuration,
+                image: item.image || "https://picsum.photos/200",
+                src: item.data?.stream_url || "",
+                explicit: false, // Not provided in response
+                plays: item.data?.plays || 0,
+              });
+              break;
+            case "artist":
+              artists.push({
+                id: item.id.toString(),
+                name: item.title,
+                image: item.image || "https://picsum.photos/200",
+                followers: "", // Not provided in this response
+                verified: item.data?.verified || false,
+                is_following: item.is_following || false,
+              });
+              break;
+            case "album":
+              albums.push({
+                id: item.id.toString(),
+                title: item.title,
+                artist: item.data?.artist_name || "",
+                image: item.image || "https://picsum.photos/200",
+                year: item.data?.release_date
+                  ? new Date(item.data.release_date).getFullYear().toString()
+                  : "",
+                type: "Album",
+                description: "",
+              });
+              break;
+            case "playlist":
+              playlists.push({
+                id: item.id.toString(),
+                title: item.title,
+                image: item.image || "https://picsum.photos/200",
+                songsCount: 0, // Not provided
+                description: "",
+                gradient: "",
+                duration: "",
+              });
+              break;
+          }
+        });
+
+        setResults({ songs, artists, albums, playlists });
+      } catch (error: any) {
+        if (error.name !== "AbortError") {
+          console.error("Search API Error:", error);
+        }
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    fetch();
-  }, [query]);
+    fetchResults();
+    return () => {
+      abortController.abort();
+    };
+  }, [query, filter, accessToken]);
 
   return { results, isLoading };
 };
@@ -183,9 +388,9 @@ const ICONS = {
       viewBox="0 0 24 24"
       fill="currentColor"
     >
-      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="5" r="2" />
       <circle cx="12" cy="12" r="2" />
-      <circle cx="19" cy="12" r="2" />
+      <circle cx="12" cy="19" r="2" />
     </svg>
   ),
 };
@@ -204,7 +409,6 @@ const SongCard = memo(
     onMore: (song: Song) => void;
   }) => {
     const [isHovered, setIsHovered] = useState(false);
-    const [error, setError] = useState(false);
 
     return (
       <div
@@ -214,21 +418,12 @@ const SongCard = memo(
         onClick={onPlay}
       >
         <div className="relative w-12 h-12 shrink-0">
-          {error ? (
-            <div className="w-full h-full bg-[#282828] rounded flex items-center justify-center">
-              <span className="text-2xl">🎵</span>
-            </div>
-          ) : (
-            <Image
-              src={song.image}
-              alt={song.title}
-              width={48}
-              height={48}
-              quality={75}
-              className="object-cover rounded shadow-lg"
-              onError={() => setError(true)}
-            />
-          )}
+          <ImageWithPlaceholder
+            src={song.image}
+            alt={song.title}
+            className="w-full h-full object-cover rounded shadow-lg"
+            type="song"
+          />
           {isHovered && (
             <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">
               <button className="w-8 h-8 bg-[#1db954] rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-xl">
@@ -252,14 +447,17 @@ const SongCard = memo(
             <span className="truncate hover:underline hover:text-white">
               {song.artist}
             </span>
-            <span className="mx-1">•</span>
-            <span className="truncate hover:underline hover:text-white">
-              {song.album}
-            </span>
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {song.plays !== undefined && song.plays > 0 && (
+            <span className="text-sm text-[#a7a7a7]">
+              <ICONS.Play className="inline w-3 h-3 mr-1" />{" "}
+              {song.plays.toLocaleString()}
+            </span>
+          )}
           <span className="text-sm text-[#a7a7a7] tabular-nums">
+            {song.plays !== undefined && song.plays > 0 ? "•" : ""}{" "}
             {song.duration}
           </span>
           <button
@@ -267,9 +465,7 @@ const SongCard = memo(
               e.stopPropagation();
               onMore(song);
             }}
-            className={`p-1 text-[#a7a7a7] hover:text-white transition-opacity ${
-              isHovered ? "opacity-100" : "opacity-0"
-            }`}
+            className="p-1 text-[#a7a7a7] hover:text-white"
           >
             <ICONS.More />
           </button>
@@ -280,74 +476,123 @@ const SongCard = memo(
 );
 
 const ArtistCard = memo(
-  ({ artist, onClick }: { artist: Artist; onClick: () => void }) => {
-    const [error, setError] = useState(false);
+  ({
+    artist,
+    onClick,
+    onFollow,
+    isFollowing,
+    isFollowLoading,
+  }: {
+    artist: Artist;
+    onClick: () => void;
+    onFollow: (artistId: string, currentlyFollowing: boolean) => void;
+    isFollowing: boolean;
+    isFollowLoading: boolean;
+  }) => {
     return (
       <div
         onClick={onClick}
-        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer"
+        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer h-full flex flex-col items-center text-center"
       >
-        <div className="relative mb-4">
-          <div className="relative pt-[100%]">
-            {error ? (
-              <div className="absolute inset-0 bg-[#333] rounded-full flex items-center justify-center">
-                <span className="text-4xl">👤</span>
-              </div>
-            ) : (
-              <Image
-                src={artist.image}
-                alt={artist.name}
-                fill
-                sizes="(max-width: 768px) 150px, 200px"
-                quality={80}
-                className="object-cover rounded-full shadow-2xl"
-                onError={() => setError(true)}
-              />
-            )}
+        <div className="relative mb-4 w-full aspect-square px-2">
+          <div className="w-full h-full rounded-full overflow-hidden shadow-2xl bg-zinc-800">
+            <ImageWithPlaceholder
+              src={artist.image}
+              alt={artist.name}
+              className="w-full h-full object-cover"
+              type="artist"
+            />
           </div>
-          <button className="absolute bottom-2 right-2 w-12 h-12 bg-[#1db954] rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-[#1ed760] opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0">
-            <ICONS.Play className="w-6 h-6 text-black ml-0.5" />
+        </div>
+        <div className="flex flex-col items-center gap-1 mb-3 w-full px-2">
+          <div className="flex items-center gap-1 justify-center w-full">
+            <span className="font-bold text-white truncate max-w-full">
+              {artist.name}
+            </span>
+            {artist.verified && <ICONS.Verified className="shrink-0" />}
+          </div>
+          <div className="text-sm text-[#a7a7a7]">
+            هنرمند • {artist.followers} دنبال‌کننده
+          </div>
+        </div>
+        <div className="mt-auto w-full px-2">
+          <button
+            disabled={isFollowLoading}
+            onClick={(e) => {
+              e.stopPropagation();
+              onFollow(artist.id, isFollowing);
+            }}
+            className={`w-full py-2.5 rounded-full text-sm font-bold transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center min-h-[40px] ${
+              isFollowing
+                ? "bg-[#1db954] text-black hover:bg-[#1ed760]"
+                : "bg-white text-black hover:bg-zinc-200"
+            } ${isFollowLoading ? "opacity-75 cursor-not-allowed" : ""}`}
+          >
+            {isFollowLoading ? (
+              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+            ) : isFollowing ? (
+              "دنبال شده"
+            ) : (
+              "دنبال کردن"
+            )}
           </button>
-        </div>
-        <div className="flex items-center gap-1 mb-1">
-          <span className="font-bold text-white truncate">{artist.name}</span>
-          {artist.verified && <ICONS.Verified />}
-        </div>
-        <div className="text-sm text-[#a7a7a7]">
-          هنرمند • {artist.followers} دنبال‌کننده
         </div>
       </div>
     );
   },
 );
 
-const GenreCard = memo(
-  ({ genre, onClick }: { genre: Genre; onClick: () => void }) => (
-    <div
-      className="relative aspect-square rounded-lg overflow-hidden cursor-pointer group"
-      style={{ backgroundColor: genre.color }}
-      onClick={onClick}
-    >
-      <Image
-        src={`https://picsum.photos/seed/${genre.id}/200/200`}
-        alt=""
-        fill
-        className="object-cover opacity-40 mix-blend-multiply"
-        onError={(e) => {
-          // Fallback to just color if image fails
-          e.currentTarget.style.display = "none";
-        }}
-      />
-      <div className="absolute inset-0 p-4 flex flex-col justify-end">
-        <span className="font-bold text-xl text-white drop-shadow-lg">
-          {genre.name}
-        </span>
+const AlbumCard = memo(
+  ({ album, onClick }: { album: Album; onClick: () => void }) => {
+    return (
+      <div
+        onClick={onClick}
+        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer"
+      >
+        <div className="relative mb-4 aspect-square">
+          <ImageWithPlaceholder
+            src={album.image}
+            alt={album.title}
+            className="w-full h-full object-cover rounded-md shadow-2xl"
+            type="song"
+          />
+        </div>
+        <div className="font-bold text-white truncate mb-1">{album.title}</div>
+        <div className="text-sm text-[#a7a7a7] truncate">
+          {album.artist} • {album.year}
+        </div>
       </div>
-      <div className="absolute inset-0 flex items-center justify-center text-6xl transform rotate-25 group-hover:scale-110 transition-transform drop-shadow-lg">
-        {genre.image}
+    );
+  },
+);
+
+const PlaylistCard = memo(
+  ({ playlist, onClick }: { playlist: Playlist; onClick: () => void }) => {
+    return (
+      <div
+        onClick={onClick}
+        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer"
+      >
+        <div className="relative mb-4 aspect-square">
+          <ImageWithPlaceholder
+            src={playlist.image}
+            alt={playlist.title}
+            className="w-full h-full object-cover rounded-md shadow-2xl"
+            type="song"
+          />
+          <button className="absolute bottom-2 right-2 w-10 h-10 bg-[#1db954] rounded-full flex items-center justify-center shadow-2xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-105">
+            <ICONS.Play className="w-5 h-5 text-black ml-0.5" />
+          </button>
+        </div>
+        <div className="font-bold text-white truncate mb-1">
+          {playlist.title}
+        </div>
+        <div className="text-sm text-[#a7a7a7] truncate">
+          توسط SedaBox • {playlist.songsCount} آهنگ
+        </div>
       </div>
-    </div>
-  ),
+    );
+  },
 );
 
 const HistoryItem = memo(
@@ -412,9 +657,188 @@ const LoadingSkeleton = memo(() => (
   </div>
 ));
 
+const EventSkeleton = memo(() => (
+  <div className="space-y-4 animate-pulse">
+    <div className="h-8 w-32 bg-zinc-800 rounded-md mb-6" />
+    {[...Array(3)].map((_, i) => (
+      <div
+        key={i}
+        className="w-full flex items-center justify-between gap-4 p-3 rounded-lg bg-[#101010] border border-white/5"
+      >
+        <div className="flex-1 space-y-2 text-right">
+          <div className="h-5 bg-zinc-800 rounded w-1/3 ml-auto" />
+          <div className="h-4 bg-zinc-800 rounded w-1/4 ml-auto" />
+        </div>
+        <div className="w-16 h-16 bg-zinc-800 rounded shadow-lg flex-shrink-0" />
+      </div>
+    ))}
+  </div>
+));
+
+const SectionsSkeleton = memo(() => (
+  <div className="space-y-10">
+    {[...Array(2)].map((_, i) => (
+      <div key={i} className="animate-pulse space-y-4">
+        <div className="h-8 w-48 bg-zinc-800/50 rounded-md" />
+        <div className="flex gap-4 overflow-hidden -mx-2 px-2">
+          {[...Array(5)].map((_, j) => (
+            <div
+              key={j}
+              className="min-w-[160px] md:min-w-[180px] p-4 rounded-xl bg-[#181818]/30 border border-white/5 shadow-sm"
+            >
+              <div className="aspect-square bg-zinc-800/50 rounded-lg mb-4 shadow-2xl" />
+              <div className="h-4 bg-zinc-800/50 rounded-full w-3/4 mx-auto mb-2" />
+              <div className="h-3 bg-zinc-800/50 rounded-full w-1/2 mx-auto" />
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+));
+
+const SectionCard = memo(
+  ({
+    item,
+    type,
+    onClick,
+    onPlay,
+  }: {
+    item: any;
+    type: "song" | "playlist" | "album";
+    onClick: () => void;
+    onPlay: (e: React.MouseEvent) => void;
+  }) => {
+    const title = item.title;
+    const subTitle = item.artist_name || item.name || item.description || "";
+    let image = item.cover_image || item.image;
+
+    // For playlists without cover, use first song's cover
+    if (type === "playlist" && !image && item.songs?.length > 0) {
+      image = item.songs[0].cover_image;
+    }
+
+    return (
+      <div
+        onClick={onClick}
+        className="group min-w-[160px] md:min-w-[190px] p-4 rounded-xl bg-[#181818]/20 hover:bg-[#282828]/60 border border-transparent hover:border-white/5 transition-all duration-300 cursor-pointer flex flex-col items-center text-center shadow-lg"
+      >
+        <div className="relative mb-4 w-full aspect-square group-hover:-translate-y-1 transition-transform duration-300">
+          <ImageWithPlaceholder
+            src={image}
+            alt={title}
+            className="w-full h-full object-cover rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.5)] group-hover:shadow-[0_12px_32px_rgba(0,0,0,0.6)]"
+            type="song"
+          />
+          <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors rounded-lg" />
+          <button
+            onClick={onPlay}
+            className="absolute bottom-2 left-2 w-10 h-10 bg-[#1db954] rounded-full flex items-center justify-center shadow-2xl opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-110 active:scale-95 z-10"
+          >
+            <ICONS.Play className="w-5 h-5 text-black ml-0.5" />
+          </button>
+        </div>
+        <div className="w-full space-y-1">
+          <div className="font-bold text-white text-sm truncate w-full">
+            {title}
+          </div>
+          <div className="text-xs text-[#a7a7a7] truncate w-full group-hover:text-white/80 transition-colors">
+            {subTitle}
+          </div>
+        </div>
+      </div>
+    );
+  },
+);
+
+const SectionHorizontalList = memo(
+  ({
+    section,
+    onNavigate,
+    onPlayTrack,
+  }: {
+    section: SearchSection;
+    onNavigate: (type: string, id: any) => void;
+    onPlayTrack: (song: any) => void;
+  }) => {
+    const items =
+      section.type === "song"
+        ? section.songs
+        : section.type === "playlist"
+          ? section.playlists
+          : section.albums;
+
+    if (!items || items.length === 0) return null;
+
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-extrabold tracking-tight text-white group cursor-default">
+          {section.title}
+          <span className="block h-1 w-12 bg-[#1db954] rounded-full mt-1.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+        </h2>
+        <div className="flex gap-5 overflow-x-auto pb-6 pt-1 scrollbar-hide -mx-2 px-2">
+          {items.map((item) => (
+            <SectionCard
+              key={item.id}
+              item={item}
+              type={section.type}
+              onClick={() => {
+                if (section.type === "song") {
+                  onPlayTrack(item);
+                } else {
+                  onNavigate(`${section.type}-detail`, item.id);
+                }
+              }}
+              onPlay={(e) => {
+                e.stopPropagation();
+                if (section.type === "song") {
+                  onPlayTrack(item);
+                } else {
+                  onNavigate(`${section.type}-detail`, item.id);
+                }
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  },
+);
+
+const ModernBackground = memo(() => (
+  <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+    {/* Spotify-inspired Greenish Glows - Darker & Subtler */}
+    <div className="absolute top-[-20%] left-[-15%] w-[120%] h-[120%] bg-[#1db954]/5 rounded-full blur-[160px] animate-bg-float-1" />
+    <div className="absolute bottom-[-25%] right-[-15%] w-[100%] h-[100%] bg-emerald-600/5 rounded-full blur-[180px] animate-bg-float-2" />
+    <div className="absolute top-[30%] left-[10%] w-[60%] h-[60%] bg-[#1db954]/3 rounded-full blur-[120px] animate-bg-float-3" />
+
+    {/* Clean Modern Subtle Grid */}
+    <div
+      className="absolute inset-0 opacity-[0.02]"
+      style={{
+        backgroundImage: `linear-gradient(rgba(29, 185, 84, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(29, 185, 84, 0.2) 1px, transparent 1px)`,
+        backgroundSize: "120px 120px",
+      }}
+    />
+
+    {/* Very light Noise for texture */}
+    <div
+      className="absolute inset-0 opacity-[0.012] mix-blend-overlay"
+      style={{
+        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+      }}
+    />
+
+    {/* Top and Bottom Vignettes for focus on content */}
+    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60" />
+  </div>
+));
+
 // ============ MAIN COMPONENT ============
 export default function Search() {
   const { navigateTo } = useNavigation();
+  const { playTrack } = usePlayer();
+  const { accessToken } = useAuth();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   const [isFocused, setIsFocused] = useState(false);
@@ -435,19 +859,76 @@ export default function Search() {
     console.log(`Action ${action} on song ${song.title}`);
   };
 
-  const [activeFilter, setActiveFilter] = useState<"all" | "songs" | "artists">(
-    "all",
+  const [activeFilter, setActiveFilter] = useState<
+    "all" | "songs" | "artists" | "albums" | "playlists"
+  >("all");
+  const [followedStatus, setFollowedStatus] = useState<Record<string, boolean>>(
+    {},
   );
+  const [followingId, setFollowingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const handleFollow = useCallback(
+    (artistId: string, currentlyFollowing: boolean) => {
+      if (!accessToken) {
+        toast.error("برای دنبال کردن ابتدا وارد شوید");
+        return;
+      }
+
+      setFollowingId(artistId);
+
+      fetch(`https://api.sedabox.com/api/follow/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ artist_id: artistId }),
+      })
+        .then((response) => {
+          if (response.ok) {
+            return response.json();
+          }
+          throw new Error("Follow action failed");
+        })
+        .then((data) => {
+          setFollowedStatus((prev) => ({
+            ...prev,
+            [artistId]: data.message === "followed",
+          }));
+          toast.success(
+            data.message === "followed" ? "دنبال شد" : "لغو دنبال کردن",
+          );
+        })
+        .catch((error) => {
+          console.error("Follow action failed", error);
+          toast.error("خطا در انجام عملیات");
+        })
+        .finally(() => {
+          setFollowingId(null);
+        });
+    },
+    [accessToken],
+  );
+
   // Custom Hooks
-  const { results, isLoading } = useSearch(debouncedQuery);
+  const { results, isLoading } = useSearch(
+    debouncedQuery,
+    activeFilter,
+    accessToken,
+  );
   const {
     history,
     add: addToHistory,
     remove: removeFromHistory,
     clear: clearHistory,
   } = useSearchHistory();
+
+  const { currentEvent, isLoading: isEventLoading } =
+    useEventPlaylists(accessToken);
+
+  const { sections, isLoading: isSectionsLoading } =
+    useSearchSections(accessToken);
 
   // Handlers (Memoized)
   const handleSearch = useCallback(
@@ -468,9 +949,9 @@ export default function Search() {
   const handlePlaySong = useCallback(
     (song: Song) => {
       addToHistory(`${song.title} - ${song.artist}`, "song");
-      console.log("Playing:", song);
+      playTrack(song as any);
     },
-    [addToHistory],
+    [addToHistory, playTrack],
   );
 
   const handleArtistClick = useCallback(
@@ -481,14 +962,6 @@ export default function Search() {
     [addToHistory, navigateTo],
   );
 
-  const handleGenreClick = useCallback(
-    (genre: Genre) => {
-      setQuery(genre.name);
-      handleSearch(genre.name);
-    },
-    [handleSearch],
-  );
-
   const handleHistorySelect = useCallback(
     (item: SearchHistory) => {
       setQuery(item.query);
@@ -497,19 +970,44 @@ export default function Search() {
     [handleSearch],
   );
 
+  const handleEventPlaylistPress = useCallback(
+    (eventId: number, playlistId: number) => {
+      // Immediately navigate to the playlist detail and let that screen fetch data.
+      navigateTo("playlist-detail", { id: String(playlistId) });
+    },
+    [navigateTo],
+  );
+
   // Derived State
-  const hasResults = results.songs.length > 0 || results.artists.length > 0;
+  const hasResults =
+    results.songs.length > 0 ||
+    results.artists.length > 0 ||
+    results.albums.length > 0 ||
+    results.playlists.length > 0;
   const showResults = debouncedQuery.trim() && !isLoading;
-  const showSongs = activeFilter !== "artists" && results.songs.length > 0;
-  const showArtists = activeFilter !== "songs" && results.artists.length > 0;
+
+  const showSongs =
+    (activeFilter === "all" || activeFilter === "songs") &&
+    results.songs.length > 0;
+  const showArtists =
+    (activeFilter === "all" || activeFilter === "artists") &&
+    results.artists.length > 0;
+  const showAlbums =
+    (activeFilter === "all" || activeFilter === "albums") &&
+    results.albums.length > 0;
+  const showPlaylists =
+    (activeFilter === "all" || activeFilter === "playlists") &&
+    results.playlists.length > 0;
 
   return (
     <div
-      className="min-h-screen bg-transparent text-white pb-24 md:pb-4"
+      className="relative min-h-screen bg-transparent text-white pb-24 md:pb-4 overflow-hidden"
       dir="rtl"
     >
+      {!query.trim() && <ModernBackground />}
+
       {/* Desktop Header with Navigation */}
-      <header className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl">
+      <header className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl relative">
         <div className="flex items-center gap-2">
           {/* Removed back/forward buttons as we don't have router */}
         </div>
@@ -569,7 +1067,7 @@ export default function Search() {
       </header>
 
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-50 bg-[#121212]/95 backdrop-blur-md border-b border-white/5">
+      <header className="md:hidden sticky top-0 z-50 bg-[#121212]/95 backdrop-blur-md border-b border-white/5 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-4">
             <div
@@ -623,6 +1121,8 @@ export default function Search() {
               { k: "all", l: "همه" },
               { k: "songs", l: "آهنگ‌ها" },
               { k: "artists", l: "هنرمندان" },
+              { k: "albums", l: "آلبوم‌ها" },
+              { k: "playlists", l: "لیست‌های پخش" },
             ].map((f) => (
               <button
                 key={f.k}
@@ -641,58 +1141,48 @@ export default function Search() {
       )}
 
       {/* Main */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 md:pb-4">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 md:pb-4">
         {isLoading && <LoadingSkeleton />}
 
         {showResults && hasResults && (
           <div className="space-y-8">
             {/* Top Result Block */}
-            {showArtists && showSongs && activeFilter === "all" && (
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-6">
-                <section>
-                  <h2 className="text-2xl font-bold mb-4">نتیجه برتر</h2>
-                  <div
-                    className="group p-5 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer relative"
-                    onClick={() => handleArtistClick(results.artists[0])}
-                  >
-                    <img
-                      src={results.artists[0].image}
-                      alt=""
-                      className="w-24 h-24 rounded-full mb-5 shadow-2xl"
-                      onError={(e) => (e.currentTarget.src = "")}
+            {showArtists &&
+              showSongs &&
+              activeFilter === "all" &&
+              results.artists[0] && (
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-6">
+                  <section>
+                    <h2 className="text-2xl font-bold ">نتیجه برتر</h2>
+                    <ArtistCard
+                      key={results.artists[0].id}
+                      artist={results.artists[0]}
+                      onClick={() => handleArtistClick(results.artists[0])}
+                      onFollow={handleFollow}
+                      isFollowing={
+                        (followedStatus[results.artists[0].id] ??
+                          results.artists[0].is_following) ||
+                        false
+                      }
+                      isFollowLoading={followingId === results.artists[0].id}
                     />
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-3xl font-bold">
-                        {results.artists[0].name}
-                      </span>
-                      {results.artists[0].verified && (
-                        <ICONS.Verified className="w-6 h-6" />
-                      )}
+                  </section>
+                  <section>
+                    <h2 className="text-2xl font-bold mb-4 mt-6">آهنگ‌ها</h2>
+                    <div className="space-y-1">
+                      {results.songs.slice(0, 4).map((song, i) => (
+                        <SongCard
+                          key={song.id}
+                          song={song}
+                          index={i}
+                          onPlay={() => handlePlaySong(song)}
+                          onMore={handleMore}
+                        />
+                      ))}
                     </div>
-                    <span className="inline-block px-3 py-1 bg-[#121212] rounded-full text-sm font-medium mt-2">
-                      هنرمند
-                    </span>
-                    <button className="absolute bottom-5 right-5 w-12 h-12 bg-[#1db954] rounded-full flex items-center justify-center shadow-2xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-105 hover:bg-[#1ed760]">
-                      <ICONS.Play className="w-6 h-6 text-black ml-0.5" />
-                    </button>
-                  </div>
-                </section>
-                <section>
-                  <h2 className="text-2xl font-bold mb-4">آهنگ‌ها</h2>
-                  <div className="space-y-1">
-                    {results.songs.slice(0, 4).map((song, i) => (
-                      <SongCard
-                        key={song.id}
-                        song={song}
-                        index={i}
-                        onPlay={() => handlePlaySong(song)}
-                        onMore={handleMore}
-                      />
-                    ))}
-                  </div>
-                </section>
-              </div>
-            )}
+                  </section>
+                </div>
+              )}
 
             {/* Artists Grid */}
             {showArtists &&
@@ -709,11 +1199,53 @@ export default function Search() {
                         key={artist.id}
                         artist={artist}
                         onClick={() => handleArtistClick(artist)}
+                        onFollow={handleFollow}
+                        isFollowing={
+                          (followedStatus[artist.id] ?? artist.is_following) ||
+                          false
+                        }
+                        isFollowLoading={followingId === artist.id}
                       />
                     ))}
                   </div>
                 </section>
               )}
+
+            {/* Albums Grid */}
+            {showAlbums && (
+              <section>
+                <h2 className="text-2xl font-bold mb-4">آلبوم‌ها</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                  {results.albums.map((album) => (
+                    <AlbumCard
+                      key={album.id}
+                      album={album}
+                      onClick={() =>
+                        navigateTo("album-detail", { id: album.id })
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Playlists Grid */}
+            {showPlaylists && (
+              <section>
+                <h2 className="text-2xl font-bold mb-4">لیست‌های پخش</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                  {results.playlists.map((playlist) => (
+                    <PlaylistCard
+                      key={playlist.id}
+                      playlist={playlist}
+                      onClick={() =>
+                        navigateTo("playlist-detail", { id: playlist.id })
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Full Song List */}
             {showSongs && activeFilter === "songs" && (
@@ -737,18 +1269,30 @@ export default function Search() {
 
         {/* Not Found */}
         {showResults && !hasResults && debouncedQuery.trim() && (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="text-6xl mb-4">🔍</div>
-            <h2 className="text-2xl font-bold mb-2">
-              نتیجه‌ای برای "{debouncedQuery}" پیدا نشد
+          <div className="flex flex-col items-center justify-center py-24 text-center animate-in fade-in duration-700">
+            <div className="bg-zinc-800 p-8 rounded-full mb-8">
+              <ICONS.Search className="w-12 h-12 text-zinc-400" />
+            </div>
+            <h2 className="text-2xl font-bold mb-3">
+              نتیجه‌ای برای «{debouncedQuery}» یافت نشد
             </h2>
-            <p className="text-[#a7a7a7] max-w-md">
-              لطفاً مطمئن شوید که کلمات را درست نوشته‌اید.
+            <p className="text-[#a7a7a7] max-w-md mx-auto">
+              لطفاً املای کلمات را بررسی کنید یا از کلمات کلیدی متفاوتی استفاده
+              کنید.
             </p>
+            <button
+              onClick={() => {
+                setQuery("");
+                inputRef.current?.focus();
+              }}
+              className="mt-8 px-8 py-3 bg-white text-black rounded-full font-bold hover:scale-105 active:scale-95 transition-all"
+            >
+              پاک کردن جستجو
+            </button>
           </div>
         )}
 
-        {/* Default View: History & Genres */}
+        {/* Default View: History & Event Playlists */}
         {!debouncedQuery.trim() && !isLoading && (
           <div className="space-y-8">
             {history.length > 0 && (
@@ -774,18 +1318,67 @@ export default function Search() {
                 </div>
               </section>
             )}
-            <section>
-              <h2 className="text-2xl font-bold mb-4">همه ژانرها</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-                {BROWSE_GENRES.map((genre: Genre) => (
-                  <GenreCard
-                    key={genre.id}
-                    genre={genre}
-                    onClick={() => handleGenreClick(genre)}
+            {isEventLoading && <EventSkeleton />}
+            {currentEvent && !isEventLoading && (
+              <section>
+                <h2 className="text-2xl font-bold mb-4">
+                  {currentEvent.title}
+                </h2>
+                <div className="space-y-3">
+                  {currentEvent.playlists.map((playlist: EventPlaylist) => (
+                    <button
+                      key={playlist.id}
+                      onClick={() =>
+                        handleEventPlaylistPress(currentEvent.id, playlist.id)
+                      }
+                      className="w-full flex items-center justify-between gap-4 p-3 rounded-lg bg-[#101010] hover:bg-[#1b1b1b] transition-all duration-200 shadow-inner"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col text-right">
+                          <span className="text-white font-medium">
+                            {playlist.title}
+                          </span>
+                          {playlist.description && (
+                            <span className="text-sm text-[#a7a7a7]">
+                              {playlist.description}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden shadow-lg">
+                        <ImageWithPlaceholder
+                          src={playlist.cover_image}
+                          alt={playlist.title}
+                          className="object-cover w-full h-full"
+                          type="song"
+                        />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {isSectionsLoading && <SectionsSkeleton />}
+
+            {!isSectionsLoading &&
+              sections.map((section) => (
+                <section key={section.id}>
+                  <SectionHorizontalList
+                    section={section}
+                    onNavigate={(type, id) => navigateTo(type as any, { id })}
+                    onPlayTrack={(song) =>
+                      handlePlaySong({
+                        ...song,
+                        image: song.cover_image,
+                        artist: song.artist_name,
+                        src: song.stream_url,
+                        duration: `${Math.floor(song.duration_seconds / 60)}:${(song.duration_seconds % 60).toString().padStart(2, "0")}`,
+                      })
+                    }
                   />
-                ))}
-              </div>
-            </section>
+                </section>
+              ))}
           </div>
         )}
       </main>
@@ -795,7 +1388,25 @@ export default function Search() {
         song={selectedSong}
         onAction={handleAction}
       />
-      <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
+      <style>{`
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes bg-float-1 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(3%, 3%) scale(1.05); }
+        }
+        @keyframes bg-float-2 {
+          0%, 100% { transform: translate(0, 0) scale(1.05); }
+          50% { transform: translate(-3%, -3%) scale(1); }
+        }
+        @keyframes bg-float-3 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(1%, -1%) scale(1.02); }
+        }
+        .animate-bg-float-1 { animation: bg-float-1 20s infinite alternate ease-in-out; }
+        .animate-bg-float-2 { animation: bg-float-2 25s infinite alternate ease-in-out; }
+        .animate-bg-float-3 { animation: bg-float-3 18s infinite alternate ease-in-out; }
+      `}</style>
     </div>
   );
 }

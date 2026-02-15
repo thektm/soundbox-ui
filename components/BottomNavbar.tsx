@@ -159,7 +159,11 @@ export default function BottomNavbar() {
   const isDesktopOrTablet = useMediaQuery("(min-width: 768px)");
 
   useEffect(() => {
-    const tab = tabs.find((t) => t.path === currentPage);
+    // Match currentPage (e.g., "home", "search", "library") to tab path (e.g., "/", "/search", "/library")
+    const tab = tabs.find((t) => {
+      if (t.path === "/") return currentPage === "home";
+      return t.path === `/${currentPage}`;
+    });
     if (tab) setActiveTab(tab.id);
   }, [currentPage]);
 

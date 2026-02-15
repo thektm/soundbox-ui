@@ -167,6 +167,29 @@ const Equalizer = () => (
   </div>
 );
 
+// ============== HOOK: scroll tracking (like ArtistDetail) ==============
+const useScrollY = (element?: HTMLElement | null) => {
+  const [y, setY] = useState(0);
+  const raf = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    const target = element || window;
+    const onScroll = () => {
+      if (raf.current) return;
+      raf.current = requestAnimationFrame(() => {
+        setY(element ? (element as HTMLElement).scrollTop : window.scrollY);
+        raf.current = undefined;
+      });
+    };
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      target.removeEventListener("scroll", onScroll);
+      raf.current && cancelAnimationFrame(raf.current);
+    };
+  }, [element]);
+  return y;
+};
+
 // ============== SONG ROW ==============
 
 const SongRow = memo(
@@ -253,7 +276,7 @@ interface PlaylistDetailProps {
 }
 
 const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
-  const { goBack } = useNavigation();
+  const { goBack, scrollContainer } = useNavigation();
   const { accessToken } = useAuth();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
@@ -264,6 +287,10 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
 
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const scrollY = useScrollY(scrollContainer);
+  const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
+  const showHeader = scrollY > 50;
 
   const fetchPlaylist = useCallback(async () => {
     if (!id) return;
@@ -360,13 +387,49 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
     return `${mins} دقیقه`;
   }, [playlist]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+  const PlaylistSkeleton = memo(() => (
+    <div
+      className="min-h-screen bg-[#0a0a0a] text-white animate-pulse"
+      dir="rtl"
+    >
+      <div className="relative w-full h-96 md:h-[500px] bg-zinc-900 mb-6" />
+
+      <div className="px-6 md:px-12 py-6">
+        <div className="flex items-center gap-6 mb-6">
+          <div className="w-16 h-16 rounded-full bg-zinc-800" />
+          <div className="flex-1">
+            <div className="h-5 bg-zinc-800 rounded w-3/4 mb-3" />
+            <div className="h-4 bg-zinc-800 rounded w-1/2" />
+          </div>
+          <div className="w-12 h-12 bg-zinc-800 rounded-full" />
+        </div>
+
+        <div className="space-y-3">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-4 py-3 px-2 rounded-md bg-transparent"
+            >
+              <div className="w-6 text-center text-sm text-neutral-400 tabular-nums">
+                <div className="h-4 w-4 bg-zinc-800 rounded mx-auto" />
+              </div>
+              <div className="w-11 h-11 shrink-0 overflow-hidden rounded bg-zinc-800" />
+              <div className="flex-1 min-w-0">
+                <div className="h-4 bg-zinc-800 rounded w-3/4 mb-2" />
+                <div className="h-3 bg-zinc-800 rounded w-1/3" />
+              </div>
+              <div className="hidden sm:block w-12">
+                <div className="h-4 bg-zinc-800 rounded w-12 ml-auto" />
+              </div>
+              <div className="w-8" />
+            </div>
+          ))}
+        </div>
       </div>
-    );
-  }
+    </div>
+  ));
+
+  if (loading) return <PlaylistSkeleton />;
 
   if (!playlist) {
     return (
@@ -388,6 +451,57 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
       className="min-h-screen bg-linear-to-b from-neutral-900 via-neutral-950 to-black text-white pb-24"
       dir="rtl"
     >
+      {/* Desktop glass header (appears on scroll) */}
+      <header
+        className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl"
+        style={{ backgroundColor: `rgba(17,17,17,${headerOpacity})` }}
+      >
+        <div className="flex items-center gap-3">
+          <button
+            onClick={goBack}
+            className="w-10 h-10 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center transition-all"
+          >
+            <Icon name="arrowLeft" className="w-5 h-5 text-white" />
+          </button>
+        </div>
+        <div className="flex-1 text-center">
+          <div className="text-sm text-white font-semibold truncate max-w-lg mx-auto">
+            {playlist.title}
+          </div>
+        </div>
+        <div className="flex items-center gap-3" />
+      </header>
+
+      {/* Mobile condensed header that slides in when scrolled */}
+      <header
+        className="md:hidden fixed flex-row-reverse top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
+        style={{
+          transform: showHeader ? "translateY(0)" : "translateY(-100%)",
+          opacity: showHeader ? 1 : 0,
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <button
+            onClick={goBack}
+            className="w-10 h-10 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center transition-all"
+          >
+            <Icon name="arrowLeft" className="w-5 h-5 text-white" />
+          </button>
+        </div>
+        <div className="flex-1 text-center">
+          <div className="text-sm text-white font-semibold truncate max-w-xs mx-auto">
+            {playlist.title}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePlayAll}
+            className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center shadow-md"
+          >
+            <Icon name="play" className="w-4 h-4 text-black ml-0.5" />
+          </button>
+        </div>
+      </header>
       <header
         className="relative w-full h-96 md:h-[500px] bg-cover bg-center bg-no-repeat"
         style={{

@@ -11,6 +11,7 @@ export interface Song {
   image: string;
   src: string;
   explicit?: boolean;
+  plays?: number;
 }
 
 export interface Artist {
@@ -21,6 +22,7 @@ export interface Artist {
   profileImage?: string;
   followers: string;
   verified?: boolean;
+  is_following?: boolean;
 }
 
 export interface Album {

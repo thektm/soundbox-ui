@@ -1,5 +1,7 @@
 "use client";
 
+import { usePlayer, Track } from "./PlayerContext";
+
 import React, {
   useState,
   useEffect,
@@ -81,7 +83,17 @@ interface ArtistResponse {
 
 const BILLIE_BIO_FA = `بیلی آیلیش پایرت بیرد اوکانل (زادهٔ ۱۸ دسامبر ۲۰۰۱) خواننده و ترانه‌نویس آمریکایی است. او اولین بار در سال ۲۰۱۵ با تک‌آهنگ «چشم‌های اقیانوسی» توجه‌ها را به خود جلب کرد که پس از انتشار در ساوندکلاود، توسط شرکت‌های دارک‌روم و اینترسکوپ رکوردز منتشر شد. این ترانه توسط برادرش فینیس اوکانل نوشته و تهیه شده‌است که بیلی در موسیقی و برنامه‌های زنده با او همکاری می‌کند. اولین ئی‌پی او، به من لبخند نزن (۲۰۱۷) در میان ۱۵ رتبه برتر جدول‌های فروش ایالات متحده، بریتانیا، کانادا و استرالیا قرار گرفت. اولین آلبوم استودیویی او، وقتی همه می‌خوابیم، کجا می‌ریم؟ (۲۰۱۹) به رتبه اول بیلبورد ۲۰۰ ایالات متحده رسید و به بهترین عملکرد آلبوم در سال ۲۰۱۹ تبدیل شد. او جوان‌ترین فرد و دومین نفری است که موفق به کسب چهار جایزه اصلی گرمی (بهترین هنرمند جدید، ضبط سال، ترانه سال و آلبوم سال) در یک سال شده است. سبک موسیقی او پاپ، الکتروپاپ و ایندی پاپ توصیف شده است. او از هنرمندانی چون لانا دل ری، تایلر، د کریتور و چایلدیش گامبینو تأثیر گرفته است. صدای او سوپرانو است و اغلب با سبک آوازخوانی زمزمه‌وار شناخته می‌شود. او در لس آنجلس بزرگ شده و در خانه آموزش دیده است.`;
 
-// ============== SVG ICON COMPONENT ==============
+// Ensure any URL coming from the server uses HTTPS where possible.
+function ensureHttps(u?: string | null): string | undefined {
+  if (!u) return u ?? undefined;
+  try {
+    if (/^\/\//.test(u)) return "https:" + u;
+    if (/^http:\/\//i.test(u)) return u.replace(/^http:\/\//i, "https://");
+  } catch (e) {
+    // ignore
+  }
+  return u;
+}
 type IconName =
   | "play"
   | "pause"
@@ -149,24 +161,29 @@ const Icon = memo(
 Icon.displayName = "Icon";
 
 // ============== HOOKS ==============
-const useScrollY = () => {
+const useScrollY = (element?: HTMLElement | null) => {
   const [y, setY] = useState(0);
   const raf = useRef<number | undefined>(undefined);
 
   useEffect(() => {
+    const target = element || window;
     const onScroll = () => {
+      console.log(
+        "onScroll called, scrollY:",
+        element ? element.scrollTop : window.scrollY,
+      );
       if (raf.current) return;
       raf.current = requestAnimationFrame(() => {
-        setY(window.scrollY);
+        setY(element ? element.scrollTop : window.scrollY);
         raf.current = undefined;
       });
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
+    target.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      target.removeEventListener("scroll", onScroll);
       raf.current && cancelAnimationFrame(raf.current);
     };
-  }, []);
+  }, [element]);
   return y;
 };
 
@@ -506,14 +523,17 @@ const ArtistSkeleton = () => (
 );
 
 export default function ArtistDetail({ id }: ArtistDetailProps) {
-  const { goBack, currentParams } = useNavigation();
+  const { goBack, currentParams, scrollContainer } = useNavigation();
+  const { playTrack, setQueue } = usePlayer();
   const artistId = id || currentParams?.id;
 
-  const scrollY = useScrollY();
+  const scrollY = useScrollY(scrollContainer);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const headerRef = React.useRef<HTMLElement | null>(null);
   const [data, setData] = useState<ArtistResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [following, setFollowing] = useState(false);
+  const [following, setFollowing] = useState<boolean | null>(null);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [isBioOpen, setIsBioOpen] = useState(false);
 
@@ -526,14 +546,19 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     const fetchArtist = async () => {
       setLoading(true);
       try {
+        const headers: Record<string, string> = {};
+        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
         const res = await fetch(
           `https://api.sedabox.com/api/artists/${artistId}/`,
+          { headers },
         );
         const json = await res.json();
         setData(json);
         setFollowing(json.artist.is_following);
       } catch (err) {
         console.error("Error fetching artist:", err);
+        setFollowing(false);
       } finally {
         setLoading(false);
       }
@@ -543,7 +568,18 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
   }, [artistId]);
 
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
-  const showHeader = scrollY > 340;
+  const showHeader = scrollY > 50;
+
+  useEffect(() => {
+    console.log(
+      "scrollY:",
+      scrollY,
+      "showHeader:",
+      showHeader,
+      "headerOpacity:",
+      headerOpacity,
+    );
+  }, [scrollY, showHeader, headerOpacity]);
 
   const artist = data?.artist;
   const songs = data?.top_songs.items || [];
@@ -556,21 +592,56 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     [showAll, songs],
   );
 
-  const playSong = useCallback((song: any) => {
-    // This should probably interface with usePlayer
-    console.log("Playing", song.title);
-  }, []);
-
-  const playAll = useCallback(
-    () => songs[0] && playSong(songs[0]),
-    [songs, playSong],
+  const playSong = useCallback(
+    (song: ApiSong) => {
+      const track: Track = {
+        id: String(song.id),
+        title: song.title,
+        artist: song.artist_name,
+        artistId: song.artist_id || song.artist,
+        image: song.cover_image,
+        duration: song.duration_display,
+        src: ensureHttps(song.stream_url),
+        isLiked: song.is_liked,
+        likesCount: song.likes_count,
+      };
+      playTrack(track);
+    },
+    [playTrack],
   );
 
-  const shuffle = useCallback(
-    () =>
-      songs.length && playSong(songs[Math.floor(Math.random() * songs.length)]),
-    [songs, playSong],
-  );
+  const playAll = useCallback(() => {
+    if (!songs.length) return;
+    const tracks: Track[] = songs.map((song) => ({
+      id: String(song.id),
+      title: song.title,
+      artist: song.artist_name,
+      artistId: song.artist_id || song.artist,
+      image: song.cover_image,
+      duration: song.duration_display,
+      src: ensureHttps(song.stream_url),
+      isLiked: song.is_liked,
+      likesCount: song.likes_count,
+    }));
+    setQueue(tracks, 0);
+  }, [songs, setQueue]);
+
+  const shuffle = useCallback(() => {
+    if (!songs.length) return;
+    const shuffled = [...songs].sort(() => Math.random() - 0.5);
+    const tracks: Track[] = shuffled.map((song) => ({
+      id: String(song.id),
+      title: song.title,
+      artist: song.artist_name,
+      artistId: song.artist_id || song.artist,
+      image: song.cover_image,
+      duration: song.duration_display,
+      src: ensureHttps(song.stream_url),
+      isLiked: song.is_liked,
+      likesCount: song.likes_count,
+    }));
+    setQueue(tracks, 0);
+  }, [songs, setQueue]);
 
   const handleMore = useCallback((song: ApiSong) => {
     setSelectedSong(song);
@@ -578,6 +649,43 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
   }, []);
 
   const { accessToken } = useAuth();
+
+  const handleFollow = useCallback(async () => {
+    if (!accessToken) {
+      toast.error("برای دنبال کردن ابتدا وارد شوید");
+      return;
+    }
+    if (!artistId) return;
+
+    setIsFollowLoading(true);
+    try {
+      const res = await fetch(`https://api.sedabox.com/api/follow/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ artist_id: artistId }),
+      });
+
+      if (!res.ok) throw new Error("Follow failed");
+
+      const result = await res.json();
+      const isFollowing = result.message === "followed";
+      setFollowing(isFollowing);
+      setData((prev) =>
+        prev
+          ? { ...prev, artist: { ...prev.artist, is_following: isFollowing } }
+          : null,
+      );
+      toast.success(isFollowing ? "دنبال شد" : "لغو دنبال کردن");
+    } catch (err) {
+      console.error("Follow error:", err);
+      toast.error("خطا در انجام عملیات");
+    } finally {
+      setIsFollowLoading(false);
+    }
+  }, [accessToken, artistId]);
 
   const handleAction = async (action: string, song: any) => {
     console.log(`Action ${action} on song ${song.title}`);
@@ -709,7 +817,8 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
 
         {/* Mobile Sticky Header */}
         <header
-          className="md:hidden fixed flex-row-reverse top-0 inset-x-0 h-16 bg-gradient-to-b from-neutral-900/98 to-neutral-950/95 flex items-center justify-between px-4 z-50 transition-all duration-250"
+          ref={headerRef}
+          className="md:hidden  fixed flex-row-reverse top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
           style={{
             transform: showHeader ? "translateY(0)" : "translateY(-100%)",
             opacity: showHeader ? 1 : 0,
@@ -802,16 +911,29 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         {/* Actions */}
         <section className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setFollowing(!following)}
-              className={`px-5 py-2 rounded-full text-[13px] font-bold border transition hover:scale-[1.02] ${
-                following
-                  ? "border-green-500 text-green-500"
-                  : "border-white/30 hover:border-white"
-              }`}
-            >
-              {following ? "دنبال می‌کنید" : "دنبال کردن"}
-            </button>
+            {following === null ? (
+              <div className="px-5 py-2 rounded-full text-[13px] font-bold border border-white/30 bg-zinc-800 animate-pulse">
+                در حال بارگذاری...
+              </div>
+            ) : (
+              <button
+                onClick={handleFollow}
+                disabled={isFollowLoading}
+                className={`px-5 py-2 rounded-full text-[13px] font-bold border transition hover:scale-[1.02] flex items-center justify-center min-w-[100px] min-h-[38px] ${
+                  following
+                    ? "border-green-500 text-green-500"
+                    : "border-white/30 hover:border-white"
+                } ${isFollowLoading ? "opacity-75 cursor-not-allowed" : ""}`}
+              >
+                {isFollowLoading ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : following ? (
+                  "دنبال می‌کنید"
+                ) : (
+                  "دنبال کردن"
+                )}
+              </button>
+            )}
             <button className="w-10 h-10 flex items-center justify-center text-white/70 rounded-full hover:text-white hover:bg-white/10 transition">
               <Icon name="more" size={24} />
             </button>

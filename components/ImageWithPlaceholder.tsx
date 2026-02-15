@@ -27,29 +27,27 @@ const ImageWithPlaceholder: React.FC<ImageWithPlaceholderProps> = ({
     !resolvedSrc || String(resolvedSrc).includes("picsum.photos") || error;
 
   if (isPlaceholder) {
-    const secondaryIcon = type === "artist" ? "/microphone.svg" : "/song.svg"; // Using song.svg as artist.svg is missing
+    const secondaryIcon = type === "artist" ? "/microphone.svg" : "/song.svg";
 
     return (
       <div
-        className={`relative flex items-center justify-center bg-zinc-800 overflow-hidden ${className}`}
+        className={`relative flex items-center justify-center bg-zinc-800 overflow-hidden w-full h-full ${className}`}
       >
-        {/* Secondary Icon (Microphone or Song) - Pushed up so only 50% remains in view */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-1/4 h-1/4 -translate-y-full ">
-            <img
-              src={secondaryIcon}
-              alt=""
-              className="w-full h-full object-contain scale-90"
-            />
-          </div>
+        {/* Secondary Icon (Microphone or Song) - Center/Background */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+          <img
+            src={secondaryIcon}
+            alt=""
+            className="w-1/2 h-1/2 object-contain grayscale"
+          />
         </div>
 
         {/* Logo - Overlay on top and centered */}
-        <div className="relative z-10 w-1/3 h-1/3 pointer-events-none">
+        <div className="relative z-10 w-1/3 h-1/3 pointer-events-none flex items-center justify-center">
           <img
             src="/logo.png"
             alt="Logo"
-            className="w-full h-full object-contain drop-shadow-lg"
+            className="w-full h-full object-contain drop-shadow-2xl"
           />
         </div>
       </div>
