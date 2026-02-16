@@ -8,7 +8,6 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import Image from "next/image";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
@@ -35,24 +34,23 @@ interface ApiSong {
   play_count?: number;
 }
 
-interface PlaylistResponse {
+interface UserPlaylistResponse {
   id: number;
-  unique_id?: string;
   title: string;
-  description: string;
-  cover_image?: string;
-  covers?: string[];
-  created_at: string;
-  created_by?: string;
+  public: boolean;
+  songs_count: number;
+  likes_count: number;
+  is_liked: boolean;
   songs: ApiSong[];
-  song_ids?: number[];
-  is_liked?: boolean;
-  likes_count?: number;
+  top_three_song_covers: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 // ============== HELPERS ==============
 
 const formatDuration = (seconds: number): string => {
+  if (!seconds) return "0:00";
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
@@ -81,7 +79,9 @@ type IconName =
   | "arrowLeft"
   | "clock"
   | "music"
-  | "shareNetwork";
+  | "shareNetwork"
+  | "lock"
+  | "globe";
 
 const ICON_PATHS: Record<
   IconName,
@@ -116,6 +116,14 @@ const ICON_PATHS: Record<
   shareNetwork: {
     d: "M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z",
     fill: true,
+  },
+  lock: {
+    d: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+    stroke: true,
+  },
+  globe: {
+    d: "M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9",
+    stroke: true,
   },
 };
 
@@ -167,7 +175,7 @@ const Equalizer = () => (
   </div>
 );
 
-// ============== HOOK: scroll tracking (like ArtistDetail) ==============
+// ============== HOOK: scroll tracking ==============
 const useScrollY = (element?: HTMLElement | null) => {
   const [y, setY] = useState(0);
   const raf = useRef<number | undefined>(undefined);
@@ -269,19 +277,18 @@ const SongRow = memo(
 );
 SongRow.displayName = "SongRow";
 
-// ============== PLAYLIST DETAIL ==============
+// ============== USER PLAYLIST DETAIL ==============
 
-interface PlaylistDetailProps {
-  id?: number | string;
-  slug?: string;
+interface UserPlaylistDetailProps {
+  id: number | string;
 }
 
-const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
+const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({ id }) => {
   const { goBack, scrollContainer } = useNavigation();
   const { accessToken } = useAuth();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
-  const [playlist, setPlaylist] = useState<PlaylistResponse | null>(null);
+  const [playlist, setPlaylist] = useState<UserPlaylistResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
@@ -294,20 +301,15 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
   const showHeader = scrollY > 50;
 
   const fetchPlaylist = useCallback(async () => {
-    if (!id) return;
+    if (!id || !accessToken) return;
     setLoading(true);
     try {
-      // Use the recommendation endpoint if the ID is a unique mixed-string ID (smart_rec_ or liked_rec_)
-      const isRecommended =
-        typeof id === "string" &&
-        (id.startsWith("smart_rec_") || id.startsWith("liked_rec_"));
-      const url = isRecommended
-        ? `https://api.sedabox.com/api/home/playlist-recommendations/${id}/`
-        : `https://api.sedabox.com/api/playlists/${id}/`;
-
-      const resp = await fetch(url, {
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-      });
+      const resp = await fetch(
+        `https://api.sedabox.com/api/profile/user-playlists/${id}/`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
       if (resp.ok) {
         const data = await resp.json();
         setPlaylist(data);
@@ -316,7 +318,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
         toast.error("خطا در بارگذاری پلی‌لیست");
       }
     } catch (err) {
-      console.error("Fetch playlist error:", err);
+      console.error("Fetch user playlist error:", err);
       toast.error("خطای شبکه");
     } finally {
       setLoading(false);
@@ -334,51 +336,26 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
     }
     setIsLiking(true);
     try {
-      // Use the recommendation like endpoint when this is a recommended playlist
-      const isRecommended =
-        playlist.unique_id &&
-        (String(playlist.unique_id).startsWith("smart_rec_") ||
-          String(playlist.unique_id).startsWith("liked_rec_"));
-      const likeUrl = isRecommended
-        ? `https://api.sedabox.com/api/home/playlist-recommendations/${playlist.unique_id}/like/`
-        : `https://api.sedabox.com/api/playlists/${playlist.id}/like/`;
-
-      const resp = await fetch(likeUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
+      const resp = await fetch(
+        `https://api.sedabox.com/api/profile/user-playlists/${playlist.id}/like/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
         },
-      });
+      );
       if (resp.ok) {
         const data = await resp.json();
-        // Normalize liked value from possible response shapes
-        const rawLiked =
-          typeof data.liked !== "undefined"
-            ? data.liked
-            : typeof data.is_liked !== "undefined"
-              ? data.is_liked
-              : undefined;
-        const parseBool = (v: any) => {
-          if (typeof v === "boolean") return v;
-          if (typeof v === "number") return v === 1;
-          if (typeof v === "string") return v === "1" || v === "true";
-          return undefined;
-        };
-        const liked =
-          typeof rawLiked !== "undefined" ? parseBool(rawLiked) : !isLiked;
-
-        setIsLiked(Boolean(liked));
+        setIsLiked(!!data.liked);
         if (playlist) {
           setPlaylist({
             ...playlist,
-            likes_count:
-              typeof data.likes_count !== "undefined"
-                ? data.likes_count
-                : playlist.likes_count,
-            is_liked: Boolean(liked),
+            likes_count: data.likes_count ?? playlist.likes_count,
+            is_liked: !!data.liked,
           });
         }
-        toast.success(liked ? "پلی‌لیست لایک شد" : "لایک حذف شد");
+        toast.success(data.liked ? "پلی‌لیست لایک شد" : "لایک حذف شد");
       } else {
         toast.error("خطا در انجام عملیات");
       }
@@ -391,7 +368,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
   };
 
   const handleMore = useCallback((song: ApiSong) => {
-    setSelectedSong(song);
+    setSelectedSong({ ...song, cover_image: song.cover_image });
     setIsDrawerOpen(true);
   }, []);
 
@@ -410,7 +387,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
   const totalDuration = useMemo(() => {
     if (!playlist) return "0:00";
     const totalSecs = playlist.songs.reduce(
-      (sum, s) => sum + s.duration_seconds,
+      (sum, s) => sum + (s.duration_seconds || 0),
       0,
     );
     const hours = Math.floor(totalSecs / 3600);
@@ -419,49 +396,30 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
     return `${mins} دقیقه`;
   }, [playlist]);
 
-  const PlaylistSkeleton = memo(() => (
-    <div
-      className="min-h-screen bg-[#0a0a0a] text-white animate-pulse"
-      dir="rtl"
-    >
-      <div className="relative w-full h-96 md:h-[500px] bg-zinc-900 mb-6" />
-
-      <div className="px-6 md:px-12 py-6">
-        <div className="flex items-center gap-6 mb-6">
-          <div className="w-16 h-16 rounded-full bg-zinc-800" />
-          <div className="flex-1">
-            <div className="h-5 bg-zinc-800 rounded w-3/4 mb-3" />
-            <div className="h-4 bg-zinc-800 rounded w-1/2" />
+  if (loading)
+    return (
+      <div
+        className="min-h-screen bg-[#0a0a0a] text-white animate-pulse"
+        dir="rtl"
+      >
+        <div className="relative w-full h-96 md:h-[500px] bg-zinc-900 mb-6" />
+        <div className="px-6 md:px-12 pb-12">
+          <div className="h-10 bg-zinc-800 rounded w-1/3 mb-4" />
+          <div className="h-4 bg-zinc-800 rounded w-2/3 mb-12" />
+          <div className="space-y-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex gap-4 items-center">
+                <div className="w-12 h-12 bg-zinc-800 rounded" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-zinc-800 rounded w-1/4" />
+                  <div className="h-3 bg-zinc-800 rounded w-1/6" />
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="w-12 h-12 bg-zinc-800 rounded-full" />
-        </div>
-
-        <div className="space-y-3">
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-4 py-3 px-2 rounded-md bg-transparent"
-            >
-              <div className="w-6 text-center text-sm text-neutral-400 tabular-nums">
-                <div className="h-4 w-4 bg-zinc-800 rounded mx-auto" />
-              </div>
-              <div className="w-11 h-11 shrink-0 overflow-hidden rounded bg-zinc-800" />
-              <div className="flex-1 min-w-0">
-                <div className="h-4 bg-zinc-800 rounded w-3/4 mb-2" />
-                <div className="h-3 bg-zinc-800 rounded w-1/3" />
-              </div>
-              <div className="hidden sm:block w-12">
-                <div className="h-4 bg-zinc-800 rounded w-12 ml-auto" />
-              </div>
-              <div className="w-8" />
-            </div>
-          ))}
         </div>
       </div>
-    </div>
-  ));
-
-  if (loading) return <PlaylistSkeleton />;
+    );
 
   if (!playlist) {
     return (
@@ -484,7 +442,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
       className="min-h-screen bg-linear-to-b from-neutral-900 via-neutral-950 to-black text-white pb-24"
       dir="rtl"
     >
-      {/* Desktop glass header (appears on scroll) */}
+      {/* Desktop glass header */}
       <header
         className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl"
         style={{ backgroundColor: `rgba(17,17,17,${headerOpacity})` }}
@@ -506,7 +464,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
         <div className="flex items-center gap-3" />
       </header>
 
-      {/* Mobile condensed header that slides in when scrolled */}
+      {/* Mobile condensed header */}
       <header
         className="md:hidden fixed flex-row-reverse top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
         style={{
@@ -538,16 +496,12 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
           </button>
         </div>
       </header>
+
       <header
-        className="relative w-full h-96 md:h-[500px] bg-cover bg-center bg-no-repeat"
+        className="relative w-full h-96 md:h-[500px] bg-cover bg-center bg-no-repeat transition-all duration-700"
         style={{
-          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.8) 100%), url(${
-            playlist.cover_image ||
-            (playlist.covers && playlist.covers[0]) ||
-            (playlist.songs && playlist.songs.length > 0
-              ? playlist.songs[0].cover_image
-              : "") ||
-            "/default-cover.jpg"
+          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 70%, rgba(0,0,0,1) 100%), url(${
+            playlist.top_three_song_covers?.[0] || "/default-cover.jpg"
           })`,
         }}
       >
@@ -563,17 +517,21 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
 
         <div className="absolute inset-0 flex items-end justify-end px-6 md:px-12 pb-8">
           <div className="text-right max-w-lg w-full">
-            <p className="text-sm font-semibold text-green-400 mb-2 uppercase tracking-wide">
-              پلی‌لیست
-            </p>
-            <h1 className="text-4xl md:text-6xl lg:text-8xl font-black mb-4 text-white drop-shadow-lg">
+            <div className="flex items-center justify-end gap-2 mb-2">
+              <Icon
+                name={playlist.public ? "globe" : "lock"}
+                size={14}
+                className="text-green-400"
+              />
+              <p className="text-xs font-semibold text-green-400 uppercase tracking-wide">
+                {playlist.public ? "پلی‌لیست عمومی" : "پلی‌لیست شخصی"}
+              </p>
+            </div>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-black mb-4 text-white drop-shadow-xl">
               {playlist.title}
             </h1>
-            <p className="text-neutral-200 text-base md:text-lg mb-6 leading-relaxed">
-              {playlist.description}
-            </p>
-            <div className="flex items-center gap-3 text-sm text-neutral-300">
-              {playlist.likes_count !== undefined && (
+            <div className="flex items-center justify-end gap-3 text-sm text-neutral-300">
+              {playlist.likes_count > 0 && (
                 <>
                   <span className="text-white font-bold">
                     {playlist.likes_count}
@@ -593,12 +551,12 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
         </div>
       </header>
 
-      <div className="sticky top-0 z-30 bg-linear-to-b from-neutral-950/95 to-neutral-950 px-6 md:px-12 py-6 border-b border-white/10">
+      <div className="sticky top-0 z-30 bg-neutral-950/95 px-6 md:px-12 py-6 border-b border-white/10 backdrop-blur-md">
         <div className="flex items-center gap-6">
           <button
             type="button"
             onClick={handlePlayAll}
-            className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-400 hover:scale-110 flex items-center justify-center shadow-2xl transition-all duration-300"
+            className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-400 hover:scale-110 flex items-center justify-center shadow-2xl transition-all duration-300 active:scale-95"
           >
             <Icon name="play" className="w-7 h-7 text-black ml-1" />
           </button>
@@ -607,7 +565,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
             type="button"
             onClick={handleToggleLike}
             disabled={isLiking}
-            className={`w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors duration-200 ${
+            className={`w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center transition-all duration-200 ${
               isLiked ? "text-green-500" : "text-neutral-400 hover:text-white"
             }`}
           >
@@ -634,18 +592,25 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
         </div>
       </div>
 
-      <main className="px-6 md:px-12 mt-4 space-y-1">
-        {playlist.songs.map((song, index) => (
-          <SongRow
-            key={song.id}
-            song={song}
-            idx={index}
-            current={String(song.id) === currentTrack?.id}
-            playing={isPlaying}
-            onPlay={() => handlePlaySong(index)}
-            onMore={handleMore}
-          />
-        ))}
+      <main className="px-6 md:px-12 mt-6 space-y-2">
+        {playlist.songs.length === 0 ? (
+          <div className="py-20 flex flex-col items-center justify-center text-neutral-500">
+            <Icon name="music" size={48} className="mb-4 opacity-20" />
+            <p>این پلی‌لیست هنوز خالی است</p>
+          </div>
+        ) : (
+          playlist.songs.map((song, index) => (
+            <SongRow
+              key={song.id}
+              song={song}
+              idx={index}
+              current={String(song.id) === currentTrack?.id}
+              playing={isPlaying}
+              onPlay={() => handlePlaySong(index)}
+              onMore={handleMore}
+            />
+          ))
+        )}
       </main>
 
       <SongOptionsDrawer
@@ -674,4 +639,4 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
   );
 };
 
-export default PlaylistDetail;
+export default UserPlaylistDetail;

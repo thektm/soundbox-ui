@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Drawer } from "vaul";
 import {
   Share2,
@@ -10,11 +10,13 @@ import {
   Info,
   Check,
   Download,
+  Loader2,
 } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "./AuthContext";
 import { usePlayer } from "./PlayerContext";
 import { toast } from "react-hot-toast";
+import { AddToPlaylistModal } from "./AddToPlaylistModal";
 
 interface SongOptionsDrawerProps {
   isOpen: boolean;
@@ -40,10 +42,53 @@ export const SongOptionsDrawer = ({
   const { accessToken } = useAuth();
   const { download } = usePlayer();
   const [processing, setProcessing] = useState<string | null>(null);
+  const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
+  const [localIsLiked, setLocalIsLiked] = useState<boolean | undefined>(
+    song.is_liked,
+  );
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && song?.id) {
+      setLocalIsLiked(song.is_liked);
+
+      const fetchDetail = async () => {
+        setIsLoadingDetail(true);
+        try {
+          const resp = await fetch(
+            `https://api.sedabox.com/api/songs/${song.id}/`,
+            {
+              headers: accessToken
+                ? { Authorization: `Bearer ${accessToken}` }
+                : {},
+            },
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            setLocalIsLiked(data.is_liked);
+          }
+        } catch (err) {
+          console.error("Failed to fetch song detail:", err);
+        } finally {
+          setIsLoadingDetail(false);
+        }
+      };
+
+      fetchDetail();
+    }
+  }, [isOpen, song?.id, accessToken]);
+
+  const isLiked = localIsLiked ?? song.is_liked;
 
   const handleActionClick = useCallback(
     async (actionId: string) => {
       if (processing) return;
+
+      if (actionId === "add-to-playlist") {
+        setIsAddToPlaylistOpen(true);
+        onClose();
+        return;
+      }
 
       if (actionId === "download") {
         const url =
@@ -106,6 +151,7 @@ export const SongOptionsDrawer = ({
                 if (resp.ok) {
                   const data = await resp.json();
                   console.log("Like response (fallback):", data);
+                  setLocalIsLiked(data.liked);
                   window.dispatchEvent(
                     new CustomEvent("song-like-changed", {
                       detail: {
@@ -152,6 +198,7 @@ export const SongOptionsDrawer = ({
               if (resp.ok) {
                 const data = await resp.json();
                 console.log("Like response:", data);
+                setLocalIsLiked(data.liked);
                 window.dispatchEvent(
                   new CustomEvent("song-like-changed", {
                     detail: {
@@ -198,7 +245,7 @@ export const SongOptionsDrawer = ({
         onClose();
       }
     },
-    [onAction, song, accessToken, processing, onClose],
+    [onAction, song, accessToken, processing, onClose, setLocalIsLiked],
   );
 
   const options = [
@@ -216,12 +263,12 @@ export const SongOptionsDrawer = ({
     },
     {
       id: "toggle-like",
-      label: song.is_liked
-        ? "حذف از قطعات مورد پسند"
-        : "افزودن به قطعات مورد پسند",
-      icon: (
+      label: isLiked ? "حذف از قطعات مورد پسند" : "افزودن به قطعات مورد پسند",
+      icon: isLoadingDetail ? (
+        <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+      ) : (
         <Heart
-          className={`w-5 h-5 ${song.is_liked ? "fill-emerald-400 stroke-emerald-400 text-emerald-400" : ""}`}
+          className={`w-5 h-5 ${isLiked ? "fill-emerald-400 stroke-emerald-400 text-emerald-400" : ""}`}
         />
       ),
       onClick: () => handleActionClick("toggle-like"),
@@ -247,59 +294,67 @@ export const SongOptionsDrawer = ({
   ];
 
   return (
-    <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
-        <Drawer.Content
-          className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
-          dir="rtl"
-        >
-          {/* Handle */}
-          <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-3 mb-2" />
+    <>
+      <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
+          <Drawer.Content
+            className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
+            dir="rtl"
+          >
+            {/* Handle */}
+            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-3 mb-2" />
 
-          {/* Song Header */}
-          <div className="px-6 py-4 flex items-center gap-4 border-b border-white/5">
-            <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 shadow-lg">
-              <img
-                src={song.cover_image}
-                alt={song.title}
-                className="w-full h-full object-cover"
-              />
+            {/* Song Header */}
+            <div className="px-6 py-4 flex items-center gap-4 border-b border-white/5">
+              <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 shadow-lg">
+                <img
+                  src={song.cover_image}
+                  alt={song.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-[17px] font-bold text-white truncate leading-tight">
+                  {song.title}
+                </h3>
+                <p className="text-[14px] text-white/50 truncate mt-1">
+                  {song.artist_name}
+                </p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-[17px] font-bold text-white truncate leading-tight">
-                {song.title}
-              </h3>
-              <p className="text-[14px] text-white/50 truncate mt-1">
-                {song.artist_name}
-              </p>
-            </div>
-          </div>
 
-          {/* Options List */}
-          <div className="flex-1 overflow-y-auto px-2 py-2 mb-safe">
-            {options.map((option) => (
-              <button
-                key={option.id}
-                onClick={() => handleActionClick(option.id)}
-                disabled={!!processing}
-                className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl hover:bg-white/5 active:bg-white/10 transition-colors group text-right disabled:opacity-60"
-              >
-                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-white/10 group-hover:text-white transition-all">
-                  {processing === option.id ? (
-                    <div className="w-4 h-4 border-2 border-neutral-800 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    option.icon
-                  )}
-                </div>
-                <span className="text-[16px] font-medium text-white/90 group-hover:text-white">
-                  {option.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+            {/* Options List */}
+            <div className="flex-1 overflow-y-auto px-2 py-2 mb-safe">
+              {options.map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => handleActionClick(option.id)}
+                  disabled={!!processing}
+                  className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl hover:bg-white/5 active:bg-white/10 transition-colors group text-right disabled:opacity-60"
+                >
+                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-white/10 group-hover:text-white transition-all">
+                    {processing === option.id ? (
+                      <div className="w-4 h-4 border-2 border-neutral-800 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      option.icon
+                    )}
+                  </div>
+                  <span className="text-[16px] font-medium text-white/90 group-hover:text-white">
+                    {option.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+
+      <AddToPlaylistModal
+        isOpen={isAddToPlaylistOpen}
+        onClose={() => setIsAddToPlaylistOpen(false)}
+        songId={song.id}
+      />
+    </>
   );
 };

@@ -7,17 +7,24 @@ import React, {
   memo,
   useRef,
   useEffect,
+  useLayoutEffect,
 } from "react";
 import { useNavigation } from "./NavigationContext";
-import {
-  MOCK_FOLLOWERS,
-  MOCK_FOLLOWING,
-  Follower,
-  Following,
-} from "./mockData";
+import { useAuth, UserFollowItem } from "./AuthContext";
+import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { motion, AnimatePresence } from "framer-motion";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 // ============================================================================
-// Icon Component - Optimized with memo
+// Utils
+// ============================================================================
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+// ============================================================================
+// Icon Component
 // ============================================================================
 const Icon = memo(
   ({
@@ -44,12 +51,8 @@ const Icon = memo(
     </svg>
   ),
 );
-
 Icon.displayName = "Icon";
 
-// ============================================================================
-// Icon Paths
-// ============================================================================
 const ICONS = {
   back: "M10 19l-7-7m0 0l7-7m-7 7h18",
   verified: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
@@ -61,17 +64,20 @@ const ICONS = {
     "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
 };
 
-// ============================================================================
-// Tab Type
-// ============================================================================
 type TabType = "followers" | "following";
 
 // ============================================================================
-// Follower Card Component - Optimized
+// Follower Card
 // ============================================================================
 const FollowerCard = memo(
-  ({ user, onFollow }: { user: Follower; onFollow: (id: string) => void }) => {
-    const [isFollowing, setIsFollowing] = useState(user.isFollowedByYou);
+  ({
+    user,
+    onFollow,
+  }: {
+    user: UserFollowItem;
+    onFollow: (id: number) => void;
+  }) => {
+    const [isFollowing, setIsFollowing] = useState(user.is_following);
 
     const handleFollow = useCallback(() => {
       setIsFollowing(!isFollowing);
@@ -79,70 +85,65 @@ const FollowerCard = memo(
     }, [isFollowing, user.id, onFollow]);
 
     return (
-      <div
-        className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.04] active:scale-[0.99] transition-all duration-150"
-        style={{ willChange: "transform, opacity" }}
+      <motion.div
+        layout="position"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] active:bg-white/[0.04] transition-colors"
       >
-        {/* Avatar */}
         <div className="relative shrink-0">
-          <div className="w-14 h-14 rounded-full overflow-hidden bg-zinc-800/50 ring-2 ring-white/[0.06]">
-            <img
-              src={user.avatar}
+          <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800/50 ring-2 ring-white/[0.06]">
+            <ImageWithPlaceholder
+              src={user.image}
               alt={user.name}
               className="w-full h-full object-cover"
-              loading="lazy"
+              type={user.type === "artist" ? "artist" : "song"}
             />
           </div>
         </div>
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0" dir="rtl">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium text-white truncate">
+            <span className="text-sm font-bold text-white truncate">
               {user.name}
             </span>
           </div>
-          <p className="text-xs text-gray-500 truncate mt-0.5">
-            {user.username}
+          <p className="text-[11px] text-gray-500 truncate mt-0.5">
+            {user.type === "artist" ? "هنرمند" : "کاربر"} •{" "}
+            {user.followers_count.toLocaleString("fa-IR")} دنبال‌کننده
           </p>
-          {user.mutualFollowers && (
-            <p className="text-[10px] text-gray-600 mt-1">
-              {user.mutualFollowers} دنبال‌کننده مشترک
-            </p>
-          )}
         </div>
 
-        {/* Follow Button */}
         <button
           onClick={handleFollow}
-          className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 shrink-0 ${
+          className={cn(
+            "px-4 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 shrink-0",
             isFollowing
-              ? "bg-white/[0.06] text-gray-300 border border-white/[0.1] hover:border-red-500/30 hover:text-red-400"
-              : "bg-white text-black hover:bg-gray-200"
-          }`}
+              ? "bg-white/[0.06] text-gray-400 border border-white/[0.1]"
+              : "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20",
+          )}
         >
           {isFollowing ? "دنبال می‌کنید" : "دنبال کردن"}
         </button>
-      </div>
+      </motion.div>
     );
   },
 );
-
 FollowerCard.displayName = "FollowerCard";
 
 // ============================================================================
-// Following Card Component - Optimized (Artist style with verification)
+// Following Card
 // ============================================================================
 const FollowingCard = memo(
   ({
     artist,
     onUnfollow,
   }: {
-    artist: Following;
-    onUnfollow: (id: string) => void;
+    artist: UserFollowItem;
+    onUnfollow: (id: number) => void;
   }) => {
     const { navigateTo } = useNavigation();
-    const [isFollowing, setIsFollowing] = useState(true);
+    const [isFollowing, setIsFollowing] = useState(artist.is_following);
 
     const handleUnfollow = useCallback(
       (e: React.MouseEvent) => {
@@ -153,79 +154,64 @@ const FollowingCard = memo(
       [isFollowing, artist.id, onUnfollow],
     );
 
-    const handleCardClick = useCallback(() => {
-      navigateTo("artist-detail", { id: artist.id });
-    }, [navigateTo, artist.id]);
-
     return (
-      <div
-        onClick={handleCardClick}
-        className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.04] active:scale-[0.99] transition-all duration-150 cursor-pointer"
-        style={{ willChange: "transform, opacity" }}
+      <motion.div
+        layout="position"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        onClick={() =>
+          artist.type === "artist" &&
+          navigateTo("artist-detail", { id: artist.id.toString() })
+        }
+        className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] active:bg-white/[0.04] transition-colors cursor-pointer"
       >
-        {/* Avatar with gradient ring for verified artists */}
         <div className="relative shrink-0">
           <div
-            className={`w-14 h-14 rounded-full overflow-hidden bg-zinc-800/50 p-[2px] ${
-              artist.verified
-                ? "bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500"
-                : "ring-2 ring-white/[0.06]"
-            }`}
+            className={cn(
+              "w-12 h-12 rounded-full overflow-hidden bg-zinc-800/50 p-[2px]",
+              artist.is_verified
+                ? "bg-gradient-to-br from-emerald-400 to-cyan-500"
+                : "ring-2 ring-white/[0.06]",
+            )}
           >
-            <img
-              src={artist.avatar}
+            <ImageWithPlaceholder
+              src={artist.image}
               alt={artist.name}
-              className="w-full h-full object-cover rounded-full"
-              loading="lazy"
+              className="w-full h-full object-cover rounded-full bg-black"
+              type={artist.type === "artist" ? "artist" : "song"}
             />
           </div>
-          {/* Verified Badge */}
-          {artist.verified && (
-            <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-[#030303]">
-              <svg
-                className="w-3 h-3 text-white"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                  clipRule="evenodd"
-                />
-              </svg>
+          {artist.is_verified && (
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-[#030303]">
+              <Icon d={ICONS.verified} className="w-2.5 h-2.5 text-white" />
             </div>
           )}
         </div>
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium text-white truncate">
-              {artist.name}
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 mt-0.5">{artist.type}</p>
-          <p className="text-[10px] text-emerald-500/80 mt-1">
-            {artist.followers} دنبال‌کننده
+        <div className="flex-1 min-w-0" dir="rtl">
+          <span className="text-sm font-bold text-white truncate block">
+            {artist.name}
+          </span>
+          <p className="text-[11px] text-gray-500 mt-0.5">
+            {artist.followers_count.toLocaleString("fa-IR")} دنبال‌کننده
           </p>
         </div>
 
-        {/* Unfollow Button */}
         <button
           onClick={handleUnfollow}
-          className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 shrink-0 ${
+          className={cn(
+            "px-4 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 shrink-0",
             isFollowing
-              ? "bg-white/[0.06] text-gray-300 border border-white/[0.1] hover:border-red-500/30 hover:text-red-400"
-              : "bg-emerald-500 text-white hover:bg-emerald-600"
-          }`}
+              ? "bg-white/[0.06] text-gray-400 border border-white/[0.1]"
+              : "bg-emerald-500 text-white",
+          )}
         >
           {isFollowing ? "دنبال می‌کنید" : "دنبال کردن"}
         </button>
-      </div>
+      </motion.div>
     );
   },
 );
-
 FollowingCard.displayName = "FollowingCard";
 
 // ============================================================================
@@ -237,103 +223,243 @@ export default function FollowersFollowing({
   initialTab?: TabType;
 }) {
   const { navigateTo } = useNavigation();
+  const { user, accessToken } = useAuth();
+
+  // State
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  // Refs and indicator state for accurate tab underline positioning
-  const tabsContainerRef = useRef<HTMLDivElement | null>(null);
-  const followersBtnRef = useRef<HTMLButtonElement | null>(null);
-  const followingBtnRef = useRef<HTMLButtonElement | null>(null);
-  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+  // Data State
+  const [followers, setFollowers] = useState<UserFollowItem[]>(
+    user?.followers?.items || [],
+  );
+  const [following, setFollowing] = useState<UserFollowItem[]>(
+    user?.following?.items || [],
+  );
+  const [followersMeta, setFollowersMeta] = useState({
+    hasNext: user?.followers?.has_next || false,
+    next: user?.followers?.next || null,
+    total: user?.followers?.total || 0,
+  });
+  const [followingMeta, setFollowingMeta] = useState({
+    hasNext: user?.following?.has_next || false,
+    next: user?.following?.next || null,
+    total: user?.following?.total || 0,
+  });
 
+  // Refs
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<HTMLDivElement>(null);
+  const isProgrammaticScroll = useRef(false);
+
+  // Ensure initial tab selection matches scroll position on mount
+  useLayoutEffect(() => {
+    if (!scrollContainerRef.current) return;
+    const children = scrollContainerRef.current.children;
+    if (children.length < 2) return;
+
+    const targetIndex = initialTab === "following" ? 1 : 0;
+    const target = children[targetIndex] as HTMLElement | undefined;
+    if (!target) return;
+
+    // mark programmatic scroll to avoid onScroll toggling active tab
+    isProgrammaticScroll.current = true;
+    target.scrollIntoView({
+      behavior: "auto",
+      block: "nearest",
+      inline: "start",
+    });
+    setActiveTab(initialTab);
+
+    const t = setTimeout(() => {
+      isProgrammaticScroll.current = false;
+    }, 120);
+
+    return () => clearTimeout(t);
+  }, [initialTab, followers.length, following.length]);
+
+  // --- Sync Data from Context ---
   useEffect(() => {
-    const update = () => {
-      const btn =
-        activeTab === "followers"
-          ? followersBtnRef.current
-          : followingBtnRef.current;
-      const container = tabsContainerRef.current;
-      if (btn && container) {
-        const containerRect = container.getBoundingClientRect();
-        const btnRect = btn.getBoundingClientRect();
-        setIndicator({
-          left: btnRect.left - containerRect.left,
-          width: btnRect.width,
+    if (user) {
+      if (followers.length === 0 && user.followers?.items?.length) {
+        setFollowers(user.followers.items);
+        setFollowersMeta({
+          hasNext: user.followers.has_next,
+          next: user.followers.next,
+          total: user.followers.total,
         });
       }
-    };
+      if (following.length === 0 && user.following?.items?.length) {
+        setFollowing(user.following.items);
+        setFollowingMeta({
+          hasNext: user.following.has_next,
+          next: user.following.next,
+          total: user.following.total,
+        });
+      }
+    }
+  }, [user]);
 
-    // initial update and on resize
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+  // --- Scroll & Swipe Handlers ---
+
+  // Handle Tab Click (Programmatic Scroll)
+  const handleTabClick = (tab: TabType) => {
+    setActiveTab(tab);
+    if (scrollContainerRef.current) {
+      isProgrammaticScroll.current = true;
+      const width = scrollContainerRef.current.clientWidth;
+
+      // In RTL:
+      // Index 0 (Right side) -> Followers
+      // Index 1 (Left side) -> Following
+      // ScrollLeft goes negative or positive depending on browser in RTL.
+      // We assume standard behavior: 0 is start (right), -width or width is end (left).
+
+      const targetScroll = tab === "followers" ? 0 : -width; // Try negative for RTL
+
+      // Check browser RTL scroll behavior (some use positive for left, some negative)
+      // Safest approach: Element.scrollTo with behavior smooth
+      // But we need to know direction.
+      // Let's use logic: followers is 1st child, following is 2nd.
+      // In RTL, 1st child is on right.
+      // Scrolling to 0 usually reveals the right-most element in RTL.
+
+      // Simpler approach for React Refs:
+      const children = scrollContainerRef.current.children;
+      if (children.length >= 2) {
+        const targetElement = tab === "followers" ? children[0] : children[1];
+        (targetElement as HTMLElement).scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+          inline: "start",
+        });
+      }
+
+      // Reset flag after animation
+      setTimeout(() => {
+        isProgrammaticScroll.current = false;
+      }, 500);
+    }
+  };
+
+  // Handle User Swipe (Scroll Event)
+  const onScroll = useCallback(() => {
+    if (isProgrammaticScroll.current || !scrollContainerRef.current) return;
+
+    const scrollLeft = scrollContainerRef.current.scrollLeft;
+    const width = scrollContainerRef.current.clientWidth;
+
+    // In RTL, scrollLeft is usually 0 at rightmost, and goes negative/positive towards left
+    // We use Math.abs to handle cross-browser RTL differences
+    const scrollRatio = Math.abs(scrollLeft) / width;
+
+    // Threshold to switch tab highlight: 0.5
+    const newTab = scrollRatio > 0.5 ? "following" : "followers";
+
+    if (newTab !== activeTab) {
+      setActiveTab(newTab);
+    }
   }, [activeTab]);
 
-  // Filter data based on search
-  const filteredFollowers = useMemo(() => {
-    if (!searchQuery) return MOCK_FOLLOWERS;
-    const q = searchQuery.toLowerCase();
-    return MOCK_FOLLOWERS.filter(
-      (u) =>
-        u.name.toLowerCase().includes(q) ||
-        u.username.toLowerCase().includes(q),
+  // --- Infinite Scroll Logic ---
+  const loadMore = async () => {
+    const nextUrl =
+      activeTab === "followers" ? followersMeta.next : followingMeta.next;
+    if (!nextUrl || isLoadingMore || !accessToken) return;
+
+    setIsLoadingMore(true);
+    try {
+      const cleanUrl = nextUrl.replace("http://", "https://");
+      const res = await fetch(cleanUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await res.json();
+
+      if (activeTab === "followers") {
+        setFollowers((prev) => [...prev, ...data.followers.items]);
+        setFollowersMeta({
+          hasNext: data.followers.has_next,
+          next: data.followers.next,
+          total: data.followers.total,
+        });
+      } else {
+        setFollowing((prev) => [...prev, ...data.following.items]);
+        setFollowingMeta({
+          hasNext: data.following.has_next,
+          next: data.following.next,
+          total: data.following.total,
+        });
+      }
+    } catch (error) {
+      console.error("Load more failed", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore) {
+          const hasMore =
+            activeTab === "followers"
+              ? followersMeta.hasNext
+              : followingMeta.hasNext;
+          if (hasMore) loadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" },
     );
-  }, [searchQuery]);
+
+    if (observerRef.current) observer.observe(observerRef.current);
+    return () => observer.disconnect();
+  }, [activeTab, followersMeta.hasNext, followingMeta.hasNext, isLoadingMore]);
+
+  // --- Derived State ---
+  const filteredFollowers = useMemo(() => {
+    if (!searchQuery) return followers;
+    return followers.filter((u) =>
+      u.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [searchQuery, followers]);
 
   const filteredFollowing = useMemo(() => {
-    if (!searchQuery) return MOCK_FOLLOWING;
-    const q = searchQuery.toLowerCase();
-    return MOCK_FOLLOWING.filter((a) => a.name.toLowerCase().includes(q));
-  }, [searchQuery]);
-
-  const handleFollow = useCallback((id: string) => {
-    // Handle follow logic
-    console.log("Follow/Unfollow:", id);
-  }, []);
-
-  const handleUnfollow = useCallback((id: string) => {
-    // Handle unfollow logic
-    console.log("Unfollow:", id);
-  }, []);
-
-  const handleBack = useCallback(() => {
-    navigateTo("profile");
-  }, [navigateTo]);
-
-  const toggleSearch = useCallback(() => {
-    setShowSearch((prev) => !prev);
-    if (showSearch) setSearchQuery("");
-  }, [showSearch]);
+    if (!searchQuery) return following;
+    return following.filter((a) =>
+      a.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [searchQuery, following]);
 
   return (
     <div
-      className="relative w-full min-h-screen bg-[#030303] text-white overflow-visible font-sans"
+      className="flex flex-col h-screen bg-[#030303] text-white font-sans overflow-hidden"
       dir="rtl"
     >
-      {/* Subtle Gradient Background */}
-      <div
-        className="fixed inset-0 pointer-events-none opacity-40"
-        style={{
-          background:
-            "radial-gradient(ellipse at 50% 0%, rgba(16, 185, 129, 0.08) 0%, transparent 50%)",
-        }}
-      />
-
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-[#030303]/90 backdrop-blur-xl border-b border-white/[0.04]">
-        <div className="flex flex-row-reverse items-center justify-between px-4 pt-4 pb-3">
+      {/* ================= HEADER ================= */}
+      <div className="shrink-0 z-30 bg-[#030303]/95 backdrop-blur-xl border-b border-white/[0.04]">
+        {/* Top Bar */}
+        <div className="flex flex-row-reverse items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3">
             <button
-              onClick={handleBack}
-              className="w-10 h-10 rounded-full bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-center transition-all duration-200"
+              onClick={() => navigateTo("profile")}
+              className="active:scale-90 transition-transform"
             >
-              <Icon d={ICONS.back} className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-full bg-white/[0.04] flex items-center justify-center">
+                <Icon d={ICONS.back} className="w-5 h-5" />
+              </div>
             </button>
           </div>
           <button
-            onClick={toggleSearch}
-            className="w-10 h-10 rounded-full bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-center transition-all duration-200"
+            onClick={() => {
+              setShowSearch(!showSearch);
+              if (!showSearch) setSearchQuery("");
+            }}
+            className="w-10 h-10 rounded-full hover:bg-white/[0.04] flex items-center justify-center transition-colors"
           >
             <Icon
               d={showSearch ? ICONS.close : ICONS.search}
@@ -342,123 +468,177 @@ export default function FollowersFollowing({
           </button>
         </div>
 
-        {/* Search Bar - Animated */}
-        <div
-          className={`overflow-hidden transition-all duration-300 ease-out ${
-            showSearch ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
-          }`}
-        >
-          <div className="px-4 pb-3">
-            <div className="relative">
-              <Icon
-                d={ICONS.search}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="جستجو..."
-                className="w-full pl-4 pr-10 py-2.5 bg-white/[0.04] border border-white/[0.06] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/40 transition-colors"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs - Instagram/Spotify style */}
-        <div
-          className="flex relative"
-          ref={(el) => {
-            tabsContainerRef.current = el;
+        {/* Animated Search Bar */}
+        <motion.div
+          initial={false}
+          animate={{
+            height: showSearch ? "auto" : 0,
+            opacity: showSearch ? 1 : 0,
           }}
+          className="overflow-hidden px-4"
         >
-          <button
-            ref={(el) => {
-              followersBtnRef.current = el;
-            }}
-            onClick={() => setActiveTab("followers")}
-            className={`flex-1 py-3 text-sm font-medium transition-colors duration-200 ${
-              activeTab === "followers" ? "text-white" : "text-gray-500"
-            }`}
-          >
-            <span className="flex items-center justify-center gap-2">
-              دنبال‌کنندگان
-              <span className="px-2 py-0.5 rounded-full bg-white/[0.06] text-[10px]">
-                {MOCK_FOLLOWERS.length}
-              </span>
-            </span>
-          </button>
-          <button
-            ref={(el) => {
-              followingBtnRef.current = el;
-            }}
-            onClick={() => setActiveTab("following")}
-            className={`flex-1 py-3 text-sm font-medium transition-colors duration-200 ${
-              activeTab === "following" ? "text-white" : "text-gray-500"
-            }`}
-          >
-            <span className="flex items-center justify-center gap-2">
-              دنبال‌شده‌ها
-              <span className="px-2 py-0.5 rounded-full bg-white/[0.06] text-[10px]">
-                {MOCK_FOLLOWING.length}
-              </span>
-            </span>
-          </button>
-          {/* Active Tab Indicator (measured so animation direction is natural in RTL/LTR) */}
-          <div
-            className="absolute bottom-0 h-0.5 bg-emerald-500 transition-all duration-300 ease-out"
-            style={{
-              left: indicator.left + "px",
-              width: indicator.width + "px",
-            }}
-          />
+          <div className="pb-3 pt-1 relative">
+            <Icon
+              d={ICONS.search}
+              className="absolute right-3 top-1/2 -translate-y-[calc(50%+6px)] w-4 h-4 text-gray-500"
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="جستجو در لیست..."
+              className="w-full pl-4 pr-10 py-2 bg-white/[0.06] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:bg-white/[0.1] transition-colors"
+              autoFocus={showSearch}
+            />
+          </div>
+        </motion.div>
+
+        {/* Tabs */}
+        <div className="flex relative px-2">
+          {["followers", "following"].map((tab) => {
+            const isActive = activeTab === tab;
+            const count =
+              tab === "followers" ? followersMeta.total : followingMeta.total;
+            const label =
+              tab === "followers" ? "دنبال‌کنندگان" : "دنبال‌شده‌ها";
+
+            return (
+              <button
+                key={tab}
+                onClick={() => handleTabClick(tab as TabType)}
+                className={cn(
+                  "flex-1 py-3.5 relative text-sm font-medium transition-colors duration-300",
+                  isActive ? "text-white" : "text-gray-500 hover:text-gray-300",
+                )}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span>{label}</span>
+                  <span className="bg-white/[0.08] px-1.5 py-0.5 rounded text-[10px] text-gray-400">
+                    {count.toLocaleString("fa-IR")}
+                  </span>
+                </div>
+                {isActive && (
+                  <motion.div
+                    layoutId="activeTabIndicator"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Content */}
-      <div className="pb-24">
-        {activeTab === "followers" ? (
-          <div className="px-4 py-4 space-y-2">
-            {filteredFollowers.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-                <Icon
-                  d={ICONS.userPlus}
-                  className="w-12 h-12 mb-3 opacity-40"
-                />
-                <p className="text-sm">دنبال‌کننده‌ای یافت نشد</p>
+      {/* ================= SCROLLABLE CONTENT AREA ================= */}
+      {/* 
+         This container uses CSS Scroll Snap to act like a progressive swipe view.
+         It has overflow-x: auto (horizontal scroll) and contains two full-width sections.
+      */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={onScroll}
+        className="flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scrollbar-hide"
+        style={{ scrollBehavior: "smooth" }} // Smooth scroll for clicks
+      >
+        {/* === PAGE 1: FOLLOWERS === */}
+        <section className="w-full h-full shrink-0 snap-center overflow-y-auto pb-24">
+          <div className="px-4 py-4 space-y-2 min-h-full">
+            <AnimatePresence mode="popLayout">
+              {filteredFollowers.length > 0
+                ? filteredFollowers.map((user) => (
+                    <FollowerCard
+                      key={`follower-${user.id}`}
+                      user={user}
+                      onFollow={() => {}} // Connect to actual handler
+                    />
+                  ))
+                : !isLoadingMore && <EmptyState type="followers" />}
+            </AnimatePresence>
+
+            {/* Observer Target for Infinite Scroll (Only if this tab is active) */}
+            {activeTab === "followers" && (
+              <div
+                ref={observerRef}
+                className="h-16 flex justify-center items-center"
+              >
+                {isLoadingMore && <LoadingSpinner />}
               </div>
-            ) : (
-              filteredFollowers.map((user) => (
-                <FollowerCard
-                  key={user.id}
-                  user={user}
-                  onFollow={handleFollow}
-                />
-              ))
             )}
           </div>
-        ) : (
-          <div className="px-4 py-4 space-y-2">
-            {filteredFollowing.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-                <Icon
-                  d={ICONS.userCheck}
-                  className="w-12 h-12 mb-3 opacity-40"
-                />
-                <p className="text-sm">هنرمندی یافت نشد</p>
+        </section>
+
+        {/* === PAGE 2: FOLLOWING === */}
+        <section className="w-full h-full shrink-0 snap-center overflow-y-auto pb-24">
+          <div className="px-4 py-4 space-y-2 min-h-full">
+            <AnimatePresence mode="popLayout">
+              {filteredFollowing.length > 0
+                ? filteredFollowing.map((artist) => (
+                    <FollowingCard
+                      key={`following-${artist.id}`}
+                      artist={artist}
+                      onUnfollow={() => {}} // Connect to actual handler
+                    />
+                  ))
+                : !isLoadingMore && <EmptyState type="following" />}
+            </AnimatePresence>
+
+            {/* Observer Target for Infinite Scroll (Only if this tab is active) */}
+            {activeTab === "following" && (
+              <div
+                ref={observerRef}
+                className="h-16 flex justify-center items-center"
+              >
+                {isLoadingMore && <LoadingSpinner />}
               </div>
-            ) : (
-              filteredFollowing.map((artist) => (
-                <FollowingCard
-                  key={artist.id}
-                  artist={artist}
-                  onUnfollow={handleUnfollow}
-                />
-              ))
             )}
           </div>
-        )}
+        </section>
       </div>
     </div>
   );
 }
+
+// ============================================================================
+// Helper Components
+// ============================================================================
+
+const LoadingSpinner = () => (
+  <div className="flex gap-1.5">
+    <motion.div
+      animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
+      transition={{ repeat: Infinity, duration: 1 }}
+      className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+    />
+    <motion.div
+      animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
+      transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
+      className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+    />
+    <motion.div
+      animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
+      transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
+      className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+    />
+  </div>
+);
+
+const EmptyState = ({ type }: { type: "followers" | "following" }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="flex flex-col items-center justify-center py-20 text-gray-500"
+  >
+    <div className="w-16 h-16 rounded-full bg-white/[0.03] flex items-center justify-center mb-4">
+      <Icon
+        d={type === "followers" ? ICONS.userPlus : ICONS.userCheck}
+        className="w-8 h-8 opacity-40"
+      />
+    </div>
+    <p className="text-sm font-medium">
+      {type === "followers"
+        ? "هنوز کسی شما را دنبال نمی‌کند"
+        : "هنوز کسی را دنبال نکرده‌اید"}
+    </p>
+  </motion.div>
+);

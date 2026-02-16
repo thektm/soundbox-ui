@@ -1,8 +1,16 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, memo } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  memo,
+  useEffect,
+  useRef,
+} from "react";
 import { useNavigation } from "./NavigationContext";
-import { LIKED_ALBUMS, LikedAlbum } from "./mockData";
+import { useAuth } from "./AuthContext";
+import toast from "react-hot-toast";
 
 // ============================================================================
 // Icon Component - Optimized with memo
@@ -51,6 +59,69 @@ const ICONS = {
 };
 
 // ============================================================================
+// Types
+// ============================================================================
+interface ApiSong {
+  id: number;
+  title: string;
+  artist_id: number;
+  artist_name: string;
+  featured_artists: any[];
+  album: number;
+  album_title: string;
+  is_single: boolean;
+  stream_url: string;
+  cover_image: string;
+  duration_seconds: number;
+  duration_display: string;
+  plays: number;
+  likes_count: number;
+  is_liked: boolean;
+  status: string;
+  release_date: string | null;
+  language: string;
+  description: string;
+  created_at: string;
+  display_title: string;
+}
+
+interface ApiLikedAlbum {
+  id: number;
+  when_liked: string;
+  title: string;
+  artist_id: number;
+  artist_name: string;
+  cover_image: string;
+  release_date: string | null;
+  description: string;
+  created_at: string;
+  likes_count: number;
+  is_liked: boolean;
+  genre_ids: number[];
+  sub_genre_ids: number[];
+  mood_ids: number[];
+  songs: ApiSong[];
+  song_genre_names: string[];
+  song_mood_names: string[];
+}
+
+interface ApiResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: ApiLikedAlbum[];
+}
+
+interface LikedAlbum {
+  id: number;
+  title: string;
+  artist: string;
+  image: string;
+  year: string;
+  songsCount: number;
+}
+
+// ============================================================================
 // View Mode Type
 // ============================================================================
 type ViewMode = "grid" | "list";
@@ -68,17 +139,6 @@ const AlbumCardGrid = memo(
     onPress: () => void;
     onLike: () => void;
   }) => {
-    const [isLiked, setIsLiked] = useState(true);
-
-    const handleLike = useCallback(
-      (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setIsLiked(!isLiked);
-        onLike();
-      },
-      [isLiked, onLike],
-    );
-
     return (
       <div
         onClick={onPress}
@@ -110,23 +170,26 @@ const AlbumCardGrid = memo(
               />
             </button>
             <button
-              onClick={handleLike}
+              onClick={(e) => {
+                e.stopPropagation();
+                onLike();
+              }}
               className="w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-all duration-200"
             >
               <Icon
                 d={ICONS.heart}
-                className={`w-5 h-5 ${
-                  isLiked ? "text-emerald-500" : "text-white"
-                }`}
-                filled={isLiked}
+                className="w-5 h-5 text-emerald-500"
+                filled
               />
             </button>
           </div>
 
           {/* Year Badge */}
-          <div className="absolute top-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-[10px] font-medium text-white/80">
-            {album.year}
-          </div>
+          {album.year !== "Unknown" && (
+            <div className="absolute top-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-md text-[10px] font-medium text-white/80">
+              {album.year}
+            </div>
+          )}
         </div>
 
         {/* Album Info */}
@@ -157,17 +220,6 @@ const AlbumCardList = memo(
     onPress: () => void;
     onLike: () => void;
   }) => {
-    const [isLiked, setIsLiked] = useState(true);
-
-    const handleLike = useCallback(
-      (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setIsLiked(!isLiked);
-        onLike();
-      },
-      [isLiked, onLike],
-    );
-
     return (
       <div
         onClick={onPress}
@@ -200,23 +252,24 @@ const AlbumCardList = memo(
             <span className="text-[10px] text-gray-600">
               {album.songsCount} آهنگ
             </span>
-            <span className="text-[10px] text-gray-600">•</span>
-            <span className="text-[10px] text-gray-600">{album.year}</span>
+            {album.year !== "Unknown" && (
+              <>
+                <span className="text-[10px] text-gray-600">•</span>
+                <span className="text-[10px] text-gray-600">{album.year}</span>
+              </>
+            )}
           </div>
         </div>
 
         {/* Like Button */}
         <button
-          onClick={handleLike}
+          onClick={(e) => {
+            e.stopPropagation();
+            onLike();
+          }}
           className="p-2 rounded-full hover:bg-white/[0.06] transition-colors shrink-0"
         >
-          <Icon
-            d={ICONS.heart}
-            className={`w-5 h-5 ${
-              isLiked ? "text-emerald-500" : "text-gray-500"
-            }`}
-            filled={isLiked}
-          />
+          <Icon d={ICONS.heart} className="w-5 h-5 text-emerald-500" filled />
         </button>
       </div>
     );
@@ -230,19 +283,43 @@ AlbumCardList.displayName = "AlbumCardList";
 // ============================================================================
 export default function LikedAlbums() {
   const { navigateTo, goBack, scrollToTop } = useNavigation();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
+  const { accessToken } = useAuth();
+  // Mirror LikedSongs search behavior: separate main/search states,
+  // debounced search to server, pagination via IntersectionObserver.
+  const [viewState, setViewState] = useState({
+    isLoading: true,
+    isSearching: false,
+    isSearchLoading: false,
+    isFetchingMore: false,
+    showSearchBar: false,
+    query: "",
+  });
+
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
-  // Filter albums based on search
-  const displayedAlbums = useMemo(() => {
-    if (!searchQuery) return LIKED_ALBUMS;
-    const q = searchQuery.toLowerCase();
-    return LIKED_ALBUMS.filter(
-      (a) =>
-        a.title.toLowerCase().includes(q) || a.artist.toLowerCase().includes(q),
-    );
-  }, [searchQuery]);
+  const [mainData, setMainData] = useState<{
+    albums: LikedAlbum[];
+    next: string | null;
+    count: number;
+  }>({ albums: [], next: null, count: 0 });
+
+  const [searchData, setSearchData] = useState<{
+    albums: LikedAlbum[];
+    next: string | null;
+    count: number;
+  }>({ albums: [], next: null, count: 0 });
+
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const activeList = viewState.isSearching
+    ? searchData.albums
+    : mainData.albums;
+  const activeTotal = viewState.isSearching ? searchData.count : mainData.count;
+  const activeNext = viewState.isSearching ? searchData.next : mainData.next;
+
+  const ensureHttps = (u?: string | null) =>
+    u?.startsWith("http://") ? u.replace("http://", "https://") : u;
 
   const handleBack = useCallback(() => {
     goBack();
@@ -255,19 +332,166 @@ export default function LikedAlbums() {
     [navigateTo],
   );
 
-  const handleLike = useCallback((albumId: string) => {
-    console.log("Unlike album:", albumId);
-  }, []);
+  const handleLike = useCallback(
+    async (albumId: number) => {
+      if (!accessToken) return;
 
-  const toggleSearch = useCallback(() => {
-    scrollToTop();
-    setShowSearch((prev) => !prev);
-    if (showSearch) setSearchQuery("");
-  }, [showSearch, scrollToTop]);
+      // Optimistic update: remove from both lists (preserve `next` for pagination)
+      const removeFrom = (prev: {
+        albums: LikedAlbum[];
+        next: string | null;
+        count: number;
+      }) => ({
+        albums: prev.albums.filter((a) => a.id !== albumId),
+        next: prev.next,
+        count: Math.max(0, prev.count - 1),
+      });
+
+      setMainData((prev) => removeFrom(prev));
+      if (viewState.isSearching) setSearchData((prev) => removeFrom(prev));
+
+      try {
+        const response = await fetch(
+          `https://api.sedabox.com/api/albums/${albumId}/like/`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}` },
+          },
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (!data.liked) {
+            toast.success("آلبوم از لیست لایک‌شده‌ها حذف شد");
+          }
+        } else {
+          toast.error("خطا در لغو لایک آلبوم");
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("خطا در اتصال");
+      }
+    },
+    [accessToken, viewState.isSearching],
+  );
 
   const toggleViewMode = useCallback(() => {
     setViewMode((prev) => (prev === "grid" ? "list" : "grid"));
   }, []);
+
+  // Unified fetch for main/search similar to LikedSongs
+  const fetchAlbums = useCallback(
+    async (mode: "MAIN" | "SEARCH", url?: string, query?: string) => {
+      if (!accessToken) return;
+
+      const isPagination = !!url;
+
+      setViewState((prev) => ({
+        ...prev,
+        isLoading: !isPagination && mode === "MAIN",
+        isSearchLoading: !isPagination && mode === "SEARCH",
+        isFetchingMore: isPagination,
+      }));
+
+      try {
+        let endpoint = url;
+        if (!endpoint) {
+          endpoint =
+            mode === "SEARCH" && query
+              ? `https://api.sedabox.com/api/profile/liked-albums/search/?q=${encodeURIComponent(query)}`
+              : "https://api.sedabox.com/api/profile/liked-albums/";
+        }
+
+        const res = await fetch(endpoint, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (res.ok) {
+          const data: ApiResponse = await res.json();
+          const mapped = data.results.map((album) => ({
+            id: album.id,
+            title: album.title,
+            artist: album.artist_name,
+            image: ensureHttps(album.cover_image) || "",
+            year: album.release_date
+              ? new Date(album.release_date).getFullYear().toString()
+              : "Unknown",
+            songsCount: album.songs.length,
+          }));
+
+          const updateFn = (prev: any) => ({
+            albums: isPagination ? [...prev.albums, ...mapped] : mapped,
+            next: data.next,
+            count: data.count,
+          });
+
+          if (mode === "SEARCH") setSearchData(updateFn);
+          else setMainData(updateFn);
+        } else {
+          toast.error("خطا در بارگذاری آلبوم‌ها");
+        }
+      } catch (err) {
+        console.error("Fetch error:", err);
+        toast.error("خطا در اتصال");
+      } finally {
+        setViewState((prev) => ({
+          ...prev,
+          isLoading: false,
+          isSearchLoading: false,
+          isFetchingMore: false,
+        }));
+      }
+    },
+    [accessToken],
+  );
+
+  useEffect(() => {
+    if (accessToken) fetchAlbums("MAIN");
+  }, [accessToken, fetchAlbums]);
+
+  // Search logic with debounce
+  useEffect(() => {
+    const q = viewState.query.trim();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (!q) {
+      setViewState((prev) => ({
+        ...prev,
+        isSearching: false,
+        isSearchLoading: false,
+      }));
+      return;
+    }
+
+    debounceRef.current = setTimeout(() => {
+      setViewState((prev) => ({ ...prev, isSearching: true }));
+      fetchAlbums("SEARCH", undefined, q);
+    }, 800);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [viewState.query, fetchAlbums]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          activeNext &&
+          !viewState.isFetchingMore &&
+          !viewState.isLoading &&
+          !viewState.isSearchLoading
+        ) {
+          fetchAlbums(viewState.isSearching ? "SEARCH" : "MAIN", activeNext);
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" },
+    );
+    if (loadMoreRef.current) observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [activeNext, viewState, fetchAlbums]);
 
   return (
     <div
@@ -295,11 +519,18 @@ export default function LikedAlbums() {
           </button>
           <div className="flex items-center gap-2">
             <button
-              onClick={toggleSearch}
+              onClick={() => {
+                scrollToTop();
+                setViewState((p) => ({
+                  ...p,
+                  showSearchBar: !p.showSearchBar,
+                  query: p.showSearchBar ? "" : p.query,
+                }));
+              }}
               className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
             >
               <Icon
-                d={showSearch ? ICONS.close : ICONS.search}
+                d={viewState.showSearchBar ? ICONS.close : ICONS.search}
                 className="w-5 h-5 text-white"
               />
             </button>
@@ -326,14 +557,16 @@ export default function LikedAlbums() {
             آلبوم‌های لایک‌شده
           </h1>
           <p className="text-gray-400 text-sm text-center">
-            {LIKED_ALBUMS.length} آلبوم
+            {activeTotal} آلبوم
           </p>
         </div>
 
         {/* Search Bar - Animated */}
         <div
           className={`overflow-hidden transition-all duration-300 ease-out ${
-            showSearch ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
+            viewState.showSearchBar
+              ? "max-h-16 opacity-100"
+              : "max-h-0 opacity-0"
           }`}
         >
           <div className="px-4 pb-4">
@@ -344,26 +577,61 @@ export default function LikedAlbums() {
               />
               <input
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={viewState.query}
+                onChange={(e) =>
+                  setViewState((p) => ({ ...p, query: e.target.value }))
+                }
                 placeholder="جستجو در آلبوم‌های لایک‌شده..."
                 className="w-full pl-4 pr-10 py-2.5 bg-white/[0.06] border border-white/[0.08] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/40 transition-colors"
+                autoFocus
               />
             </div>
           </div>
         </div>
       </div>
-
       {/* Albums Content */}
-      <div className="relative z-10 px-4 pb-32">
-        {displayedAlbums.length === 0 ? (
+      <div className="relative z-10 px-4 pb-32" style={{ minHeight: 300 }}>
+        {viewState.isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-gray-400 text-sm">در حال بارگذاری...</p>
+          </div>
+        ) : viewState.isSearching && viewState.isSearchLoading ? (
+          // Search skeletons
+          viewMode === "grid" ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="aspect-square rounded-xl bg-gray-700/40 mb-3" />
+                  <div className="h-3 bg-gray-700/40 rounded w-3/4 mb-1" />
+                  <div className="h-2 bg-gray-700/30 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] animate-pulse"
+                >
+                  <div className="w-16 h-16 bg-gray-700/40 rounded-lg" />
+                  <div className="flex-1">
+                    <div className="h-3 bg-gray-700/40 rounded w-3/5 mb-2" />
+                    <div className="h-2 bg-gray-700/30 rounded w-2/5" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : activeList.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-500">
             <Icon d={ICONS.disc} className="w-12 h-12 mb-3 opacity-40" />
             <p className="text-sm">آلبومی یافت نشد</p>
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {displayedAlbums.map((album) => (
+            {activeList.map((album) => (
               <AlbumCardGrid
                 key={album.id}
                 album={album}
@@ -374,7 +642,7 @@ export default function LikedAlbums() {
           </div>
         ) : (
           <div className="space-y-2">
-            {displayedAlbums.map((album) => (
+            {activeList.map((album) => (
               <AlbumCardList
                 key={album.id}
                 album={album}
@@ -384,6 +652,14 @@ export default function LikedAlbums() {
             ))}
           </div>
         )}
+
+        {viewState.isFetchingMore && (
+          <div className="flex justify-center py-4">
+            <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        <div ref={loadMoreRef} className="h-4" />
       </div>
     </div>
   );

@@ -6,10 +6,91 @@ import React, {
   useEffect,
 } from "react";
 
+export interface UserRecentlyPlayedItem {
+  id: number;
+  title: string;
+  artist_id: number;
+  artist_name: string;
+  featured_artists: string[];
+  album: number;
+  album_title: string;
+  is_single: boolean;
+  stream_url: string | null;
+  cover_image: string;
+  duration_seconds: number;
+  duration_display: string;
+  plays: number;
+  likes_count: number;
+  is_liked: boolean;
+  status: string;
+  release_date: string;
+  language: string;
+  description: string;
+  created_at: string;
+  display_title: string;
+}
+
+export interface UserRecentlyPlayed {
+  items: UserRecentlyPlayedItem[];
+  total: number;
+  page: number;
+  has_next: boolean;
+  next: string | null;
+}
+
+export interface UserNotificationSetting {
+  new_song_followed_artists: boolean;
+  new_album_followed_artists: boolean;
+  new_playlist: boolean;
+  new_likes: boolean;
+  new_follower: boolean;
+  system_notifications: boolean;
+}
+
+export interface UserFollowItem {
+  id: number;
+  type: string;
+  name: string;
+  image: string;
+  is_verified: boolean;
+  followers_count: number;
+  following_count: number;
+  is_following: boolean;
+}
+
+export interface UserFollows {
+  items: UserFollowItem[];
+  total: number;
+  page: number;
+  has_next: boolean;
+  next: string | null;
+}
+
+export interface User {
+  id: number;
+  phone_number: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  roles: string[];
+  is_active: boolean;
+  is_staff: boolean;
+  date_joined: string;
+  followers_count: number;
+  following_count: number;
+  user_playlists_count: number;
+  recently_played: UserRecentlyPlayed;
+  notification_setting: UserNotificationSetting;
+  plan: string;
+  stream_quality: string;
+  followers: UserFollows;
+  following: UserFollows;
+}
+
 interface AuthContextType {
   isLoggedIn: boolean;
   isInitializing: boolean;
-  user: { id?: string; phone: string; is_verified?: boolean } | null;
+  user: User | null;
   accessToken: string | null;
   login: (phone: string, password?: string) => Promise<void>;
   register: (phone: string, password: string) => Promise<void>;
@@ -25,6 +106,9 @@ interface AuthContextType {
   resetPassword: (newPassword: string) => Promise<boolean>;
   requestLoginOtp: (phone: string) => Promise<boolean>;
   requestPasswordReset: (phone: string) => Promise<boolean>;
+  fetchUserProfile: () => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<void>;
+  updateStreamQuality: (quality: "medium" | "high") => Promise<void>;
   verificationContext: string | null;
   setVerificationContext: (context: string | null) => void;
   formatErrorMessage: (error: any) => string;
@@ -39,17 +123,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
-  const [user, setUser] = useState<{
-    id?: string;
-    phone: string;
-    is_verified?: boolean;
-  } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [verificationContext, setVerificationContext] = useState<string | null>(
-    null
+    null,
   );
 
   const formatErrorMessage = (error: any): string => {
@@ -67,12 +147,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     return msg;
   };
 
+  async function get(path: string, token: string) {
+    const res = await fetch(`${API_ROOT}${path}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const text = await res.text();
+    try {
+      return {
+        ok: res.ok,
+        status: res.status,
+        body: text ? JSON.parse(text) : null,
+      };
+    } catch (e) {
+      return { ok: res.ok, status: res.status, body: text };
+    }
+  }
+
   async function post(path: string, body: any) {
     console.log(
       "Making POST request to:",
       `${API_ROOT}${path}`,
       "with body:",
-      body
+      body,
     );
     const res = await fetch(`${API_ROOT}${path}`, {
       method: "POST",
@@ -92,6 +192,94 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       return { ok: res.ok, status: res.status, body: text };
     }
   }
+
+  async function patch(path: string, body: any, token: string) {
+    const res = await fetch(`${API_ROOT}${path}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    try {
+      return {
+        ok: res.ok,
+        status: res.status,
+        body: text ? JSON.parse(text) : null,
+      };
+    } catch (e) {
+      return { ok: res.ok, status: res.status, body: text };
+    }
+  }
+
+  const fetchUserProfile = async (providedToken?: string) => {
+    const token =
+      providedToken ||
+      accessToken ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("accessToken")
+        : null);
+    if (!token) return;
+
+    try {
+      const r = await get("/profile/", token);
+      if (r.ok && r.body) {
+        setUser(r.body as User);
+      }
+    } catch (err) {
+      console.error("Failed to fetch user profile", err);
+    }
+  };
+
+  const updateProfile = async (updateData: Partial<User>) => {
+    const token =
+      accessToken ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("accessToken")
+        : null);
+    if (!token) throw new Error("Authentication required");
+
+    const r = await patch("/profile/", updateData, token);
+    if (!r.ok) throw r.body || new Error("Failed to update profile");
+
+    if (r.body) {
+      setUser(r.body as User);
+    }
+  };
+
+  const updateStreamQuality = async (quality: "medium" | "high") => {
+    const token =
+      accessToken ||
+      (typeof window !== "undefined"
+        ? localStorage.getItem("accessToken")
+        : null);
+    if (!token) throw new Error("Authentication required");
+
+    const r = await patch(
+      "/profile/settings/stream-quality/",
+      { stream_quality: quality },
+      token,
+    );
+    if (!r.ok) {
+      throw r.body || new Error("Failed to update stream quality");
+    }
+
+    // Response returns new stream_quality and plan (GET returns both; update returns the new value)
+    if (r.body) {
+      // r.body may be { stream_quality: 'high' } or { stream_quality: 'high', plan: 'premium' }
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updated: User = {
+          ...prev,
+          stream_quality: r.body.stream_quality || prev.stream_quality,
+          plan: r.body.plan || prev.plan,
+        };
+        return updated;
+      });
+    }
+  };
 
   const tryRefreshToken = async (refreshToken?: string) => {
     const token =
@@ -113,7 +301,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setAccessToken(data.accessToken);
       if (typeof window !== "undefined")
         localStorage.setItem("refreshToken", data.refreshToken);
-      setUser(data.user || null);
+
+      if (
+        data.user &&
+        (data.user.followers_count !== undefined || data.user.plan)
+      ) {
+        setUser(data.user as User);
+      } else {
+        // Fallback: if user info is incomplete, fetch it
+        await fetchUserProfile(data.accessToken);
+      }
       setIsLoggedIn(true);
       return true;
     } catch (err) {
@@ -178,7 +375,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setAccessToken(data.accessToken);
     if (typeof window !== "undefined")
       localStorage.setItem("refreshToken", data.refreshToken);
-    setUser(data.user || { phone: phoneNormalized });
+
+    if (
+      data.user &&
+      (data.user.followers_count !== undefined || data.user.plan)
+    ) {
+      setUser(data.user as User);
+    } else {
+      await fetchUserProfile(data.accessToken);
+    }
     setIsLoggedIn(true);
   };
 
@@ -203,7 +408,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setAccessToken(data.accessToken);
     if (typeof window !== "undefined")
       localStorage.setItem("refreshToken", data.refreshToken);
-    setUser(data.user || { phone });
+
+    if (
+      data.user &&
+      (data.user.followers_count !== undefined || data.user.plan)
+    ) {
+      setUser(data.user as User);
+    } else {
+      await fetchUserProfile(data.accessToken);
+    }
     setIsLoggedIn(true);
     return true;
   };
@@ -219,7 +432,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setAccessToken(data.accessToken);
     if (typeof window !== "undefined")
       localStorage.setItem("refreshToken", data.refreshToken);
-    setUser(data.user || { phone });
+
+    if (
+      data.user &&
+      (data.user.followers_count !== undefined || data.user.plan)
+    ) {
+      setUser(data.user as User);
+    } else {
+      await fetchUserProfile(data.accessToken);
+    }
     setIsLoggedIn(true);
     return true;
   };
@@ -272,6 +493,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         verifyOtp,
         verifyLoginOtp,
         resetPassword,
+        fetchUserProfile,
+        updateProfile,
+        updateStreamQuality,
         verificationContext,
         setVerificationContext,
         formatErrorMessage,

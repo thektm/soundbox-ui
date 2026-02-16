@@ -8,8 +8,9 @@
     "start": "next start"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "^1.1.15",
     "clsx": "^2.1.1",
-    "framer-motion": "^12.23.26",
+    "framer-motion": "^12.34.0",
     "gsap": "^3.14.2",
     "hls.js": "^1.6.15",
     "lucide-react": "^0.561.0",
@@ -18,7 +19,7 @@
     "react-dom": "19.2.1",
     "react-hot-toast": "^2.6.0",
     "react-toastify": "^11.0.5",
-    "tailwind-merge": "^3.4.0",
+    "tailwind-merge": "^3.4.1",
     "vaul": "^1.1.2"
   },
   "devDependencies": {

@@ -5,6 +5,7 @@ const Premium: React.FC = () => {
   const { navigateTo } = useNavigation();
   const containerRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
   const lastScrollY = useRef<number>(0);
   const ticking = useRef<boolean>(false);
@@ -14,14 +15,28 @@ const Premium: React.FC = () => {
 
     const progress = Math.min(scrollY / 400, 1);
 
+    // Accelerate certain visual changes so they complete ~3x faster
+    const acceleratedProgress = Math.min(progress * 3, 1);
+
     const scale = 1 - progress * 0.3;
     const opacity = 1 - progress;
-    const blurValue = progress * 10;
+    // Use accelerated progress for overlay so it darkens sooner on scroll
+    const overlayOpacity = Math.min(acceleratedProgress * 0.7, 0.85);
 
+    // Transform and opacity
     headerRef.current.style.transform = `translate3d(0,0,0) scale3d(${scale},${scale},1)`;
     headerRef.current.style.opacity = `${opacity}`;
-    headerRef.current.style.filter =
-      blurValue > 0.5 ? `blur(${blurValue}px)` : "none";
+
+    // Gradually round the top corners as scroll progress increases (matches bottom curve ≈ 48px)
+    // Accelerated progress is used (defined above) so rounding completes ~3x faster
+    const maxTopRadiusPx = 48; // ~3rem
+    const topRadiusPx = Math.round(acceleratedProgress * maxTopRadiusPx);
+    headerRef.current.style.borderTopLeftRadius = `${topRadiusPx}px`;
+    headerRef.current.style.borderTopRightRadius = `${topRadiusPx}px`;
+
+    if (overlayRef.current) {
+      overlayRef.current.style.opacity = `${overlayOpacity}`;
+    }
   }, []);
 
   useEffect(() => {
@@ -63,7 +78,7 @@ const Premium: React.FC = () => {
         ref={headerRef}
         className="sticky top-0 w-full h-[35vh] flex-shrink-0 z-0 origin-center overflow-hidden rounded-b-[3rem]"
         style={{
-          willChange: "transform, opacity",
+          willChange: "transform, opacity, border-radius",
           backfaceVisibility: "hidden",
           WebkitBackfaceVisibility: "hidden",
           perspective: 1000,
@@ -78,7 +93,11 @@ const Premium: React.FC = () => {
           loading="eager"
           decoding="async"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent" />
+        <div
+          ref={overlayRef}
+          className="absolute inset-0 bg-gradient-to-t from-[#000000] via-transparent to-transparent"
+          style={{ opacity: 0, transition: "opacity 220ms linear" }}
+        />
       </div>
 
       {/* Content Area */}
@@ -109,26 +128,29 @@ const Premium: React.FC = () => {
                 <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
                   <svg
                     className="w-3 h-3 text-zinc-400"
-                    fill="none"
                     viewBox="0 0 24 24"
+                    fill="none"
                     stroke="currentColor"
                   >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M6 18L18 6M6 6l12 12"
+                      strokeWidth={2}
+                      d="M5 12h14"
                     />
                   </svg>
                 </div>
-                <span className="text-sm">همراه با آگهی‌های صوتی</span>
+                <span className="text-sm">
+                  پخش آنلاین موسیقی با تبلیغ صوتی / بنری
+                </span>
               </div>
+
               <div className="flex items-center gap-3 text-zinc-300">
                 <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
                   <svg
                     className="w-3 h-3 text-black"
-                    fill="none"
                     viewBox="0 0 24 24"
+                    fill="none"
                     stroke="currentColor"
                   >
                     <path
@@ -139,14 +161,72 @@ const Premium: React.FC = () => {
                     />
                   </svg>
                 </div>
-                <span className="text-sm">کیفیت پخش 128kbps</span>
+                <span className="text-sm">کیفیت پخش متوسط (128kbps)</span>
               </div>
+
+              <div className="flex items-center gap-3 text-zinc-300">
+                <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-3 h-3 text-zinc-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </div>
+                <span className="text-sm">محدودیت در رد کردن آهنگ (Skip)</span>
+              </div>
+
+              <div className="flex items-center gap-3 text-zinc-300">
+                <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-3 h-3 text-zinc-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  </svg>
+                </div>
+                <span className="text-sm">پلی‌لیست محدود</span>
+              </div>
+
+              <div className="flex items-center gap-3 text-zinc-300">
+                <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-3 h-3 text-zinc-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 6v6l4 2"
+                    />
+                  </svg>
+                </div>
+                <span className="text-sm">الگوریتم محدود</span>
+              </div>
+
               <div className="flex items-center gap-3 text-zinc-500">
                 <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center flex-shrink-0">
                   <svg
                     className="w-3 h-3 text-zinc-600"
-                    fill="none"
                     viewBox="0 0 24 24"
+                    fill="none"
                     stroke="currentColor"
                   >
                     <path
@@ -158,27 +238,7 @@ const Premium: React.FC = () => {
                   </svg>
                 </div>
                 <span className="text-sm line-through">
-                  دانلود و پخش آفلاین
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-zinc-500">
-                <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-3 h-3 text-zinc-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </div>
-                <span className="text-sm line-through">
-                  دسترسی به ویژگی‌های جدید
+                  عدم دسترسی به دانلود
                 </span>
               </div>
             </div>
@@ -198,10 +258,18 @@ const Premium: React.FC = () => {
             </div>
 
             <div className="mb-6">
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-2">
-                پلن پریمیوم
-              </h3>
-              <p className="text-zinc-400 text-sm">تجربه حرفه‌ای موسیقی</p>
+              <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-0">
+                  پلن پریمیوم
+                </h3>
+                <div className="inline-flex items-baseline gap-2 bg-gradient-to-r from-emerald-600 to-emerald-400 text-black font-extrabold px-3 py-1 rounded-full shadow-lg">
+                  <span className="text-xl md:text-2xl">۵۹٬۰۰۰</span>
+                  <span className="text-sm md:text-base font-semibold">
+                    تومان
+                  </span>
+                </div>
+              </div>
+              <p className="text-zinc-400 text-sm mt-2">تجربه حرفه‌ای موسیقی</p>
             </div>
 
             <div className="flex-1 space-y-5 mb-10">
@@ -209,8 +277,8 @@ const Premium: React.FC = () => {
                 <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
                   <svg
                     className="w-3 h-3 text-black"
-                    fill="none"
                     viewBox="0 0 24 24"
+                    fill="none"
                     stroke="currentColor"
                   >
                     <path
@@ -222,15 +290,35 @@ const Premium: React.FC = () => {
                   </svg>
                 </div>
                 <span className="text-sm font-medium">
-                  پخش بدون آگهی‌های صوتی
+                  پخش آنلاین موسیقی بدون محدودیت
                 </span>
               </div>
+
               <div className="flex items-center gap-3 text-white">
                 <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
                   <svg
                     className="w-3 h-3 text-black"
-                    fill="none"
                     viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={3}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium">بدون تبلیغ</span>
+              </div>
+
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-3 h-3 text-black"
+                    viewBox="0 0 24 24"
+                    fill="none"
                     stroke="currentColor"
                   >
                     <path
@@ -242,15 +330,37 @@ const Premium: React.FC = () => {
                   </svg>
                 </div>
                 <span className="text-sm font-medium">
-                  کیفیت پخش عالی 320kbps
+                  کیفیت بالا (320kbps)
                 </span>
               </div>
+
               <div className="flex items-center gap-3 text-white">
                 <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
                   <svg
                     className="w-3 h-3 text-black"
-                    fill="none"
                     viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={3}
+                      d="M12 2l2.09 6.26L20 9.27l-5 3.64L16.18 20 12 16.77 7.82 20 9 12.91 4 9.27l5.91-.01L12 2z"
+                    />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium">
+                  نشان تایید ⭐️ یا Badge کنار نام کاربر
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-3 h-3 text-black"
+                    viewBox="0 0 24 24"
+                    fill="none"
                     stroke="currentColor"
                   >
                     <path
@@ -261,14 +371,72 @@ const Premium: React.FC = () => {
                     />
                   </svg>
                 </div>
-                <span className="text-sm font-medium">دانلود و پخش آفلاین</span>
+                <span className="text-sm font-medium">Skip نامحدود</span>
               </div>
+
               <div className="flex items-center gap-3 text-white">
                 <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
                   <svg
                     className="w-3 h-3 text-black"
-                    fill="none"
                     viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={3}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium">دانلود آثار موسیقی</span>
+              </div>
+
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-3 h-3 text-black"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={3}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium">الگوریتم کامل</span>
+              </div>
+
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-3 h-3 text-black"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={3}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium">پلی‌لیست نامحدود</span>
+              </div>
+
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-3 h-3 text-black"
+                    viewBox="0 0 24 24"
+                    fill="none"
                     stroke="currentColor"
                   >
                     <path
@@ -280,7 +448,7 @@ const Premium: React.FC = () => {
                   </svg>
                 </div>
                 <span className="text-sm font-medium">
-                  دسترسی به ویژگی‌های جدید
+                  دسترسی زودتر به ویژگی‌های جدید
                 </span>
               </div>
             </div>

@@ -2,7 +2,9 @@ import Image from "next/image";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import UserIcon from "./UserIcon";
 import HeroSection from "./HeroSection";
+import NotificationPopover from "./NotificationPopover";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
@@ -55,6 +57,14 @@ interface ApiPlaylist {
   covers?: string[];
   songs_count: number;
   is_liked: boolean;
+}
+
+interface ApiNotification {
+  id: number;
+  text: string;
+  has_read: boolean;
+  created_at: string;
+  removing?: boolean;
 }
 
 interface HomeSummaryResponse {
@@ -143,6 +153,20 @@ const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
+};
+
+const getTimeAgo = (dateStr: string) => {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (seconds < 60) return "لحظاتی پیش";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} دقیقه پیش`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ساعت پیش`;
+  const days = Math.floor(hours / 24);
+  return `${days} روز پیش`;
 };
 
 // Utility function to convert ApiSong to Track
@@ -239,7 +263,7 @@ export function createSlug(title: string): string {
 }
 
 export default function Home() {
-  const { logout, accessToken } = useAuth();
+  const { logout, accessToken, user } = useAuth();
   const { setCurrentPage, navigateTo, homeCache, setHomeCache } =
     useNavigation();
   const { setQueue } = usePlayer();
@@ -280,29 +304,14 @@ export default function Home() {
     homeCache ? false : true,
   );
   const [showBrandText, setShowBrandText] = useState(true);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      text: "شما یک دنبال‌کننده جدید دارید",
-      time: "2 دقیقه پیش",
-      checked: false,
-      removing: false,
-    },
-    {
-      id: 2,
-      text: "پخش تازه‌ای منتشر شد",
-      time: "10 دقیقه پیش",
-      checked: false,
-      removing: false,
-    },
-  ]);
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+  const [markingReadIds, setMarkingReadIds] = useState<Set<number>>(new Set());
   const [activeIndex, setActiveIndex] = useState(0);
   const isInitialMount = useRef(true);
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
   const navRef = useRef<HTMLDivElement>(null);
-  const bellRef = useRef<HTMLDivElement>(null);
   const lastFetchedToken = useRef<string | null>(null);
+  const [isMobileView, setIsMobileView] = useState(false);
 
   const sectionTitles = [
     "برای شما",
@@ -432,6 +441,93 @@ export default function Home() {
     );
     fetchExtra("weekly-top-songs-global", setWeeklyTopSongs, "weeklyTopSongs");
   }, [accessToken]);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!accessToken) return;
+    try {
+      const response = await fetch(
+        "https://api.sedabox.com/api/notifications/",
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data);
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (accessToken) {
+      fetchNotifications();
+    }
+  }, [accessToken, fetchNotifications]);
+
+  const handleMarkAsRead = async (id: number) => {
+    if (!accessToken || markingReadIds.has(id)) return;
+
+    setMarkingReadIds((prev) => new Set(prev).add(id));
+    try {
+      const response = await fetch(
+        `https://api.sedabox.com/api/notifications/${id}/read/`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+
+      if (response.ok) {
+        // Trigger the animation sequence
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, has_read: true } : n)),
+        );
+
+        // Wait a bit for the checkmark animation
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, removing: true } : n)),
+        );
+
+        // Wait for slide-out animation then remove from state
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+      }
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    } finally {
+      setMarkingReadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (!accessToken || notifications.length === 0) return;
+    try {
+      const response = await fetch(
+        "https://api.sedabox.com/api/notifications/read/",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+
+      if (response.ok) {
+        // Mark all as removing and fade them out
+        setNotifications((prev) => prev.map((n) => ({ ...n, removing: true })));
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setNotifications([]);
+      }
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
+  };
 
   const fetchNextPlaylists = async () => {
     // playlistRecommendations can be either an array or a paginated response.
@@ -598,9 +694,11 @@ export default function Home() {
             duration: formatDuration(song.duration_seconds),
             isNew: index < 3,
           })),
-        newPlaylists: (Array.isArray(homeData.playlist_recommendations)
-          ? homeData.playlist_recommendations
-          : homeData.playlist_recommendations?.results || []
+        newPlaylists: (playlistRecommendations
+          ? Array.isArray(playlistRecommendations)
+            ? playlistRecommendations
+            : playlistRecommendations.results || []
+          : []
         ).map((playlist: any) => ({
           id: playlist.unique_id,
           title: playlist.title,
@@ -650,26 +748,15 @@ export default function Home() {
     }
   }, [activeIndex]);
 
+  // Detect mobile view for NotificationPopover
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (
-        showNotifications &&
-        bellRef.current &&
-        !bellRef.current.contains(e.target as Node)
-      ) {
-        setShowNotifications(false);
-      }
+    const checkMobile = () => {
+      setIsMobileView(window.innerWidth < 1024);
     };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowNotifications(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [showNotifications]);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   if (isLoading || !sectionData || !homeData) {
     return (
@@ -1249,13 +1336,9 @@ export default function Home() {
     });
   }
 
-  const playlistForHero =
-    (Array.isArray(playlistRecommendations)
-      ? playlistRecommendations[0]
-      : playlistRecommendations?.results?.[0]) ||
-    (Array.isArray(homeData.playlist_recommendations)
-      ? homeData.playlist_recommendations[0]
-      : homeData.playlist_recommendations?.results?.[0]);
+  const playlistForHero = Array.isArray(playlistRecommendations)
+    ? playlistRecommendations[0]
+    : playlistRecommendations?.results?.[0];
   if (playlistForHero) {
     const idx = heroHighlights.length % meshGradients.length;
     heroHighlights.push({
@@ -1291,17 +1374,11 @@ export default function Home() {
       homeData.popular_artists?.count ||
       homeData.popular_artists?.results?.length ||
       0,
-    totalPlaylists:
-      (Array.isArray(playlistRecommendations)
-        ? playlistRecommendations.length
-        : playlistRecommendations?.count ||
-          playlistRecommendations?.results?.length ||
-          0) +
-      (Array.isArray(homeData.playlist_recommendations)
-        ? homeData.playlist_recommendations.length
-        : homeData.playlist_recommendations?.count ||
-          homeData.playlist_recommendations?.results?.length ||
-          0),
+    totalPlaylists: Array.isArray(playlistRecommendations)
+      ? playlistRecommendations.length
+      : playlistRecommendations?.count ||
+        playlistRecommendations?.results?.length ||
+        0,
   };
 
   const scrollToSectionByKey = (key: string) => {
@@ -1361,8 +1438,11 @@ export default function Home() {
       <header className="md:hidden sticky top-0 z-50 px-4 pt-4 pb-2 bg-black/90  transition-all duration-300">
         <div className="flex flex-row-reverse items-center justify-between mb-4">
           <div className="flex flex-row-reverse items-center gap-2 fade-in">
-            <div className="w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center ring-emerald-500 ring-3 font-bold text-lg">
-              ع
+            <div
+              onClick={() => navigateTo("profile")}
+              className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 cursor-pointer transition-transform active:scale-95"
+            >
+              <UserIcon className="w-6 h-6 text-zinc-400" />
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -1385,110 +1465,16 @@ export default function Home() {
                 صداباکس
               </div>
             </div>
-            <div className="relative" ref={bellRef}>
-              <button
-                aria-label="اعلان‌ها"
-                aria-expanded={showNotifications}
-                className="text-white/90 p-2 rounded-md hover:bg-white/5 transition"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowNotifications(!showNotifications);
-                }}
-              >
-                <Bell className="w-6 h-6" />
-              </button>
-              {showNotifications && (
-                <div
-                  role="dialog"
-                  aria-label="اعلان‌ها"
-                  className="absolute top-full right-0 mt-2 w-80 max-w-[90vw] bg-zinc-900/95  rounded-lg p-3 shadow-lg z-50"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="font-semibold text-sm">اعلان‌ها</div>
-                    <button
-                      className="text-xs text-zinc-400 hover:text-white"
-                      onClick={() => setShowNotifications(false)}
-                    >
-                      بستن
-                    </button>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {notifications.length === 0 ? (
-                      <div className="text-zinc-400 text-sm p-2 text-center">
-                        اعلان جدیدی وجود ندارد
-                      </div>
-                    ) : (
-                      notifications.map((n) => (
-                        <div
-                          key={n.id}
-                          className={`notif-item flex items-center gap-3 p-2 rounded-md hover:bg-zinc-800 transition ${
-                            n.removing ? "removing" : ""
-                          }`}
-                        >
-                          <button
-                            role="checkbox"
-                            aria-checked={n.checked}
-                            onClick={() => {
-                              setNotifications((prev) =>
-                                prev.map((p) =>
-                                  p.id === n.id ? { ...p, checked: true } : p,
-                                ),
-                              );
-                              setTimeout(
-                                () =>
-                                  setNotifications((prev) =>
-                                    prev.map((p) =>
-                                      p.id === n.id
-                                        ? { ...p, removing: true }
-                                        : p,
-                                    ),
-                                  ),
-                                220,
-                              );
-                              setTimeout(
-                                () =>
-                                  setNotifications((prev) =>
-                                    prev.filter((p) => p.id !== n.id),
-                                  ),
-                                560,
-                              );
-                            }}
-                            className={`notif-checkbox flex items-center justify-center shrink-0 w-7 h-7 rounded-md border-2 transition-all duration-200 ${
-                              n.checked
-                                ? "border-green-500 bg-green-500"
-                                : "border-zinc-600 bg-transparent"
-                            }`}
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              className={`w-4 h-4 text-black transition-transform duration-200 ${
-                                n.checked
-                                  ? "opacity-100 scale-100"
-                                  : "opacity-0 scale-75"
-                              }`}
-                              fill="none"
-                              stroke="none"
-                            >
-                              <path
-                                d="M5 12.5l4 4L19 7"
-                                stroke="white"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </button>
-                          <div className="flex-1 text-sm text-zinc-200">
-                            {n.text}
-                          </div>
-                          <div className="text-zinc-500 text-xs">{n.time}</div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <NotificationPopover
+              notifications={notifications}
+              setNotifications={setNotifications}
+              markingReadIds={markingReadIds}
+              setMarkingReadIds={setMarkingReadIds}
+              onMarkAsRead={handleMarkAsRead}
+              onMarkAllAsRead={handleMarkAllAsRead}
+              getTimeAgo={getTimeAgo}
+              isMobile={true}
+            />
             <button
               onClick={() => navigateTo("profile")}
               className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold shadow-md hover:brightness-95 transition-transform transform hover:scale-105"
@@ -1599,11 +1585,27 @@ export default function Home() {
 
           {/* Right side controls */}
           <div className="flex items-center gap-3">
-            <button className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold text-sm hover:text-emerald-400 transition-colors">
+            <button
+              onClick={() => navigateTo("premium")}
+              className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold text-sm hover:text-emerald-400 transition-colors"
+            >
               ارتقا پلن +
             </button>
-            <div className="w-8 h-8 rounded-full bg-zinc-800 text-white flex items-center justify-center ring-2 ring-emerald-500 font-bold text-sm cursor-pointer hover:scale-105 transition-transform">
-              ع
+            <NotificationPopover
+              notifications={notifications}
+              setNotifications={setNotifications}
+              markingReadIds={markingReadIds}
+              setMarkingReadIds={setMarkingReadIds}
+              onMarkAsRead={handleMarkAsRead}
+              onMarkAllAsRead={handleMarkAllAsRead}
+              getTimeAgo={getTimeAgo}
+              isMobile={false}
+            />
+            <div
+              onClick={() => navigateTo("profile")}
+              className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 cursor-pointer transition-transform active:scale-95"
+            >
+              <UserIcon className="w-6 h-6 text-zinc-400" />
             </div>
           </div>
         </div>

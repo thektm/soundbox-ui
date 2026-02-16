@@ -30,6 +30,8 @@ import NewDiscoveriesPage from "./NewDiscoveriesPage";
 import ChartPage from "./ChartPage";
 import LibraryScreen from "./LibraryScreen";
 import Premium from "./Premium";
+import FollowingArtistsPage from "./FollowingArtistsPage";
+import UserPlaylistDetail from "./UserPlaylistDetail";
 
 const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
@@ -79,6 +81,8 @@ const AppRouter: React.FC = () => {
         return (
           <PlaylistDetail id={currentParams?.id} slug={currentParams?.slug} />
         );
+      case "user-playlist-detail":
+        return <UserPlaylistDetail id={currentParams?.id} />;
       case "artist-detail":
         return <ArtistDetail id={currentParams?.id} />;
       case "album-detail":
@@ -101,6 +105,8 @@ const AppRouter: React.FC = () => {
         return <LikedPlaylists />;
       case "premium":
         return <Premium />;
+      case "followed-artists":
+        return <FollowingArtistsPage />;
       case "my-playlists":
         return <MyPlaylists />;
       case "upgrade-plans":

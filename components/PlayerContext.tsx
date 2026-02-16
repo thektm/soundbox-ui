@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import { useAuth } from "./AuthContext";
 import Hls from "hls.js";
+import { scrapeIpInfo } from "./ipScraper";
 
 // Ensure any URL coming from the server uses HTTPS where possible.
 function ensureHttps(u?: string | null): string | undefined {
@@ -114,6 +115,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [likesCount, setLikesCount] = useState<number>(0);
   const [isLiking, setIsLiking] = useState<boolean>(false);
   const [lyrics, setLyrics] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState({
+    country: "iran",
+    city: "Tehran",
+  });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -135,6 +140,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const submittedForCurrentRef = useRef<boolean>(false);
   const submittedUidsRef = useRef<Set<string>>(new Set());
   const resolvedUrlsRef = useRef<Map<string, string>>(new Map());
+  const userLocationRef = useRef({ country: "iran", city: "Tehran" });
 
   // Derived state for current, previous, and next tracks
   const currentTrack = useMemo(
@@ -280,10 +286,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 try {
-                  console.log("Submitting play count", {
-                    unique_otplay_id: uid,
-                    seconds: playSecondsRef.current,
-                  });
                   const url = "https://api.sedabox.com/api/play/count/";
                   const headers: Record<string, string> = {
                     "Content-Type": "application/json",
@@ -293,9 +295,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                       `Bearer ${accessTokenRef.current}`;
                   const body = JSON.stringify({
                     unique_otplay_id: uid,
-                    city: "Tehran",
-                    country: "iran",
+                    city: userLocationRef.current.city,
+                    country: userLocationRef.current.country,
                   });
+                  console.log("Submitting play count body:", body);
                   const resp = await fetch(url, {
                     method: "POST",
                     headers,
@@ -691,6 +694,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               .then(() => {
                 setIsPlaying(true);
                 setIsLoading(false);
+                // Scrap IP info in the background and update ref for play counting
+                scrapeIpInfo().then((res) => {
+                  if (res) {
+                    userLocationRef.current = {
+                      country: res.country,
+                      city: res.province,
+                    };
+                  }
+                });
               })
               .catch((error) => {
                 console.error("Playback failed:", error);
@@ -710,6 +722,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 setIsPlaying(true);
                 setIsLoading(false);
                 console.debug("Playback started successfully for", resolvedSrc);
+                // Scrap IP info in the background and update ref for play counting
+                scrapeIpInfo().then((res) => {
+                  if (res) {
+                    userLocationRef.current = {
+                      country: res.country,
+                      city: res.province,
+                    };
+                  }
+                });
               })
               .catch((error) => {
                 console.error("Playback failed:", {

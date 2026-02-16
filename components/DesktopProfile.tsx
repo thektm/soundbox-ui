@@ -10,6 +10,7 @@ import LikedPlaylists from "./LikedPlaylists";
 import MyPlaylists from "./MyPlaylists";
 import Settings from "./Settings";
 import { ResponsiveSheet } from "./ResponsiveSheet";
+import FollowingArtistsPage from "./FollowingArtistsPage";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -71,6 +72,7 @@ type Section =
   | "liked-songs"
   | "liked-albums"
   | "liked-playlists"
+  | "followed-artists"
   | "my-playlists"
   | "settings";
 
@@ -136,6 +138,11 @@ export default function DesktopProfile() {
       key: "liked-playlists" as Section,
       label: "پلی‌لیست‌های لایک‌شده",
       icon: ICONS.playlist,
+    },
+    {
+      key: "followed-artists" as Section,
+      label: "هنرمندان دنبال‌شده",
+      icon: ICONS.users,
     },
     {
       key: "my-playlists" as Section,
@@ -437,6 +444,8 @@ export default function DesktopProfile() {
         return <LikedAlbums />;
       case "liked-playlists":
         return <LikedPlaylists />;
+      case "followed-artists":
+        return <FollowingArtistsPage />;
       case "my-playlists":
         return <MyPlaylists />;
       case "settings":

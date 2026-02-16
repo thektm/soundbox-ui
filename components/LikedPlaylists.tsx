@@ -1,8 +1,54 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, memo } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  memo,
+  useEffect,
+  useRef,
+} from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigation } from "./NavigationContext";
-import { LIKED_PLAYLISTS, LikedPlaylist, createSlug } from "./mockData";
+import { useAuth } from "./AuthContext";
+import { toast } from "react-hot-toast";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface ApiPlaylist {
+  id: number;
+  title: string;
+  description: string;
+  cover_image: string;
+  top_three_song_covers: string[];
+  songs_count: number;
+  is_liked: boolean;
+  genre_names: string[];
+  mood_names: string[];
+  type: "normal-playlist" | "recommended";
+  liked_at: string;
+  unique_id?: string;
+}
+
+interface LikedPlaylistsResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: ApiPlaylist[];
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+const ensureHttps = (u?: string | null) =>
+  u?.startsWith("http://") ? u.replace("http://", "https://") : u;
+
+const formatNumber = (num: number) => {
+  return new Intl.NumberFormat("fa-IR").format(num);
+};
 
 // ============================================================================
 // Icon Component - Optimized with memo
@@ -30,7 +76,7 @@ const Icon = memo(
         d={d}
       />
     </svg>
-  )
+  ),
 );
 
 Icon.displayName = "Icon";
@@ -69,11 +115,11 @@ const PlaylistCardGrid = memo(
     onPress,
     onLike,
   }: {
-    playlist: LikedPlaylist;
+    playlist: ApiPlaylist;
     onPress: () => void;
     onLike: () => void;
   }) => {
-    const [isLiked, setIsLiked] = useState(true);
+    const [isLiked, setIsLiked] = useState(playlist.is_liked);
 
     const handleLike = useCallback(
       (e: React.MouseEvent) => {
@@ -81,81 +127,118 @@ const PlaylistCardGrid = memo(
         setIsLiked(!isLiked);
         onLike();
       },
-      [isLiked, onLike]
+      [isLiked, onLike],
     );
 
+    const covers = useMemo(() => {
+      const unique = [
+        playlist.cover_image,
+        ...(playlist.top_three_song_covers || []),
+      ].filter(Boolean);
+      return Array.from(new Set(unique)).slice(0, 3);
+    }, [playlist.cover_image, playlist.top_three_song_covers]);
+
     return (
-      <div
+      <motion.div
         onClick={onPress}
-        className="group cursor-pointer active:scale-[0.97] transition-transform duration-150"
-        style={{ willChange: "transform" }}
+        className="group relative cursor-pointer pt-10 pb-6"
+        whileHover="hover"
       >
-        {/* Playlist Cover Container */}
-        <div className="relative aspect-square rounded-xl overflow-hidden bg-zinc-800/50 shadow-lg mb-3">
-          <div
-            className={`absolute inset-0 bg-gradient-to-br ${playlist.gradient}`}
-          />
-          <img
-            src={playlist.image}
-            alt={playlist.title}
-            className="relative w-full h-full object-cover mix-blend-overlay opacity-80 group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
-          />
+        {/* Stacked Images Container - 10% bigger overall scale */}
+        <div className="relative aspect-square mb-5 px-3">
+          {/* Layer 3 (Back) - Increased offsets for more spread */}
+          <motion.div
+            className="absolute inset-x-2 inset-y-0 rounded-2xl bg-zinc-800 shadow-xl overflow-hidden pointer-events-none"
+            variants={{
+              hover: { y: -24, x: -18, rotate: -10, opacity: 0.6, scale: 0.92 },
+            }}
+            initial={{ y: -10, x: -8, rotate: -6, opacity: 0.3, scale: 0.9 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          >
+            <img
+              src={covers[2] || covers[1] || covers[0]}
+              alt=""
+              className="w-full h-full object-cover blur-[0.5px]"
+            />
+          </motion.div>
 
-          {/* Hover Overlay with Play Button */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-end justify-between p-3 opacity-0 group-hover:opacity-100">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                // Play playlist
-              }}
-              className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center shadow-xl shadow-emerald-500/40 hover:scale-105 hover:bg-emerald-400 transition-all duration-200"
-            >
-              <Icon
-                d={ICONS.play}
-                className="w-5 h-5 text-white mr-[-2px]"
-                filled
-              />
-            </button>
-            <button
-              onClick={handleLike}
-              className="w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-all duration-200"
-            >
-              <Icon
-                d={ICONS.heart}
-                className={`w-5 h-5 ${
-                  isLiked ? "text-emerald-500" : "text-white"
-                }`}
-                filled={isLiked}
-              />
-            </button>
-          </div>
+          {/* Layer 2 (Middle) - Increased offsets for more spread */}
+          <motion.div
+            className="absolute inset-x-2 inset-y-0 rounded-2xl bg-zinc-800 shadow-2xl overflow-hidden pointer-events-none"
+            variants={{
+              hover: { y: -14, x: 16, rotate: 8, opacity: 0.9, scale: 0.96 },
+            }}
+            initial={{ y: -5, x: 6, rotate: 4, opacity: 0.6, scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          >
+            <img
+              src={covers[1] || covers[0]}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          </motion.div>
 
-          {/* Premium Badge */}
-          {playlist.isPremium && (
-            <div className="absolute top-2 right-2 w-5 h-5 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg">
-              <Icon d={ICONS.premium} className="w-3 h-3 text-white" filled />
+          {/* Layer 1 (Top/Main) - 10% larger on hover */}
+          <motion.div
+            className="relative z-10 w-full h-full rounded-2xl overflow-hidden shadow-[0_25px_50px_rgba(0,0,0,0.7)] bg-zinc-900 border border-white/5"
+            variants={{
+              hover: { y: -6, scale: 1.1 },
+            }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          >
+            <img
+              src={covers[0]}
+              alt={playlist.title}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+
+            {/* Hover Actions */}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4">
+              <motion.button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Play logic here
+                }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-xl text-black"
+              >
+                <Icon d={ICONS.play} className="w-6 h-6 ml-1" filled />
+              </motion.button>
+              <motion.button
+                onClick={handleLike}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20"
+              >
+                <Icon
+                  d={ICONS.heart}
+                  className={`w-6 h-6 ${
+                    isLiked ? "text-emerald-500" : "text-white"
+                  }`}
+                  filled={isLiked}
+                />
+              </motion.button>
             </div>
-          )}
-
-          {/* New Badge */}
-          {playlist.isNew && (
-            <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-emerald-500 rounded text-[8px] font-bold text-white shadow">
-              جدید
-            </div>
-          )}
+          </motion.div>
         </div>
 
         {/* Playlist Info */}
-        <h3 className="text-sm font-medium text-white truncate">
-          {playlist.title}
-        </h3>
-        <p className="text-xs text-gray-500 truncate mt-0.5">
-          {playlist.songsCount} آهنگ
-        </p>
-      </div>
+        <div className="px-1 text-center">
+          <h3 className="text-sm font-bold text-white/90 truncate group-hover:text-white transition-colors duration-300">
+            {playlist.title}
+          </h3>
+          <p className="text-[11px] text-zinc-500 font-medium mt-1">
+            {playlist.songs_count} آهنگ
+          </p>
+        </div>
+
+        {/* Product-Level Divider */}
+        <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      </motion.div>
     );
-  }
+  },
 );
 
 PlaylistCardGrid.displayName = "PlaylistCardGrid";
@@ -166,11 +249,11 @@ const PlaylistCard = memo(
     onPress,
     onLike,
   }: {
-    playlist: LikedPlaylist;
+    playlist: ApiPlaylist;
     onPress: () => void;
     onLike: () => void;
   }) => {
-    const [isLiked, setIsLiked] = useState(true);
+    const [isLiked, setIsLiked] = useState(playlist.is_liked);
 
     const handleLike = useCallback(
       (e: React.MouseEvent) => {
@@ -178,168 +261,451 @@ const PlaylistCard = memo(
         setIsLiked(!isLiked);
         onLike();
       },
-      [isLiked, onLike]
+      [isLiked, onLike],
     );
 
+    const covers = useMemo(() => {
+      const unique = [
+        playlist.cover_image,
+        ...(playlist.top_three_song_covers || []),
+      ].filter(Boolean);
+      return Array.from(new Set(unique)).slice(0, 3);
+    }, [playlist.cover_image, playlist.top_three_song_covers]);
+
     return (
-      <div
+      <motion.div
         onClick={onPress}
-        className="group relative flex items-center gap-4 p-3 rounded-2xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.05] active:scale-[0.99] cursor-pointer transition-all duration-200 overflow-hidden"
-        style={{ willChange: "transform" }}
+        className="group relative flex items-center gap-5 py-5 px-6 bg-zinc-900/10 hover:bg-zinc-900/30 transition-all duration-300 cursor-pointer overflow-hidden"
+        whileHover="hover"
       >
-        {/* Background Gradient Glow */}
-        <div
-          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-          style={{
-            background: `linear-gradient(135deg, ${playlist.gradient
-              .split(" ")[1]
-              ?.replace("from-", "")}20 0%, transparent 70%)`,
-          }}
+        {/* Animated Background Glow */}
+        <motion.div
+          className="absolute inset-x-0 inset-y-0 bg-gradient-to-r from-emerald-500/5 to-transparent opacity-0 pointer-events-none"
+          variants={{ hover: { opacity: 1 } }}
         />
 
-        {/* Playlist Cover */}
-        <div className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden bg-zinc-800/50 shadow-lg">
-          <div
-            className={`absolute inset-0 bg-gradient-to-br ${playlist.gradient}`}
-          />
-          <img
-            src={playlist.image}
-            alt={playlist.title}
-            className="relative w-full h-full object-cover mix-blend-overlay opacity-80"
-            loading="lazy"
-          />
+        {/* Stacked Covers for List View - 10% Bigger Area */}
+        <div className="relative w-[5.5rem] h-[5.5rem] shrink-0">
+          {/* Layer 3 */}
+          <motion.div
+            className="absolute inset-0 rounded-xl bg-zinc-800 shadow-md overflow-hidden pointer-events-none"
+            initial={{ x: -12, y: -6, rotate: -5, opacity: 0.3, scale: 0.88 }}
+            variants={{ hover: { x: -18, y: -8, rotate: -8, opacity: 0.5 } }}
+            transition={{ type: "spring", stiffness: 200, damping: 20 }}
+          >
+            <img
+              src={covers[2] || covers[1] || covers[0]}
+              alt=""
+              className="w-full h-full object-cover blur-[0.5px]"
+            />
+          </motion.div>
 
-          {/* Play Button on Hover */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                // Play playlist
-              }}
-              className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40 hover:scale-110 transition-transform duration-200"
-            >
-              <Icon
-                d={ICONS.play}
-                className="w-4 h-4 text-white mr-[-1px]"
-                filled
-              />
-            </button>
-          </div>
+          {/* Layer 2 */}
+          <motion.div
+            className="absolute inset-0 rounded-xl bg-zinc-800 shadow-lg overflow-hidden pointer-events-none"
+            initial={{ x: -6, y: -3, rotate: -3, opacity: 0.6, scale: 0.94 }}
+            variants={{ hover: { x: -10, y: -4, rotate: -4, opacity: 0.8 } }}
+            transition={{ type: "spring", stiffness: 200, damping: 20 }}
+          >
+            <img
+              src={covers[1] || covers[0]}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          </motion.div>
 
-          {/* Premium Badge */}
-          {playlist.isPremium && (
-            <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg">
-              <Icon d={ICONS.premium} className="w-3 h-3 text-white" filled />
+          {/* Main Layer */}
+          <motion.div
+            className="relative z-10 w-full h-full rounded-xl overflow-hidden shadow-2xl bg-zinc-900 border border-white/10"
+            variants={{ hover: { scale: 1.1, y: -4 } }}
+          >
+            <img
+              src={covers[0]}
+              alt={playlist.title}
+              className="w-full h-full object-cover"
+            />
+
+            {/* Play Button Overlay */}
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Icon d={ICONS.play} className="w-8 h-8 text-white ml-1" filled />
             </div>
-          )}
-
-          {/* New Badge */}
-          {playlist.isNew && (
-            <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-emerald-500 rounded text-[8px] font-bold text-white shadow">
-              جدید
-            </div>
-          )}
+          </motion.div>
         </div>
 
         {/* Playlist Info */}
         <div className="flex-1 min-w-0 relative z-10">
-          <h3 className="text-sm font-semibold text-white truncate mb-0.5">
+          <h3 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors truncate mb-1">
             {playlist.title}
           </h3>
-          <p className="text-xs text-gray-500 line-clamp-2 mb-2">
-            {playlist.description}
+          <p className="text-xs text-zinc-400 line-clamp-1 mb-2 font-medium">
+            {playlist.description || "بدون توضیحات"}
           </p>
 
           <div className="flex items-center gap-3">
-            <span className="text-[10px] text-gray-600 flex items-center gap-1">
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 19V6l12-3v13"
-                />
-              </svg>
-              {playlist.songsCount} آهنگ
+            <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-[10px] text-zinc-500 font-bold tracking-wider">
+              {playlist.songs_count} آهنگ
             </span>
-            {playlist.followers && (
-              <span className="text-[10px] text-gray-600 flex items-center gap-1">
-                <Icon d={ICONS.users} className="w-3 h-3" />
-                {playlist.followers}
-              </span>
-            )}
           </div>
         </div>
 
-        {/* Like Button */}
-        <button
+        {/* Action Button */}
+        <motion.button
           onClick={handleLike}
-          className="p-2.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] transition-colors shrink-0 relative z-10"
+          whileHover={{
+            scale: 1.1,
+            backgroundColor: "rgba(255, 255, 255, 0.1)",
+          }}
+          whileTap={{ scale: 0.9 }}
+          className="p-3 rounded-full bg-white/5 border border-white/5 transition-colors relative z-10 shrink-0"
         >
           <Icon
             d={ICONS.heart}
             className={`w-5 h-5 transition-colors ${
-              isLiked ? "text-emerald-500" : "text-gray-500"
+              isLiked ? "text-emerald-500" : "text-zinc-400"
             }`}
             filled={isLiked}
           />
-        </button>
-      </div>
+        </motion.button>
+
+        {/* Product-Level Divider */}
+        <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      </motion.div>
     );
-  }
+  },
 );
 
 PlaylistCard.displayName = "PlaylistCard";
+
+const SkeletonPlaylistCard = memo(({ mode }: { mode: ViewMode }) => {
+  if (mode === "grid") {
+    return (
+      <div className="pt-10 pb-6 px-3">
+        <div className="aspect-square rounded-2xl bg-white/[0.03] animate-pulse mb-5" />
+        <div className="space-y-2 px-1">
+          <div className="h-4 w-3/4 bg-white/[0.03] rounded animate-pulse mx-auto" />
+          <div className="h-3 w-1/2 bg-white/[0.03] rounded animate-pulse mx-auto" />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-5 py-5 px-6">
+      <div className="w-[5.5rem] h-[5.5rem] bg-white/[0.03] rounded-xl animate-pulse" />
+      <div className="flex-1 space-y-3">
+        <div className="h-5 w-2/3 bg-white/[0.03] rounded animate-pulse" />
+        <div className="h-4 w-1/2 bg-white/[0.03] rounded animate-pulse" />
+      </div>
+    </div>
+  );
+});
+
+SkeletonPlaylistCard.displayName = "SkeletonPlaylistCard";
 
 // ============================================================================
 // Main Component
 // ============================================================================
 export default function LikedPlaylists() {
   const { navigateTo, goBack, scrollToTop } = useNavigation();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
+  const { accessToken } = useAuth();
+
+  const [viewState, setViewState] = useState({
+    isLoading: true, // Initial full page load
+    isSearching: false, // Is search mode active?
+    isSearchLoading: false, // Is the specific search request flying?
+    isFetchingMore: false, // Pagination
+    showSearchBar: false,
+    query: "",
+  });
+
+  const [mainData, setMainData] = useState<{
+    playlists: ApiPlaylist[];
+    next: string | null;
+    count: number;
+  }>({
+    playlists: [],
+    next: null,
+    count: 0,
+  });
+
+  const [searchData, setSearchData] = useState<{
+    playlists: ApiPlaylist[];
+    next: string | null;
+    count: number;
+  }>({
+    playlists: [],
+    next: null,
+    count: 0,
+  });
+
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
-  // Filter playlists based on search
-  const displayedPlaylists = useMemo(() => {
-    if (!searchQuery) return LIKED_PLAYLISTS;
-    const q = searchQuery.toLowerCase();
-    return LIKED_PLAYLISTS.filter(
-      (p) =>
-        p.title.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q)
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Computed Properties
+  const activeList = viewState.isSearching
+    ? searchData.playlists
+    : mainData.playlists;
+  const activeTotal = viewState.isSearching ? searchData.count : mainData.count;
+  const activeNext = viewState.isSearching ? searchData.next : mainData.next;
+
+  // Unified Fetch Function
+  const fetchPlaylists = useCallback(
+    async (mode: "MAIN" | "SEARCH", url?: string, query?: string) => {
+      if (!accessToken) return;
+
+      const isPagination = !!url;
+
+      // Set Loading States
+      setViewState((prev) => ({
+        ...prev,
+        isLoading: !isPagination && mode === "MAIN",
+        isSearchLoading: !isPagination && mode === "SEARCH",
+        isFetchingMore: isPagination,
+      }));
+
+      try {
+        let endpoint = url;
+        if (!endpoint) {
+          endpoint =
+            mode === "SEARCH" && query
+              ? `https://api.sedabox.com/api/profile/liked-playlists/search/?q=${encodeURIComponent(query)}`
+              : "https://api.sedabox.com/api/profile/liked-playlists/";
+        }
+
+        const res = await fetch(ensureHttps(endpoint)!, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (res.ok) {
+          const data: LikedPlaylistsResponse = await res.json();
+
+          const updateFn = (prev: any) => ({
+            playlists: isPagination
+              ? [...prev.playlists, ...data.results]
+              : data.results,
+            next: data.next,
+            count: data.count,
+          });
+
+          if (mode === "SEARCH") setSearchData(updateFn);
+          else setMainData(updateFn);
+        } else {
+          toast.error("خطا در دریافت اطلاعات");
+        }
+      } catch (err) {
+        console.error("Fetch error:", err);
+        toast.error("خطای شبکه");
+      } finally {
+        setViewState((prev) => ({
+          ...prev,
+          isLoading: false,
+          isSearchLoading: false,
+          isFetchingMore: false,
+        }));
+      }
+    },
+    [accessToken],
+  );
+
+  // Initial Load
+  useEffect(() => {
+    fetchPlaylists("MAIN");
+  }, [fetchPlaylists]);
+
+  // Search Logic - Optimized for UX (Debounced)
+  useEffect(() => {
+    const q = viewState.query.trim();
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (!q) {
+      setViewState((prev) => ({
+        ...prev,
+        isSearching: false,
+        isSearchLoading: false,
+      }));
+      return;
+    }
+
+    debounceRef.current = setTimeout(() => {
+      setViewState((prev) => ({ ...prev, isSearching: true }));
+      fetchPlaylists("SEARCH", undefined, q);
+    }, 800);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [viewState.query, fetchPlaylists]);
+
+  // Infinite Scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          activeNext &&
+          !viewState.isFetchingMore &&
+          !viewState.isLoading &&
+          !viewState.isSearchLoading
+        ) {
+          fetchPlaylists(viewState.isSearching ? "SEARCH" : "MAIN", activeNext);
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" },
     );
-  }, [searchQuery]);
+    if (loadMoreRef.current) observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [activeNext, viewState, fetchPlaylists]);
 
   const handleBack = useCallback(() => {
     goBack();
   }, [goBack]);
 
   const handlePlaylistPress = useCallback(
-    (playlist: LikedPlaylist) => {
-      navigateTo("playlist-detail", { slug: createSlug(playlist.title) });
+    (playlist: ApiPlaylist) => {
+      // Use unique_id for recommended, id for normal-playlist
+      const identifier =
+        playlist.type === "recommended" ? playlist.unique_id : playlist.id;
+      navigateTo("playlist-detail", { id: identifier });
     },
-    [navigateTo]
+    [navigateTo],
   );
 
-  const handleLike = useCallback((playlistId: string) => {
-    console.log("Unlike playlist:", playlistId);
-  }, []);
+  const handleLike = useCallback(
+    async (playlist: ApiPlaylist) => {
+      if (!accessToken) return;
+
+      // Optimistic Update
+      const removeFromList = (data: any) => ({
+        ...data,
+        playlists: data.playlists.filter(
+          (p: ApiPlaylist) => p.id !== playlist.id,
+        ),
+        count: Math.max(0, data.count - 1),
+      });
+
+      setMainData(removeFromList);
+      if (viewState.isSearching) setSearchData(removeFromList);
+
+      try {
+        const isRecommended = playlist.type === "recommended";
+        const url = isRecommended
+          ? `https://api.sedabox.com/api/home/playlist-recommendations/${playlist.unique_id}/like/`
+          : `https://api.sedabox.com/api/playlists/${playlist.id}/like/`;
+
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          toast.success(data.liked ? "پلی‌لیست لایک شد" : "لایک حذف شد");
+        }
+      } catch (err) {
+        console.error("Like error:", err);
+      }
+    },
+    [accessToken, viewState.isSearching],
+  );
 
   const toggleSearch = useCallback(() => {
     scrollToTop();
-    setShowSearch((prev) => !prev);
-    if (showSearch) setSearchQuery("");
-  }, [showSearch, scrollToTop]);
+    setViewState((p) => ({
+      ...p,
+      showSearchBar: !p.showSearchBar,
+      query: !p.showSearchBar ? "" : p.query,
+    }));
+  }, [scrollToTop]);
 
   const toggleViewMode = useCallback(() => {
     setViewMode((prev) => (prev === "grid" ? "list" : "grid"));
   }, []);
+
+  const renderContent = () => {
+    // 1. Initial Loading
+    if (viewState.isLoading) {
+      return (
+        <div
+          className={
+            viewMode === "grid"
+              ? "grid grid-cols-2 sm:grid-cols-3 gap-0 px-3"
+              : "flex flex-col"
+          }
+        >
+          {[...Array(6)].map((_, i) => (
+            <SkeletonPlaylistCard key={i} mode={viewMode} />
+          ))}
+        </div>
+      );
+    }
+
+    // 2. Search Loading
+    if (viewState.isSearching && viewState.isSearchLoading) {
+      return (
+        <div
+          className={
+            viewMode === "grid"
+              ? "grid grid-cols-2 sm:grid-cols-3 gap-0 px-3"
+              : "flex flex-col"
+          }
+        >
+          {[...Array(6)].map((_, i) => (
+            <SkeletonPlaylistCard key={i} mode={viewMode} />
+          ))}
+        </div>
+      );
+    }
+
+    // 3. Empty State
+    if (activeList.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
+          <Icon d={ICONS.playlist} className="w-16 h-16 mb-4 opacity-20" />
+          <p className="text-sm font-medium">پلی‌لیستی یافت نشد</p>
+        </div>
+      );
+    }
+
+    // 4. Actual Content
+    return (
+      <>
+        <div
+          className={
+            viewMode === "grid"
+              ? "grid grid-cols-2 sm:grid-cols-3 gap-0 border-t border-white/[0.05]"
+              : "flex flex-col border-t border-white/[0.05]"
+          }
+        >
+          {activeList.map((playlist) =>
+            viewMode === "grid" ? (
+              <PlaylistCardGrid
+                key={playlist.id}
+                playlist={playlist}
+                onPress={() => handlePlaylistPress(playlist)}
+                onLike={() => handleLike(playlist)}
+              />
+            ) : (
+              <PlaylistCard
+                key={playlist.id}
+                playlist={playlist}
+                onPress={() => handlePlaylistPress(playlist)}
+                onLike={() => handleLike(playlist)}
+              />
+            ),
+          )}
+        </div>
+        {viewState.isFetchingMore && (
+          <div className="flex justify-center py-8">
+            <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        <div ref={loadMoreRef} className="h-10" />
+      </>
+    );
+  };
 
   return (
     <div
@@ -351,7 +717,7 @@ export default function LikedPlaylists() {
         className="absolute top-0 left-0 right-0 h-72 pointer-events-none"
         style={{
           background:
-            "linear-gradient(180deg, rgba(236, 72, 153, 0.2) 0%, rgba(236, 72, 153, 0.08) 40%, transparent 100%)",
+            "linear-gradient(180deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.08) 40%, transparent 100%)",
         }}
       />
 
@@ -371,7 +737,7 @@ export default function LikedPlaylists() {
               className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
             >
               <Icon
-                d={showSearch ? ICONS.close : ICONS.search}
+                d={viewState.showSearchBar ? ICONS.close : ICONS.search}
                 className="w-5 h-5 text-white"
               />
             </button>
@@ -380,7 +746,7 @@ export default function LikedPlaylists() {
               className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
             >
               <Icon
-                d={viewMode === "grid" ? ICONS.list : ICONS.grid}
+                d={viewMode === "grid" ? ICONS.grid : ICONS.list}
                 className="w-5 h-5 text-white"
               />
             </button>
@@ -388,24 +754,45 @@ export default function LikedPlaylists() {
         </div>
 
         {/* Hero Section */}
-        <div className="px-6 pt-8 pb-6">
-          {/* Playlist Icon with Gradient */}
-          <div className="w-28 h-28 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-pink-500 via-rose-500 to-red-500 flex items-center justify-center shadow-2xl shadow-pink-500/30">
-            <Icon d={ICONS.playlist} className="w-14 h-14 text-white" />
+        <div className="px-6 pt-10 pb-10">
+          {/* Playlist Icon with Glassmorphism */}
+          <div className="relative w-32 h-32 mx-auto mb-8 group">
+            <div className="absolute inset-0 bg-emerald-500 rounded-[2.5rem] blur-3xl opacity-20 group-hover:opacity-40 transition-opacity duration-500" />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 100 }}
+              className="relative w-full h-full rounded-[2.5rem] bg-gradient-to-br from-white/10 to-white/5 border border-white/20 backdrop-blur-2xl flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
+            >
+              <div className="p-6 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-3xl shadow-lg shadow-emerald-500/40">
+                <Icon d={ICONS.playlist} className="w-12 h-12 text-white" />
+              </div>
+            </motion.div>
           </div>
 
-          <h1 className="text-2xl font-bold text-white text-center mb-2">
+          <motion.h1
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="text-3xl font-black text-white text-center mb-3 tracking-tight"
+          >
             پلی‌لیست‌های لایک‌شده
-          </h1>
-          <p className="text-gray-400 text-sm text-center">
-            {LIKED_PLAYLISTS.length} پلی‌لیست
-          </p>
+          </motion.h1>
+          <motion.p
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="text-zinc-500 text-sm text-center font-medium bg-white/5 w-fit mx-auto px-4 py-1.5 rounded-full border border-white/5"
+          >
+            {formatNumber(activeTotal)} پلی‌لیست
+          </motion.p>
         </div>
 
         {/* Search Bar - Animated */}
         <div
           className={`overflow-hidden transition-all duration-300 ease-out ${
-            showSearch ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
+            viewState.showSearchBar
+              ? "max-h-16 opacity-100"
+              : "max-h-0 opacity-0"
           }`}
         >
           <div className="px-4 pb-4">
@@ -416,10 +803,13 @@ export default function LikedPlaylists() {
               />
               <input
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={viewState.query}
+                onChange={(e) =>
+                  setViewState((p) => ({ ...p, query: e.target.value }))
+                }
                 placeholder="جستجو در پلی‌لیست‌ها..."
-                className="w-full pl-4 pr-10 py-2.5 bg-white/[0.06] border border-white/[0.08] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-pink-500/40 transition-colors"
+                className="w-full pl-4 pr-10 py-2.5 bg-white/[0.06] border border-white/[0.08] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/40 transition-colors"
+                autoFocus
               />
             </div>
           </div>
@@ -427,35 +817,8 @@ export default function LikedPlaylists() {
       </div>
 
       {/* Playlists Content */}
-      <div className="relative z-10 px-4 pb-32">
-        {displayedPlaylists.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-            <Icon d={ICONS.playlist} className="w-12 h-12 mb-3 opacity-40" />
-            <p className="text-sm">پلی‌لیستی یافت نشد</p>
-          </div>
-        ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {displayedPlaylists.map((playlist) => (
-              <PlaylistCardGrid
-                key={playlist.id}
-                playlist={playlist}
-                onPress={() => handlePlaylistPress(playlist)}
-                onLike={() => handleLike(playlist.id)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {displayedPlaylists.map((playlist) => (
-              <PlaylistCard
-                key={playlist.id}
-                playlist={playlist}
-                onPress={() => handlePlaylistPress(playlist)}
-                onLike={() => handleLike(playlist.id)}
-              />
-            ))}
-          </div>
-        )}
+      <div className="relative z-10 pb-32 overflow-visible">
+        {renderContent()}
       </div>
     </div>
   );

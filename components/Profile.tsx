@@ -1,10 +1,13 @@
 "use client";
 
+import UserIcon from "./UserIcon"; // Importing UserIcon
+
 import React, { useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import Image from "next/image";
 import { Drawer } from "vaul";
+import toast from "react-hot-toast";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -59,8 +62,16 @@ const ICONS = {
 };
 
 export default function Profile() {
-  const { logout } = useAuth();
+  const {
+    logout,
+    user: authUser,
+    fetchUserProfile,
+    updateProfile,
+    formatErrorMessage,
+  } = useAuth();
   const { navigateTo, currentParams } = useNavigation();
+  const [isFetching, setIsFetching] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -72,6 +83,7 @@ export default function Profile() {
   // --- USER PLAN LOGIC ---
   // Plan status managed via state - persisted in localStorage for demo
   const [planStatus, setPlanStatus] = useState<"free" | "premium">(() => {
+    if (authUser?.plan === "premium") return "premium";
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("sedabox_user_plan");
       return saved === "premium" ? "premium" : "free";
@@ -87,24 +99,74 @@ export default function Profile() {
       localStorage.setItem("sedabox_user_plan", "premium");
     }
   }, [currentParams]);
+
+  useEffect(() => {
+    if (authUser?.plan) {
+      setPlanStatus(authUser.plan === "premium" ? "premium" : "free");
+    }
+  }, [authUser]);
+
+  useEffect(() => {
+    const fetch = async () => {
+      setIsFetching(true);
+      await fetchUserProfile();
+      setIsFetching(false);
+    };
+    fetch();
+  }, []);
   // -----------------------
 
   const [formData, setFormData] = useState({
-    firstName: "علی",
-    lastName: "رضایی",
-    email: "ali.rezaei@example.com",
+    firstName: "",
+    lastName: "",
+    email: "",
   });
 
+  useEffect(() => {
+    if (authUser) {
+      setFormData({
+        firstName: authUser.first_name ?? "",
+        lastName: authUser.last_name ?? "",
+        email: authUser.email ?? "",
+      });
+    }
+  }, [authUser]);
+
   const user = {
-    name: `${formData.firstName} ${formData.lastName}`,
-    phone: "09123456789",
-    email: formData.email,
-    joinDate: "اردیبهشت ۱۴۰۲",
+    name:
+      authUser?.first_name || authUser?.last_name
+        ? `${authUser.first_name} ${authUser.last_name}`.trim()
+        : "کاربر صداباکس",
+    phone: authUser?.phone_number || "09123456789",
+    email: authUser?.email || "ایمیل ثبت نشده",
+    joinDate: authUser?.date_joined
+      ? new Date(authUser.date_joined).toLocaleDateString("fa-IR", {
+          year: "numeric",
+          month: "long",
+        })
+      : "اردیبهشت ۱۴۰۲",
   };
 
   const handleChange = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
-  const handleSave = () => setIsSheetOpen(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    const toastId = toast.loading("در حال ذخیره تغییرات...");
+    try {
+      await updateProfile({
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+      } as any);
+      toast.success("پروفایل با موفقیت بروزرسانی شد", { id: toastId });
+      setIsSheetOpen(false);
+    } catch (err: any) {
+      toast.error(formatErrorMessage(err), { id: toastId });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div
@@ -171,11 +233,8 @@ export default function Profile() {
                     }`}
                   >
                     <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
-                      {/* Avatar Image or Initials */}
-                      <span className="text-2xl font-bold text-white relative z-10">
-                        {formData.firstName[0]}
-                        {formData.lastName[0]}
-                      </span>
+                      {/* Avatar Image or Icon */}
+                      <UserIcon className="w-12 h-12 text-white/90 relative z-10" />
                     </div>
                   </div>
 
@@ -214,20 +273,20 @@ export default function Profile() {
                 {[
                   {
                     label: "پلی لیست‌ها",
-                    value: 24,
+                    value: authUser?.user_playlists_count || 0,
                     type: "playlists",
                     action: "my-playlists",
                   },
                   {
                     label: "دنبال کنندگان",
-                    value: 156,
+                    value: authUser?.followers_count || 0,
                     type: "followers",
                     action: "followers-following",
                     tab: "followers",
                   },
                   {
                     label: "دنبال شده",
-                    value: 89,
+                    value: authUser?.following_count || 0,
                     type: "following",
                     action: "followers-following",
                     tab: "following",
@@ -237,25 +296,38 @@ export default function Profile() {
                     key={stat.type}
                     onClick={() =>
                       navigateTo(
-                        stat.action,
-                        stat.tab ? { tab: stat.tab } : undefined,
+                        stat.action as any,
+                        (stat as any).tab
+                          ? { tab: (stat as any).tab }
+                          : undefined,
                       )
                     }
-                    className="text-center py-2 rounded-xl bg-white/4 border border-white/8 hover:border-emerald-500/30 hover:bg-white/6 active:scale-[0.98] transition-all duration-200"
+                    className="text-center py-2 rounded-xl bg-white/4 border border-white/8 hover:border-emerald-500/30 hover:bg-white/6 active:scale-[0.98] transition-all duration-200 min-h-[72px]"
                   >
-                    <div
-                      dir="rtl"
-                      className="flex items-center justify-center mb-1"
-                    >
-                      <Icon
-                        d={ICONS[stat.type as keyof typeof ICONS]}
-                        className="w-5 h-5 text-emerald-400"
-                      />
-                      <div className="text-2xl p-1 font-bold text-white ml-2">
-                        {stat.value.toLocaleString("fa-IR")}
+                    {isFetching ? (
+                      <div className="animate-pulse flex flex-col items-center gap-2">
+                        <div className="h-7 w-12 bg-white/10 rounded" />
+                        <div className="h-3 w-16 bg-white/5 rounded" />
                       </div>
-                    </div>
-                    <div className="text-xs text-gray-400">{stat.label}</div>
+                    ) : (
+                      <>
+                        <div
+                          dir="rtl"
+                          className="flex items-center justify-center mb-1"
+                        >
+                          <Icon
+                            d={ICONS[stat.type as keyof typeof ICONS]}
+                            className="w-5 h-5 text-emerald-400"
+                          />
+                          <div className="text-2xl p-1 font-bold text-white ml-2">
+                            {stat.value.toLocaleString("fa-IR")}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {stat.label}
+                        </div>
+                      </>
+                    )}
                   </button>
                 ))}
               </div>
@@ -466,67 +538,81 @@ export default function Profile() {
                   اخیراً پخش شده
                 </h3>
 
-                {/* Minimal SongCard component (inline, minimal code) */}
-                {/* - Compact horizontal card
-                   - album art, title, artist, small meta
-                   - play overlay on hover
-                */}
                 <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 hide-scrollbar">
-                  {Array.from({ length: 9 }).map((_, idx) => (
-                    <button
-                      key={idx}
-                      className="min-w-[260px] max-w-xs shrink-0 flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/7 hover:shadow-lg hover:scale-[1.01] transition-all duration-200 overflow-hidden"
-                      aria-label={`ترانه ${idx + 1}`}
-                    >
-                      <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-800">
-                        <img
-                          src="/music-listen.webp"
-                          alt={`کاور ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Icon
-                              d={ICONS.music}
-                              className="w-5 h-5 text-white"
-                            />
+                  {isFetching ? (
+                    // Recently Played Skeletons
+                    Array.from({ length: 3 }).map((_, idx) => (
+                      <div
+                        key={idx}
+                        className="min-w-[260px] max-w-xs shrink-0 flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/7 animate-pulse"
+                      >
+                        <div className="w-16 h-16 rounded-lg bg-white/10 shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-white/10 rounded w-3/4" />
+                          <div className="h-3 bg-white/5 rounded w-1/2" />
+                        </div>
+                      </div>
+                    ))
+                  ) : authUser?.recently_played?.items?.length ? (
+                    authUser.recently_played.items.slice(0, 10).map((track) => (
+                      <button
+                        key={track.id}
+                        onClick={() =>
+                          navigateTo("song-detail", { id: track.id })
+                        }
+                        className="min-w-[260px] max-w-xs shrink-0 flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/7 hover:shadow-lg hover:scale-[1.01] transition-all duration-200 overflow-hidden"
+                        aria-label={track.title}
+                      >
+                        <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-800">
+                          <img
+                            src={track.cover_image || "/music-listen.webp"}
+                            alt={track.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+
+                        <div className="flex-1 text-right overflow-hidden">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-sm text-white truncate">
+                              {track.title}
+                            </h4>
+                            <span className="text-xs text-gray-400"> • </span>
+                            <span className="text-xs text-gray-400 truncate">
+                              {track.artist_name}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {track.duration_display}
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex-1 text-right overflow-hidden">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-sm text-white truncate">
-                            ترانه {idx + 1}
-                          </h4>
-                          <span className="text-xs text-gray-400"> • </span>
-                          <span className="text-xs text-gray-400 truncate">
-                            هنرمند {idx + 1}
-                          </span>
+                        <div className="w-10 h-10 flex items-center justify-center rounded-md bg-white/6">
+                          <Icon
+                            d={ICONS.music}
+                            className="w-5 h-5 text-emerald-400"
+                          />
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {idx % 2 === 0 ? "دیروز" : "2 روز پیش"} • 3:12
-                        </div>
-                      </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="w-full text-center py-8 text-gray-500 text-sm">
+                      هنوز آهنگی پخش نکرده‌اید
+                    </div>
+                  )}
 
-                      <div className="w-10 h-10 flex items-center justify-center rounded-md bg-white/6">
+                  {!isFetching && authUser?.recently_played?.has_next && (
+                    <div className="min-w-[140px] shrink-0 rounded-xl p-3 flex items-center justify-center bg-white/3 border border-dashed border-white/7">
+                      <button className="w-full h-full flex flex-col items-center justify-center gap-1">
+                        <span className="text-white font-medium">
+                          مشاهده همه
+                        </span>
                         <Icon
-                          d={ICONS.playlists}
-                          className="w-5 h-5 text-emerald-400"
+                          d={ICONS.chevron}
+                          className="w-5 h-5 text-gray-300 rotate-180"
                         />
-                      </div>
-                    </button>
-                  ))}
-
-                  <div className="min-w-[140px] shrink-0 rounded-xl p-3 flex items-center justify-center bg-white/3 border border-dashed border-white/7">
-                    <button className="w-full h-full flex flex-col items-center justify-center gap-1">
-                      <span className="text-white font-medium">مشاهده همه</span>
-                      <Icon
-                        d={ICONS.chevron}
-                        className="w-5 h-5 text-gray-300 rotate-180"
-                      />
-                    </button>
-                  </div>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -561,8 +647,7 @@ export default function Profile() {
                     key: "followed-artists",
                     label: "هنرمندان دنبال‌شده",
                     icon: ICONS.users,
-                    page: "followers-following",
-                    params: { tab: "following" },
+                    page: "followed-artists",
                   },
                   {
                     key: "my-playlists",
@@ -573,7 +658,7 @@ export default function Profile() {
                 ].map((item) => (
                   <button
                     key={item.key}
-                    onClick={() => navigateTo(item.page, item.params)}
+                    onClick={() => navigateTo(item.page)}
                     className="relative w-full flex py-5 items-center gap-4 bg-linear-to-b from-white/1 to-black/20 border border-white/7 rounded-xl p-4 overflow-hidden hover:from-white/2 hover:border-emerald-500/20 active:scale-[0.99] transition-all duration-200"
                   >
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
@@ -679,13 +764,18 @@ export default function Profile() {
               <div className="flex gap-3">
                 <button
                   onClick={handleSave}
-                  className="flex-1 py-3 bg-linear-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all"
+                  disabled={isSaving}
+                  className="flex-1 py-3 bg-linear-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  ذخیره تغییرات
+                  {isSaving && (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  )}
+                  {isSaving ? "در حال ذخیره..." : "ذخیره تغییرات"}
                 </button>
                 <button
                   onClick={() => setIsSheetOpen(false)}
-                  className="px-6 py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:border-white/20 transition-colors"
+                  disabled={isSaving}
+                  className="px-6 py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:border-white/20 transition-colors disabled:opacity-50"
                 >
                   انصراف
                 </button>

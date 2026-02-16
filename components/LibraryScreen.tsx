@@ -491,8 +491,17 @@ const LibraryScreen: React.FC = () => {
                   dir="rtl"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10">
-                      <User className="w-6 h-6 text-zinc-400" />
+                    <div
+                      onClick={() => navigateTo("profile")}
+                      className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 cursor-pointer transition-transform active:scale-95"
+                    >
+                      {user?.first_name ? (
+                        <span className="text-white font-bold">
+                          {user.first_name[0]}
+                        </span>
+                      ) : (
+                        <User className="w-6 h-6 text-zinc-400" />
+                      )}
                     </div>
                     <h1 className="text-xl font-bold text-white">
                       کتابخانه شما

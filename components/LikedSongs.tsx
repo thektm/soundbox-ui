@@ -12,26 +12,32 @@ import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { Song } from "./mockData";
+import { SongOptionsDrawer } from "./SongOptionsDrawer";
 
 // ============================================================================
-// Utility
+// Utilities & Constants
 // ============================================================================
-function ensureHttps(u?: string | null): string | undefined {
-  if (!u) return undefined;
-  if (u.startsWith("http://")) {
-    return u.replace("http://", "https://");
-  }
-  return u;
-}
+const ensureHttps = (u?: string | null) =>
+  u?.startsWith("http://") ? u.replace("http://", "https://") : u;
 
-// ============================================================================
-// Icon Component - Optimized with memo
-// ============================================================================
+const ICONS = {
+  back: "M10 19l-7-7m0 0l7-7m-7 7h18",
+  heart:
+    "M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 21.682l-7.682-8.999a4.5 4.5 0 010-6.365z",
+  play: "M5 3l14 9-14 9V3z",
+  pause: "M6 4h4v16H6zM14 4h4v16h-4z",
+  shuffle: "M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5",
+  moreVertical:
+    "M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z",
+  search: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+  close: "M6 18L18 6M6 6l12 12",
+};
+
 const Icon = memo(
   ({
     d,
     className = "w-5 h-5",
-    filled = false,
+    filled,
   }: {
     d: string;
     className?: string;
@@ -52,184 +58,179 @@ const Icon = memo(
     </svg>
   ),
 );
-
 Icon.displayName = "Icon";
 
 // ============================================================================
-// Icon Paths
-// ============================================================================
-const ICONS = {
-  back: "M10 19l-7-7m0 0l7-7m-7 7h18",
-  heart:
-    "M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 21.682l-7.682-8.999a4.5 4.5 0 010-6.365z",
-  play: "M5 3l14 9-14 9V3z",
-  pause: "M6 4h4v16H6zM14 4h4v16h-4z",
-  shuffle: "M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5",
-  download: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
-  moreVertical:
-    "M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z",
-  search: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-  close: "M6 18L18 6M6 6l12 12",
-  sort: "M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12",
-  clock: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
-};
-
-// ============================================================================
-// Song Row Component - Optimized for performance
+// Sub-Components
 // ============================================================================
 const SongRow = memo(
-  ({
-    song,
-    index,
-    isPlaying,
-    onPlay,
-    onLike,
-  }: {
-    song: Song;
-    index: number;
-    isPlaying: boolean;
-    onPlay: () => void;
-    onLike: () => void;
-  }) => {
-    const [isLiked, setIsLiked] = useState(true);
-
-    const handleLike = useCallback(
-      (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setIsLiked(!isLiked);
-        onLike();
-      },
-      [isLiked, onLike],
-    );
-
+  ({ song, index, isPlaying, onPlay, onLike, onOptions }: any) => {
     return (
       <div
         onClick={onPlay}
-        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-150 active:scale-[0.99] ${
+        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all active:scale-[0.99] ${
           isPlaying
             ? "bg-emerald-500/10 border border-emerald-500/20"
             : "bg-white/[0.02] border border-transparent hover:bg-white/[0.04]"
         }`}
-        style={{ willChange: "transform, opacity" }}
       >
-        {/* Index/Play indicator */}
-        <div className="w-8 flex items-center justify-center shrink-0">
+        <div className="w-8 flex items-center justify-center shrink-0 text-sm text-gray-500 font-medium">
           {isPlaying ? (
-            <div className="flex items-center gap-0.5">
-              <span className="w-0.5 h-3 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="w-0.5 h-4 bg-emerald-500 rounded-full animate-pulse delay-75" />
-              <span className="w-0.5 h-2 bg-emerald-500 rounded-full animate-pulse delay-150" />
+            <div className="flex gap-0.5">
+              {[3, 4, 2].map((h, i) => (
+                <span
+                  key={i}
+                  className={`w-0.5 h-${h} bg-emerald-500 rounded-full animate-pulse`}
+                  style={{ animationDelay: `${i * 75}ms` }}
+                />
+              ))}
             </div>
           ) : (
-            <span className="text-sm text-gray-500 font-medium">
-              {index + 1}
-            </span>
+            index + 1
           )}
         </div>
 
-        {/* Album Art */}
-        <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-zinc-800/50 shadow-lg">
+        <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-zinc-800">
           <img
             src={song.image}
             alt={song.title}
             className="w-full h-full object-cover"
             loading="lazy"
           />
-          {isPlaying && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <Icon d={ICONS.pause} className="w-5 h-5 text-white" filled />
-            </div>
-          )}
         </div>
 
-        {/* Song Info */}
         <div className="flex-1 min-w-0">
           <h3
-            className={`text-sm font-medium truncate ${
-              isPlaying ? "text-emerald-400" : "text-white"
-            }`}
+            className={`text-sm font-medium truncate ${isPlaying ? "text-emerald-400" : "text-white"}`}
           >
             {song.title}
           </h3>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            {song.explicit && (
-              <span className="px-1 py-0.5 bg-white/10 text-[8px] font-bold text-gray-400 rounded">
-                E
-              </span>
-            )}
-            <p className="text-xs text-gray-500 truncate">{song.artist}</p>
-          </div>
+          <p className="text-xs text-gray-500 truncate">{song.artist}</p>
         </div>
 
-        {/* Duration & Actions */}
         <div className="flex items-center gap-3 shrink-0">
-          <span className="text-xs text-gray-500">{song.duration}</span>
+          <span className="text-xs text-gray-500 hidden sm:block">
+            {song.duration}
+          </span>
           <button
-            onClick={handleLike}
-            className="p-2 rounded-full hover:bg-white/[0.06] transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onLike();
+            }}
+            className="p-2 hover:bg-white/[0.06] rounded-full"
           >
-            <Icon
-              d={ICONS.heart}
-              className={`w-4 h-4 transition-colors ${
-                isLiked ? "text-emerald-500" : "text-gray-500"
-              }`}
-              filled={isLiked}
-            />
+            <Icon d={ICONS.heart} className="w-4 h-4 text-emerald-500" filled />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOptions();
+            }}
+            className="p-2 hover:bg-white/[0.06] rounded-full"
+          >
+            <Icon d={ICONS.moreVertical} className="w-4 h-4 text-gray-500" />
           </button>
         </div>
       </div>
     );
   },
 );
-
 SongRow.displayName = "SongRow";
 
-// ============================================================================
-// Sort Options
-// ============================================================================
-type SortOption = "recent" | "title" | "artist";
+const SkeletonSongRow = memo(() => (
+  <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02]">
+    <div className="w-8 flex justify-center">
+      <div className="w-4 h-4 bg-gray-700/50 rounded animate-pulse" />
+    </div>
+    <div className="w-12 h-12 bg-gray-700/50 rounded-lg animate-pulse" />
+    <div className="flex-1 space-y-2">
+      <div className="h-4 w-3/5 bg-gray-700/50 rounded animate-pulse" />
+      <div className="h-3 w-2/5 bg-gray-700/50 rounded animate-pulse" />
+    </div>
+  </div>
+));
+SkeletonSongRow.displayName = "SkeletonSongRow";
 
 // ============================================================================
 // Main Component
 // ============================================================================
 export default function LikedSongs() {
-  const { navigateTo, goBack, scrollToTop } = useNavigation();
+  const { goBack, scrollToTop } = useNavigation();
   const { currentTrack, isPlaying, playTrack, togglePlay } = usePlayer();
   const { accessToken } = useAuth();
 
-  const [songs, setSongs] = useState<Song[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [nextPage, setNextPage] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState(0);
-  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  // Combined State Objects to reduce renders
+  const [viewState, setViewState] = useState({
+    isLoading: true, // Initial full page load
+    isSearching: false, // Is search mode active?
+    isSearchLoading: false, // Is the specific search request flying?
+    isFetchingMore: false, // Pagination
+    showSearchBar: false,
+    query: "",
+  });
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
-  const [sortBy, setSortBy] = useState<SortOption>("recent");
-  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [mainData, setMainData] = useState<{
+    songs: Song[];
+    next: string | null;
+    count: number;
+  }>({
+    songs: [],
+    next: null,
+    count: 0,
+  });
 
-  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const [searchData, setSearchData] = useState<{
+    songs: Song[];
+    next: string | null;
+    count: number;
+  }>({
+    songs: [],
+    next: null,
+    count: 0,
+  });
 
-  const fetchLikedSongs = useCallback(
-    async (url?: string) => {
+  const [selectedSong, setSelectedSong] = useState<any>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Computed Properties
+  const activeList = viewState.isSearching ? searchData.songs : mainData.songs;
+  const activeTotal = viewState.isSearching ? searchData.count : mainData.count;
+  const activeNext = viewState.isSearching ? searchData.next : mainData.next;
+
+  // Unified Fetch Function
+  const fetchTracks = useCallback(
+    async (mode: "MAIN" | "SEARCH", url?: string, query?: string) => {
       if (!accessToken) return;
 
-      const targetUrl =
-        url || "https://api.sedabox.com/api/profile/liked-songs/";
+      const isPagination = !!url;
 
-      if (!url) setIsLoading(true);
-      else setIsFetchingMore(true);
+      // Set Loading States
+      setViewState((prev) => ({
+        ...prev,
+        isLoading: !isPagination && mode === "MAIN",
+        isSearchLoading: !isPagination && mode === "SEARCH",
+        isFetchingMore: isPagination,
+      }));
 
       try {
-        const response = await fetch(targetUrl, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
+        let endpoint = url;
+        if (!endpoint) {
+          endpoint =
+            mode === "SEARCH" && query
+              ? `https://api.sedabox.com/api/profile/liked-songs/search/?q=${encodeURIComponent(query)}`
+              : "https://api.sedabox.com/api/profile/liked-songs/";
+        }
+
+        const res = await fetch(ensureHttps(endpoint)!, {
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          const newSongs = data.results.map((item: any) => ({
+        if (res.ok) {
+          const data = await res.json();
+          const mappedSongs = data.results.map((item: any) => ({
             id: item.id.toString(),
             title: item.title,
             artist: item.artist_name,
@@ -237,26 +238,64 @@ export default function LikedSongs() {
             duration: item.duration_display,
             src: item.stream_url,
             album: item.album_title || "Single",
-            explicit: false,
           }));
 
-          setSongs((prev) => (url ? [...prev, ...newSongs] : newSongs));
-          setNextPage(data.next);
-          setTotalCount(data.count);
+          const updateFn = (prev: any) => ({
+            songs: isPagination ? [...prev.songs, ...mappedSongs] : mappedSongs,
+            next: data.next,
+            count: data.count,
+          });
+
+          if (mode === "SEARCH") setSearchData(updateFn);
+          else setMainData(updateFn);
         }
-      } catch (error) {
-        console.error("Error fetching liked songs:", error);
+      } catch (err) {
+        console.error("Fetch error:", err);
       } finally {
-        setIsLoading(false);
-        setIsFetchingMore(false);
+        setViewState((prev) => ({
+          ...prev,
+          isLoading: false,
+          isSearchLoading: false,
+          isFetchingMore: false,
+        }));
       }
     },
     [accessToken],
   );
 
+  // Initial Load
   useEffect(() => {
-    fetchLikedSongs();
-  }, [fetchLikedSongs]);
+    fetchTracks("MAIN");
+  }, [fetchTracks]);
+
+  // Search Logic - Optimized for UX
+  useEffect(() => {
+    const q = viewState.query.trim();
+
+    // 1. Clear timeout on every keystroke
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    // 2. If empty, revert to Main immediately
+    if (!q) {
+      setViewState((prev) => ({
+        ...prev,
+        isSearching: false,
+        isSearchLoading: false,
+      }));
+      return;
+    }
+
+    // 3. Set debounce
+    debounceRef.current = setTimeout(() => {
+      // ONLY NOW do we switch to "Search Mode" visually and show skeletons
+      setViewState((prev) => ({ ...prev, isSearching: true }));
+      fetchTracks("SEARCH", undefined, q);
+    }, 800);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [viewState.query, fetchTracks]);
 
   // Infinite Scroll
   useEffect(() => {
@@ -264,316 +303,224 @@ export default function LikedSongs() {
       (entries) => {
         if (
           entries[0].isIntersecting &&
-          nextPage &&
-          !isFetchingMore &&
-          !isLoading
+          activeNext &&
+          !viewState.isFetchingMore &&
+          !viewState.isLoading &&
+          !viewState.isSearchLoading
         ) {
-          fetchLikedSongs(nextPage);
+          fetchTracks(viewState.isSearching ? "SEARCH" : "MAIN", activeNext);
         }
       },
       { threshold: 0.1, rootMargin: "200px" },
     );
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-
+    if (loadMoreRef.current) observer.observe(loadMoreRef.current);
     return () => observer.disconnect();
-  }, [nextPage, isFetchingMore, isLoading, fetchLikedSongs]);
+  }, [activeNext, viewState, fetchTracks]);
 
-  // Filter and sort songs
-  const displayedSongs = useMemo(() => {
-    let s = [...songs];
-
-    // Filter by search
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      s = s.filter(
-        (song) =>
-          song.title.toLowerCase().includes(q) ||
-          song.artist.toLowerCase().includes(q),
-      );
-    }
-
-    // Sort
-    switch (sortBy) {
-      case "title":
-        s.sort((a, b) => a.title.localeCompare(b.title, "fa"));
-        break;
-      case "artist":
-        s.sort((a, b) => a.artist.localeCompare(b.artist, "fa"));
-        break;
-      default:
-        // Keep original order for "recent"
-        break;
-    }
-
-    return s;
-  }, [songs, searchQuery, sortBy]);
-
-  const totalDuration = useMemo(() => {
-    const totalSeconds = songs.reduce((acc, song) => {
-      const parts = song.duration.split(":").map(Number);
-      let seconds = 0;
-      if (parts.length === 2) {
-        seconds = parts[0] * 60 + parts[1];
-      } else if (parts.length === 3) {
-        seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-      }
-      return acc + seconds;
-    }, 0);
-
-    const hours = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
-
-    if (hours > 0) {
-      return `${hours} ساعت و ${mins} دقیقه`;
-    }
-    return `${mins} دقیقه`;
-  }, [songs]);
-
+  // Handlers
   const handlePlay = useCallback(
     (song: Song) => {
-      if (currentTrack?.id === song.id) {
-        togglePlay();
-      } else {
-        // Convert Song to Track format for player
-        playTrack({
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          image: song.image,
-          duration: song.duration,
-          src: song.src,
-        });
-      }
+      if (currentTrack?.id === song.id) togglePlay();
+      else playTrack(song);
     },
-    [currentTrack, playTrack, togglePlay],
+    [currentTrack, togglePlay, playTrack],
   );
 
-  const handlePlayAll = useCallback(() => {
-    if (displayedSongs.length > 0) {
-      const song = displayedSongs[0];
-      playTrack({
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        image: song.image,
-        duration: song.duration,
-        src: song.src,
-      });
-    }
-  }, [displayedSongs, playTrack]);
-
-  const handleShuffle = useCallback(() => {
-    if (displayedSongs.length > 0) {
-      const randomIndex = Math.floor(Math.random() * displayedSongs.length);
-      const song = displayedSongs[randomIndex];
-      playTrack({
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        image: song.image,
-        duration: song.duration,
-        src: song.src,
-      });
-    }
-  }, [displayedSongs, playTrack]);
+  const handleBatchPlay = useCallback(
+    (shuffle: boolean) => {
+      if (activeList.length === 0) return;
+      const song = shuffle
+        ? activeList[Math.floor(Math.random() * activeList.length)]
+        : activeList[0];
+      playTrack(song);
+    },
+    [activeList, playTrack],
+  );
 
   const handleLike = useCallback(
     async (songId: string) => {
       if (!accessToken) return;
+      // Optimistic Update
+      const removeFromList = (list: any) => ({
+        ...list,
+        songs: list.songs.filter((s: Song) => s.id !== songId),
+        count: Math.max(0, list.count - 1),
+      });
+
+      setMainData(removeFromList);
+      if (viewState.isSearching) setSearchData(removeFromList);
+
       try {
-        const response = await fetch(
-          `https://api.sedabox.com/api/songs/${songId}/like/`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          },
-        );
-        if (response.ok) {
-          setSongs((prev) => prev.filter((s) => s.id !== songId));
-          setTotalCount((prev) => Math.max(0, prev - 1));
-        }
-      } catch (error) {
-        console.error("Error unliking song:", error);
+        await fetch(`https://api.sedabox.com/api/songs/${songId}/like/`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      } catch (e) {
+        console.error(e);
       }
     },
-    [accessToken],
+    [accessToken, viewState.isSearching],
   );
 
-  const handleBack = useCallback(() => {
-    goBack();
-  }, [goBack]);
+  // Total Duration Calculation
+  const totalDuration = useMemo(() => {
+    const mins = activeList.reduce((acc, song) => {
+      const [m, s] = song.duration.split(":").map(Number);
+      return acc + m + (s || 0) / 60;
+    }, 0);
+    return `${Math.floor(mins)} دقیقه`;
+  }, [activeList]);
 
-  const toggleSearch = useCallback(() => {
-    scrollToTop();
-    setShowSearch((prev) => !prev);
-    if (showSearch) setSearchQuery("");
-  }, [showSearch, scrollToTop]);
+  // Render Helpers
+  const renderList = () => {
+    // 1. Initial Loading
+    if (viewState.isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-xs">در حال دریافت لیست...</p>
+        </div>
+      );
+    }
+
+    // 2. Search Loading (Show Skeletons immediately when request starts)
+    if (viewState.isSearching && viewState.isSearchLoading) {
+      return Array.from({ length: 6 }).map((_, i) => (
+        <SkeletonSongRow key={i} />
+      ));
+    }
+
+    // 3. Empty State
+    if (activeList.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 opacity-50">
+          <Icon d={ICONS.heart} className="w-12 h-12 mb-2" />
+          <p className="text-sm">موردی یافت نشد</p>
+        </div>
+      );
+    }
+
+    // 4. Actual List
+    return (
+      <>
+        {activeList.map((song, idx) => (
+          <SongRow
+            key={song.id}
+            song={song}
+            index={idx}
+            isPlaying={currentTrack?.id === song.id && isPlaying}
+            onPlay={() => handlePlay(song)}
+            onLike={() => handleLike(song.id)}
+            onOptions={() => {
+              setSelectedSong({
+                ...song,
+                cover_image: song.image,
+                artist_name: song.artist,
+                is_liked: true,
+              });
+              setIsDrawerOpen(true);
+            }}
+          />
+        ))}
+        {viewState.isFetchingMore && (
+          <div className="flex justify-center py-4">
+            <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        <div ref={loadMoreRef} className="h-4" />
+      </>
+    );
+  };
 
   return (
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white font-sans"
       dir="rtl"
     >
-      {/* Gradient Header Background */}
-      <div
-        className="absolute top-0 left-0 right-0 h-80 pointer-events-none"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0.1) 40%, transparent 100%)",
-        }}
-      />
+      {/* Background Gradient */}
+      <div className="absolute top-0 inset-x-0 h-96 bg-gradient-to-b from-emerald-900/20 via-emerald-900/5 to-transparent pointer-events-none" />
 
       {/* Header */}
-      <div className="relative z-60 pt-14">
-        {/* Navigation Bar */}
-        <div className="flex items-center flex-row-reverse   justify-between px-4 p-2.5 fixed top-0 left-0 right-0 bg-[#030303]/80 z-60">
-          <button
-            onClick={handleBack}
-            className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
-          >
-            <Icon d={ICONS.back} className="w-5 h-5 text-white" />
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleSearch}
-              className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
-            >
-              <Icon
-                d={showSearch ? ICONS.close : ICONS.search}
-                className="w-5 h-5 text-white"
-              />
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setShowSortMenu(!showSortMenu)}
-                className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
-              >
-                <Icon d={ICONS.sort} className="w-5 h-5 text-white" />
-              </button>
-              {/* Sort Menu */}
-              {showSortMenu && (
-                <div className="absolute top-12 right-0 z-70 min-w-[140px] py-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-                  {[
-                    { key: "recent", label: "اخیراً اضافه شده" },
-                    { key: "title", label: "عنوان" },
-                    { key: "artist", label: "هنرمند" },
-                  ].map((option) => (
-                    <button
-                      key={option.key}
-                      onClick={() => {
-                        setSortBy(option.key as SortOption);
-                        setShowSortMenu(false);
-                      }}
-                      className={`w-full px-4 py-2.5 text-right text-sm transition-colors ${
-                        sortBy === option.key
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "text-gray-300 hover:bg-white/5"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      <div className="sticky top-0 z-50 bg-[#030303]/80 backdrop-blur-md px-4 py-3 flex items-center justify-between flex-row-reverse">
+        <button
+          onClick={goBack}
+          className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition"
+        >
+          <Icon d={ICONS.back} />
+        </button>
+        <button
+          onClick={() => {
+            scrollToTop();
+            setViewState((p) => ({
+              ...p,
+              showSearchBar: !p.showSearchBar,
+              query: !p.showSearchBar ? "" : p.query,
+            }));
+          }}
+          className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition"
+        >
+          <Icon d={viewState.showSearchBar ? ICONS.close : ICONS.search} />
+        </button>
+      </div>
 
-        {/* Hero Section */}
-        <div className="px-6 pt-8 pb-6">
-          {/* Heart Icon with Gradient */}
-          <div className="w-32 h-32 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
+      {/* Hero & Controls */}
+      <div className="px-6 pb-6 relative z-10">
+        <div className="flex flex-col items-center text-center">
+          <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center shadow-2xl shadow-emerald-500/20 mb-6">
             <Icon d={ICONS.heart} className="w-16 h-16 text-white" filled />
           </div>
-
-          <h1 className="text-2xl font-bold text-white text-center mb-2">
-            آهنگ‌های لایک‌شده
-          </h1>
-          <p className="text-gray-400 text-sm text-center mb-1">
-            {totalCount} آهنگ • {totalDuration}
+          <h1 className="text-2xl font-bold mb-1">آهنگ‌های لایک‌شده</h1>
+          <p className="text-gray-400 text-xs mb-6">
+            {activeTotal} آهنگ • {totalDuration}
           </p>
 
-          {/* Play & Shuffle Buttons */}
-          <div className="flex items-center justify-center gap-3 mt-6">
+          <div className="flex gap-4 w-full justify-center">
             <button
-              onClick={handleShuffle}
-              className="flex items-center gap-2 px-6 py-3 bg-white/[0.06] border border-white/[0.1] rounded-full text-sm font-medium text-white hover:bg-white/[0.1] transition-all duration-200"
+              onClick={() => handleBatchPlay(true)}
+              className="flex-1 max-w-[140px] py-2.5 bg-white/10 rounded-full text-sm font-medium hover:bg-white/15 transition flex justify-center gap-2 items-center"
             >
-              <Icon d={ICONS.shuffle} className="w-4 h-4" />
-              <span>پخش تصادفی</span>
+              <Icon d={ICONS.shuffle} className="w-4 h-4" /> تصادفی
             </button>
             <button
-              onClick={handlePlayAll}
-              className="flex items-center gap-2 px-8 py-3 bg-emerald-500 rounded-full text-sm font-medium text-white hover:bg-emerald-600 transition-all duration-200 shadow-lg shadow-emerald-500/30"
+              onClick={() => handleBatchPlay(false)}
+              className="flex-1 max-w-[140px] py-2.5 bg-emerald-500 rounded-full text-sm font-medium hover:bg-emerald-600 transition shadow-lg shadow-emerald-500/30 flex justify-center gap-2 items-center"
             >
-              <Icon d={ICONS.play} className="w-4 h-4" filled />
-              <span>پخش همه</span>
+              <Icon d={ICONS.play} className="w-4 h-4" filled /> پخش همه
             </button>
-          </div>
-        </div>
-
-        {/* Search Bar - Animated */}
-        <div
-          className={`overflow-hidden transition-all duration-300 ease-out ${
-            showSearch ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
-          }`}
-        >
-          <div className="px-4 pb-4">
-            <div className="relative">
-              <Icon
-                d={ICONS.search}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="جستجو در آهنگ‌های لایک‌شده..."
-                className="w-full pl-4 pr-10 py-2.5 bg-white/[0.06] border border-white/[0.08] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/40 transition-colors"
-              />
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Songs List */}
-      <div className="relative z-10 px-4 pb-32 space-y-1">
-        {isLoading && songs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-            <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-sm">در حال بارگذاری...</p>
-          </div>
-        ) : displayedSongs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-            <Icon d={ICONS.heart} className="w-12 h-12 mb-3 opacity-40" />
-            <p className="text-sm">آهنگی یافت نشد</p>
-          </div>
-        ) : (
-          <>
-            {displayedSongs.map((song, index) => (
-              <SongRow
-                key={song.id}
-                song={song}
-                index={index}
-                isPlaying={currentTrack?.id === song.id && isPlaying}
-                onPlay={() => handlePlay(song)}
-                onLike={() => handleLike(song.id)}
-              />
-            ))}
-            {isFetchingMore && (
-              <div className="flex justify-center py-4">
-                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
-            <div ref={loadMoreRef} className="h-4" />
-          </>
-        )}
+      {/* Search Bar Animation */}
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] ${viewState.showSearchBar ? "max-h-20 opacity-100" : "max-h-0 opacity-0"}`}
+      >
+        <div className="px-4 pb-4">
+          <input
+            value={viewState.query}
+            onChange={(e) =>
+              setViewState((p) => ({ ...p, query: e.target.value }))
+            }
+            placeholder="جستجو در آهنگ‌ها..."
+            className="w-full h-11 px-4 rounded-xl bg-white/10 border border-white/5 focus:border-emerald-500/50 outline-none text-sm placeholder-gray-500 transition-colors"
+            autoFocus
+          />
+        </div>
       </div>
+
+      {/* List Container */}
+      <div className="px-4 pb-32 space-y-1 relative z-10 min-h-[300px]">
+        {renderList()}
+      </div>
+
+      <SongOptionsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        song={selectedSong}
+        onAction={async (action, song) => {
+          if (action === "toggle-like") await handleLike(song.id);
+        }}
+      />
     </div>
   );
 }

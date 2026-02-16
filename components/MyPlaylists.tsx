@@ -1,9 +1,44 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, memo } from "react";
+import React, { useState, useMemo, useCallback, memo, useEffect } from "react";
 import { useNavigation } from "./NavigationContext";
-import { USER_PLAYLISTS, UserPlaylist, createSlug } from "./mockData";
+import { useAuth } from "./AuthContext";
+import { UserPlaylist, createSlug } from "./mockData";
 import { ResponsiveSheet } from "./ResponsiveSheet";
+
+// ============================================================================
+// API Types
+// ============================================================================
+interface APIUserPlaylist {
+  id: number;
+  user: number;
+  user_phone: string;
+  title: string;
+  public: boolean;
+  songs_count: number;
+  likes_count: number;
+  is_liked: boolean;
+  song_ids: number[];
+  top_three_song_covers: string[];
+  type: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// API Mapping Function
+// ============================================================================
+const mapAPIToUserPlaylist = (apiPl: APIUserPlaylist): UserPlaylist => ({
+  id: apiPl.id.toString(),
+  title: apiPl.title,
+  description: "",
+  image: apiPl.top_three_song_covers?.[0] || "",
+  gradient: "from-emerald-600 to-teal-700",
+  songsCount: apiPl.songs_count,
+  duration: "0 دقیقه",
+  isPublic: apiPl.public,
+  createdAt: apiPl.created_at,
+});
 
 // ============================================================================
 // Icon Component - Optimized with memo
@@ -480,11 +515,50 @@ CreatePlaylistCard.displayName = "CreatePlaylistCard";
 // ============================================================================
 export default function MyPlaylists() {
   const { navigateTo, goBack, scrollToTop } = useNavigation();
+  const { accessToken } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [playlists, setPlaylists] = useState<UserPlaylist[]>(USER_PLAYLISTS);
+  const [playlists, setPlaylists] = useState<UserPlaylist[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch playlists from API
+  const fetchPlaylists = useCallback(async () => {
+    if (!accessToken) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(
+        "https://api.sedabox.com/api/profile/user-playlists/",
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setPlaylists(data.map(mapAPIToUserPlaylist));
+      } else {
+        setError("خطا در دریافت پلی‌لیست‌ها");
+      }
+    } catch (err) {
+      setError("خطا در برقراری ارتباط با سرور");
+    } finally {
+      setLoading(false);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    fetchPlaylists();
+  }, [fetchPlaylists]);
 
   // Filter playlists based on search
   const displayedPlaylists = useMemo(() => {
@@ -503,27 +577,42 @@ export default function MyPlaylists() {
 
   const handlePlaylistPress = useCallback(
     (playlist: UserPlaylist) => {
-      navigateTo("playlist-detail", { slug: createSlug(playlist.title) });
+      navigateTo("user-playlist-detail", { id: playlist.id });
     },
     [navigateTo],
   );
 
   const handleCreatePlaylist = useCallback(
-    (name: string, isPublic: boolean) => {
-      const newPlaylist: UserPlaylist = {
-        id: `user-pl-${Date.now()}`,
-        title: name,
-        description: "",
-        image: "",
-        gradient: "from-emerald-600 to-teal-700",
-        songsCount: 0,
-        duration: "0 دقیقه",
-        isPublic,
-        createdAt: new Date().toISOString(),
-      };
-      setPlaylists((prev) => [newPlaylist, ...prev]);
+    async (name: string, isPublic: boolean) => {
+      if (!accessToken) return;
+
+      try {
+        const response = await fetch(
+          "https://api.sedabox.com/api/profile/user-playlists/",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              title: name,
+              public: isPublic,
+            }),
+          },
+        );
+
+        if (response.ok) {
+          const newPl = await response.json();
+          setPlaylists((prev) => [mapAPIToUserPlaylist(newPl), ...prev]);
+        } else {
+          console.error("Failed to create playlist");
+        }
+      } catch (err) {
+        console.error("Error creating playlist:", err);
+      }
     },
-    [],
+    [accessToken],
   );
 
   const handleEditPlaylist = useCallback((playlistId: string) => {
@@ -635,36 +724,65 @@ export default function MyPlaylists() {
         {/* Create Playlist Card */}
         <CreatePlaylistCard onClick={() => setShowCreateModal(true)} />
 
+        {/* Loading State */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
+            <p className="text-gray-400 text-sm">
+              در حال دریافت پلی‌لیست‌ها...
+            </p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-red-400 mb-4">{error}</p>
+            <button
+              onClick={() => fetchPlaylists()}
+              className="px-6 py-2 bg-white/10 rounded-full text-sm hover:bg-white/20 transition-colors"
+            >
+              تلاش مجدد
+            </button>
+          </div>
+        )}
+
         {/* Playlists List */}
-        {displayedPlaylists.length === 0 && searchQuery ? (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-500">
-            <Icon d={ICONS.folder} className="w-12 h-12 mb-3 opacity-40" />
-            <p className="text-sm">پلی‌لیستی یافت نشد</p>
-          </div>
-        ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-3">
-            {displayedPlaylists.map((playlist) => (
-              <PlaylistCardGrid
-                key={playlist.id}
-                playlist={playlist}
-                onPress={() => handlePlaylistPress(playlist)}
-                onEdit={() => handleEditPlaylist(playlist.id)}
-                onDelete={() => handleDeletePlaylist(playlist.id)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-3 pt-3">
-            {displayedPlaylists.map((playlist) => (
-              <PlaylistCard
-                key={playlist.id}
-                playlist={playlist}
-                onPress={() => handlePlaylistPress(playlist)}
-                onEdit={() => handleEditPlaylist(playlist.id)}
-                onDelete={() => handleDeletePlaylist(playlist.id)}
-              />
-            ))}
-          </div>
+        {!loading && !error && (
+          <>
+            {displayedPlaylists.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+                <Icon d={ICONS.folder} className="w-12 h-12 mb-3 opacity-40" />
+                <p className="text-sm">
+                  {searchQuery ? "پلی‌لیستی یافت نشد" : "هنوز پلی‌لیستی ندارید"}
+                </p>
+              </div>
+            ) : viewMode === "grid" ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-3">
+                {displayedPlaylists.map((playlist) => (
+                  <PlaylistCardGrid
+                    key={playlist.id}
+                    playlist={playlist}
+                    onPress={() => handlePlaylistPress(playlist)}
+                    onEdit={() => handleEditPlaylist(playlist.id)}
+                    onDelete={() => handleDeletePlaylist(playlist.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3 pt-3">
+                {displayedPlaylists.map((playlist) => (
+                  <PlaylistCard
+                    key={playlist.id}
+                    playlist={playlist}
+                    onPress={() => handlePlaylistPress(playlist)}
+                    onEdit={() => handleEditPlaylist(playlist.id)}
+                    onDelete={() => handleDeletePlaylist(playlist.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

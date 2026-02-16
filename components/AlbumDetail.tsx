@@ -6,6 +6,7 @@ import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { usePlayer, Track } from "./PlayerContext";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
+import toast from "react-hot-toast";
 
 // API Interfaces based on the provided format
 interface ApiSong {
@@ -277,6 +278,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   const [albumData, setAlbumData] = useState<ApiAlbumResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
+  const [liking, setLiking] = useState(false);
 
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -320,6 +322,34 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
 
   const handleAction = (action: string, song: any) => {
     console.log(`Action ${action} on song ${song.title}`);
+  };
+
+  const handleLike = async () => {
+    if (!albumData) return;
+
+    setLiking(true);
+    try {
+      const response = await fetch(
+        `https://api.sedabox.com/api/albums/${albumData.id}/like/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setIsLiked(data.liked);
+        toast.success(data.liked ? "آلبوم لایک شد" : "لایک آلبوم لغو شد");
+      } else {
+        toast.error("خطا در لایک آلبوم");
+      }
+    } catch (error) {
+      toast.error("خطا در اتصال");
+    } finally {
+      setLiking(false);
+    }
   };
 
   const handlePlayAll = () => {
@@ -464,12 +494,17 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
           </button>
 
           <button
-            onClick={() => setIsLiked(!isLiked)}
+            onClick={handleLike}
+            disabled={liking}
             className={`w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors duration-200 ${
               isLiked ? "text-green-500" : "text-neutral-400 hover:text-white"
-            }`}
+            } ${liking ? "opacity-50 cursor-not-allowed" : ""}`}
           >
-            <Icon name="heart" className="w-7 h-7" fill={isLiked} />
+            {liking ? (
+              <div className="w-7 h-7 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <Icon name="heart" className="w-7 h-7" fill={isLiked} />
+            )}
           </button>
 
           <button className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200">

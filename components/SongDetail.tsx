@@ -15,6 +15,7 @@ import { toast } from "react-hot-toast";
 import { MOCK_SONGS as CENTRALIZED_SONGS } from "./mockData";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
+import { AddToPlaylistModal } from "./AddToPlaylistModal";
 
 interface ApiSong {
   id: number;
@@ -541,7 +542,8 @@ const ContextMenu: React.FC<{
   onClose: () => void;
   position: { x: number; y: number };
   onArtistClick?: () => void;
-}> = ({ isOpen, onClose, position, onArtistClick }) => {
+  onAddToPlaylist?: () => void;
+}> = ({ isOpen, onClose, position, onArtistClick, onAddToPlaylist }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -587,7 +589,10 @@ const ContextMenu: React.FC<{
     {
       icon: <Icon name="listPlus" size={20} />,
       label: "افزودن به پلی‌لیست",
-      onClick: onClose,
+      onClick: () => {
+        onClose();
+        onAddToPlaylist?.();
+      },
     },
     {
       icon: <Icon name="queue" size={20} />,
@@ -687,9 +692,13 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   const [toastMessage, setToastMessage] = useState("");
   const [contextMenu, setContextMenu] = useState({ isOpen: false, x: 0, y: 0 });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
 
   const handleAction = (action: string, song: any) => {
-    console.log(`Action ${action} on song ${song.title}`);
+    if (action === "add-to-playlist") {
+      setIsAddToPlaylistOpen(true);
+      setIsDrawerOpen(false);
+    }
   };
 
   useEffect(() => {
@@ -1233,6 +1242,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         isOpen={contextMenu.isOpen}
         onClose={() => setContextMenu((prev) => ({ ...prev, isOpen: false }))}
         position={{ x: contextMenu.x, y: contextMenu.y }}
+        onAddToPlaylist={() => setIsAddToPlaylistOpen(true)}
         onArtistClick={
           song?.artistId || (song as any)?.artist_id
             ? () => {
@@ -1244,6 +1254,14 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             : undefined
         }
       />
+
+      {song && (
+        <AddToPlaylistModal
+          isOpen={isAddToPlaylistOpen}
+          onClose={() => setIsAddToPlaylistOpen(false)}
+          songId={song.id}
+        />
+      )}
 
       <SongOptionsDrawer
         isOpen={isDrawerOpen}
