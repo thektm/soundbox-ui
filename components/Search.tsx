@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef, memo } from "react";
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
 import Image from "next/image";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useNavigation } from "./NavigationContext";
@@ -10,14 +10,52 @@ import { toast } from "react-hot-toast";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 
 // ============ TYPES & MOCKS ============
-import {
-  MOCK_SONGS,
-  MOCK_ARTISTS,
-  Song,
-  Artist,
-  Album,
-  Playlist,
-} from "./mockData";
+interface Song {
+  id: string;
+  title: string;
+  artist: string;
+  artistId?: string | number;
+  album: string;
+  duration: string;
+  image: string;
+  src: string;
+  explicit?: boolean;
+  plays?: number;
+}
+
+interface Artist {
+  id: string;
+  name: string;
+  image: string;
+  /** Circular profile image used for overlays and avatars. Falls back to `image` if absent. */
+  profileImage?: string;
+  followers: string;
+  verified?: boolean;
+  is_following?: boolean;
+}
+
+interface Album {
+  id: string;
+  title: string;
+  artist: string;
+  image: string;
+  year: string;
+  type: string;
+  description: string;
+}
+
+interface Playlist {
+  id: string;
+  title: string;
+  description: string;
+  image: string;
+  gradient: string;
+  songsCount: number;
+  duration: string;
+  followers?: string;
+  isNew?: boolean;
+  isPremium?: boolean;
+}
 
 interface SearchResults {
   songs: Song[];
@@ -87,10 +125,15 @@ const useSearchHistory = () => {
   const [history, setHistory] = useState<SearchHistory[]>([]);
 
   useEffect(() => {
-    try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      if (data) setHistory(JSON.parse(data));
-    } catch {}
+    // Defer localStorage read to after initial render for instant loading
+    const timer = setTimeout(() => {
+      try {
+        const data = localStorage.getItem(STORAGE_KEY);
+        if (data) setHistory(JSON.parse(data));
+      } catch {}
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const save = (newHistory: SearchHistory[]) => {
@@ -139,38 +182,43 @@ const useEventPlaylists = (accessToken?: string) => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const fetchEventPlaylists = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch(
-          "https://api.sedabox.com/api/search/event-playlists/",
-          {
-            headers: accessToken
-              ? { Authorization: `Bearer ${accessToken}` }
-              : {},
-          },
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setEventData(data);
+    // Defer the fetch to after initial render for instant loading
+    const timer = setTimeout(() => {
+      const fetchEventPlaylists = async () => {
+        setIsLoading(true);
+        try {
+          const response = await fetch(
+            "https://api.sedabox.com/api/search/event-playlists/",
+            {
+              headers: accessToken
+                ? { Authorization: `Bearer ${accessToken}` }
+                : {},
+            },
+          );
+          if (response.ok) {
+            const data = await response.json();
+            setEventData(data);
+          }
+        } catch (error) {
+          console.error("Failed to fetch event playlists", error);
+        } finally {
+          setIsLoading(false);
         }
-      } catch (error) {
-        console.error("Failed to fetch event playlists", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchEventPlaylists();
+      };
+      fetchEventPlaylists();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [accessToken]);
 
-  const getTimeOfDay = () => {
+  const getTimeOfDay = useCallback(() => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) return "morning";
     if (hour >= 12 && hour < 20) return "evening";
     return "night";
-  };
+  }, []);
 
-  const currentEvent = eventData.find((e) => e.time_of_day === getTimeOfDay());
+  const currentEvent = useMemo(() => eventData.find((e) => e.time_of_day === getTimeOfDay()), [eventData, getTimeOfDay]);
 
   return { currentEvent, isLoading };
 };
@@ -180,28 +228,33 @@ const useSearchSections = (accessToken?: string) => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const fetchSections = async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch(
-          "https://api.sedabox.com/api/search/sections/",
-          {
-            headers: accessToken
-              ? { Authorization: `Bearer ${accessToken}` }
-              : {},
-          },
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setSections(data);
+    // Defer the fetch to after initial render for instant loading
+    const timer = setTimeout(() => {
+      const fetchSections = async () => {
+        setIsLoading(true);
+        try {
+          const response = await fetch(
+            "https://api.sedabox.com/api/search/sections/",
+            {
+              headers: accessToken
+                ? { Authorization: `Bearer ${accessToken}` }
+                : {},
+            },
+          );
+          if (response.ok) {
+            const data = await response.json();
+            setSections(data);
+          }
+        } catch (error) {
+          console.error("Failed to fetch search sections", error);
+        } finally {
+          setIsLoading(false);
         }
-      } catch (error) {
-        console.error("Failed to fetch search sections", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchSections();
+      };
+      fetchSections();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [accessToken]);
 
   return { sections, isLoading };
