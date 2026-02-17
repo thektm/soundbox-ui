@@ -46,20 +46,31 @@ const SplashScreen: React.FC = () => {
           />
         </div>
 
-        <div className="flex items-center gap-2 mt-1">
-          <span className="dot" />
-          <span className="dot" style={{ animationDelay: "160ms" }} />
-          <span className="dot" style={{ animationDelay: "320ms" }} />
+        <div className="flex items-center gap-2 mt-1 dots">
+          <span className="dot"></span>
+          <span className="dot"></span>
+          <span className="dot"></span>
         </div>
 
         <style jsx>{`
-          .dot {
+          .dots .dot {
             width: 10px;
             height: 10px;
             background: #9ca3af; /* gray-400 */
             border-radius: 9999px;
             display: inline-block;
             animation: splash-dot 900ms infinite ease-in-out;
+          }
+
+          /* ensure each dot animates with a small stagger */
+          .dots .dot:nth-child(1) {
+            animation-delay: 0ms;
+          }
+          .dots .dot:nth-child(2) {
+            animation-delay: 160ms;
+          }
+          .dots .dot:nth-child(3) {
+            animation-delay: 320ms;
           }
 
           @keyframes splash-dot {
