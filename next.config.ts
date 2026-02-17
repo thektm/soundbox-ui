@@ -12,7 +12,9 @@ const nextConfig: NextConfig = {
   },
   compress: true,
   reactCompiler: true,
-  
+  output: "standalone",
+   poweredByHeader: false,
+   productionBrowserSourceMaps: false,
 };
 
 export default nextConfig;
