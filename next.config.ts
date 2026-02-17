@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
       { protocol: 'http', hostname: '*' }
     ],
   },
+  compress: true,
+  reactCompiler: true,
+  
 };
 
 export default nextConfig;
