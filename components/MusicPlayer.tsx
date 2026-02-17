@@ -870,13 +870,14 @@ const AlbumArtCarousel = memo<{
 
     const canDrag = !isAdPlaying && !showLyricsOverlay && !isAnimatingOut;
 
+    // Reduce cover image size by 10% for mobile expanded mode
     return (
       <div
         ref={containerRef}
         className="relative w-full aspect-square overflow-hidden"
         style={{
-          maxWidth: "min(60vh, 90vw)",
-          maxHeight: "min(60vh, 90vw)",
+          maxWidth: "min(54vh, 81vw)", // 10% smaller than before
+          maxHeight: "min(54vh, 81vw)",
         }}
       >
         {/* Previous track cover */}
@@ -1219,6 +1220,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 }}
               >
                 <TrackSlide
+                  key={displayTrack.id}
                   track={displayTrack}
                   playing={isPlaying}
                   loading={isLoading}
@@ -1572,7 +1574,7 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
             <div className="flex-1 flex items-center justify-center">
               <div className="flex items-center gap-10 max-w-3xl w-full">
                 {/* Album Art */}
-                <div className="relative flex-shrink-0">
+                <div className="relative flex-shrink-0" key={displayTrack.id}>
                   <div className="w-72 h-72 xl:w-80 xl:h-80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10">
                     <ImageWithPlaceholder
                       src={
@@ -2023,21 +2025,11 @@ const MobileExpandedPlayer = memo<{
             >
               <Icon.Down c="w-6 h-6 text-white" />
             </button>
-            <div
-              className="flex flex-col items-center w-full px-2"
-              dir="rtl"
-              style={{ gap: 0, marginBottom: 0, marginTop: 0 }}
-            >
+            <div className="flex flex-col items-center w-full px-2" dir="rtl">
               <button
                 onClick={handleArtistClick}
-                className={`text-base font-semibold text-white w-full text-center truncate leading-tight ${isAdPlaying ? "" : "hover:underline"}`}
-                style={{
-                  maxWidth: "90vw",
-                  marginBottom: 0,
-                  marginTop: 0,
-                  paddingBottom: 0,
-                  paddingTop: 0,
-                }}
+                className={`text-base font-semibold text-white w-full text-center truncate ${isAdPlaying ? "" : "hover:underline"}`}
+                style={{ maxWidth: "90vw" }}
               >
                 {isAdPlaying ? "Ad" : displayTrack.artist}
               </button>
@@ -2047,14 +2039,8 @@ const MobileExpandedPlayer = memo<{
                   onCollapse();
                   navigateTo("song-detail", { id: displayTrack.id });
                 }}
-                className={`text-lg font-bold text-neutral-300 w-full text-center truncate leading-tight ${isAdPlaying ? "" : "hover:underline"}`}
-                style={{
-                  maxWidth: "90vw",
-                  marginTop: 0,
-                  marginBottom: 0,
-                  paddingTop: 0,
-                  paddingBottom: 0,
-                }}
+                className={`text-lg font-bold text-neutral-300 w-full text-center truncate mt-0 ${isAdPlaying ? "" : "hover:underline"}`}
+                style={{ maxWidth: "90vw" }}
               >
                 {displayTrack.title}
               </button>
@@ -2072,43 +2058,28 @@ const MobileExpandedPlayer = memo<{
           </div>
 
           <div className="flex-1 flex flex-col items-center px-2 sm:px-4">
-            {/* Cover image centered between title and progress bar */}
-            <div
-              className="w-full flex flex-col items-center justify-center"
-              style={{ marginTop: 0, marginBottom: 0 }}
-            >
-              <div
-                className="flex justify-center items-center w-full"
-                style={{ margin: 0, padding: 0 }}
-              >
-                <div
-                  className="relative"
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    width: "100%",
-                  }}
-                >
-                  <div className="aspect-square w-[70vw] max-w-[340px] min-w-[180px] rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10 flex items-center justify-center mx-auto">
-                    <ImageWithPlaceholder
-                      src={
-                        ensureHttps(displayTrack.image) || displayTrack.image
-                      }
-                      alt={displayTrack.title}
-                      className="w-full h-full object-cover"
-                      type="song"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Album Art Carousel with swipe gesture */}
+            <AlbumArtCarousel
+              key={`carousel-${displayTrack.id}`}
+              currentTrack={displayTrack}
+              previousTrack={isAdPlaying ? null : previousTrack}
+              nextTrack={isAdPlaying ? null : nextTrack}
+              isPlaying={isPlaying}
+              isAdPlaying={isAdPlaying}
+              showLyricsOverlay={showLyricsOverlay}
+              setShowLyricsOverlay={setShowLyricsOverlay}
+              lyrics={lyrics}
+              onNext={next}
+              onPrevious={previous}
+            />
 
             <div
-              className="w-full max-w-[900px] flex flex-col items-center flex-grow justify-center"
-              style={{ marginTop: 0 }}
-            >
-              <div className="w-full mb-6 mt-4">
+              className="mt-4 sm:mt-8 mb-4 sm:mb-6 w-full max-w-[900px]"
+              dir="rtl"
+            ></div>
+
+            <div className="w-full max-w-[900px] flex flex-col items-center flex-grow justify-center">
+              <div className="w-full mb-6">
                 <ProgressBar
                   progress={progress}
                   duration={duration}

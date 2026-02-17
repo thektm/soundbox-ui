@@ -474,11 +474,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           if (resp.ok) {
             const data = await resp.json();
             setLyrics(data.lyrics || null);
-            // Also update the track in queue to cache the lyrics
+            // Also update the track in queue to cache the lyrics and latest data
             setQueueState((prev) =>
               prev.map((t) =>
                 String(t.id) === String(track.id)
-                  ? { ...t, lyrics: data.lyrics || undefined }
+                  ? {
+                      ...t,
+                      lyrics: data.lyrics || t.lyrics,
+                      image:
+                        ensureHttps(data.image) ||
+                        ensureHttps(data.image_cover) ||
+                        t.image,
+                      title: data.title || t.title,
+                      artist:
+                        data.artist?.name ||
+                        data.artist_name ||
+                        data.artist ||
+                        t.artist,
+                    }
                   : t,
               ),
             );
