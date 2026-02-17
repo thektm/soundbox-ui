@@ -2016,22 +2016,28 @@ const MobileExpandedPlayer = memo<{
         style={{ willChange: "transform, opacity" }}
       >
         <div className="relative flex flex-col min-h-0 h-full px-3 py-4 sm:px-6 sm:py-8 overflow-hidden">
-          <div className="flex items-start justify-between mb-8">
+          <div className="flex items-start justify-between mb-4">
             <button
               onClick={onCollapse}
               className="w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors"
             >
               <Icon.Down c="w-6 h-6 text-white" />
             </button>
-            <div className="flex flex-col items-center" dir="rtl">
-              <span className="text-xs text-neutral-400 uppercase tracking-wider">
-                {isAdPlaying ? "در حال پخش تبلیغ" : "در حال پخش"}
-              </span>
+            <div
+              className="flex flex-col items-center w-full px-2"
+              dir="rtl"
+              style={{ gap: 0, marginBottom: 0, marginTop: 0 }}
+            >
               <button
                 onClick={handleArtistClick}
-                className={`text-sm font-medium mt-12 text-white ${
-                  isAdPlaying ? "" : "hover:underline"
-                }`}
+                className={`text-base font-semibold text-white w-full text-center truncate leading-tight ${isAdPlaying ? "" : "hover:underline"}`}
+                style={{
+                  maxWidth: "90vw",
+                  marginBottom: 0,
+                  marginTop: 0,
+                  paddingBottom: 0,
+                  paddingTop: 0,
+                }}
               >
                 {isAdPlaying ? "Ad" : displayTrack.artist}
               </button>
@@ -2041,9 +2047,14 @@ const MobileExpandedPlayer = memo<{
                   onCollapse();
                   navigateTo("song-detail", { id: displayTrack.id });
                 }}
-                className={`text-[16px] text-neutral-300 truncate mt-1 max-w-[160px] text-center ${
-                  isAdPlaying ? "" : "hover:underline"
-                }`}
+                className={`text-lg font-bold text-neutral-300 w-full text-center truncate leading-tight ${isAdPlaying ? "" : "hover:underline"}`}
+                style={{
+                  maxWidth: "90vw",
+                  marginTop: 0,
+                  marginBottom: 0,
+                  paddingTop: 0,
+                  paddingBottom: 0,
+                }}
               >
                 {displayTrack.title}
               </button>
@@ -2061,27 +2072,43 @@ const MobileExpandedPlayer = memo<{
           </div>
 
           <div className="flex-1 flex flex-col items-center px-2 sm:px-4">
-            {/* Album Art Carousel with swipe gesture */}
-            <AlbumArtCarousel
-              currentTrack={displayTrack}
-              previousTrack={isAdPlaying ? null : previousTrack}
-              nextTrack={isAdPlaying ? null : nextTrack}
-              isPlaying={isPlaying}
-              isAdPlaying={isAdPlaying}
-              showLyricsOverlay={showLyricsOverlay}
-              setShowLyricsOverlay={setShowLyricsOverlay}
-              lyrics={lyrics}
-              onNext={next}
-              onPrevious={previous}
-            />
+            {/* Cover image centered between title and progress bar */}
+            <div
+              className="w-full flex flex-col items-center justify-center"
+              style={{ marginTop: 0, marginBottom: 0 }}
+            >
+              <div
+                className="flex justify-center items-center w-full"
+                style={{ margin: 0, padding: 0 }}
+              >
+                <div
+                  className="relative"
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    width: "100%",
+                  }}
+                >
+                  <div className="aspect-square w-[70vw] max-w-[340px] min-w-[180px] rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10 flex items-center justify-center mx-auto">
+                    <ImageWithPlaceholder
+                      src={
+                        ensureHttps(displayTrack.image) || displayTrack.image
+                      }
+                      alt={displayTrack.title}
+                      className="w-full h-full object-cover"
+                      type="song"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div
-              className="mt-4 sm:mt-8 mb-4 sm:mb-6 w-full max-w-[900px]"
-              dir="rtl"
-            ></div>
-
-            <div className="w-full max-w-[900px] flex flex-col items-center flex-grow justify-center">
-              <div className="w-full mb-6">
+              className="w-full max-w-[900px] flex flex-col items-center flex-grow justify-center"
+              style={{ marginTop: 0 }}
+            >
+              <div className="w-full mb-6 mt-4">
                 <ProgressBar
                   progress={progress}
                   duration={duration}
