@@ -25,6 +25,16 @@ function ensureHttps(u?: string | null): string | undefined {
   return u;
 }
 
+export interface Ad {
+  id: number;
+  title: string;
+  audio_url: string;
+  image_cover: string | null;
+  navigate_link: string | null;
+  duration: number;
+  skippable_after: number;
+}
+
 export interface Track {
   id: string;
   title: string;
@@ -62,6 +72,8 @@ interface PlayerContextType {
   likesCount: number;
   isLiking: boolean;
   lyrics: string | null;
+  isAdPlaying: boolean;
+  currentAd: Ad | null;
 
   // Actions
   playTrack: (track: Track) => void;
@@ -115,6 +127,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [likesCount, setLikesCount] = useState<number>(0);
   const [isLiking, setIsLiking] = useState<boolean>(false);
   const [lyrics, setLyrics] = useState<string | null>(null);
+  const [isAdPlaying, setIsAdPlaying] = useState<boolean>(false);
+  const [currentAd, setCurrentAd] = useState<Ad | null>(null);
   const [userLocation, setUserLocation] = useState({
     country: "iran",
     city: "Tehran",
@@ -141,12 +155,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const submittedUidsRef = useRef<Set<string>>(new Set());
   const resolvedUrlsRef = useRef<Map<string, string>>(new Map());
   const userLocationRef = useRef({ country: "iran", city: "Tehran" });
+  const isAdPlayingRef = useRef<boolean>(false);
+  const adSubmitIdRef = useRef<string | null>(null);
+  const currentTrackRef = useRef<Track | null>(null);
 
   // Derived state for current, previous, and next tracks
   const currentTrack = useMemo(
     () => queue[currentIndex] || null,
     [queue, currentIndex],
   );
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
 
   // Listen for external like-change events (from drawers or other UI)
   useEffect(() => {
@@ -405,7 +426,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // Internal function to play a track at a specific index
   const playAtIndex = useCallback(
-    async (index: number, queueToUse?: Track[]) => {
+    async (index: number, queueToUse?: Track[], bypassAdCheckData?: any) => {
       const q = queueToUse || queue;
       const track = q[index];
       if (!track || !audioRef.current) return;
@@ -415,6 +436,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setProgress(0);
 
       // Reset UID and counters for the new track/session
+      if (!bypassAdCheckData) {
+        setIsAdPlaying(false);
+        isAdPlayingRef.current = false;
+        setCurrentAd(null);
+        adSubmitIdRef.current = null;
+      }
+
       setUniqueOtplayId(null);
       uniqueOtplayIdRef.current = null;
       playSecondsRef.current = 0;
@@ -464,188 +492,233 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       })();
 
       const initialSrc = (ensureHttps(track.src) as string) || FALLBACK_SRC;
+      let resolvedSrc = initialSrc;
 
       try {
-        // Call the stream API (track.src) with Authorization to get the final media URL
-        let resolvedSrc = initialSrc;
-        try {
-          console.debug("Requesting stream API (needs auth):", initialSrc);
-          const headers: Record<string, string> = {};
-          if (accessTokenRef.current)
-            headers["Authorization"] = `Bearer ${accessTokenRef.current}`;
-
-          let resp = await fetch(initialSrc, {
-            method: "GET",
-            mode: "cors",
-            headers,
-          });
-
-          // Always capture and log the response body for this stream token request
-          let respText: string | null = null;
-          try {
-            respText = await resp.clone().text();
-          } catch (e) {
-            respText = null;
+        if (bypassAdCheckData) {
+          console.debug(
+            "Bypassing ad check, playing from provided data:",
+            bypassAdCheckData,
+          );
+          const data = bypassAdCheckData;
+          // extract unique play id if present
+          const uid =
+            data.unique_otplay_id || data.uniqueOtplayId || data.unique || null;
+          if (uid && typeof uid === "string") {
+            setUniqueOtplayId(uid);
+            uniqueOtplayIdRef.current = uid;
+            playSecondsRef.current = 0;
+            lastCountedSecondRef.current = -1;
           }
-          console.debug("Stream API response:", {
-            status: resp.status,
-            statusText: resp.statusText,
-            body: respText,
-            headers: Array.from(resp.headers.entries()),
-          });
+          const candidate =
+            data.stream_url ||
+            data.url ||
+            data.file ||
+            data.stream ||
+            (data.data && (data.data.stream_url || data.data.url));
+          if (candidate && typeof candidate === "string") {
+            resolvedSrc = candidate;
+          }
+        } else {
+          // Call the stream API (track.src) with Authorization to get the final media URL
+          try {
+            console.debug("Requesting stream API (needs auth):", initialSrc);
+            const headers: Record<string, string> = {};
+            if (accessTokenRef.current)
+              headers["Authorization"] = `Bearer ${accessTokenRef.current}`;
 
-          // If server indicates this stream URL has already been used (413) and provides a new_stream_url, follow it
-          if (resp.status === 413) {
+            let resp = await fetch(initialSrc, {
+              method: "GET",
+              mode: "cors",
+              headers,
+            });
+
+            // Always capture and log the response body for this stream token request
+            let respText: string | null = null;
             try {
-              const parsed = respText ? JSON.parse(respText) : null;
-              let newUrl =
-                parsed && (parsed.new_stream_url || parsed.new_stream_uri);
-              if (newUrl && typeof newUrl === "string") {
-                try {
-                  // If newUrl is relative, resolve against the initial source origin
-                  if (/^\//.test(newUrl)) {
-                    try {
-                      const base = new URL(initialSrc).origin;
-                      newUrl = base + newUrl;
-                    } catch (e) {
-                      // fallback: leave as-is
-                    }
-                  }
+              respText = await resp.clone().text();
+            } catch (e) {
+              respText = null;
+            }
+            console.debug("Stream API response:", {
+              status: resp.status,
+              statusText: resp.statusText,
+              body: respText,
+              headers: Array.from(resp.headers.entries()),
+            });
 
-                  // Normalize to HTTPS to avoid preflight redirect issues
-                  // normalize any server-provided URL
-                  newUrl = (ensureHttps(newUrl) as string) || newUrl;
-                  if (/^https?:\/\//i.test(newUrl)) {
+            // If server indicates this stream URL has already been used (413) and provides a new_stream_url, follow it
+            if (resp.status === 413) {
+              try {
+                const parsed = respText ? JSON.parse(respText) : null;
+                let newUrl =
+                  parsed && (parsed.new_stream_url || parsed.new_stream_uri);
+                if (newUrl && typeof newUrl === "string") {
+                  try {
+                    // If newUrl is relative, resolve against the initial source origin
+                    if (/^\//.test(newUrl)) {
+                      try {
+                        const base = new URL(initialSrc).origin;
+                        newUrl = base + newUrl;
+                      } catch (e) {
+                        // fallback: leave as-is
+                      }
+                    }
+
+                    // Normalize to HTTPS to avoid preflight redirect issues
+                    // normalize any server-provided URL
+                    newUrl = (ensureHttps(newUrl) as string) || newUrl;
+                    if (/^https?:\/\//i.test(newUrl)) {
+                      console.debug(
+                        "Normalized new_stream_url to HTTPS:",
+                        newUrl,
+                      );
+                    }
+
                     console.debug(
-                      "Normalized new_stream_url to HTTPS:",
+                      "Stream token expired. Fetching new stream URL (normalized):",
                       newUrl,
                     );
+                    const resp2 = await fetch(newUrl, {
+                      method: "GET",
+                      mode: "cors",
+                      headers,
+                    });
+                    let resp2Text: string | null = null;
+                    try {
+                      resp2Text = await resp2.clone().text();
+                    } catch (e) {
+                      resp2Text = null;
+                    }
+                    console.debug("Stream API (follow) response:", {
+                      status: resp2.status,
+                      statusText: resp2.statusText,
+                      body: resp2Text,
+                      headers: Array.from(resp2.headers.entries()),
+                    });
+                    resp = resp2;
+                    respText = resp2Text;
+                  } catch (innerErr) {
+                    console.warn(
+                      "Failed to fetch normalized new_stream_url:",
+                      innerErr,
+                    );
                   }
-
-                  console.debug(
-                    "Stream token expired. Fetching new stream URL (normalized):",
-                    newUrl,
-                  );
-                  const resp2 = await fetch(newUrl, {
-                    method: "GET",
-                    mode: "cors",
-                    headers,
-                  });
-                  let resp2Text: string | null = null;
-                  try {
-                    resp2Text = await resp2.clone().text();
-                  } catch (e) {
-                    resp2Text = null;
-                  }
-                  console.debug("Stream API (follow) response:", {
-                    status: resp2.status,
-                    statusText: resp2.statusText,
-                    body: resp2Text,
-                    headers: Array.from(resp2.headers.entries()),
-                  });
-                  resp = resp2;
-                  respText = resp2Text;
-                } catch (innerErr) {
-                  console.warn(
-                    "Failed to fetch normalized new_stream_url:",
-                    innerErr,
-                  );
                 }
+              } catch (err) {
+                console.warn("Failed to follow new_stream_url:", err);
               }
-            } catch (err) {
-              console.warn("Failed to follow new_stream_url:", err);
             }
-          }
 
-          if (resp.status === 401) {
-            console.error(
-              "Stream API returned 401 Unauthorized for",
-              initialSrc,
-            );
-            setIsLoading(false);
-            setIsPlaying(false);
-            return;
-          }
+            if (resp.status === 401) {
+              console.error(
+                "Stream API returned 401 Unauthorized for",
+                initialSrc,
+              );
+              setIsLoading(false);
+              setIsPlaying(false);
+              return;
+            }
 
-          if (resp.ok) {
-            const ct = resp.headers.get("content-type") || "";
-            if (ct.includes("application/json")) {
-              try {
-                const data = respText
-                  ? JSON.parse(respText)
-                  : await resp.json();
-                console.debug("Stream API JSON response:", data);
-                // extract unique play id if present
-                const uid =
-                  data.unique_otplay_id ||
-                  data.uniqueOtplayId ||
-                  data.unique ||
-                  null;
-                if (uid && typeof uid === "string") {
-                  setUniqueOtplayId(uid);
-                  uniqueOtplayIdRef.current = uid;
-                  // reset counters for new id/track
-                  playSecondsRef.current = 0;
-                  lastCountedSecondRef.current = -1;
+            if (resp.ok) {
+              const ct = resp.headers.get("content-type") || "";
+              if (ct.includes("application/json")) {
+                try {
+                  const data = respText
+                    ? JSON.parse(respText)
+                    : await resp.json();
+                  console.debug("Stream API JSON response:", data);
+
+                  // Handle Ad Type
+                  if (data.type === "ad") {
+                    setIsAdPlaying(true);
+                    isAdPlayingRef.current = true;
+                    setCurrentAd(data.ad);
+                    adSubmitIdRef.current = data.submit_id;
+
+                    console.debug("Ad detected, playing ad:", data.ad);
+
+                    setDuration(data.ad.duration);
+                    setProgress(0);
+                    resolvedSrc = data.ad.audio_url;
+                  } else {
+                    // extract unique play id if present
+                    const uid =
+                      data.unique_otplay_id ||
+                      data.uniqueOtplayId ||
+                      data.unique ||
+                      null;
+                    if (uid && typeof uid === "string") {
+                      setUniqueOtplayId(uid);
+                      uniqueOtplayIdRef.current = uid;
+                      // reset counters for new id/track
+                      playSecondsRef.current = 0;
+                      lastCountedSecondRef.current = -1;
+                    }
+                    // common keys that might contain the final url
+                    const candidate =
+                      data.stream_url ||
+                      data.url ||
+                      data.file ||
+                      data.stream ||
+                      (data.data && (data.data.stream_url || data.data.url));
+                    if (candidate && typeof candidate === "string") {
+                      resolvedSrc = candidate;
+                    }
+                  }
+                } catch (err) {
+                  console.warn("Failed to parse JSON from stream API:", err);
                 }
-                // common keys that might contain the final url
-                const candidate =
-                  data.stream_url ||
-                  data.url ||
-                  data.file ||
-                  data.stream ||
-                  (data.data && (data.data.stream_url || data.data.url));
-                if (candidate && typeof candidate === "string") {
-                  resolvedSrc = candidate;
+              } else if (
+                ct.includes("text") ||
+                ct.includes("mpegurl") ||
+                ct.includes("vnd.apple.mpegurl")
+              ) {
+                // Some APIs return a plain text URL or playlist
+                try {
+                  const text = respText ?? (await resp.text());
+                  console.debug(
+                    "Stream API text response preview:",
+                    (text || "").slice(0, 400),
+                  );
+                  // If the text looks like a URL, use it
+                  const urlMatch = text?.match(/https?:\/\/[^\s"']+/);
+                  if (urlMatch) resolvedSrc = urlMatch[0];
+                  else if (
+                    text &&
+                    (text.trim().startsWith("#EXTM3U") ||
+                      text.includes(".m3u8"))
+                  ) {
+                    // treat the body as playlist content; create a blob URL so audio can load it
+                    const blob = new Blob([text], {
+                      type: "application/vnd.apple.mpegurl",
+                    });
+                    resolvedSrc = URL.createObjectURL(blob);
+                  }
+                } catch (err) {
+                  console.warn("Failed to read text from stream API:", err);
                 }
-              } catch (err) {
-                console.warn("Failed to parse JSON from stream API:", err);
-              }
-            } else if (
-              ct.includes("text") ||
-              ct.includes("mpegurl") ||
-              ct.includes("vnd.apple.mpegurl")
-            ) {
-              // Some APIs return a plain text URL or playlist
-              try {
-                const text = respText ?? (await resp.text());
-                console.debug(
-                  "Stream API text response preview:",
-                  (text || "").slice(0, 400),
-                );
-                // If the text looks like a URL, use it
-                const urlMatch = text?.match(/https?:\/\/[^\s"']+/);
-                if (urlMatch) resolvedSrc = urlMatch[0];
-                else if (
-                  text &&
-                  (text.trim().startsWith("#EXTM3U") || text.includes(".m3u8"))
-                ) {
-                  // treat the body as playlist content; create a blob URL so audio can load it
-                  const blob = new Blob([text], {
-                    type: "application/vnd.apple.mpegurl",
-                  });
-                  resolvedSrc = URL.createObjectURL(blob);
+              } else {
+                // Fallback: if the response redirected to the final url, use its URL
+                try {
+                  const finalUrl = resp.url;
+                  if (finalUrl && finalUrl !== initialSrc) {
+                    resolvedSrc = finalUrl;
+                    console.debug("Stream API redirected to", finalUrl);
+                  }
+                } catch (err) {
+                  console.warn(
+                    "Could not resolve final URL from response:",
+                    err,
+                  );
                 }
-              } catch (err) {
-                console.warn("Failed to read text from stream API:", err);
               }
             } else {
-              // Fallback: if the response redirected to the final url, use its URL
-              try {
-                const finalUrl = resp.url;
-                if (finalUrl && finalUrl !== initialSrc) {
-                  resolvedSrc = finalUrl;
-                  console.debug("Stream API redirected to", finalUrl);
-                }
-              } catch (err) {
-                console.warn("Could not resolve final URL from response:", err);
-              }
+              console.warn("Stream API returned non-ok status:", resp.status);
             }
-          } else {
-            console.warn("Stream API returned non-ok status:", resp.status);
+          } catch (fetchErr) {
+            console.warn("Fetch to stream API failed:", fetchErr);
           }
-        } catch (fetchErr) {
-          console.warn("Fetch to stream API failed:", fetchErr);
         }
 
         // Normalize resolved source to https to avoid mixed-content or blocked http loads
@@ -713,6 +786,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         } else {
           // Regular media file: set src to resolved URL
           console.debug("Setting audio.src to", resolvedSrc);
+
+          // Ensure audio element is in a clean state before loading new source
+          try {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            // Clear any previous error state by resetting src first
+            if (audioRef.current.src) {
+              audioRef.current.src = "";
+              audioRef.current.load();
+            }
+          } catch (e) {
+            console.debug("Error preparing audio element:", e);
+          }
+
+          // Now set the new source
           audioRef.current.src = resolvedSrc;
           audioRef.current.load();
           const playPromise = audioRef.current.play();
@@ -764,7 +852,80 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handleEnded = () => {
+    const handleEnded = async () => {
+      // Handle Ad Completion
+      if (isAdPlayingRef.current && adSubmitIdRef.current) {
+        setIsLoading(true);
+        console.debug("Ad ended, submitting ID:", adSubmitIdRef.current);
+        try {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (accessTokenRef.current)
+            headers["Authorization"] = `Bearer ${accessTokenRef.current}`;
+
+          const resp = await fetch(`https://api.sedabox.com/api/ads/submit/`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ submit_id: adSubmitIdRef.current }),
+          });
+
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.type === "stream") {
+              console.debug("Ad submit success, transition to stream:", data);
+
+              // Completely reset audio element to clear any error state from ad playback
+              if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+                audioRef.current.src = "";
+                try {
+                  audioRef.current.load();
+                } catch (e) {
+                  console.debug("Error resetting audio element:", e);
+                }
+              }
+
+              // Destroy any HLS instance that might be attached
+              if (hlsRef.current) {
+                try {
+                  hlsRef.current.destroy();
+                } catch (e) {
+                  console.debug("Error destroying HLS instance:", e);
+                }
+                hlsRef.current = null;
+              }
+
+              // Reset ad state
+              setIsAdPlaying(false);
+              isAdPlayingRef.current = false;
+              setCurrentAd(null);
+              adSubmitIdRef.current = null;
+
+              // Use currentTrackRef to ensure we have the track we were trying to play
+              if (currentTrackRef.current) {
+                // Now play the actual song using playAtIndex logic
+                // We'll pass the resolution data so it skips the fetch/ad check
+                // The response has "url" which playAtIndex will recognize
+                playAtIndex(currentIndex, queue, data);
+              }
+              return;
+            }
+          } else {
+            console.warn("Ad submit failed with status:", resp.status);
+          }
+        } catch (err) {
+          console.error("Ad submit failed with error:", err);
+        }
+        setIsLoading(false);
+        setIsAdPlaying(false);
+        isAdPlayingRef.current = false;
+        setCurrentAd(null);
+        adSubmitIdRef.current = null;
+        // if for some reason submission failed, we fall through to normal logic
+      }
+
       if (repeatMode === "one") {
         // Refresh token on auto-repeat
         playAtIndex(currentIndex);
@@ -778,7 +939,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
         if (nextIdx >= 0) {
           setCurrentIndex(nextIdx);
-          playAtIndex(nextIdx);
+          playAtIndex(nextIdx, queue);
         } else {
           setIsPlaying(false);
         }
@@ -787,7 +948,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     audio.addEventListener("ended", handleEnded);
     return () => audio.removeEventListener("ended", handleEnded);
-  }, [currentIndex, queue.length, repeatMode, playAtIndex]);
+  }, [currentIndex, queue.length, repeatMode, playAtIndex, queue]);
 
   const setQueue = useCallback(
     (tracks: Track[], startIndex: number = 0) => {
@@ -1096,6 +1257,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     likesCount,
     isLiking,
     lyrics,
+    isAdPlaying,
+    currentAd,
     playTrack,
     setQueue,
     togglePlay,

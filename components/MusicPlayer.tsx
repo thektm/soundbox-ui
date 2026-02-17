@@ -1,6 +1,13 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useCallback, memo } from "react";
+import React, {
+  useRef,
+  useEffect,
+  useState,
+  useCallback,
+  memo,
+  useMemo,
+} from "react";
 import { createPortal } from "react-dom";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { usePlayer, Track } from "./PlayerContext";
@@ -11,11 +18,23 @@ import {
   AnimatePresence,
   PanInfo,
   useMotionValue,
+  useTransform,
   animate,
 } from "framer-motion";
 import QueueSheet from "./QueueSheet";
 import { MOCK_ARTISTS } from "./mockData";
 import { Sparkles, User, UserRoundCog } from "lucide-react";
+
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+interface BannerAd {
+  id: number;
+  title: string;
+  image: string;
+  navigate_link: string | null;
+  view_count: number;
+}
 
 // ============================================================================
 // ICONS (Inline SVGs)
@@ -252,7 +271,7 @@ const formatTime = (s: number): string => {
 
 const SWIPE_THRESHOLD = 80;
 
-// Normalize URLs: convert protocol-relative and http:// links to https:// when possible
+// Normalize URLs
 function ensureHttps(u?: string | null): string | undefined {
   if (!u) return u ?? undefined;
   try {
@@ -364,7 +383,6 @@ const ProgressBar = memo<ProgressProps>(
             onMouseMove={handleMouseMove}
             onMouseLeave={() => setHoverPosition(null)}
           >
-            {/* Hover preview */}
             {hoverPosition !== null && (
               <div
                 className="absolute -top-8 px-2 py-1 bg-neutral-800 rounded text-xs text-white transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
@@ -375,16 +393,13 @@ const ProgressBar = memo<ProgressProps>(
                 {formatTime(hoverPosition)}
               </div>
             )}
-            {/* Track background on hover */}
             <div className="absolute inset-0 bg-white/5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-            {/* Progress fill */}
             <div
               className={`h-full bg-white group-hover:bg-emerald-500 rounded-full relative ${
                 isSeeking ? "" : "transition-[width] duration-100 ease-linear"
               }`}
               style={{ width: `${pct}%` }}
             >
-              {/* Thumb */}
               <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </div>
@@ -466,82 +481,98 @@ const TrackSlide = memo<{
   onPlay: () => void;
   onNext: () => void;
   onClose?: () => void;
-}>(({ track, playing, loading, current, onPlay, onNext, onClose }) => {
-  if (!track) {
-    return (
-      <div className="flex items-center gap-3 p-3 opacity-50">
-        <div className="w-12 h-12 rounded-lg bg-neutral-800 flex-shrink-0" />
-        <div className="flex-1">
-          <div className="h-4 w-24 bg-neutral-800 rounded" />
+  isAdPlaying?: boolean;
+}>(
+  ({
+    track,
+    playing,
+    loading,
+    current,
+    onPlay,
+    onNext,
+    onClose,
+    isAdPlaying,
+  }) => {
+    if (!track) {
+      return (
+        <div className="flex items-center gap-3 p-3 opacity-50">
+          <div className="w-12 h-12 rounded-lg bg-neutral-800 flex-shrink-0" />
+          <div className="flex-1">
+            <div className="h-4 w-24 bg-neutral-800 rounded" />
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  return (
-    <div className="flex items-center gap-3 p-3 w-full">
-      {current && onClose && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
-          className="w-8 h-8 rounded-full text-neutral-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors flex-shrink-0"
-        >
-          <Icon.Close c="w-4 h-4" />
-        </button>
-      )}
-      <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 shadow-lg">
-        <ImageWithPlaceholder
-          src={ensureHttps(track.image) || track.image}
-          alt={track.title}
-          className="w-full h-full object-cover"
-          type="song"
-        />
-        {current && playing && (
-          <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-            <PlayingBars />
+    return (
+      <div className="flex items-center gap-3 p-3 w-full">
+        {current && onClose && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="w-8 h-8 rounded-full text-neutral-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors flex-shrink-0"
+          >
+            <Icon.Close c="w-4 h-4" />
+          </button>
+        )}
+        <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 shadow-lg">
+          <ImageWithPlaceholder
+            src={ensureHttps(track.image) || track.image}
+            alt={track.title}
+            className="w-full h-full object-cover"
+            type="song"
+          />
+          {current && playing && (
+            <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+              <PlayingBars />
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0" dir="rtl">
+          <h4 className="text-sm font-semibold text-white truncate">
+            {track.title}
+          </h4>
+          <p className="text-xs text-neutral-400 truncate">{track.artist}</p>
+        </div>
+        {current && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isAdPlaying) return;
+                onPlay();
+              }}
+              disabled={loading || Boolean(isAdPlaying)}
+              className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <Spinner />
+              ) : playing ? (
+                <Icon.Pause c="w-5 h-5 text-neutral-900" />
+              ) : (
+                <Icon.Play c="w-5 h-5 text-neutral-900 ml-0.5" />
+              )}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isAdPlaying) return;
+                onNext();
+              }}
+              disabled={Boolean(isAdPlaying)}
+              className="w-9 h-9 rounded-full transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-disabled={isAdPlaying}
+            >
+              <Icon.Next c="w-5 h-5 text-neutral-400" />
+            </button>
           </div>
         )}
       </div>
-      <div className="flex-1 min-w-0" dir="rtl">
-        <h4 className="text-sm font-semibold text-white truncate">
-          {track.title}
-        </h4>
-        <p className="text-xs text-neutral-400 truncate">{track.artist}</p>
-      </div>
-      {current && (
-        <div className="flex items-center gap-1">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onPlay();
-            }}
-            disabled={loading}
-            className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-lg active:scale-95 transition-transform disabled:opacity-50"
-          >
-            {loading ? (
-              <Spinner />
-            ) : playing ? (
-              <Icon.Pause c="w-5 h-5 text-neutral-900" />
-            ) : (
-              <Icon.Play c="w-5 h-5 text-neutral-900 ml-0.5" />
-            )}
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onNext();
-            }}
-            className="w-9 h-9 rounded-full text-neutral-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors"
-          >
-            <Icon.Next c="w-5 h-5" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-});
+    );
+  },
+);
 TrackSlide.displayName = "TrackSlide";
 
 // ============================================================================
@@ -617,6 +648,405 @@ const ActionPreview = memo<{
 ActionPreview.displayName = "ActionPreview";
 
 // ============================================================================
+// ALBUM ART SWIPE CAROUSEL (Spotify-style)
+// ============================================================================
+const COVER_SWIPE_THRESHOLD = 60; // px distance threshold
+const COVER_VELOCITY_THRESHOLD = 400; // px/s velocity threshold
+
+const AlbumArtCarousel = memo<{
+  currentTrack: Track;
+  previousTrack: Track | null;
+  nextTrack: Track | null;
+  isPlaying: boolean;
+  isAdPlaying: boolean;
+  showLyricsOverlay: boolean;
+  setShowLyricsOverlay: (v: boolean) => void;
+  lyrics: string | null;
+  onNext: () => void;
+  onPrevious: () => void;
+}>(
+  ({
+    currentTrack,
+    previousTrack,
+    nextTrack,
+    isPlaying,
+    isAdPlaying,
+    showLyricsOverlay,
+    setShowLyricsOverlay,
+    lyrics,
+    onNext,
+    onPrevious,
+  }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const lyricsRef = useRef<HTMLDivElement>(null);
+    const dragX = useMotionValue(0);
+    const [containerWidth, setContainerWidth] = useState(300);
+    const [isSwiping, setIsSwiping] = useState(false);
+    const [swipeDirection, setSwipeDirection] = useState<
+      "none" | "left" | "right"
+    >("none");
+    const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+    const animatingRef = useRef(false);
+
+    // Measure container
+    useEffect(() => {
+      const measure = () => {
+        if (containerRef.current) {
+          setContainerWidth(containerRef.current.offsetWidth);
+        }
+      };
+      measure();
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }, []);
+
+    // Reset scroll on lyrics open
+    useEffect(() => {
+      if (showLyricsOverlay && lyricsRef.current) {
+        lyricsRef.current.scrollTop = 0;
+      }
+    }, [showLyricsOverlay, lyrics]);
+
+    // Derived transforms for neighboring covers
+    const GAP = 16;
+    const SIDE_SCALE = 0.85;
+
+    // Current cover: scale down slightly as you drag
+    const currentScale = useTransform(dragX, (v) => {
+      const ratio = Math.min(Math.abs(v) / containerWidth, 1);
+      return 1 - ratio * 0.08;
+    });
+
+    // Current cover: opacity reduces slightly
+    const currentOpacity = useTransform(dragX, (v) => {
+      const ratio = Math.min(Math.abs(v) / containerWidth, 1);
+      return 1 - ratio * 0.15;
+    });
+
+    // Previous cover: starts off to the left, slides in
+    const prevX = useTransform(dragX, (v) => {
+      if (v <= 0) return -(containerWidth + GAP); // fully hidden
+      const progress = Math.min(v / containerWidth, 1);
+      return -(containerWidth + GAP) + progress * (containerWidth + GAP);
+    });
+    const prevScale = useTransform(dragX, (v) => {
+      if (v <= 0) return SIDE_SCALE;
+      const progress = Math.min(v / containerWidth, 1);
+      return SIDE_SCALE + progress * (1 - SIDE_SCALE);
+    });
+    const prevOpacity = useTransform(dragX, (v) => {
+      if (v <= 0) return 0;
+      const progress = Math.min(v / containerWidth, 1);
+      return Math.min(1, progress * 2);
+    });
+
+    // Next cover: starts off to the right, slides in
+    const nextX = useTransform(dragX, (v) => {
+      if (v >= 0) return containerWidth + GAP; // fully hidden
+      const progress = Math.min(Math.abs(v) / containerWidth, 1);
+      return containerWidth + GAP - progress * (containerWidth + GAP);
+    });
+    const nextScale = useTransform(dragX, (v) => {
+      if (v >= 0) return SIDE_SCALE;
+      const progress = Math.min(Math.abs(v) / containerWidth, 1);
+      return SIDE_SCALE + progress * (1 - SIDE_SCALE);
+    });
+    const nextOpacity = useTransform(dragX, (v) => {
+      if (v >= 0) return 0;
+      const progress = Math.min(Math.abs(v) / containerWidth, 1);
+      return Math.min(1, progress * 2);
+    });
+
+    // Border radius for current cover reduces on drag for smoother transition feel
+    const currentBorderRadius = useTransform(dragX, (v) => {
+      const ratio = Math.min(Math.abs(v) / containerWidth, 1);
+      const base = 16; // 1rem
+      return base - ratio * 4;
+    });
+
+    const handleDragStart = useCallback(() => {
+      if (isAdPlaying || showLyricsOverlay || animatingRef.current) return;
+      setIsSwiping(true);
+      setSwipeDirection("none");
+    }, [isAdPlaying, showLyricsOverlay]);
+
+    const handleDrag = useCallback(() => {
+      if (animatingRef.current) return;
+      const v = dragX.get();
+      if (v > 10 && previousTrack) {
+        setSwipeDirection("right");
+      } else if (v < -10 && nextTrack) {
+        setSwipeDirection("left");
+      } else {
+        setSwipeDirection("none");
+      }
+    }, [dragX, previousTrack, nextTrack]);
+
+    const handleDragEnd = useCallback(
+      (_: unknown, info: PanInfo) => {
+        if (animatingRef.current) return;
+
+        const offset = info.offset.x;
+        const velocity = info.velocity.x;
+
+        // Determine if we should change track
+        const swipeRight =
+          (offset > COVER_SWIPE_THRESHOLD ||
+            velocity > COVER_VELOCITY_THRESHOLD) &&
+          previousTrack &&
+          !isAdPlaying;
+        const swipeLeft =
+          (offset < -COVER_SWIPE_THRESHOLD ||
+            velocity < -COVER_VELOCITY_THRESHOLD) &&
+          nextTrack &&
+          !isAdPlaying;
+
+        if (swipeRight) {
+          // Animate current out to the right, then trigger previous
+          animatingRef.current = true;
+          setIsAnimatingOut(true);
+          animate(dragX, containerWidth + GAP, {
+            type: "spring",
+            damping: 28,
+            stiffness: 280,
+            velocity: velocity,
+            onComplete: () => {
+              onPrevious();
+              // Reset immediately after track changes
+              dragX.set(0);
+              animatingRef.current = false;
+              setIsAnimatingOut(false);
+              setIsSwiping(false);
+              setSwipeDirection("none");
+            },
+          });
+        } else if (swipeLeft) {
+          // Animate current out to the left, then trigger next
+          animatingRef.current = true;
+          setIsAnimatingOut(true);
+          animate(dragX, -(containerWidth + GAP), {
+            type: "spring",
+            damping: 28,
+            stiffness: 280,
+            velocity: velocity,
+            onComplete: () => {
+              onNext();
+              // Reset immediately after track changes
+              dragX.set(0);
+              animatingRef.current = false;
+              setIsAnimatingOut(false);
+              setIsSwiping(false);
+              setSwipeDirection("none");
+            },
+          });
+        } else {
+          // Snap back
+          animate(dragX, 0, {
+            type: "spring",
+            damping: 25,
+            stiffness: 300,
+          });
+          setIsSwiping(false);
+          setSwipeDirection("none");
+        }
+      },
+      [
+        containerWidth,
+        dragX,
+        isAdPlaying,
+        nextTrack,
+        onNext,
+        onPrevious,
+        previousTrack,
+      ],
+    );
+
+    // Compute drag constraints: only allow dragging towards available tracks
+    const dragConstraints = useMemo(() => {
+      const left = nextTrack && !isAdPlaying ? -(containerWidth * 0.6) : 0;
+      const right = previousTrack && !isAdPlaying ? containerWidth * 0.6 : 0;
+      return { left, right };
+    }, [nextTrack, previousTrack, isAdPlaying, containerWidth]);
+
+    const canDrag = !isAdPlaying && !showLyricsOverlay && !isAnimatingOut;
+
+    return (
+      <div
+        ref={containerRef}
+        className="relative w-full aspect-square overflow-hidden"
+        style={{
+          maxWidth: "min(60vh, 90vw)",
+          maxHeight: "min(60vh, 90vw)",
+        }}
+      >
+        {/* Previous track cover */}
+        {previousTrack && !isAdPlaying && (
+          <motion.div
+            className="absolute inset-0 rounded-2xl overflow-hidden shadow-2xl pointer-events-none"
+            style={{
+              x: prevX,
+              scale: prevScale,
+              opacity: prevOpacity,
+              zIndex: 5,
+            }}
+          >
+            <ImageWithPlaceholder
+              src={ensureHttps(previousTrack.image) || previousTrack.image}
+              alt={previousTrack.title}
+              className="w-full h-full object-cover"
+              type="song"
+            />
+            {/* Slight dark overlay on side covers */}
+            <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+          </motion.div>
+        )}
+
+        {/* Next track cover */}
+        {nextTrack && !isAdPlaying && (
+          <motion.div
+            className="absolute inset-0 rounded-2xl overflow-hidden shadow-2xl pointer-events-none"
+            style={{
+              x: nextX,
+              scale: nextScale,
+              opacity: nextOpacity,
+              zIndex: 5,
+            }}
+          >
+            <ImageWithPlaceholder
+              src={ensureHttps(nextTrack.image) || nextTrack.image}
+              alt={nextTrack.title}
+              className="w-full h-full object-cover"
+              type="song"
+            />
+            <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+          </motion.div>
+        )}
+
+        {/* Current track cover (draggable) */}
+        <motion.div
+          drag={canDrag ? "x" : false}
+          dragConstraints={dragConstraints}
+          dragElastic={0.15}
+          dragMomentum={false}
+          onDragStart={handleDragStart}
+          onDrag={handleDrag}
+          onDragEnd={handleDragEnd}
+          className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl group"
+          style={{
+            x: dragX,
+            scale: currentScale,
+            opacity: currentOpacity,
+            zIndex: 15,
+            touchAction: "pan-y",
+            cursor: canDrag ? "grab" : "default",
+          }}
+          whileTap={canDrag ? { cursor: "grabbing" } : undefined}
+        >
+          <ImageWithPlaceholder
+            src={ensureHttps(currentTrack.image) || currentTrack.image}
+            alt={currentTrack.title}
+            className="w-full h-full object-cover"
+            type="song"
+          />
+
+          {/* Swipe direction indicators */}
+          <AnimatePresence>
+            {isSwiping && swipeDirection === "right" && previousTrack && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.6 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-emerald-500/30 to-transparent pointer-events-none z-20"
+              />
+            )}
+            {isSwiping && swipeDirection === "left" && nextTrack && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.6 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-emerald-500/30 to-transparent pointer-events-none z-20"
+              />
+            )}
+          </AnimatePresence>
+
+          {/* Lyrics button */}
+          <AnimatePresence>
+            {!showLyricsOverlay && !isAdPlaying && !isSwiping && (
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowLyricsOverlay(true);
+                }}
+                className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-2.5 bg-black/60 backdrop-blur-md border border-white/20 rounded-full text-white text-sm font-medium flex items-center gap-2 hover:bg-black/80 transition-all z-20"
+              >
+                <Icon.Lyrics c="w-4 h-4" />
+                نمایش اشعار
+              </motion.button>
+            )}
+
+            {showLyricsOverlay && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/70 backdrop-blur-md flex flex-col p-6 z-30"
+              >
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowLyricsOverlay(false);
+                    }}
+                    className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                  >
+                    <Icon.Close c="w-6 h-6" />
+                  </button>
+                </div>
+                <div
+                  ref={lyricsRef}
+                  className="overflow-y-auto flex-1 space-y-4 py-4 w-full text-right"
+                  dir="rtl"
+                >
+                  {lyrics ? (
+                    lyrics.split("\n").map((line, i) => (
+                      <p
+                        key={i}
+                        className="text-white text-lg font-bold leading-relaxed whitespace-pre-wrap"
+                      >
+                        {line}
+                      </p>
+                    ))
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-white text-xl font-bold">
+                        متن آهنگ یافت نشد
+                      </p>
+                      <p className="text-neutral-400 text-sm">
+                        هنوز متنی برای این آهنگ ثبت نشده است
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {isPlaying && !showLyricsOverlay && !isSwiping && (
+            <div className="absolute bottom-3 right-3 z-20">
+              <PlayingBars />
+            </div>
+          )}
+        </motion.div>
+      </div>
+    );
+  },
+);
+AlbumArtCarousel.displayName = "AlbumArtCarousel";
+
+// ============================================================================
 // COLLAPSED PLAYER
 // ============================================================================
 const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
@@ -640,6 +1070,8 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
     isLiked,
     isLiking,
     toggleLike,
+    isAdPlaying,
+    currentAd,
   } = usePlayer();
 
   const [dragX, setDragX] = useState(0);
@@ -650,6 +1082,20 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
   const x = useMotionValue(0);
   const width = containerRef.current?.offsetWidth || 350;
   const MAX_DRAG = width * 0.45;
+
+  const displayTrack = useMemo(() => {
+    if (isAdPlaying && currentAd) {
+      return {
+        id: `ad-${currentAd.id}`,
+        title: currentAd.title,
+        artist: "Advertisement",
+        image: currentAd.image_cover || (currentTrack?.image as string),
+        duration: formatTime(currentAd.duration),
+        src: currentAd.audio_url,
+      } as Track;
+    }
+    return currentTrack;
+  }, [isAdPlaying, currentAd, currentTrack]);
 
   useEffect(() => {
     const checkDesktop = () => {
@@ -674,6 +1120,12 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
 
   const handleDragEnd = useCallback(
     (_: unknown, info: PanInfo) => {
+      if (isAdPlaying) {
+        animate(x, 0, { type: "spring", damping: 25, stiffness: 300 });
+        setDragX(0);
+        return;
+      }
+
       const offset = info.offset.x;
 
       if (offset < -SWIPE_THRESHOLD && nextTrack) {
@@ -686,7 +1138,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
       setDragX(0);
       setTimeout(() => setHasDragged(false), 100);
     },
-    [next, previous, nextTrack, previousTrack, x],
+    [next, previous, nextTrack, previousTrack, x, isAdPlaying],
   );
 
   const handleExpandClick = useCallback(
@@ -700,7 +1152,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
     [hasDragged, onExpand],
   );
 
-  if (!currentTrack) return null;
+  if (!displayTrack) return null;
 
   return (
     <>
@@ -726,28 +1178,34 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
             />
 
             <div className="relative h-[72px] w-full">
-              <ActionPreview
-                track={previousTrack}
-                label="Prev Song"
-                align="left"
-                visibleRatio={
-                  dragX > 0 ? Math.min(1, dragX / SWIPE_THRESHOLD) : 0
-                }
-                isActive={dragX > SWIPE_THRESHOLD}
-              />
+              {!isAdPlaying && (
+                <>
+                  <ActionPreview
+                    track={previousTrack}
+                    label="Prev Song"
+                    align="left"
+                    visibleRatio={
+                      dragX > 0 ? Math.min(1, dragX / SWIPE_THRESHOLD) : 0
+                    }
+                    isActive={dragX > SWIPE_THRESHOLD}
+                  />
 
-              <ActionPreview
-                track={nextTrack}
-                label="Next Song"
-                align="right"
-                visibleRatio={
-                  dragX < 0 ? Math.min(1, Math.abs(dragX) / SWIPE_THRESHOLD) : 0
-                }
-                isActive={dragX < -SWIPE_THRESHOLD}
-              />
+                  <ActionPreview
+                    track={nextTrack}
+                    label="Next Song"
+                    align="right"
+                    visibleRatio={
+                      dragX < 0
+                        ? Math.min(1, Math.abs(dragX) / SWIPE_THRESHOLD)
+                        : 0
+                    }
+                    isActive={dragX < -SWIPE_THRESHOLD}
+                  />
+                </>
+              )}
 
               <motion.div
-                drag="x"
+                drag={isAdPlaying ? false : "x"}
                 dragConstraints={{ left: -MAX_DRAG, right: MAX_DRAG }}
                 dragElastic={0.1}
                 onDragStart={handleDragStart}
@@ -761,13 +1219,14 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 }}
               >
                 <TrackSlide
-                  track={currentTrack}
+                  track={displayTrack}
                   playing={isPlaying}
                   loading={isLoading}
                   current
                   onPlay={togglePlay}
                   onNext={next}
-                  onClose={close}
+                  onClose={isAdPlaying ? undefined : close}
+                  isAdPlaying={isAdPlaying}
                 />
               </motion.div>
             </div>
@@ -788,42 +1247,52 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
         <div className="h-[90px] px-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 w-[30%] min-w-0">
             <div
-              className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+              className={`w-14 h-14 rounded-md overflow-hidden flex-shrink-0 ${
+                isAdPlaying
+                  ? ""
+                  : "cursor-pointer hover:opacity-80 transition-opacity"
+              }`}
               onClick={() => {
+                if (isAdPlaying) return;
                 if (isDesktop) {
-                  // navigate to song detail on desktop
-                  navigateTo("song-detail", { id: currentTrack.id });
+                  navigateTo("song-detail", { id: displayTrack.id });
                 } else {
                   onExpand();
                 }
               }}
             >
               <ImageWithPlaceholder
-                src={currentTrack.image}
-                alt={currentTrack.title}
+                src={displayTrack.image}
+                alt={displayTrack.title}
                 className="w-full h-full object-cover"
                 type="song"
               />
             </div>
             <div className="min-w-0 flex-1">
               <p
-                className="text-sm font-medium text-white truncate cursor-pointer hover:underline"
+                className={`text-sm font-medium text-white truncate ${
+                  isAdPlaying ? "" : "cursor-pointer hover:underline"
+                }`}
                 onClick={() => {
+                  if (isAdPlaying) return;
                   if (isDesktop) {
-                    navigateTo("song-detail", { id: currentTrack.id });
+                    navigateTo("song-detail", { id: displayTrack.id });
                   } else {
                     onExpand();
                   }
                 }}
               >
-                {currentTrack.title}
+                {displayTrack.title}
               </p>
               <p
-                className="text-xs text-zinc-400 truncate cursor-pointer hover:underline"
+                className={`text-xs text-zinc-400 truncate ${
+                  isAdPlaying ? "" : "cursor-pointer hover:underline"
+                }`}
                 onClick={() => {
+                  if (isAdPlaying) return;
                   if (isDesktop) {
                     const artistId =
-                      currentTrack.artistId || (currentTrack as any).artist_id;
+                      displayTrack.artistId || (displayTrack as any).artist_id;
                     if (artistId) {
                       navigateTo("artist-detail", {
                         id: artistId,
@@ -834,45 +1303,50 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                   }
                 }}
               >
-                {currentTrack.artist}
+                {isAdPlaying ? "Ad" : displayTrack.artist}
               </p>
             </div>
-            <button
-              onClick={toggleLike}
-              disabled={isLiking}
-              className={`p-2 transition-all flex-shrink-0 relative ${
-                isLiked ? "text-emerald-500" : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              <div className="relative flex items-center justify-center">
-                <div className={isLiking ? "opacity-30" : "opacity-100"}>
-                  <Icon.Heart c="w-5 h-5" filled={isLiked} />
-                </div>
-                {isLiking && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Spinner size="w-3 h-3" />
+            {!isAdPlaying && (
+              <button
+                onClick={toggleLike}
+                disabled={isLiking}
+                className={`p-2 transition-all flex-shrink-0 relative ${
+                  isLiked
+                    ? "text-emerald-500"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <div className="relative flex items-center justify-center">
+                  <div className={isLiking ? "opacity-30" : "opacity-100"}>
+                    <Icon.Heart c="w-5 h-5" filled={isLiked} />
                   </div>
-                )}
-              </div>
-            </button>
+                  {isLiking && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Spinner size="w-3 h-3" />
+                    </div>
+                  )}
+                </div>
+              </button>
+            )}
           </div>
 
           <div className="flex flex-col items-center gap-2 w-[40%] max-w-[722px]">
             <div className="flex items-center gap-4">
               <button
                 onClick={toggleShuffle}
+                disabled={isAdPlaying}
                 className={`p-2 transition-colors ${
                   isShuffle
                     ? "text-emerald-500"
                     : "text-zinc-400 hover:text-white"
-                }`}
+                } disabled:opacity-30`}
               >
                 <Icon.Shuffle c="w-4 h-4" />
               </button>
               <button
                 onClick={previous}
-                disabled={!previousTrack}
-                className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+                disabled={!previousTrack || isAdPlaying}
+                className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30"
               >
                 <Icon.Prev c="w-5 h-5" />
               </button>
@@ -890,30 +1364,25 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
               </button>
               <button
                 onClick={next}
-                disabled={!nextTrack}
-                className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+                disabled={!nextTrack || isAdPlaying}
+                className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30"
               >
                 <Icon.Next c="w-5 h-5" />
               </button>
               <button
-                onClick={toggleLike}
-                disabled={isLiking}
-                className={`p-2 transition-all relative ${
-                  isLiked
+                onClick={cycleRepeat}
+                disabled={isAdPlaying}
+                className={`p-2 transition-colors ${
+                  repeatMode !== "off"
                     ? "text-emerald-500"
                     : "text-zinc-400 hover:text-white"
-                }`}
+                } disabled:opacity-30`}
               >
-                <div className="relative flex items-center justify-center">
-                  <div className={isLiking ? "opacity-30" : "opacity-100"}>
-                    <Icon.Heart c="w-5 h-5" filled={isLiked} />
-                  </div>
-                  {isLiking && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Spinner size="w-3 h-3" />
-                    </div>
-                  )}
-                </div>
+                {repeatMode === "one" ? (
+                  <Icon.RepeatOne c="w-4 h-4" />
+                ) : (
+                  <Icon.Repeat c="w-4 h-4" />
+                )}
               </button>
             </div>
             <div className="w-full flex items-center gap-2">
@@ -921,22 +1390,29 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 {formatTime(progress)}
               </span>
               <div
-                className="flex-1 h-1 bg-zinc-700 rounded-full cursor-pointer group relative"
+                className={`flex-1 h-1 bg-zinc-700 rounded-full group relative ${
+                  isAdPlaying ? "" : "cursor-pointer"
+                }`}
                 onClick={(e) => {
+                  if (isAdPlaying) return;
                   const rect = e.currentTarget.getBoundingClientRect();
                   const pct = (e.clientX - rect.left) / rect.width;
                   seek(pct * duration);
                 }}
               >
                 <div
-                  className="h-full bg-white group-hover:bg-emerald-500 rounded-full transition-colors relative"
+                  className={`h-full bg-white ${
+                    isAdPlaying ? "" : "group-hover:bg-emerald-500"
+                  } rounded-full transition-colors relative`}
                   style={{
                     left: 0,
                     transformOrigin: "left center",
                     width: `${duration > 0 ? (progress / duration) * 100 : 0}%`,
                   }}
                 >
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                  {!isAdPlaying && (
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                  )}
                 </div>
               </div>
               <span className="text-xs text-zinc-400 w-10 tabular-nums">
@@ -948,8 +1424,9 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
           <div className="flex items-center justify-end gap-2 w-[30%]">
             <ProfilePillButton onClick={() => navigateTo("profile")} />
             <button
-              className="p-2 text-zinc-400 hover:text-white transition-colors"
+              className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30"
               onClick={onExpand}
+              disabled={isAdPlaying}
             >
               <Icon.Queue c="w-4 h-4" />
             </button>
@@ -997,13 +1474,30 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
       toggleLike,
       lyrics,
       download,
+      isAdPlaying,
+      currentAd,
     } = usePlayer();
 
     const [activeTab, setActiveTab] = useState<"queue" | "lyrics" | "related">(
       "queue",
     );
 
+    const displayTrack = useMemo(() => {
+      if (isAdPlaying && currentAd) {
+        return {
+          id: `ad-${currentAd.id}`,
+          title: currentAd.title,
+          artist: "Advertisement",
+          image: currentAd.image_cover || (currentTrack?.image as string),
+          duration: formatTime(currentAd.duration),
+          src: currentAd.audio_url,
+        } as Track;
+      }
+      return currentTrack;
+    }, [isAdPlaying, currentAd, currentTrack]);
+
     const handleArtistClick = useCallback(() => {
+      if (isAdPlaying) return;
       if (currentTrack) {
         const artistId =
           currentTrack.artistId || (currentTrack as any).artist_id;
@@ -1013,16 +1507,17 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
           return;
         }
       }
-    }, [currentTrack, navigateTo, onCollapse]);
+    }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
 
     const handleTitleClick = useCallback(() => {
+      if (isAdPlaying) return;
       if (currentTrack) {
         onCollapse();
         navigateTo("song-detail", { id: currentTrack.id });
       }
-    }, [currentTrack, navigateTo, onCollapse]);
+    }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
 
-    if (!currentTrack) return null;
+    if (!displayTrack) return null;
 
     return (
       <motion.div
@@ -1035,7 +1530,7 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
         {/* Dynamic Background */}
         <div className="absolute inset-0 overflow-hidden">
           <img
-            src={ensureHttps(currentTrack.image) || currentTrack.image}
+            src={ensureHttps(displayTrack.image) || displayTrack.image}
             alt=""
             className="absolute inset-0 w-full h-full object-cover scale-110 blur-[100px] opacity-40"
           />
@@ -1063,9 +1558,11 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
               <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all">
                 <Icon.Share c="w-5 h-5" />
               </button>
-              <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all">
-                <Icon.More c="w-5 h-5" />
-              </button>
+              {!isAdPlaying && (
+                <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all">
+                  <Icon.More c="w-5 h-5" />
+                </button>
+              )}
             </div>
           </header>
 
@@ -1079,9 +1576,9 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                   <div className="w-72 h-72 xl:w-80 xl:h-80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10">
                     <ImageWithPlaceholder
                       src={
-                        ensureHttps(currentTrack.image) || currentTrack.image
+                        ensureHttps(displayTrack.image) || displayTrack.image
                       }
-                      alt={currentTrack.title}
+                      alt={displayTrack.title}
                       className="w-full h-full object-cover"
                       type="song"
                     />
@@ -1094,20 +1591,26 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full">
-                        Now Playing
+                        {isAdPlaying ? "Playing Ad" : "Now Playing"}
                       </span>
                     </div>
                     <button
                       onClick={handleTitleClick}
-                      className="text-4xl xl:text-5xl font-bold text-white tracking-tight leading-tight text-left hover:underline"
+                      className={`text-4xl xl:text-5xl font-bold text-white tracking-tight leading-tight text-left ${
+                        isAdPlaying ? "" : "hover:underline"
+                      }`}
                     >
-                      {currentTrack.title}
+                      {displayTrack.title}
                     </button>
                     <button
                       onClick={handleArtistClick}
-                      className="text-xl text-neutral-300 hover:text-white transition-colors hover:underline decoration-2 underline-offset-4"
+                      className={`text-xl text-neutral-300 transition-colors ${
+                        isAdPlaying
+                          ? ""
+                          : "hover:text-white hover:underline decoration-2 underline-offset-4"
+                      }`}
                     >
-                      {currentTrack.artist}
+                      {isAdPlaying ? "Ad" : displayTrack.artist}
                     </button>
                   </div>
 
@@ -1125,18 +1628,20 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                   <div className="flex items-center gap-6">
                     <button
                       onClick={toggleShuffle}
+                      disabled={isAdPlaying}
                       className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
                         isShuffle
                           ? "bg-emerald-500/20 text-emerald-400"
                           : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
-                      }`}
+                      } disabled:opacity-30`}
                     >
                       <Icon.Shuffle c="w-5 h-5" />
                     </button>
 
                     <button
                       onClick={previous}
-                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105"
+                      disabled={isAdPlaying}
+                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
                     >
                       <Icon.Prev c="w-7 h-7" />
                     </button>
@@ -1157,51 +1662,58 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
 
                     <button
                       onClick={next}
-                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105"
+                      disabled={isAdPlaying}
+                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
                     >
                       <Icon.Next c="w-7 h-7" />
                     </button>
 
-                    <button
-                      onClick={toggleLike}
-                      disabled={isLiking}
-                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                        isLiked
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
-                      } ${isLiking ? "cursor-wait" : ""}`}
-                    >
-                      <div className="relative flex items-center justify-center">
-                        <div
-                          className={isLiking ? "opacity-30" : "opacity-100"}
-                        >
-                          <Icon.Heart c="w-7 h-7" filled={isLiked} />
-                        </div>
-                        {isLiking && (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Spinner size="w-4 h-4" />
+                    {!isAdPlaying ? (
+                      <button
+                        onClick={toggleLike}
+                        disabled={isLiking}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                          isLiked
+                            ? "bg-emerald-500/20 text-emerald-400"
+                            : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                        } ${isLiking ? "cursor-wait" : ""}`}
+                      >
+                        <div className="relative flex items-center justify-center">
+                          <div
+                            className={isLiking ? "opacity-30" : "opacity-100"}
+                          >
+                            <Icon.Heart c="w-7 h-7" filled={isLiked} />
                           </div>
-                        )}
-                      </div>
-                    </button>
+                          {isLiking && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Spinner size="w-4 h-4" />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="w-12" />
+                    )}
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center gap-3 pt-2">
-                    <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all">
-                      <Icon.Add c="w-5 h-5" />
-                      <span className="text-sm font-medium">
-                        Add to Playlist
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => download(currentTrack!)}
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all"
-                    >
-                      <Icon.Download c="w-5 h-5" />
-                      <span className="text-sm font-medium">Download</span>
-                    </button>
-                  </div>
+                  {!isAdPlaying && (
+                    <div className="flex items-center gap-3 pt-2">
+                      <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all">
+                        <Icon.Add c="w-5 h-5" />
+                        <span className="text-sm font-medium">
+                          Add to Playlist
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => download(currentTrack!)}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all"
+                      >
+                        <Icon.Download c="w-5 h-5" />
+                        <span className="text-sm font-medium">Download</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1214,11 +1726,12 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
+                    disabled={isAdPlaying && tab !== "queue"}
                     className={`flex-1 py-4 text-sm font-medium transition-all relative ${
                       activeTab === tab
                         ? "text-white"
                         : "text-neutral-500 hover:text-neutral-300"
-                    }`}
+                    } disabled:opacity-30`}
                   >
                     {tab === "queue"
                       ? "Up Next"
@@ -1253,11 +1766,13 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.03 }}
-                        onClick={() => playTrack(track)}
-                        className={`group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
+                        onClick={() => !isAdPlaying && playTrack(track)}
+                        className={`group flex items-center gap-3 p-3 rounded-xl transition-all ${
                           i === currentIndex
                             ? "bg-emerald-500/10 border border-emerald-500/20"
-                            : "hover:bg-white/5"
+                            : isAdPlaying
+                              ? "opacity-50"
+                              : "hover:bg-white/5 cursor-pointer"
                         }`}
                       >
                         <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
@@ -1267,20 +1782,20 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                             className="w-full h-full object-cover"
                             type="song"
                           />
-                          {i === currentIndex && isPlaying ? (
+                          {i === currentIndex && isPlaying && !isAdPlaying ? (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                               <PlayingBars />
                             </div>
-                          ) : (
+                          ) : !isAdPlaying ? (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                               <Icon.Play c="w-5 h-5 text-white" />
                             </div>
-                          )}
+                          ) : null}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div
                             className={`text-sm font-medium truncate ${
-                              i === currentIndex
+                              i === currentIndex && !isAdPlaying
                                 ? "text-emerald-400"
                                 : "text-white"
                             }`}
@@ -1362,86 +1877,143 @@ DesktopExpandedPlayer.displayName = "DesktopExpandedPlayer";
 // ============================================================================
 // MOBILE EXPANDED PLAYER
 // ============================================================================
-const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
-  ({ onCollapse }) => {
-    const { navigateTo } = useNavigation();
-    const {
-      currentTrack,
-      isPlaying,
-      isLoading,
-      togglePlay,
-      progress,
-      duration,
-      seek,
-      isShuffle,
-      repeatMode,
-      toggleShuffle,
-      cycleRepeat,
-      cycleQuality,
-      next,
-      previous,
-      isLiked,
-      isLiking,
-      toggleLike,
-      lyrics,
-      download,
-    } = usePlayer();
+const MobileExpandedPlayer = memo<{
+  onCollapse: () => void;
+  userPlan: string | null;
+  banner: BannerAd | null;
+  bannerLoaded?: boolean;
+}>(({ onCollapse, userPlan, banner, bannerLoaded }) => {
+  const { navigateTo } = useNavigation();
+  const {
+    currentTrack,
+    previousTrack,
+    nextTrack,
+    isPlaying,
+    isLoading,
+    togglePlay,
+    progress,
+    duration,
+    seek,
+    isShuffle,
+    repeatMode,
+    toggleShuffle,
+    cycleRepeat,
+    cycleQuality,
+    next,
+    previous,
+    isLiked,
+    isLiking,
+    toggleLike,
+    lyrics,
+    download,
+    isAdPlaying,
+    currentAd,
+  } = usePlayer();
 
-    const [isQueueOpen, setIsQueueOpen] = useState(false);
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [showLyricsOverlay, setShowLyricsOverlay] = useState(false);
-    const lyricsRef = useRef<HTMLDivElement | null>(null);
+  const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showLyricsOverlay, setShowLyricsOverlay] = useState(false);
 
-    useEffect(() => {
-      if (showLyricsOverlay && lyricsRef.current) {
-        // ensure overlay always starts scrolled to the top when opened
-        lyricsRef.current.scrollTop = 0;
+  const displayTrack = useMemo(() => {
+    if (isAdPlaying && currentAd) {
+      return {
+        id: `ad-${currentAd.id}`,
+        title: currentAd.title,
+        artist: "Advertisement",
+        image: currentAd.image_cover || (currentTrack?.image as string),
+        duration: formatTime(currentAd.duration),
+        src: currentAd.audio_url,
+      } as Track;
+    }
+    return currentTrack;
+  }, [isAdPlaying, currentAd, currentTrack]);
+
+  const handleArtistClick = () => {
+    if (isAdPlaying) return;
+    if (currentTrack) {
+      const artistId = currentTrack.artistId || (currentTrack as any).artist_id;
+      if (artistId) {
+        onCollapse();
+        navigateTo("artist-detail", { id: artistId });
+        return;
       }
-    }, [showLyricsOverlay, lyrics]);
+    }
+  };
 
-    const handleArtistClick = () => {
-      if (currentTrack) {
-        const artistId =
-          currentTrack.artistId || (currentTrack as any).artist_id;
-        if (artistId) {
-          onCollapse();
-          navigateTo("artist-detail", { id: artistId });
-          return;
-        }
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isMenuOpen && !(event.target as Element).closest(".menu-button")) {
+        setIsMenuOpen(false);
       }
     };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isMenuOpen]);
 
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (isMenuOpen && !(event.target as Element).closest(".menu-button")) {
-          setIsMenuOpen(false);
-        }
-      };
-      document.addEventListener("mousedown", handleClickOutside);
-      return () =>
-        document.removeEventListener("mousedown", handleClickOutside);
-    }, [isMenuOpen]);
+  const handleDragEnd = useCallback(
+    (_: unknown, info: PanInfo) => {
+      if (info.velocity.y > 500 || info.offset.y > 100) onCollapse();
+    },
+    [onCollapse],
+  );
 
-    const handleDragEnd = useCallback(
-      (_: unknown, info: PanInfo) => {
-        if (info.velocity.y > 500 || info.offset.y > 100) onCollapse();
-      },
-      [onCollapse],
-    );
+  if (!displayTrack) return null;
 
-    if (!currentTrack) return null;
+  const isFree = userPlan === "free";
 
-    return (
+  return (
+    <motion.div
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      variants={{
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0, transition: { duration: 0.5 } },
+      }}
+      className="fixed inset-0 z-60 flex flex-col bg-transparent overflow-hidden"
+    >
+      <AnimatePresence>
+        {isFree && banner && bannerLoaded && (
+          <motion.div
+            variants={{
+              initial: { height: 0, opacity: 0 },
+              animate: { height: "auto", opacity: 1 },
+              exit: { height: 0, opacity: 0 },
+            }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            className="w-full border-b border-white/10 flex items-center justify-center shrink-0 overflow-hidden"
+            style={{ willChange: "height, opacity" }}
+          >
+            <div className="w-full aspect-25/8 p-2.5">
+              <a
+                href={banner.navigate_link || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-full block"
+              >
+                <img
+                  src={ensureHttps(banner.image) || banner.image}
+                  alt={banner.title}
+                  className="w-full h-full object-cover rounded-lg"
+                />
+              </a>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
+        variants={{
+          initial: { y: "100%" },
+          animate: { y: 0 },
+          exit: { y: "100%" },
+        }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
         onDragEnd={handleDragEnd}
-        className="fixed inset-0 z-[60] flex flex-col bg-gradient-to-b from-neutral-900 via-neutral-950 to-black overflow-auto"
-        style={{ willChange: "transform" }}
+        className="relative flex-1 flex flex-col bg-linear-to-b from-neutral-900 via-neutral-950 to-black overflow-y-auto overflow-x-hidden shadow-[0_-20px_50px_rgba(0,0,0,0.5)]"
+        style={{ willChange: "transform, opacity" }}
       >
         <div className="relative flex flex-col min-h-0 h-full px-3 py-4 sm:px-6 sm:py-8 overflow-hidden">
           <div className="flex items-start justify-between mb-8">
@@ -1453,120 +2025,55 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
             </button>
             <div className="flex flex-col items-center" dir="rtl">
               <span className="text-xs text-neutral-400 uppercase tracking-wider">
-                در حال پخش
+                {isAdPlaying ? "در حال پخش تبلیغ" : "در حال پخش"}
               </span>
               <button
                 onClick={handleArtistClick}
-                className="text-sm font-medium mt-12 text-white hover:underline"
+                className={`text-sm font-medium mt-12 text-white ${
+                  isAdPlaying ? "" : "hover:underline"
+                }`}
               >
-                {currentTrack.artist}
+                {isAdPlaying ? "Ad" : displayTrack.artist}
               </button>
               <button
                 onClick={() => {
+                  if (isAdPlaying) return;
                   onCollapse();
-                  navigateTo("song-detail", { id: currentTrack.id });
+                  navigateTo("song-detail", { id: displayTrack.id });
                 }}
-                className="text-[16px] text-neutral-300 truncate mt-1 max-w-[160px] text-center hover:underline"
+                className={`text-[16px] text-neutral-300 truncate mt-1 max-w-[160px] text-center ${
+                  isAdPlaying ? "" : "hover:underline"
+                }`}
               >
-                {currentTrack.title}
+                {displayTrack.title}
               </button>
             </div>
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="menu-button w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors relative"
-            >
-              <Icon.More c="w-5 h-5 text-white" />
-            </button>
+            {!isAdPlaying ? (
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="menu-button w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors relative"
+              >
+                <Icon.More c="w-5 h-5 text-white" />
+              </button>
+            ) : (
+              <div className="w-10" />
+            )}
           </div>
 
           <div className="flex-1 flex flex-col items-center px-2 sm:px-4">
-            <div
-              className="relative w-full aspect-square"
-              style={{
-                maxWidth: "min(60vh, 90vw)",
-                maxHeight: "min(60vh, 90vw)",
-              }}
-            >
-              <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl group">
-                <ImageWithPlaceholder
-                  src={ensureHttps(currentTrack.image) || currentTrack.image}
-                  alt={currentTrack.title}
-                  className="w-full h-full object-cover"
-                  type="song"
-                />
-
-                {/* always-visible "Show Lyrics" button (hidden when overlay open) */}
-                <AnimatePresence>
-                  {!showLyricsOverlay && (
-                    <motion.button
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowLyricsOverlay(true);
-                      }}
-                      className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-2.5 bg-black/60 backdrop-blur-md border border-white/20 rounded-full text-white text-sm font-medium flex items-center gap-2 hover:bg-black/80 transition-all z-20"
-                    >
-                      <Icon.Lyrics c="w-4 h-4" />
-                      نمایش اشعار
-                    </motion.button>
-                  )}
-
-                  {showLyricsOverlay && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="absolute inset-0 bg-black/70 backdrop-blur-md flex flex-col p-6 z-30"
-                    >
-                      <div className="flex justify-end mb-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowLyricsOverlay(false);
-                          }}
-                          className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-                        >
-                          <Icon.Close c="w-6 h-6" />
-                        </button>
-                      </div>
-                      <div
-                        ref={lyricsRef}
-                        className="overflow-y-auto flex-1 space-y-4 py-4 w-full text-right"
-                        dir="rtl"
-                      >
-                        {lyrics ? (
-                          lyrics.split("\n").map((line, i) => (
-                            <p
-                              key={i}
-                              className="text-white text-lg font-bold leading-relaxed whitespace-pre-wrap"
-                            >
-                              {line}
-                            </p>
-                          ))
-                        ) : (
-                          <div className="space-y-2">
-                            <p className="text-white text-xl font-bold">
-                              متن آهنگ یافت نشد
-                            </p>
-                            <p className="text-neutral-400 text-sm">
-                              هنوز متنی برای این آهنگ ثبت نشده است
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {isPlaying && !showLyricsOverlay && (
-                  <div className="absolute bottom-3 right-3 z-20">
-                    <PlayingBars />
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* Album Art Carousel with swipe gesture */}
+            <AlbumArtCarousel
+              currentTrack={displayTrack}
+              previousTrack={isAdPlaying ? null : previousTrack}
+              nextTrack={isAdPlaying ? null : nextTrack}
+              isPlaying={isPlaying}
+              isAdPlaying={isAdPlaying}
+              showLyricsOverlay={showLyricsOverlay}
+              setShowLyricsOverlay={setShowLyricsOverlay}
+              lyrics={lyrics}
+              onNext={next}
+              onPrevious={previous}
+            />
 
             <div
               className="mt-4 sm:mt-8 mb-4 sm:mb-6 w-full max-w-[900px]"
@@ -1578,43 +2085,35 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
                 <ProgressBar
                   progress={progress}
                   duration={duration}
-                  onSeek={seek}
+                  onSeek={isAdPlaying ? () => {} : seek}
                 />
               </div>
 
               <div className="flex items-center justify-between w-full mb-4 sm:mb-8">
                 <div className="flex items-center gap-2">
-                  {/**
-                   * Single mode button cycles: repeat-all -> shuffle -> repeat-one -> repeat-all ...
-                   * Implementation uses available `toggleShuffle` and `cycleRepeat` helpers.
-                   */}
                   <button
                     onClick={
                       (() => {
-                        // create handler inline to capture latest values
-                        // but call the actual logic in a micro-task to avoid stale state issues
+                        if (isAdPlaying) return;
                         setTimeout(() => {
-                          // Determine next state based on current flags
                           if (isShuffle) {
-                            // shuffle -> turn off shuffle and advance repeat once (prefer becoming 'one')
                             toggleShuffle();
                             cycleRepeat();
                           } else if (repeatMode === "one") {
-                            // one -> advance twice to reach 'all'
                             cycleRepeat();
                             cycleRepeat();
                           } else {
-                            // assume repeat-all or off -> enable shuffle
                             toggleShuffle();
                           }
                         }, 0);
                       }) as unknown as React.MouseEventHandler
                     }
+                    disabled={isAdPlaying}
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors relative ${
                       isShuffle || repeatMode === "one" || repeatMode === "all"
                         ? "text-emerald-500"
                         : "text-neutral-400 hover:text-white"
-                    }`}
+                    } disabled:opacity-30`}
                   >
                     {isShuffle ? (
                       <Icon.Shuffle c="w-5 h-5" />
@@ -1634,7 +2133,8 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
                 <div className="flex items-center gap-4">
                   <button
                     onClick={previous}
-                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors"
+                    disabled={isAdPlaying}
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors disabled:opacity-30"
                   >
                     <Icon.Prev c="w-10 h-10 sm:w-8 sm:h-8" />
                   </button>
@@ -1653,33 +2153,40 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
                   </button>
                   <button
                     onClick={next}
-                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors"
+                    disabled={isAdPlaying}
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full text-white hover:bg-neutral-800 flex items-center justify-center transition-colors disabled:opacity-30"
                   >
                     <Icon.Next c="w-10 h-10 sm:w-8 sm:h-8" />
                   </button>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={toggleLike}
-                    disabled={isLiking}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all relative ${
-                      isLiked
-                        ? "text-emerald-500"
-                        : "text-neutral-400 hover:text-white"
-                    }`}
-                  >
-                    <div className="relative flex items-center justify-center">
-                      <div className={isLiking ? "opacity-30" : "opacity-100"}>
-                        <Icon.Heart c="w-7 h-7" filled={isLiked} />
-                      </div>
-                      {isLiking && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Spinner size="w-6 h-6" />
+                  {!isAdPlaying ? (
+                    <button
+                      onClick={toggleLike}
+                      disabled={isLiking}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all relative ${
+                        isLiked
+                          ? "text-emerald-500"
+                          : "text-neutral-400 hover:text-white"
+                      }`}
+                    >
+                      <div className="relative flex items-center justify-center">
+                        <div
+                          className={isLiking ? "opacity-30" : "opacity-100"}
+                        >
+                          <Icon.Heart c="w-7 h-7" filled={isLiked} />
                         </div>
-                      )}
-                    </div>
-                  </button>
+                        {isLiking && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Spinner size="w-6 h-6" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="w-10" />
+                  )}
                 </div>
               </div>
             </div>
@@ -1694,8 +2201,9 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
             </button>
 
             <button
-              onClick={() => setIsQueueOpen(true)}
-              className="m-2 text-neutral-400 hover:text-white transition-colors"
+              onClick={() => !isAdPlaying && setIsQueueOpen(true)}
+              disabled={isAdPlaying}
+              className="m-2 text-neutral-400 hover:text-white transition-colors disabled:opacity-30"
             >
               <Icon.Queue c="w-5 h-5" />
             </button>
@@ -1730,7 +2238,7 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
                 <button
                   onClick={() => {
                     setIsMenuOpen(false);
-                    download(currentTrack);
+                    if (currentTrack) download(currentTrack);
                   }}
                   className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
                   dir="rtl"
@@ -1789,15 +2297,20 @@ const MobileExpandedPlayer = memo<{ onCollapse: () => void }>(
           )}
         </AnimatePresence>
       </motion.div>
-    );
-  },
-);
+    </motion.div>
+  );
+});
 MobileExpandedPlayer.displayName = "MobileExpandedPlayer";
 
 // ============================================================================
 // EXPANDED PLAYER WRAPPER
 // ============================================================================
-const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
+const ExpandedPlayer = memo<{
+  onCollapse: () => void;
+  userPlan: string | null;
+  banner: BannerAd | null;
+  bannerLoaded?: boolean;
+}>(({ onCollapse, userPlan, banner, bannerLoaded }) => {
   const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
@@ -1813,7 +2326,14 @@ const ExpandedPlayer = memo<{ onCollapse: () => void }>(({ onCollapse }) => {
     return <DesktopExpandedPlayer onCollapse={onCollapse} />;
   }
 
-  return <MobileExpandedPlayer onCollapse={onCollapse} />;
+  return (
+    <MobileExpandedPlayer
+      onCollapse={onCollapse}
+      userPlan={userPlan}
+      banner={banner}
+      bannerLoaded={bannerLoaded}
+    />
+  );
 });
 ExpandedPlayer.displayName = "ExpandedPlayer";
 
@@ -1821,13 +2341,55 @@ ExpandedPlayer.displayName = "ExpandedPlayer";
 // MAIN COMPONENT
 // ============================================================================
 export default function MusicPlayer() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
+  const userPlan = user?.plan || null;
   const { isVisible, isExpanded, expand, collapse, setVolume } = usePlayer();
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
+  const [banner, setBanner] = useState<BannerAd | null>(null);
+  const [bannerLoaded, setBannerLoaded] = useState(false);
 
   useEffect(() => {
     setPortalRoot(document.getElementById("music-player-root"));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let img: HTMLImageElement | null = null;
+    if (isLoggedIn && userPlan === "free") {
+      setBannerLoaded(false);
+      fetch("https://api.sedabox.com/api/ads/banner/")
+        .then((res) => res.json())
+        .then((data) => {
+          if (cancelled) return;
+          if (data && data.image) {
+            const src = ensureHttps(data.image) || data.image;
+            img = new Image();
+            img.onload = () => {
+              if (!cancelled) {
+                setBanner(data);
+                setBannerLoaded(true);
+              }
+            };
+            img.onerror = () => {
+              if (!cancelled) {
+                setBanner(null);
+                setBannerLoaded(false);
+              }
+            };
+            img.src = src;
+          }
+        })
+        .catch((err) => console.error("Banner fetch error", err));
+    }
+    return () => {
+      cancelled = true;
+      if (img) {
+        img.onload = null;
+        img.onerror = null;
+        img = null;
+      }
+    };
+  }, [isLoggedIn, userPlan]);
 
   useEffect(() => {
     try {
@@ -1842,7 +2404,13 @@ export default function MusicPlayer() {
   return createPortal(
     <AnimatePresence mode="wait">
       {isExpanded ? (
-        <ExpandedPlayer key="expanded" onCollapse={collapse} />
+        <ExpandedPlayer
+          key="expanded"
+          onCollapse={collapse}
+          userPlan={userPlan}
+          banner={banner}
+          bannerLoaded={bannerLoaded}
+        />
       ) : (
         <CollapsedPlayer key="collapsed" onExpand={expand} />
       )}

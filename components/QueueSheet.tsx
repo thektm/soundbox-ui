@@ -85,18 +85,21 @@ interface QueueTrackProps {
   index: number;
   isCurrentTrack: boolean;
   isPlaying: boolean;
+  isAdPlaying: boolean;
   onPlay: (track: Track) => void;
 }
 
 const QueueTrack = memo<QueueTrackProps>(
-  ({ track, index, isCurrentTrack, isPlaying, onPlay }) => {
+  ({ track, index, isCurrentTrack, isPlaying, isAdPlaying, onPlay }) => {
     return (
       <div
-        onClick={() => onPlay(track)}
-        className={`group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 ${
+        onClick={() => !isAdPlaying && onPlay(track)}
+        className={`group flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${
           isCurrentTrack
             ? "bg-emerald-500/20 border border-emerald-500/30"
-            : "hover:bg-white/5 active:bg-white/10"
+            : isAdPlaying
+              ? "opacity-50 cursor-not-allowed"
+              : "hover:bg-white/5 active:bg-white/10 cursor-pointer"
         }`}
       >
         {/* Track Number / Playing Indicator */}
@@ -114,7 +117,7 @@ const QueueTrack = memo<QueueTrackProps>(
               {index + 1}
             </span>
           )}
-          {!isCurrentTrack && (
+          {!isCurrentTrack && !isAdPlaying && (
             <Icon.Play c="w-4 h-4 text-white hidden group-hover:block" />
           )}
         </div>
@@ -167,8 +170,14 @@ interface QueueSheetProps {
 }
 
 const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
-  const { queue, currentIndex, currentTrack, isPlaying, playTrack } =
-    usePlayer();
+  const {
+    queue,
+    currentIndex,
+    currentTrack,
+    isPlaying,
+    playTrack,
+    isAdPlaying,
+  } = usePlayer();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Memoize queue sections for performance
@@ -202,13 +211,21 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
 
   const handleTrackPlay = useCallback(
     (track: Track) => {
+      if (isAdPlaying) return;
       playTrack(track);
     },
-    [playTrack],
+    [playTrack, isAdPlaying],
   );
 
   return (
-    <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Drawer.Root
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose(); // only close when sliding down intentionally
+        }
+      }}
+    >
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
         <Drawer.Content className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]">
@@ -249,7 +266,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
                 <div className="flex items-center gap-2 px-2 mb-3" dir="rtl">
                   <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                   <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">
-                    در حال پخش
+                    {isAdPlaying ? "تبلیغات" : "در حال پخش"}
                   </h3>
                 </div>
                 <div data-index={currentIndex}>
@@ -258,6 +275,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
                     index={currentIndex}
                     isCurrentTrack={true}
                     isPlaying={isPlaying}
+                    isAdPlaying={isAdPlaying}
                     onPlay={handleTrackPlay}
                   />
                 </div>
@@ -288,6 +306,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
                           index={actualIndex}
                           isCurrentTrack={false}
                           isPlaying={false}
+                          isAdPlaying={isAdPlaying}
                           onPlay={handleTrackPlay}
                         />
                       </div>
@@ -319,6 +338,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
                         index={idx}
                         isCurrentTrack={false}
                         isPlaying={false}
+                        isAdPlaying={isAdPlaying}
                         onPlay={handleTrackPlay}
                       />
                     </div>

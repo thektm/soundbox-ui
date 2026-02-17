@@ -1,6 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  memo,
+  useMemo,
+} from "react";
 import Image from "next/image";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useNavigation } from "./NavigationContext";
@@ -218,7 +225,10 @@ const useEventPlaylists = (accessToken?: string) => {
     return "night";
   }, []);
 
-  const currentEvent = useMemo(() => eventData.find((e) => e.time_of_day === getTimeOfDay()), [eventData, getTimeOfDay]);
+  const currentEvent = useMemo(
+    () => eventData.find((e) => e.time_of_day === getTimeOfDay()),
+    [eventData, getTimeOfDay],
+  );
 
   return { currentEvent, isLoading };
 };
