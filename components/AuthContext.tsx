@@ -10,6 +10,7 @@ export interface UserRecentlyPlayedItem {
   id: number;
   title: string;
   artist_id: number;
+  artist_unique_id?: string | null;
   artist_name: string;
   featured_artists: string[];
   album: number;
@@ -28,6 +29,7 @@ export interface UserRecentlyPlayedItem {
   description: string;
   created_at: string;
   display_title: string;
+  uploader_unique_id?: string | null;
 }
 
 export interface UserRecentlyPlayed {
@@ -56,6 +58,7 @@ export interface UserFollowItem {
   followers_count: number;
   following_count: number;
   is_following: boolean;
+  unique_id?: string | null;
 }
 
 export interface UserFollows {
@@ -69,6 +72,7 @@ export interface UserFollows {
 export interface User {
   id: number;
   phone_number: string;
+  unique_id?: string | null;
   first_name: string;
   last_name: string;
   email: string | null;

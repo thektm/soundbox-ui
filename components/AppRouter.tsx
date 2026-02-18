@@ -32,6 +32,8 @@ import LibraryScreen from "./LibraryScreen";
 import Premium from "./Premium";
 import FollowingArtistsPage from "./FollowingArtistsPage";
 import UserPlaylistDetail from "./UserPlaylistDetail";
+import UserDetail from "./UserDetail";
+import DownloadsHistory from "./DownloadsHistory";
 
 const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
@@ -75,6 +77,8 @@ const AppRouter: React.FC = () => {
         return <Playlists />;
       case "profile":
         return isDesktop ? <DesktopProfile /> : <Profile />;
+      case "downloads-history":
+        return <DownloadsHistory />;
       case "settings":
         return <Settings />;
       case "playlist-detail":
@@ -85,6 +89,8 @@ const AppRouter: React.FC = () => {
         return <UserPlaylistDetail id={currentParams?.id} />;
       case "artist-detail":
         return <ArtistDetail id={currentParams?.id} />;
+      case "user-detail":
+        return <UserDetail uniqueId={currentParams?.id} />;
       case "album-detail":
         return (
           <AlbumDetail

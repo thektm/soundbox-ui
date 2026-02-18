@@ -6,6 +6,7 @@ import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { usePlayer, Track } from "./PlayerContext";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
+import { getFullShareUrl } from "../utils/share";
 import toast from "react-hot-toast";
 
 // API Interfaces based on the provided format
@@ -38,6 +39,7 @@ interface ApiAlbumResponse {
   title: string;
   artist_id: number;
   artist_name: string;
+  artist_unique_id?: string;
   cover_image: string;
   release_date: string | null;
   description: string;
@@ -269,7 +271,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   slug,
   album: albumProp,
 }) => {
-  const { goBack, currentParams } = useNavigation();
+  const { goBack, currentParams, navigateTo } = useNavigation();
   const { accessToken } = useAuth();
   const { setQueue, currentTrack, isPlaying: isPlayerPlaying } = usePlayer();
 
@@ -320,8 +322,43 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
     setIsDrawerOpen(true);
   }, []);
 
-  const handleAction = (action: string, song: any) => {
-    console.log(`Action ${action} on song ${song.title}`);
+  const handleAction = async (action: string, s: any) => {
+    if (action === "share" && s) {
+      try {
+        const url = getFullShareUrl("song", s.id);
+        if (typeof navigator !== "undefined" && navigator.share) {
+          await navigator.share({
+            title: s.title,
+            text: `گوش دادن به آهنگ ${s.title} از ${s.artist_name || albumData?.artist_name} در سداباکس`,
+            url: url,
+          });
+        } else {
+          await navigator.clipboard.writeText(url);
+          toast.success("لینک کپی شد");
+        }
+      } catch (err) {
+        console.error("Song share failed:", err);
+      }
+    }
+  };
+
+  const handleShare = async () => {
+    if (!albumData) return;
+    try {
+      const url = getFullShareUrl("album", albumData.id);
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({
+          title: albumData.title,
+          text: `G گوش دادن به آلبوم ${albumData.title} از ${albumData.artist_name} در سداباکس`,
+          url: url,
+        });
+      } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        toast.success("لینک کپی شد");
+      }
+    } catch (err) {
+      console.error("Album share failed:", err);
+    }
   };
 
   const handleLike = async () => {
@@ -455,7 +492,17 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
               </p>
             )}
             <div className="flex items-center gap-3 text-sm text-neutral-300">
-              <span className="font-medium">{albumData.artist_name}</span>
+              <button
+                onClick={() =>
+                  navigateTo("artist-detail", {
+                    id: albumData.artist_id,
+                    slug: albumData.artist_unique_id || undefined,
+                  })
+                }
+                className="font-medium hover:underline cursor-pointer"
+              >
+                {albumData.artist_name}
+              </button>
               {albumData.release_date && (
                 <>
                   <span>•</span>
@@ -507,7 +554,10 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
             )}
           </button>
 
-          <button className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200">
+          <button
+            onClick={handleShare}
+            className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200"
+          >
             <Icon name="shareNetwork" className="w-7 h-7" />
           </button>
 

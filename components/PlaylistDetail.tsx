@@ -15,6 +15,7 @@ import { useAuth } from "./AuthContext";
 import { usePlayer, Track } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { toast } from "react-hot-toast";
+import { getFullShareUrl } from "../utils/share";
 
 // ============== API INTERFACES ==============
 
@@ -395,6 +396,42 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
     setIsDrawerOpen(true);
   }, []);
 
+  const handleShare = async () => {
+    if (!playlist) return;
+    try {
+      const url = getFullShareUrl("playlist", playlist.id);
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({
+          title: playlist.title,
+          text: `G گوش دادن به این لیست پخش در سداباکس`,
+          url: url,
+        });
+      } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        toast.success("لینک کپی شد");
+      }
+    } catch (err) {
+      console.error("Playlist share failed:", err);
+    }
+  };
+
+  const handleAction = useCallback(async (action: string, song: any) => {
+    if (action === "share" && song) {
+      try {
+        const url = getFullShareUrl("song", song.id);
+        const text = `گوش دادن به آهنگ ${song.title} از ${song.artist_name} در سداباکس`;
+        if (typeof navigator !== "undefined" && navigator.share) {
+          await navigator.share({ title: song.title, text, url });
+        } else {
+          await navigator.clipboard.writeText(url);
+          toast.success("لینک کپی شد");
+        }
+      } catch (err) {
+        console.error("Song share failed:", err);
+      }
+    }
+  }, []);
+
   const handlePlaySong = (idx: number) => {
     if (!playlist) return;
     const tracks = playlist.songs.map(apiSongToTrack);
@@ -620,6 +657,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
 
           <button
             type="button"
+            onClick={handleShare}
             className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200"
           >
             <Icon name="shareNetwork" className="w-7 h-7" />
@@ -652,6 +690,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         song={selectedSong}
+        onAction={handleAction}
       />
 
       <style jsx global>{`

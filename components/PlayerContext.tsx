@@ -1170,6 +1170,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const targetTrack = track || currentTrack;
       if (!targetTrack) return;
 
+      // Submit download record to API
+      if (accessTokenRef.current && targetTrack.id) {
+        try {
+          fetch("https://api.sedabox.com/api/profile/downloads/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessTokenRef.current}`,
+            },
+            body: JSON.stringify({ song_id: parseInt(targetTrack.id) }),
+          }).catch((err) =>
+            console.error("Failed to submit download history:", err),
+          );
+        } catch (e) {
+          // ignore error to not block actual download
+        }
+      }
+
       try {
         let finalUrl = resolvedUrlsRef.current.get(String(targetTrack.id));
 

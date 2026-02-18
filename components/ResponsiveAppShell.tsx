@@ -14,13 +14,13 @@ interface Props {
 const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
   const { isMobile } = useResponsiveLayout();
   const { isLoggedIn } = useAuth();
-  const { registerScrollContainer, restoreScroll, currentPage } =
+  const { registerScrollContainer, restoreScroll, navigationKey } =
     useNavigation();
 
-  // Restore scroll when page changes
+  // Restore scroll when page or params change
   useEffect(() => {
     restoreScroll();
-  }, [currentPage, restoreScroll]);
+  }, [navigationKey, restoreScroll]);
 
   // Fix mobile viewport height for dynamic browser UI (address bar)
   useEffect(() => {

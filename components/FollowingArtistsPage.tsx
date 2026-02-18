@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { createSlug } from "./mockData";
 import {
   LayoutGrid,
   List,
@@ -198,7 +199,11 @@ const FollowingArtistsPage: React.FC = () => {
                     viewMode={viewMode}
                     index={index}
                     onClick={() =>
-                      navigateTo("artist-detail", { id: artist.id })
+                      navigateTo("artist-detail", {
+                        id: artist.id,
+                        slug:
+                          (artist as any).unique_id || createSlug(artist.name),
+                      })
                     }
                   />
                 ))}

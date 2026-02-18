@@ -142,7 +142,10 @@ const ChartPage: React.FC<ChartPageProps> = ({ title, type, initialData }) => {
                   slug: createSlug(item.title),
                 });
               if (type === "artists")
-                navigateTo("artist-detail", { id: item.id });
+                navigateTo("artist-detail", {
+                  id: item.id,
+                  slug: item.unique_id || createSlug(item.name || item.title),
+                });
             }}
             className="group flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-all cursor-pointer border border-transparent hover:border-white/5 shadow-lg shadow-black/20"
           >

@@ -11,12 +11,15 @@ import {
   Check,
   Download,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "./AuthContext";
 import { usePlayer } from "./PlayerContext";
 import { toast } from "react-hot-toast";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
+import { ReportModal } from "./ReportModal";
+import { getFullShareUrl } from "../utils/share";
 
 interface SongOptionsDrawerProps {
   isOpen: boolean;
@@ -43,6 +46,7 @@ export const SongOptionsDrawer = ({
   const { download } = usePlayer();
   const [processing, setProcessing] = useState<string | null>(null);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [localIsLiked, setLocalIsLiked] = useState<boolean | undefined>(
     song.is_liked,
   );
@@ -84,8 +88,35 @@ export const SongOptionsDrawer = ({
     async (actionId: string) => {
       if (processing) return;
 
+      if (actionId === "share") {
+        try {
+          const url = getFullShareUrl("song", song.id);
+          if (typeof navigator !== "undefined" && navigator.share) {
+            await navigator.share({
+              title: song.title,
+              text: `G گوش دادن به ${song.title} از ${song.artist_name} در سداباکس`,
+              url: url,
+            });
+          } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+            await navigator.clipboard.writeText(url);
+            toast.success("لینک کپی شد");
+          }
+        } catch (err) {
+          console.error("Share failed:", err);
+        } finally {
+          onClose();
+        }
+        return;
+      }
+
       if (actionId === "add-to-playlist") {
         setIsAddToPlaylistOpen(true);
+        onClose();
+        return;
+      }
+
+      if (actionId === "report") {
+        setIsReportModalOpen(true);
         onClose();
         return;
       }
@@ -253,7 +284,7 @@ export const SongOptionsDrawer = ({
       id: "share",
       label: "اشتراک‌گذاری",
       icon: <Share2 className="w-5 h-5" />,
-      onClick: () => onAction?.("share", song),
+      onClick: () => handleActionClick("share"),
     },
     {
       id: "download",
@@ -290,6 +321,12 @@ export const SongOptionsDrawer = ({
       label: "جزئیات آهنگ",
       icon: <Info className="w-5 h-5" />,
       onClick: () => handleActionClick("details"),
+    },
+    {
+      id: "report",
+      label: "گزارش خطا یا محتوا",
+      icon: <AlertCircle className="w-5 h-5 text-amber-500" />,
+      onClick: () => handleActionClick("report"),
     },
   ];
 
@@ -354,6 +391,14 @@ export const SongOptionsDrawer = ({
         isOpen={isAddToPlaylistOpen}
         onClose={() => setIsAddToPlaylistOpen(false)}
         songId={song.id}
+      />
+
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        targetId={song.id}
+        targetType="song"
+        targetTitle={song.title}
       />
     </>
   );

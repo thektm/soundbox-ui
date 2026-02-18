@@ -656,6 +656,7 @@ export default function Home() {
           subtitle: "Artist",
           img: artist.profile_image || "",
           isNew: false,
+          slug: (artist as any).unique_id || createSlug(artist.name),
         })),
         popularAlbums: homeData.popular_albums.results.map((album) => ({
           id: album.id,
@@ -928,7 +929,12 @@ export default function Home() {
         <HorizontalList
           items={sectionData.popularArtists}
           variant="circle"
-          onItemClick={(item) => navigateTo("artist-detail", { id: item.id })}
+          onItemClick={(item) =>
+            navigateTo("artist-detail", {
+              id: item.id,
+              slug: (item as any).slug,
+            })
+          }
         />
       ),
       showMore: !!homeData.popular_artists.next,
@@ -1133,8 +1139,14 @@ export default function Home() {
             subtitle: "Artist",
             img: a.profile_image,
             isNew: false,
+            slug: (a as any).unique_id || createSlug(a.name),
           }))}
-          onItemClick={(item) => navigateTo("artist-detail", { id: item.id })}
+          onItemClick={(item) =>
+            navigateTo("artist-detail", {
+              id: item.id,
+              slug: (item as any).slug,
+            })
+          }
         />
       ),
       showMore: true,
@@ -1256,8 +1268,14 @@ export default function Home() {
             subtitle: "Artist",
             img: a.profile_image,
             isNew: false,
+            slug: (a as any).unique_id || createSlug(a.name),
           }))}
-          onItemClick={(item) => navigateTo("artist-detail", { id: item.id })}
+          onItemClick={(item) =>
+            navigateTo("artist-detail", {
+              id: item.id,
+              slug: (item as any).slug,
+            })
+          }
         />
       ),
       showMore: true,

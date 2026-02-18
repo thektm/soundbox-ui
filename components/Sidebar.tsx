@@ -785,6 +785,8 @@ function Sidebar() {
                   if (item.type === "artist") {
                     navigateTo("artist-detail", {
                       id: item.id,
+                      slug:
+                        (item as any).unique_id || createSlug(item.name || ""),
                     });
                     return;
                   }

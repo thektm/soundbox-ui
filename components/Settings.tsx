@@ -54,13 +54,20 @@ const ProfileEditSheet = ({
   onChange,
   onSave,
   isSaving = false,
+  disableSave = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  formData: { firstName: string; lastName: string; email: string };
+  formData: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    uniqueId: string;
+  };
   onChange: (field: string, value: string) => void;
   onSave: () => void;
   isSaving?: boolean;
+  disableSave?: boolean;
 }) => {
   const [isDesktop, setIsDesktop] = useState(false);
   useEffect(() => {
@@ -85,7 +92,7 @@ const ProfileEditSheet = ({
           <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
         </button>
       </div>
-      <div className="space-y-4 mb-8 flex-1 overflow-y-auto">
+      <div className="space-y-4 mb-8 flex-1 overflow-visible hide-scrollbar">
         {[
           {
             key: "firstName",
@@ -103,10 +110,33 @@ const ProfileEditSheet = ({
             placeholder: "ایمیل خود را وارد کنید",
             type: "email",
           },
+          {
+            key: "uniqueId",
+            label: "شناسه منحصر به فرد",
+            placeholder: "شناسه منحصر به فرد خود را وارد کنید",
+            info: true,
+          },
         ].map((field) => (
           <div key={field.key}>
-            <label className="block text-sm font-medium text-gray-400 mb-2">
+            <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-1">
               {field.label}
+              {field.info && (
+                <span className="relative group">
+                  <span
+                    tabIndex={0}
+                    className="ml-1 w-4 h-4 flex items-center justify-center rounded-full border border-emerald-400 bg-[#101c1a] text-emerald-400 text-xs font-bold cursor-pointer transition hover:bg-emerald-500 hover:text-white focus:bg-emerald-500 focus:text-white"
+                    aria-label="اطلاعات بیشتر"
+                  >
+                    i
+                  </span>
+                  <span
+                    className="absolute z-50 right-0 top-7 w-56 text-xs text-right bg-[#181f1c] text-white rounded-xl shadow-lg border border-emerald-400 px-4 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-200"
+                    style={{ fontFamily: "inherit" }}
+                  >
+                    برای پیدا کردن پروفایل شما در جستجو استفاده می‌شود
+                  </span>
+                </span>
+              )}
             </label>
             <input
               type={field.type || "text"}
@@ -122,7 +152,7 @@ const ProfileEditSheet = ({
       <div className="flex gap-3 flex-shrink-0">
         <button
           onClick={onSave}
-          disabled={isSaving}
+          disabled={isSaving || disableSave}
           className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isSaving && (
@@ -174,7 +204,7 @@ const ProfileEditSheet = ({
     >
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/60 z-[70] backdrop-blur-[2px]" />
-        <Drawer.Content className="fixed inset-x-0 bottom-0 z-[70] flex flex-col bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 outline-none max-h-[96%]">
+        <Drawer.Content className="fixed inset-x-0 bottom-0 z-[70] flex flex-col bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 outline-none max-h-[96%] overflow-visible">
           {content}
           <div className="h-safe-area-inset-bottom" />
         </Drawer.Content>
@@ -736,6 +766,7 @@ export default function Settings() {
     firstName: "",
     lastName: "",
     email: "",
+    uniqueId: "",
   });
 
   const displayName =
@@ -759,6 +790,7 @@ export default function Settings() {
         firstName: authUser.first_name || "",
         lastName: authUser.last_name || "",
         email: authUser.email || "",
+        uniqueId: authUser.unique_id || "",
       });
       setAudioQuality(authUser.stream_quality || "medium");
       if (authUser.notification_setting) {
@@ -767,25 +799,94 @@ export default function Settings() {
     }
   }, [authUser]);
 
+  // When opening the profile edit sheet ensure the form is initialized
+  // with the latest `authUser` values so the sheet always matches profile
+  useEffect(() => {
+    if (activeSheet === "profile" && authUser) {
+      setProfileData({
+        firstName: authUser.first_name || "",
+        lastName: authUser.last_name || "",
+        email: authUser.email || "",
+        uniqueId: authUser.unique_id || "",
+      });
+    }
+  }, [activeSheet, authUser]);
+
   // Devices feature removed: related state and handlers deleted
 
   const handleProfileChange = (field: string, value: string) => {
+    if (field === "uniqueId") {
+      value = value.replace(/[^a-z0-9]/gi, "");
+    }
     setProfileData((prev) => ({ ...prev, [field]: value }));
   };
+
+  // Determine if save button should be disabled (same logic as Profile)
+  const allFieldsEmpty =
+    !profileData.firstName &&
+    !profileData.lastName &&
+    !profileData.email &&
+    !profileData.uniqueId;
+  const bothNamesEmpty = !profileData.firstName && !profileData.lastName;
+  const disableSave = allFieldsEmpty || bothNamesEmpty;
 
   const handleProfileSave = async () => {
     setIsSaving(true);
     const tid = toast.loading("در حال بروزرسانی پروفایل...");
     try {
-      await updateProfile({
+      const endpoint = "https://api.sedabox.com/api/profile/";
+      const body = {
         first_name: profileData.firstName,
         last_name: profileData.lastName,
         email: profileData.email,
+        unique_id: profileData.uniqueId || null,
+      };
+      console.log("Updating profile - endpoint:", endpoint);
+      console.log("Updating profile - body:", body);
+      const res: any = await updateProfile({
+        first_name: profileData.firstName,
+        last_name: profileData.lastName,
+        email: profileData.email,
+        unique_id: profileData.uniqueId || null,
       } as any);
+      // If updateProfile returns the updated user object, sync local state
+      if (res) {
+        const u = (res.user || res) as any;
+        if (u) {
+          setProfileData({
+            firstName: u.first_name || profileData.firstName,
+            lastName: u.last_name || profileData.lastName,
+            email: u.email || profileData.email,
+            uniqueId: u.unique_id ?? profileData.uniqueId,
+          });
+        }
+      }
       toast.success("پروفایل با موفقیت بروزرسانی شد", { id: tid });
       setActiveSheet(null);
     } catch (err: any) {
-      toast.error(formatErrorMessage(err), { id: tid });
+      // Handle server validation for unique_id specially
+      const body = err?.body || err;
+      const uniqueErr =
+        body &&
+        (body.unique_id ||
+          body.uniqueId ||
+          (body.error && body.error.unique_id));
+      if (uniqueErr) {
+        // uniqueErr may be an array
+        const msg = Array.isArray(uniqueErr) ? uniqueErr[0] : uniqueErr;
+        const lc = String(msg).toLowerCase();
+        if (
+          lc.includes("unique id") ||
+          lc.includes("unique_id") ||
+          lc.includes("user with this unique id")
+        ) {
+          toast.error("شناسه منحصر به فرد قبلا استفاده شده است", { id: tid });
+        } else {
+          toast.error(formatErrorMessage(err), { id: tid });
+        }
+      } else {
+        toast.error(formatErrorMessage(err), { id: tid });
+      }
     } finally {
       setIsSaving(false);
     }
@@ -1053,6 +1154,7 @@ export default function Settings() {
         onChange={handleProfileChange}
         onSave={handleProfileSave}
         isSaving={isSaving}
+        disableSave={disableSave}
       />
       <QualitySheet
         isOpen={activeSheet === "quality"}

@@ -15,6 +15,8 @@ import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
+import { getFullShareUrl } from "../utils/share";
+import { createSlug } from "./mockData";
 
 // ============ TYPES & MOCKS ============
 interface Song {
@@ -64,11 +66,21 @@ interface Playlist {
   isPremium?: boolean;
 }
 
+interface User {
+  id: string;
+  username: string;
+  fullName: string;
+  image: string;
+  is_following?: boolean;
+  plan?: string;
+}
+
 interface SearchResults {
   songs: Song[];
   artists: Artist[];
   albums: Album[];
   playlists: Playlist[];
+  users: User[];
 }
 
 interface EventPlaylist {
@@ -273,7 +285,7 @@ const useSearchSections = (accessToken?: string) => {
 // Hook: Handle API Logic
 const useSearch = (
   query: string,
-  filter: "all" | "songs" | "artists" | "albums" | "playlists",
+  filter: "all" | "songs" | "artists" | "albums" | "playlists" | "users",
   accessToken?: string,
 ) => {
   const [results, setResults] = useState<SearchResults>({
@@ -281,12 +293,19 @@ const useSearch = (
     artists: [],
     albums: [],
     playlists: [],
+    users: [],
   });
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!query.trim()) {
-      setResults({ songs: [], artists: [], albums: [], playlists: [] });
+      setResults({
+        songs: [],
+        artists: [],
+        albums: [],
+        playlists: [],
+        users: [],
+      });
       return;
     }
 
@@ -301,6 +320,7 @@ const useSearch = (
           artists: "artist",
           albums: "album",
           playlists: "playlist",
+          users: "user",
         };
 
         const typeParam = typeMapping[filter];
@@ -329,6 +349,7 @@ const useSearch = (
         const artists: Artist[] = [];
         const albums: Album[] = [];
         const playlists: Playlist[] = [];
+        const users: User[] = [];
 
         (data.results || []).forEach((item: any) => {
           switch (item.type) {
@@ -383,10 +404,22 @@ const useSearch = (
                 duration: "",
               });
               break;
+            case "user":
+              users.push({
+                id: item.id.toString(),
+                username: item.title,
+                fullName:
+                  `${item.data?.first_name || ""} ${item.data?.last_name || ""}`.trim() ||
+                  item.title,
+                image: item.image || "https://picsum.photos/200",
+                is_following: item.is_following || false,
+                plan: item.data?.plan || "free",
+              });
+              break;
           }
         });
 
-        setResults({ songs, artists, albums, playlists });
+        setResults({ songs, artists, albums, playlists, users });
       } catch (error: any) {
         if (error.name !== "AbortError") {
           console.error("Search API Error:", error);
@@ -602,6 +635,60 @@ const ArtistCard = memo(
               "دنبال کردن"
             )}
           </button>
+        </div>
+      </div>
+    );
+  },
+);
+
+const UserCard = memo(
+  ({ user, onClick }: { user: User; onClick: () => void }) => {
+    return (
+      <div
+        onClick={onClick}
+        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer h-full flex flex-col items-center text-center"
+      >
+        <div className="relative mb-4 w-full aspect-square px-2">
+          <div className="w-full h-full rounded-full overflow-hidden shadow-2xl bg-zinc-800 relative">
+            <ImageWithPlaceholder
+              src={user.image}
+              alt={user.username}
+              className="w-full h-full object-cover"
+              type="user"
+            />
+
+            {/* Premium star badge */}
+            {user.plan === "premium" && (
+              <div
+                aria-hidden
+                className="absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center"
+                style={{
+                  background: "linear-gradient(135deg, #ffd54a, #ffb347)",
+                  boxShadow: "0 6px 18px rgba(255,165,0,0.18)",
+                  animation: "ud-glow 3s ease-in-out infinite",
+                }}
+              >
+                <svg
+                  className="w-4 h-4 text-black"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M12 .587l3.668 7.431L24 9.75l-6 5.848L19.336 24 12 19.897 4.664 24 6 15.598 0 9.75l8.332-1.732z" />
+                </svg>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col items-center gap-1 w-full px-2">
+          <span className="font-bold text-white truncate max-w-full">
+            {user.username}
+          </span>
+          <div className="text-sm text-[#a7a7a7] truncate w-full">
+            {user.fullName}
+          </div>
+          <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-zinc-800 text-[10px] text-zinc-400 mt-1">
+            کاربر
+          </div>
         </div>
       </div>
     );
@@ -962,12 +1049,25 @@ export default function Search() {
     setIsDrawerOpen(true);
   }, []);
 
-  const handleAction = (action: string, song: any) => {
-    console.log(`Action ${action} on song ${song.title}`);
+  const handleAction = async (action: string, s: any) => {
+    if (action === "share" && s) {
+      try {
+        const url = getFullShareUrl("song", s.id);
+        const text = `گوش دادن به آهنگ ${s.title} از ${s.artist_name} در سداباکس`;
+        if (typeof navigator !== "undefined" && navigator.share) {
+          await navigator.share({ title: s.title, text, url });
+        } else {
+          await navigator.clipboard.writeText(url);
+          toast.success("لینک کپی شد");
+        }
+      } catch (err) {
+        console.error("Song share failed:", err);
+      }
+    }
   };
 
   const [activeFilter, setActiveFilter] = useState<
-    "all" | "songs" | "artists" | "albums" | "playlists"
+    "all" | "songs" | "artists" | "albums" | "playlists" | "users"
   >("all");
   const [followedStatus, setFollowedStatus] = useState<Record<string, boolean>>(
     {},
@@ -1132,7 +1232,10 @@ export default function Search() {
   const handleArtistClick = useCallback(
     (artist: Artist) => {
       addToHistory(artist.name, "artist");
-      navigateTo("artist-detail", { id: artist.id });
+      navigateTo("artist-detail", {
+        id: artist.id,
+        slug: (artist as any).unique_id || createSlug(artist.name),
+      });
     },
     [addToHistory, navigateTo],
   );
@@ -1158,7 +1261,8 @@ export default function Search() {
     results.songs.length > 0 ||
     results.artists.length > 0 ||
     results.albums.length > 0 ||
-    results.playlists.length > 0;
+    results.playlists.length > 0 ||
+    results.users.length > 0;
   const showResults = debouncedQuery.trim() && !isLoading;
 
   const showSongs =
@@ -1173,6 +1277,9 @@ export default function Search() {
   const showPlaylists =
     (activeFilter === "all" || activeFilter === "playlists") &&
     results.playlists.length > 0;
+  const showUsers =
+    (activeFilter === "all" || activeFilter === "users") &&
+    results.users.length > 0;
 
   return (
     <div
@@ -1298,6 +1405,7 @@ export default function Search() {
               { k: "artists", l: "هنرمندان" },
               { k: "albums", l: "آلبوم‌ها" },
               { k: "playlists", l: "لیست‌های پخش" },
+              { k: "users", l: "کاربران" },
             ].map((f) => (
               <button
                 key={f.k}
@@ -1415,6 +1523,24 @@ export default function Search() {
                       playlist={playlist}
                       onClick={() =>
                         navigateTo("playlist-detail", { id: playlist.id })
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Users Grid */}
+            {showUsers && (
+              <section>
+                <h2 className="text-2xl font-bold mb-4">کاربران</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                  {results.users.map((user) => (
+                    <UserCard
+                      key={user.id}
+                      user={user}
+                      onClick={() =>
+                        navigateTo("user-detail", { id: user.username })
                       }
                     />
                   ))}

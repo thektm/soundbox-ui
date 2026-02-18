@@ -22,7 +22,7 @@ import {
   animate,
 } from "framer-motion";
 import QueueSheet from "./QueueSheet";
-import { MOCK_ARTISTS } from "./mockData";
+import { MOCK_ARTISTS, createSlug } from "./mockData";
 import { Sparkles, User, UserRoundCog } from "lucide-react";
 
 // ============================================================================
@@ -1257,7 +1257,11 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
               onClick={() => {
                 if (isAdPlaying) return;
                 if (isDesktop) {
-                  navigateTo("song-detail", { id: displayTrack.id });
+                  navigateTo("song-detail", {
+                    id: displayTrack.id,
+                    artistSlug: createSlug(displayTrack.artist),
+                    songSlug: createSlug(displayTrack.title),
+                  });
                 } else {
                   onExpand();
                 }
@@ -1278,7 +1282,11 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 onClick={() => {
                   if (isAdPlaying) return;
                   if (isDesktop) {
-                    navigateTo("song-detail", { id: displayTrack.id });
+                    navigateTo("song-detail", {
+                      id: displayTrack.id,
+                      artistSlug: createSlug(displayTrack.artist),
+                      songSlug: createSlug(displayTrack.title),
+                    });
                   } else {
                     onExpand();
                   }
@@ -1505,7 +1513,12 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
           currentTrack.artistId || (currentTrack as any).artist_id;
         if (artistId) {
           onCollapse();
-          navigateTo("artist-detail", { id: artistId });
+          navigateTo("artist-detail", {
+            id: artistId,
+            slug:
+              (currentTrack as any).artist_unique_id ||
+              createSlug(currentTrack.artist),
+          });
           return;
         }
       }
@@ -1515,7 +1528,13 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
       if (isAdPlaying) return;
       if (currentTrack) {
         onCollapse();
-        navigateTo("song-detail", { id: currentTrack.id });
+        navigateTo("song-detail", {
+          id: currentTrack.id,
+          artistSlug:
+            (currentTrack as any).artist_unique_id ||
+            createSlug(currentTrack.artist),
+          songSlug: createSlug(currentTrack.title),
+        });
       }
     }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
 
@@ -1936,7 +1955,12 @@ const MobileExpandedPlayer = memo<{
       const artistId = currentTrack.artistId || (currentTrack as any).artist_id;
       if (artistId) {
         onCollapse();
-        navigateTo("artist-detail", { id: artistId });
+        navigateTo("artist-detail", {
+          id: artistId,
+          slug:
+            (currentTrack as any).artist_unique_id ||
+            createSlug(currentTrack.artist),
+        });
         return;
       }
     }
@@ -2037,7 +2061,13 @@ const MobileExpandedPlayer = memo<{
                 onClick={() => {
                   if (isAdPlaying) return;
                   onCollapse();
-                  navigateTo("song-detail", { id: displayTrack.id });
+                  navigateTo("song-detail", {
+                    id: displayTrack.id,
+                    artistSlug:
+                      (displayTrack as any).artist_unique_id ||
+                      createSlug(displayTrack.artist),
+                    songSlug: createSlug(displayTrack.title),
+                  });
                 }}
                 className={`text-lg font-bold text-neutral-300 w-full text-center truncate mt-0 ${isAdPlaying ? "" : "hover:underline"}`}
                 style={{ maxWidth: "90vw" }}
@@ -2249,7 +2279,13 @@ const MobileExpandedPlayer = memo<{
                     setIsMenuOpen(false);
                     onCollapse();
                     if (currentTrack) {
-                      navigateTo("song-detail", { id: currentTrack.id });
+                      navigateTo("song-detail", {
+                        id: currentTrack.id,
+                        artistSlug:
+                          (currentTrack as any).artist_unique_id ||
+                          createSlug(currentTrack.artist),
+                        songSlug: createSlug(currentTrack.title),
+                      });
                     }
                   }}
                   className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"

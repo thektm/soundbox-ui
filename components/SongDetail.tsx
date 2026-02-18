@@ -12,10 +12,12 @@ import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
-import { MOCK_SONGS as CENTRALIZED_SONGS } from "./mockData";
+import { MOCK_SONGS as CENTRALIZED_SONGS, createSlug } from "./mockData";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
+
+import { getFullShareUrl } from "../utils/share";
 
 interface ApiSong {
   id: number;
@@ -23,6 +25,7 @@ interface ApiSong {
   artist: number;
   artist_id?: number;
   artist_name: string;
+  artist_unique_id?: string;
   cover_image: string;
   duration_display: string;
   is_liked: boolean;
@@ -672,9 +675,10 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     usePlayer();
   const { accessToken } = useAuth();
 
-  const id = useMemo(() => {
+  const idOrSlug = useMemo(() => {
     if (propId) return propId;
     if (currentParams?.id) return currentParams.id;
+    if (currentParams?.songSlug) return currentParams.songSlug;
     const match =
       typeof currentPage === "string" ? currentPage.match(/song\/(.+)/) : null;
     return match ? decodeURIComponent(match[1]) : null;
@@ -703,7 +707,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
 
   useEffect(() => {
     const fetchSongDetail = async () => {
-      if (!id) return;
+      if (!idOrSlug) return;
       setLoading(true);
       try {
         const headers: Record<string, string> = {
@@ -713,9 +717,12 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           headers["Authorization"] = `Bearer ${accessToken}`;
         }
 
-        const resp = await fetch(`https://api.sedabox.com/api/songs/${id}/`, {
-          headers,
-        });
+        const resp = await fetch(
+          `https://api.sedabox.com/api/songs/${idOrSlug}/`,
+          {
+            headers,
+          },
+        );
 
         if (resp.ok) {
           const data: ApiSong = await resp.json();
@@ -733,14 +740,38 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           });
           setIsLiked(data.is_liked);
           setLikesCount(data.likes_count);
+
+          // Update browser URL to canonical format: /artist-slug/song-slug
+          if (typeof window !== "undefined") {
+            const artistS =
+              data.artist_unique_id || createSlug(data.artist_name);
+            const songS = createSlug(data.title);
+            if (artistS && songS) {
+              const targetPath = `/${artistS}/${songS}`;
+              if (window.location.pathname !== targetPath) {
+                window.history.replaceState(
+                  {
+                    page: "song-detail",
+                    params: {
+                      id: data.id,
+                      artistSlug: artistS,
+                      songSlug: songS,
+                    },
+                  },
+                  "",
+                  targetPath,
+                );
+              }
+            }
+          }
         } else {
           // Fallback to mock if needed or show error
-          const foundSong = MOCK_SONGS.find((s) => s.id === id);
+          const foundSong = MOCK_SONGS.find((s) => s.id === idOrSlug);
           setSong(foundSong || null);
         }
       } catch (err) {
         console.error("Failed to fetch song detail:", err);
-        const foundSong = MOCK_SONGS.find((s) => s.id === id);
+        const foundSong = MOCK_SONGS.find((s) => s.id === idOrSlug);
         setSong(foundSong || null);
       } finally {
         setLoading(false);
@@ -748,7 +779,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     };
 
     fetchSongDetail();
-  }, [id, accessToken]);
+  }, [idOrSlug, accessToken]);
 
   const dominantColor = useImageColor(song?.image || "");
   const isCurrentTrack = currentTrack?.id === song?.id;
@@ -774,8 +805,8 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           : "",
       }));
     }
-    return MOCK_SONGS.filter((s) => s.id !== id).slice(0, 4);
-  }, [id, fullSongData]);
+    return MOCK_SONGS.filter((s) => s.id !== idOrSlug).slice(0, 4);
+  }, [idOrSlug, fullSongData]);
 
   const apiLyrics = useMemo((): LyricLine[] => {
     if (!fullSongData?.lyrics) return [];
@@ -877,11 +908,27 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   }, [song, download]);
 
   const handleShare = useCallback(() => {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
+    if (!song) return;
+    try {
+      const url = getFullShareUrl("song", song.id);
+      const artistLabel =
+        (song as any).artist_name || (song as any).artist || "";
+      const text = `درحال گوش دادن به ${song.title} از ${artistLabel} در سداباکس`;
+
+      if (typeof navigator !== "undefined" && navigator.share) {
+        navigator.share({
+          title: song.title,
+          text: text,
+          url: url,
+        });
+      } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+        navigator.clipboard.writeText(url);
+        toast.success("لینک کپی شد");
+      }
+    } catch (err) {
+      console.error("Song share failed:", err);
     }
-    showNotification("لینک کپی شد");
-  }, [showNotification]);
+  }, [song]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -925,7 +972,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     if (containerRef.current) {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [id]);
+  }, [idOrSlug]);
 
   if (loading) {
     return (
@@ -1118,7 +1165,12 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                 onClick={() => {
                   const artistId = song?.artistId || (song as any)?.artist_id;
                   if (artistId) {
-                    navigateTo("artist-detail", { id: artistId });
+                    navigateTo("artist-detail", {
+                      id: artistId,
+                      slug:
+                        fullSongData?.artist_unique_id ||
+                        createSlug(song.artist),
+                    });
                   }
                 }}
                 className="font-semibold text-white hover:underline cursor-pointer"
@@ -1249,6 +1301,8 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                 setContextMenu((prev) => ({ ...prev, isOpen: false }));
                 navigateTo("artist-detail", {
                   id: song.artistId || (song as any).artist_id,
+                  slug:
+                    fullSongData?.artist_unique_id || createSlug(song.artist),
                 });
               }
             : undefined

@@ -8,6 +8,7 @@ import { useNavigation } from "./NavigationContext";
 import Image from "next/image";
 import { Drawer } from "vaul";
 import toast from "react-hot-toast";
+import { createSlug } from "./mockData";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -120,6 +121,7 @@ export default function Profile() {
     firstName: "",
     lastName: "",
     email: "",
+    uniqueId: "",
   });
 
   useEffect(() => {
@@ -128,6 +130,7 @@ export default function Profile() {
         firstName: authUser.first_name ?? "",
         lastName: authUser.last_name ?? "",
         email: authUser.email ?? "",
+        uniqueId: authUser.unique_id ?? "",
       });
     }
   }, [authUser]);
@@ -139,6 +142,7 @@ export default function Profile() {
         : "کاربر صداباکس",
     phone: authUser?.phone_number || "09123456789",
     email: authUser?.email || "ایمیل ثبت نشده",
+    uniqueId: authUser?.unique_id || "شناسه ثبت نشده",
     joinDate: authUser?.date_joined
       ? new Date(authUser.date_joined).toLocaleDateString("fa-IR", {
           year: "numeric",
@@ -147,26 +151,67 @@ export default function Profile() {
       : "اردیبهشت ۱۴۰۲",
   };
 
-  const handleChange = (field: string, value: string) =>
+  const handleChange = (field: string, value: string) => {
+    if (field === "uniqueId") {
+      // Only allow a-z, 0-9, no spaces or special chars
+      value = value.replace(/[^a-z0-9]/gi, "");
+    }
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
     const toastId = toast.loading("در حال ذخیره تغییرات...");
     try {
-      await updateProfile({
+      const endpoint = "https://api.sedabox.com/api/profile/";
+      const body = {
         first_name: formData.firstName,
         last_name: formData.lastName,
         email: formData.email,
-      } as any);
+        unique_id: formData.uniqueId || null,
+      };
+      console.log("Updating profile - endpoint:", endpoint);
+      console.log("Updating profile - body:", body);
+      await updateProfile(body as any);
       toast.success("پروفایل با موفقیت بروزرسانی شد", { id: toastId });
       setIsSheetOpen(false);
     } catch (err: any) {
-      toast.error(formatErrorMessage(err), { id: toastId });
+      const body = err?.body || err;
+      const uniqueErr =
+        body &&
+        (body.unique_id ||
+          body.uniqueId ||
+          (body.error && body.error.unique_id));
+      if (uniqueErr) {
+        const msg = Array.isArray(uniqueErr) ? uniqueErr[0] : uniqueErr;
+        const lc = String(msg).toLowerCase();
+        if (
+          lc.includes("unique id") ||
+          lc.includes("unique_id") ||
+          lc.includes("user with this unique id")
+        ) {
+          toast.error("شناسه منحصر به فرد قبلا استفاده شده است", {
+            id: toastId,
+          });
+        } else {
+          toast.error(formatErrorMessage(err), { id: toastId });
+        }
+      } else {
+        toast.error(formatErrorMessage(err), { id: toastId });
+      }
     } finally {
       setIsSaving(false);
     }
   };
+
+  // Determine if save button should be disabled
+  const allFieldsEmpty =
+    !formData.firstName &&
+    !formData.lastName &&
+    !formData.email &&
+    !formData.uniqueId;
+  const bothNamesEmpty = !formData.firstName && !formData.lastName;
+  const disableSave = allFieldsEmpty || bothNamesEmpty;
 
   return (
     <div
@@ -232,9 +277,11 @@ export default function Profile() {
                         : "bg-linear-to-br from-emerald-400 to-blue-500"
                     }`}
                   >
-                    <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
-                      {/* Avatar Image or Icon */}
-                      <UserIcon className="w-12 h-12 text-white/90 relative z-10" />
+                    <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden px-2 text-center">
+                      {/* Always show profile UserIcon (unique_id is displayed elsewhere) */}
+                      <div className="flex items-center justify-center">
+                        <UserIcon className="w-10 h-10 text-white/60" />
+                      </div>
                     </div>
                   </div>
 
@@ -261,7 +308,12 @@ export default function Profile() {
                     {user.name}
                   </h2>
                   <p className="text-gray-400 text-sm mb-1">{user.phone}</p>
-                  <p className="text-gray-400 text-sm mb-1">{user.email}</p>
+                  {user.uniqueId && user.uniqueId !== "شناسه ثبت نشده" && (
+                    <p className="text-gray-400 text-sm mb-1">
+                      {user.uniqueId}
+                    </p>
+                  )}
+
                   <p className="text-gray-400 text-sm">
                     عضو از {user.joinDate}
                   </p>
@@ -331,6 +383,36 @@ export default function Profile() {
                   </button>
                 ))}
               </div>
+
+              {/* Downloads History Card */}
+              <button
+                onClick={() => navigateTo("downloads-history")}
+                className="w-full mb-8 relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98]"
+              >
+                <div className="relative z-10 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors">
+                      <Icon
+                        d={ICONS.playlists}
+                        className="w-6 h-6 text-emerald-400"
+                      />
+                    </div>
+                    <div className="text-right">
+                      <h3 className="text-lg font-bold text-white leading-tight">
+                        تاریخچه دانلودها
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        مشاهده تمام آهنگ‌های دریافت شده
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
+                    <Icon d={ICONS.chevron} className="w-5 h-5" />
+                  </div>
+                </div>
+                {/* Decorative background glow */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
+              </button>
 
               {/* ---------------------------------------------------------- */}
               {/* User Plan Section */}
@@ -558,7 +640,13 @@ export default function Profile() {
                       <button
                         key={track.id}
                         onClick={() =>
-                          navigateTo("song-detail", { id: track.id })
+                          navigateTo("song-detail", {
+                            id: track.id,
+                            artistSlug:
+                              track.artist_unique_id ||
+                              createSlug(track.artist_name || "artist"),
+                            songSlug: createSlug(track.title),
+                          })
                         }
                         className="min-w-[260px] max-w-xs shrink-0 flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/7 hover:shadow-lg hover:scale-[1.01] transition-all duration-200 overflow-hidden"
                         aria-label={track.title}
@@ -743,10 +831,33 @@ export default function Profile() {
                     placeholder: "ایمیل خود را وارد کنید",
                     type: "email",
                   },
+                  {
+                    key: "uniqueId",
+                    label: "شناسه منحصر به فرد",
+                    placeholder: "شناسه منحصر به فرد خود را وارد کنید",
+                    info: true,
+                  },
                 ].map((field) => (
-                  <div key={field.key}>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                  <div key={field.key} className="relative">
+                    <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-1">
                       {field.label}
+                      {field.info && (
+                        <span className="relative group">
+                          <span
+                            tabIndex={0}
+                            className="ml-1 w-4 h-4 flex items-center justify-center rounded-full border border-emerald-400 bg-[#101c1a] text-emerald-400 text-xs font-bold cursor-pointer transition hover:bg-emerald-500 hover:text-white focus:bg-emerald-500 focus:text-white"
+                            aria-label="اطلاعات بیشتر"
+                          >
+                            i
+                          </span>
+                          <span
+                            className="absolute z-50 right-0 top-7 w-56 text-xs text-right bg-[#181f1c] text-white rounded-xl shadow-lg border border-emerald-400 px-4 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-200"
+                            style={{ fontFamily: "inherit" }}
+                          >
+                            برای پیدا کردن پروفایل شما در جستجو استفاده می‌شود
+                          </span>
+                        </span>
+                      )}
                     </label>
                     <input
                       type={field.type || "text"}
@@ -764,7 +875,7 @@ export default function Profile() {
               <div className="flex gap-3">
                 <button
                   onClick={handleSave}
-                  disabled={isSaving}
+                  disabled={isSaving || disableSave}
                   className="flex-1 py-3 bg-linear-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSaving && (

@@ -12,7 +12,9 @@ import React, {
 import { useNavigation } from "./NavigationContext";
 import { useAuth, UserFollowItem } from "./AuthContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { createSlug } from "./mockData";
 import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -77,18 +79,37 @@ const FollowerCard = memo(
     user: UserFollowItem;
     onFollow: (id: number) => void;
   }) => {
+    const { navigateTo } = useNavigation();
     const [isFollowing, setIsFollowing] = useState(user.is_following);
 
-    const handleFollow = useCallback(() => {
-      setIsFollowing(!isFollowing);
-      onFollow(user.id);
-    }, [isFollowing, user.id, onFollow]);
+    const handleFollow = useCallback(
+      (e?: React.MouseEvent) => {
+        // prevent outer click navigation when pressing follow button
+        if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+        setIsFollowing((prev) => !prev);
+        onFollow(user.id);
+      },
+      [user.id, onFollow],
+    );
 
     return (
       <motion.div
         layout="position"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
+        onClick={() => {
+          // navigate depending on item type
+          if (user.type === "artist") {
+            navigateTo("artist-detail", {
+              id: user.id.toString(),
+              slug: (user as any).unique_id || createSlug(user.name),
+            });
+          } else {
+            // use unique_id for fetching user details (fallback to numeric id)
+            const uid = (user as any).unique_id || user.id.toString();
+            navigateTo("user-detail", { id: uid });
+          }
+        }}
         className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] active:bg-white/[0.04] transition-colors"
       >
         <div className="relative shrink-0">
@@ -115,7 +136,7 @@ const FollowerCard = memo(
         </div>
 
         <button
-          onClick={handleFollow}
+          onClick={(e) => handleFollow(e)}
           className={cn(
             "px-4 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 shrink-0",
             isFollowing
@@ -161,7 +182,10 @@ const FollowingCard = memo(
         animate={{ opacity: 1, y: 0 }}
         onClick={() =>
           artist.type === "artist" &&
-          navigateTo("artist-detail", { id: artist.id.toString() })
+          navigateTo("artist-detail", {
+            id: artist.id.toString(),
+            slug: (artist as any).unique_id || createSlug(artist.name),
+          })
         }
         className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] active:bg-white/[0.04] transition-colors cursor-pointer"
       >
@@ -249,6 +273,106 @@ export default function FollowersFollowing({
     total: user?.following?.total || 0,
   });
 
+  // --- Follow / Unfollow Handler ---
+  const handleToggleFollow = useCallback(
+    async (id: number) => {
+      if (!accessToken) {
+        toast.error("ابتدا وارد شوید");
+        return;
+      }
+
+      // store previous follower snapshot to allow revert on failure
+      let prevFollower: UserFollowItem | undefined;
+
+      // optimistic update: toggle is_following and adjust followers_count if present
+      setFollowers((prev) => {
+        prevFollower = prev.find((u) => u.id === id);
+        return prev.map((u) =>
+          u.id === id
+            ? {
+                ...u,
+                is_following: !u.is_following,
+                followers_count: !u.is_following
+                  ? u.followers_count + 1
+                  : Math.max(0, u.followers_count - 1),
+              }
+            : u,
+        );
+      });
+
+      setFollowing((prev) =>
+        prev.map((u) =>
+          u.id === id ? { ...u, is_following: !u.is_following } : u,
+        ),
+      );
+
+      try {
+        const res = await fetch("https://api.sedabox.com/api/follow/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ user_id: id }),
+        });
+
+        if (!res.ok) throw new Error("Network response was not ok");
+
+        const data = await res.json();
+        const isNowFollowing = data.message === "followed";
+
+        // reconcile state with server response
+        setFollowers((prev) =>
+          prev.map((u) =>
+            u.id === id
+              ? {
+                  ...u,
+                  is_following: isNowFollowing,
+                  followers_count:
+                    (prevFollower
+                      ? prevFollower.followers_count
+                      : u.followers_count) + (isNowFollowing ? 1 : -1),
+                }
+              : u,
+          ),
+        );
+
+        setFollowing((prev) =>
+          prev.map((u) =>
+            u.id === id ? { ...u, is_following: isNowFollowing } : u,
+          ),
+        );
+
+        toast.success(isNowFollowing ? "دنبال شد" : "لغو دنبال کردن");
+      } catch (err) {
+        console.error("Follow toggle failed", err);
+        toast.error("خطا در عملیات");
+
+        // revert optimistic changes
+        if (prevFollower) {
+          setFollowers((prev) =>
+            prev.map((u) => (u.id === id ? prevFollower! : u)),
+          );
+          setFollowing((prev) =>
+            prev.map((u) =>
+              u.id === id
+                ? { ...u, is_following: prevFollower!.is_following }
+                : u,
+            ),
+          );
+        } else {
+          setFollowers((prev) =>
+            prev.map((u) => (u.id === id ? { ...u, is_following: false } : u)),
+          );
+          setFollowing((prev) =>
+            prev.map((u) => (u.id === id ? { ...u, is_following: false } : u)),
+          );
+        }
+      }
+    },
+    [accessToken],
+  );
+
   // Refs
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<HTMLDivElement>(null);
@@ -278,7 +402,7 @@ export default function FollowersFollowing({
     }, 120);
 
     return () => clearTimeout(t);
-  }, [initialTab, followers.length, following.length]);
+  }, [initialTab]);
 
   // --- Sync Data from Context ---
   useEffect(() => {
@@ -550,7 +674,7 @@ export default function FollowersFollowing({
                     <FollowerCard
                       key={`follower-${user.id}`}
                       user={user}
-                      onFollow={() => {}} // Connect to actual handler
+                      onFollow={() => handleToggleFollow(user.id)}
                     />
                   ))
                 : !isLoadingMore && <EmptyState type="followers" />}
@@ -577,7 +701,7 @@ export default function FollowersFollowing({
                     <FollowingCard
                       key={`following-${artist.id}`}
                       artist={artist}
-                      onUnfollow={() => {}} // Connect to actual handler
+                      onUnfollow={() => handleToggleFollow(artist.id)}
                     />
                   ))
                 : !isLoadingMore && <EmptyState type="following" />}

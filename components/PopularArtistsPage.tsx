@@ -5,6 +5,7 @@ import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { createSlug } from "./mockData";
 
 interface ApiArtist {
   id: number;
@@ -88,7 +89,12 @@ const PopularArtistsPage: React.FC = () => {
         {artists.map((artist) => (
           <div
             key={artist.id}
-            onClick={() => navigateTo("artist-detail", { id: artist.id })}
+            onClick={() =>
+              navigateTo("artist-detail", {
+                id: artist.id,
+                slug: (artist as any).unique_id || createSlug(artist.name),
+              })
+            }
             className="group cursor-pointer flex flex-col items-center text-center space-y-3"
           >
             <div className="relative w-full aspect-square overflow-hidden rounded-full shadow-2xl border-4 border-white/5 transition-transform duration-500 group-hover:scale-105 group-hover:border-emerald-500/50">

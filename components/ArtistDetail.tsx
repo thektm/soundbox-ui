@@ -16,14 +16,17 @@ import { MOCK_ARTISTS, MOCK_SONGS, Song, createSlug } from "./mockData";
 import { useNavigation } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
+import { ArtistOptionsDrawer } from "./ArtistOptionsDrawer";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
+import { getFullShareUrl } from "../utils/share";
 
 const FALLBACK_SRC = "https://cdn.sedabox.com/music.mp3";
 
 interface ApiArtist {
   id: number;
   name: string;
+  unique_id?: string;
   artistic_name: string;
   user_id: number | null;
   bio: string;
@@ -170,10 +173,6 @@ const useScrollY = (element?: HTMLElement | null) => {
   useEffect(() => {
     const target = element || window;
     const onScroll = () => {
-      console.log(
-        "onScroll called, scrollY:",
-        element ? element.scrollTop : window.scrollY,
-      );
       if (raf.current) return;
       raf.current = requestAnimationFrame(() => {
         setY(element ? element.scrollTop : window.scrollY);
@@ -422,7 +421,12 @@ const ArtistCard = memo(
     return (
       <div
         ref={ref}
-        onClick={() => navigateTo("artist-detail", { id: artist.id })}
+        onClick={() =>
+          navigateTo("artist-detail", {
+            id: artist.id,
+            slug: artist.unique_id || createSlug(artist.name),
+          })
+        }
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         className="text-center cursor-pointer transition-all duration-400"
@@ -527,7 +531,10 @@ const ArtistSkeleton = () => (
 export default function ArtistDetail({ id }: ArtistDetailProps) {
   const { goBack, currentParams, scrollContainer } = useNavigation();
   const { playTrack, setQueue } = usePlayer();
-  const artistId = id || currentParams?.id;
+  const { accessToken } = useAuth();
+
+  // Support navigation by numeric id OR by unique_id slug (from URL)
+  const artistIdOrSlug = id || currentParams?.id || currentParams?.slug;
 
   const scrollY = useScrollY(scrollContainer);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -541,9 +548,10 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
 
   const [selectedSong, setSelectedSong] = useState<ApiSong | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isArtistDrawerOpen, setIsArtistDrawerOpen] = useState(false);
 
   useEffect(() => {
-    if (!artistId) return;
+    if (!artistIdOrSlug) return;
 
     const fetchArtist = async () => {
       setLoading(true);
@@ -552,12 +560,39 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
         const res = await fetch(
-          `https://api.sedabox.com/api/artists/${artistId}/`,
+          `https://api.sedabox.com/api/artists/${artistIdOrSlug}/`,
           { headers },
         );
+
+        // Guard against HTML error pages (404, 500, etc.)
+        const contentType = res.headers.get("content-type") || "";
+        if (!res.ok || !contentType.includes("application/json")) {
+          throw new Error(`Unexpected response ${res.status}`);
+        }
+
         const json = await res.json();
         setData(json);
-        setFollowing(json.artist.is_following);
+        setFollowing(json.artist?.is_following ?? false);
+
+        // Update browser URL to canonical artist slug after data loads
+        if (typeof window !== "undefined" && json.artist) {
+          const artistSlug =
+            json.artist.unique_id ||
+            createSlug(json.artist.artistic_name || json.artist.name || "");
+          if (artistSlug) {
+            const targetPath = `/${artistSlug}`;
+            if (window.location.pathname !== targetPath) {
+              window.history.replaceState(
+                {
+                  page: "artist-detail",
+                  params: { id: json.artist.id, slug: artistSlug },
+                },
+                "",
+                targetPath,
+              );
+            }
+          }
+        }
       } catch (err) {
         console.error("Error fetching artist:", err);
         setFollowing(false);
@@ -567,21 +602,10 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     };
 
     fetchArtist();
-  }, [artistId]);
+  }, [artistIdOrSlug, accessToken]);
 
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
   const showHeader = scrollY > 50;
-
-  useEffect(() => {
-    console.log(
-      "scrollY:",
-      scrollY,
-      "showHeader:",
-      showHeader,
-      "headerOpacity:",
-      headerOpacity,
-    );
-  }, [scrollY, showHeader, headerOpacity]);
 
   const artist = data?.artist;
   const songs = data?.top_songs.items || [];
@@ -650,14 +674,13 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     setIsDrawerOpen(true);
   }, []);
 
-  const { accessToken } = useAuth();
-
   const handleFollow = useCallback(async () => {
     if (!accessToken) {
       toast.error("برای دنبال کردن ابتدا وارد شوید");
       return;
     }
-    if (!artistId) return;
+    const followId = data?.artist?.id || artistIdOrSlug;
+    if (!followId) return;
 
     setIsFollowLoading(true);
     try {
@@ -667,7 +690,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ artist_id: artistId }),
+        body: JSON.stringify({ artist_id: followId }),
       });
 
       if (!res.ok) throw new Error("Follow failed");
@@ -687,7 +710,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     } finally {
       setIsFollowLoading(false);
     }
-  }, [accessToken, artistId]);
+  }, [accessToken, artistIdOrSlug, data?.artist?.id]);
 
   const handleAction = async (action: string, song: any) => {
     console.log(`Action ${action} on song ${song.title}`);
@@ -750,13 +773,25 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
 
     if (action === "share") {
       try {
-        if (typeof navigator !== "undefined" && navigator.clipboard) {
-          await navigator.clipboard.writeText(window.location.href);
+        // If a specific song is provided, share the song
+        const isSong = song && (song.id || song.title);
+        const url = isSong
+          ? getFullShareUrl("song", song.id)
+          : getFullShareUrl("artist", artist!.id);
+
+        const title = isSong ? song.title : artist?.name;
+        const text = isSong
+          ? `گوش دادن به آهنگ ${song.title} از ${artist?.name} در سداباکس`
+          : `گوش دادن به آثار ${artist?.name} در سداباکس`;
+
+        if (typeof navigator !== "undefined" && navigator.share) {
+          await navigator.share({ title, text, url });
+        } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+          await navigator.clipboard.writeText(url);
           toast.success("لینک کپی شد");
         }
       } catch (err) {
         console.error("Share failed:", err);
-        toast.error("کپی لینک ناموفق بود");
       }
       return;
     }
@@ -814,6 +849,12 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
               <Icon name="play" size={18} />
               پخش
             </button>
+            <button
+              onClick={() => setIsArtistDrawerOpen(true)}
+              className="w-10 h-10 flex items-center justify-center text-white/70 rounded-full hover:text-white hover:bg-white/10 transition"
+            >
+              <Icon name="more" size={24} />
+            </button>
           </div>
         </header>
 
@@ -843,6 +884,12 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
             className="w-9 h-9 bg-green-500 rounded-full flex items-center justify-center text-black transition hover:scale-105 hover:bg-green-400 active:scale-95"
           >
             <Icon name="play" size={20} />
+          </button>
+          <button
+            onClick={() => setIsArtistDrawerOpen(true)}
+            className="w-10 h-10 flex items-center justify-center text-white/70 rounded-full hover:text-white active:bg-white/10 transition"
+          >
+            <Icon name="more" size={24} />
           </button>
         </header>
 
@@ -936,7 +983,10 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                 )}
               </button>
             )}
-            <button className="w-10 h-10 flex items-center justify-center text-white/70 rounded-full hover:text-white hover:bg-white/10 transition">
+            <button
+              onClick={() => setIsArtistDrawerOpen(true)}
+              className="w-10 h-10 flex items-center justify-center text-white/70 rounded-full hover:text-white hover:bg-white/10 transition"
+            >
               <Icon name="more" size={24} />
             </button>
           </div>
@@ -1100,6 +1150,14 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         onClose={() => setIsDrawerOpen(false)}
         song={selectedSong}
         onAction={handleAction}
+      />
+
+      <ArtistOptionsDrawer
+        isOpen={isArtistDrawerOpen}
+        onClose={() => setIsArtistDrawerOpen(false)}
+        artist={artist}
+        onFollowToggle={handleFollow}
+        onPlayArtist={playAll}
       />
 
       <style jsx global>{`
