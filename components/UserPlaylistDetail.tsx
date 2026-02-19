@@ -176,29 +176,6 @@ const Equalizer = () => (
   </div>
 );
 
-// ============== HOOK: scroll tracking ==============
-const useScrollY = (element?: HTMLElement | null) => {
-  const [y, setY] = useState(0);
-  const raf = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    const target = element || window;
-    const onScroll = () => {
-      if (raf.current) return;
-      raf.current = requestAnimationFrame(() => {
-        setY(element ? (element as HTMLElement).scrollTop : window.scrollY);
-        raf.current = undefined;
-      });
-    };
-    target.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      target.removeEventListener("scroll", onScroll);
-      raf.current && cancelAnimationFrame(raf.current);
-    };
-  }, [element]);
-  return y;
-};
-
 // ============== SONG ROW ==============
 
 const SongRow = memo(
@@ -285,7 +262,7 @@ interface UserPlaylistDetailProps {
 }
 
 const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({ id }) => {
-  const { goBack, scrollContainer } = useNavigation();
+  const { goBack, scrollY } = useNavigation();
   const { accessToken } = useAuth();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
@@ -297,7 +274,6 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({ id }) => {
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const scrollY = useScrollY(scrollContainer);
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
   const showHeader = scrollY > 50;
 

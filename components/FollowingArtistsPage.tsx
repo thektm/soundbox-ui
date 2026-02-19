@@ -34,7 +34,8 @@ interface PaginatedResponse<T> {
 
 const FollowingArtistsPage: React.FC = () => {
   const { accessToken } = useAuth();
-  const { navigateTo, goBack, registerScrollContainer } = useNavigation();
+  const { navigateTo, goBack, registerScrollContainer, restoreScroll } =
+    useNavigation();
   const [artists, setArtists] = useState<ApiArtist[]>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,8 +44,12 @@ const FollowingArtistsPage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    registerScrollContainer(containerRef.current);
-  }, [registerScrollContainer]);
+    if (containerRef.current) {
+      registerScrollContainer(containerRef.current);
+      restoreScroll();
+    }
+    return () => registerScrollContainer(null);
+  }, [registerScrollContainer, restoreScroll]);
 
   useEffect(() => {
     const fetchArtists = async () => {

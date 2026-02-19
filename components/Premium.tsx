@@ -1,5 +1,6 @@
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, useState } from "react";
 import { useNavigation } from "./NavigationContext";
+import toast from "react-hot-toast";
 
 const Premium: React.FC = () => {
   const { navigateTo } = useNavigation();
@@ -9,6 +10,9 @@ const Premium: React.FC = () => {
   const rafRef = useRef<number>(0);
   const lastScrollY = useRef<number>(0);
   const ticking = useRef<boolean>(false);
+  const [price, setPrice] = useState<number | null>(null);
+  const [priceLoading, setPriceLoading] = useState<boolean>(true);
+  const [priceError, setPriceError] = useState<string | null>(null);
 
   const applyTransforms = useCallback((scrollY: number) => {
     if (!headerRef.current) return;
@@ -37,6 +41,43 @@ const Premium: React.FC = () => {
     if (overlayRef.current) {
       overlayRef.current.style.opacity = `${overlayOpacity}`;
     }
+  }, []);
+
+  useEffect(() => {
+    // Fetch premium plan price
+    let mounted = true;
+    const controller = new AbortController();
+    const fetchPrice = async () => {
+      try {
+        setPriceLoading(true);
+        const res = await fetch(
+          "https://api.sedabox.com/api/plans/premium/price/",
+          {
+            signal: controller.signal,
+          },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (mounted && data && typeof data.price === "number") {
+          setPrice(data.price);
+        } else if (mounted) {
+          setPriceError("Invalid response");
+        }
+      } catch (err: any) {
+        if (err.name === "AbortError") return;
+        if (mounted) setPriceError(err.message || "Failed to fetch price");
+      } finally {
+        if (mounted) setPriceLoading(false);
+      }
+    };
+
+    fetchPrice();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+    // only run once on mount
   }, []);
 
   useEffect(() => {
@@ -115,7 +156,7 @@ const Premium: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           {/* Free Plan */}
           <div
-            className="bg-zinc-900/80 backdrop-blur-xl rounded-3xl p-8 border border-white/5 flex flex-col shadow-xl"
+            className="bg-zinc-900/90 rounded-3xl p-8 border border-white/5 flex flex-col shadow-xl"
             dir="rtl"
           >
             <div className="mb-6">
@@ -250,7 +291,7 @@ const Premium: React.FC = () => {
 
           {/* Premium Plan */}
           <div
-            className="relative bg-zinc-900/80 backdrop-blur-xl rounded-3xl p-8 border border-emerald-500/30 flex flex-col shadow-2xl scale-105 z-10 ring-1 ring-emerald-500/20"
+            className="relative bg-zinc-900/90  rounded-3xl p-8 border border-emerald-500/30 flex flex-col shadow-2xl scale-105 z-10 ring-1 ring-emerald-500/20"
             dir="rtl"
           >
             <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[10px] font-black px-4 py-1 rounded-full uppercase tracking-widest shadow-lg">
@@ -263,7 +304,19 @@ const Premium: React.FC = () => {
                   پلن پریمیوم
                 </h3>
                 <div className="inline-flex items-baseline gap-2 bg-gradient-to-r from-emerald-600 to-emerald-400 text-black font-extrabold px-3 py-1 rounded-full shadow-lg">
-                  <span className="text-xl md:text-2xl">۵۹٬۰۰۰</span>
+                  {priceLoading ? (
+                    <span className="text-xl md:text-2xl">...</span>
+                  ) : priceError ? (
+                    <span className="text-sm text-red-400">{priceError}</span>
+                  ) : (
+                    <span className="text-xl md:text-2xl">
+                      {price !== null
+                        ? new Intl.NumberFormat("fa-IR", {
+                            maximumFractionDigits: 0,
+                          }).format(price)
+                        : "—"}
+                    </span>
+                  )}
                   <span className="text-sm md:text-base font-semibold">
                     تومان
                   </span>
@@ -454,7 +507,10 @@ const Premium: React.FC = () => {
             </div>
 
             <button
-              onClick={() => navigateTo("upgrade-plans")}
+              onClick={() => {
+                // Show a hot toast informing that payment API is required (Farsi, no emoji)
+                toast.error("Payment Api key is needed");
+              }}
               className="w-full py-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-emerald-500/20"
             >
               ارتقا به این پلن

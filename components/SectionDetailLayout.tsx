@@ -76,11 +76,16 @@ const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
   isLoading,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { registerScrollContainer, goBack } = useNavigation();
+  const { registerScrollContainer, restoreScroll, goBack } = useNavigation();
 
   useEffect(() => {
-    registerScrollContainer(containerRef.current);
-  }, [registerScrollContainer]);
+    if (containerRef.current) {
+      registerScrollContainer(containerRef.current);
+      // Ensure we restore scroll position for this page/overlay
+      restoreScroll();
+    }
+    return () => registerScrollContainer(null);
+  }, [registerScrollContainer, restoreScroll]);
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current || !onLoadMore || !hasMore || isLoading) return;

@@ -210,28 +210,6 @@ const Spinner = ({ size = "w-5 h-5" }: { size?: string }) => (
   />
 );
 
-const useScrollY = (element?: HTMLElement | null) => {
-  const [y, setY] = useState(0);
-  const raf = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    const target: any = element || window;
-    const onScroll = () => {
-      if (raf.current) return;
-      raf.current = requestAnimationFrame(() => {
-        setY(element ? element.scrollTop : window.scrollY);
-        raf.current = undefined;
-      });
-    };
-    target.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      target.removeEventListener("scroll", onScroll);
-      raf.current && cancelAnimationFrame(raf.current);
-    };
-  }, [element]);
-  return y;
-};
-
 const useImageColor = (imageUrl: string): string => {
   const [color, setColor] = useState("18, 18, 18");
 
@@ -669,7 +647,7 @@ const Skeleton = ({ className }: { className?: string }) => (
 );
 
 export default function SongDetail({ id: propId }: { id?: string }) {
-  const { navigateTo, goBack, currentPage, currentParams, scrollContainer } =
+  const { navigateTo, goBack, currentPage, currentParams, scrollY } =
     useNavigation();
   const { currentTrack, isPlaying, playTrack, togglePlay, download } =
     usePlayer();
@@ -684,7 +662,6 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     return match ? decodeURIComponent(match[1]) : null;
   }, [propId, currentParams, currentPage]);
 
-  const scrollY = useScrollY(scrollContainer);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [song, setSong] = useState<Song | null>(null);
   const [fullSongData, setFullSongData] = useState<ApiSong | null>(null);
@@ -1058,82 +1035,44 @@ export default function SongDetail({ id: propId }: { id?: string }) {
       />
 
       {/* Desktop Header */}
-      <header className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={goBack}
-            className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
-          >
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </button>
-          <span className="text-lg font-bold text-white mr-4">
+      <header className="hidden md:flex sticky top-0 z-50 h-16 items-center px-6 bg-zinc-900/80 backdrop-blur-xl">
+        <button
+          onClick={goBack}
+          className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors shrink-0"
+        >
+          <Icon name="arrowLeft" size={24} />
+        </button>
+        <div className="flex-1 flex justify-center overflow-hidden px-4">
+          <h2 className="text-lg font-bold text-white truncate">
             {song.title}
-          </span>
+          </h2>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handlePlay}
-            className="px-6 py-2 bg-emerald-500 rounded-full flex items-center gap-2 text-black font-semibold hover:scale-105 hover:bg-emerald-400 transition-all"
-          >
-            <Icon name="play" size={18} />
-            پخش
-          </button>
-        </div>
+        <div className="w-10 shrink-0" />{" "}
+        {/* Spacer to balance the back button */}
       </header>
 
       {/* Mobile Sticky Header */}
       <header
         ref={headerRef}
-        className="md:hidden fixed flex-row-reverse top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
+        className="md:hidden fixed top-0 inset-x-0 h-16 bg-black/40 backdrop-blur-xl flex flex-row-reverse items-center px-4 z-50 transition-all duration-300"
         style={{
-          transform: showHeader ? "translateY(0)" : "translateY(-100%)",
-          opacity: showHeader ? 1 : 0,
+          transform: "translateY(0)",
+          opacity: 1,
         }}
       >
         <button
           onClick={goBack}
-          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition"
+          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition shrink-0"
         >
           <Icon name="arrowLeft" size={24} className="text-white" />
         </button>
-        <span
-          className="flex-1 px-4 text-base font-bold transition-opacity"
-          style={{ opacity: headerOpacity }}
-        >
-          {song.title}
-        </span>
-        <button
-          onClick={handlePlay}
-          className="w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center text-black transition hover:scale-105 hover:bg-emerald-400 active:scale-95"
-        >
-          <Icon name="play" size={20} />
-        </button>
+        <div className="flex-1 flex justify-center overflow-hidden px-4">
+          <span className="text-base font-bold text-white truncate">
+            {song.title}
+          </span>
+        </div>
+        <div className="w-10 shrink-0" />
       </header>
-
-      {/* Mobile Back (shown when header is hidden) */}
-      <button
-        onClick={goBack}
-        className="fixed top-4 left-4 w-10 h-10 bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
-        style={{
-          opacity: showHeader ? 0 : 1,
-          pointerEvents: showHeader ? "none" : "auto",
-        }}
-      >
-        <Icon name="arrowLeft" size={24} className="text-white" />
-      </button>
 
       <section className="relative pt-20 pb-8 px-6 md:px-12">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10">

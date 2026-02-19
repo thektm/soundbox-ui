@@ -169,27 +169,6 @@ const Equalizer = () => (
 );
 
 // ============== HOOK: scroll tracking (like ArtistDetail) ==============
-const useScrollY = (element?: HTMLElement | null) => {
-  const [y, setY] = useState(0);
-  const raf = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    const target = element || window;
-    const onScroll = () => {
-      if (raf.current) return;
-      raf.current = requestAnimationFrame(() => {
-        setY(element ? (element as HTMLElement).scrollTop : window.scrollY);
-        raf.current = undefined;
-      });
-    };
-    target.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      target.removeEventListener("scroll", onScroll);
-      raf.current && cancelAnimationFrame(raf.current);
-    };
-  }, [element]);
-  return y;
-};
 
 // ============== SONG ROW ==============
 
@@ -278,7 +257,7 @@ interface PlaylistDetailProps {
 }
 
 const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
-  const { goBack, scrollContainer } = useNavigation();
+  const { goBack, scrollY } = useNavigation();
   const { accessToken } = useAuth();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
@@ -290,7 +269,6 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const scrollY = useScrollY(scrollContainer);
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
   const showHeader = scrollY > 50;
 
@@ -630,12 +608,12 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
         </div>
       </header>
 
-      <div className="sticky top-0 z-30 bg-linear-to-b from-neutral-950/95 to-neutral-950 px-6 md:px-12 py-6 border-b border-white/10">
+      <div className="sticky top-0 z-30 bg-linear-to-b from-neutral-950/95 to-neutral-950 px-6 md:px-12 py-4 border-b border-white/10">
         <div className="flex items-center gap-6">
           <button
             type="button"
             onClick={handlePlayAll}
-            className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-400 hover:scale-110 flex items-center justify-center shadow-2xl transition-all duration-300"
+            className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-400 hover:scale-110 flex items-center justify-center shadow-2xl transition-all duration-300"
           >
             <Icon name="play" className="w-7 h-7 text-black ml-1" />
           </button>

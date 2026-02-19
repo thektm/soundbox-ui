@@ -407,7 +407,7 @@ export default function Profile() {
                     </div>
                   </div>
                   <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
-                    <Icon d={ICONS.chevron} className="w-5 h-5" />
+                    <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
                   </div>
                 </div>
                 {/* Decorative background glow */}
@@ -543,7 +543,7 @@ export default function Profile() {
                       {/* RIGHT SIDE: UPGRADE PROMO (PREMIUM) */}
                       <div
                         className="relative flex-1 p-6 overflow-hidden group cursor-pointer"
-                        onClick={() => navigateTo("upgrade-plans")}
+                        onClick={() => navigateTo("premium")}
                       >
                         {/* Gradient Background */}
                         <div className="absolute inset-0 bg-linear-to-br from-emerald-900/25 to-[#020202] group-hover:from-emerald-800/25 transition-all duration-500"></div>
@@ -584,7 +584,7 @@ export default function Profile() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigateTo("upgrade-plans");
+                              navigateTo("premium");
                             }}
                             className="w-full py-2.5 relative overflow-hidden rounded-xl group/btn"
                           >

@@ -16,6 +16,8 @@ import {
 import Image from "next/image";
 import { useAuth } from "./AuthContext";
 import { usePlayer } from "./PlayerContext";
+import { useNavigation } from "./NavigationContext";
+import { createSlug } from "./home";
 import { toast } from "react-hot-toast";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
 import { ReportModal } from "./ReportModal";
@@ -42,8 +44,13 @@ export const SongOptionsDrawer = ({
 }: SongOptionsDrawerProps) => {
   if (!song) return null;
 
-  const { accessToken } = useAuth();
-  const { download } = usePlayer();
+  const { accessToken, user } = useAuth();
+  const { download, playTrack, queue, setQueue, isVisible, currentIndex } =
+    usePlayer();
+
+  const isPremium =
+    !!user?.plan && String(user.plan).toLowerCase().includes("premium");
+  const { navigateTo } = useNavigation();
   const [processing, setProcessing] = useState<string | null>(null);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -115,6 +122,49 @@ export const SongOptionsDrawer = ({
         return;
       }
 
+      if (actionId === "add-to-queue") {
+        // Build a Track-like object expected by PlayerContext
+        const trackToAdd = {
+          id: String(song.id),
+          title: song.title,
+          artist: song.artist_name || "Unknown Artist",
+          image: song.cover_image || "",
+          duration: (song as any).duration || "0:00",
+          src:
+            (song as any).src ||
+            (song as any).stream_url ||
+            (song as any).audio_file ||
+            `https://api.sedabox.com/api/songs/${song.id}/stream/`,
+        };
+
+        try {
+          // If player is completely closed/hidden, start playing the song immediately
+          if (!isVisible) {
+            playTrack(trackToAdd as any);
+            try {
+              toast.success("در حال پخش");
+            } catch (e) {}
+          } else {
+            // Append to end of existing queue and preserve currentIndex so playback doesn't jump
+            try {
+              const newQueue = [...queue, trackToAdd as any];
+              setQueue(newQueue, currentIndex);
+              try {
+                toast.success("به انتهای صف اضافه شد");
+              } catch (e) {}
+            } catch (e) {
+              console.error("Failed to append to queue:", e);
+            }
+          }
+        } catch (err) {
+          console.error("Add to queue failed:", err);
+        } finally {
+          onClose();
+        }
+
+        return;
+      }
+
       if (actionId === "report") {
         setIsReportModalOpen(true);
         onClose();
@@ -135,6 +185,45 @@ export const SongOptionsDrawer = ({
           duration: "0:00",
           src: url,
         });
+        onClose();
+        return;
+      }
+
+      if (actionId === "details") {
+        console.log("SongOptionsDrawer: details clicked", {
+          id: song.id,
+          title: song.title,
+          artist: song.artist_name,
+        });
+        try {
+          const artistSlug = song.artist_name
+            ? createSlug(song.artist_name)
+            : undefined;
+          const songSlug = song.title ? createSlug(song.title) : undefined;
+          console.log("SongOptionsDrawer: navigating via navigateTo", {
+            artistSlug,
+            songSlug,
+          });
+          navigateTo("song-detail", { id: song.id, artistSlug, songSlug });
+        } catch (err) {
+          console.error("SongOptionsDrawer: navigateTo failed", err);
+          // fallback: push state and dispatch popstate so NavigationContext picks it up
+          try {
+            if (typeof window !== "undefined") {
+              const state = { page: "song-detail", params: { id: song.id } };
+              const path = `/track/${song.id}`;
+              console.log("SongOptionsDrawer: fallback pushState", {
+                state,
+                path,
+              });
+              window.history.pushState(state, "", path);
+              window.dispatchEvent(new PopStateEvent("popstate", { state }));
+            }
+          } catch (e) {
+            console.error("SongOptionsDrawer: Navigation fallback failed:", e);
+          }
+        }
+
         onClose();
         return;
       }
@@ -276,7 +365,15 @@ export const SongOptionsDrawer = ({
         onClose();
       }
     },
-    [onAction, song, accessToken, processing, onClose, setLocalIsLiked],
+    [
+      onAction,
+      song,
+      accessToken,
+      processing,
+      onClose,
+      setLocalIsLiked,
+      navigateTo,
+    ],
   );
 
   const options = [
@@ -291,6 +388,7 @@ export const SongOptionsDrawer = ({
       label: "دانلود آهنگ",
       icon: <Download className="w-5 h-5" />,
       onClick: () => handleActionClick("download"),
+      disabled: !isPremium,
     },
     {
       id: "toggle-like",
@@ -363,25 +461,47 @@ export const SongOptionsDrawer = ({
 
             {/* Options List */}
             <div className="flex-1 overflow-y-auto px-2 py-2 mb-safe">
-              {options.map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => handleActionClick(option.id)}
-                  disabled={!!processing}
-                  className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl hover:bg-white/5 active:bg-white/10 transition-colors group text-right disabled:opacity-60"
-                >
-                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-white/10 group-hover:text-white transition-all">
-                    {processing === option.id ? (
-                      <div className="w-4 h-4 border-2 border-neutral-800 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      option.icon
+              {options.map((option) => {
+                const optionDisabled =
+                  !!processing || !!(option as any).disabled;
+                return (
+                  <button
+                    key={option.id}
+                    onClick={
+                      optionDisabled
+                        ? undefined
+                        : () => handleActionClick(option.id)
+                    }
+                    disabled={optionDisabled}
+                    className={`relative w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors group text-right ${
+                      optionDisabled
+                        ? "opacity-60 cursor-not-allowed"
+                        : "hover:bg-white/5 active:bg-white/10"
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-white/10 group-hover:text-white transition-all">
+                      {processing === option.id ? (
+                        <div className="w-4 h-4 border-2 border-neutral-800 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        option.icon
+                      )}
+                    </div>
+
+                    <span
+                      className={`flex-1 text-[16px] font-medium ${optionDisabled ? "text-white/60" : "text-white/90 group-hover:text-white"}`}
+                    >
+                      {option.label}
+                    </span>
+
+                    {/* Premium badge placed far left inside the button */}
+                    {option.id === "download" && (option as any).disabled && (
+                      <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
+                        پریمیوم
+                      </span>
                     )}
-                  </div>
-                  <span className="text-[16px] font-medium text-white/90 group-hover:text-white">
-                    {option.label}
-                  </span>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </Drawer.Content>
         </Drawer.Portal>

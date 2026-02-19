@@ -268,6 +268,15 @@ export default function Home() {
     useNavigation();
   const { setQueue } = usePlayer();
 
+  const isPremium = Boolean(
+    user &&
+    (user.is_premium ||
+      user.isPremium ||
+      user.subscription?.is_active ||
+      user.is_premium === "true" ||
+      user.is_premium === 1),
+  );
+
   const [homeData, setHomeData] = useState<HomeSummaryResponse | null>(
     (homeCache as HomeSummaryResponse) ?? null,
   );
@@ -1493,12 +1502,14 @@ export default function Home() {
               getTimeAgo={getTimeAgo}
               isMobile={true}
             />
-            <button
-              onClick={() => navigateTo("profile")}
-              className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold shadow-md hover:brightness-95 transition-transform transform hover:scale-105"
-            >
-              ارتقا پلن +
-            </button>
+            {!isPremium && (
+              <button
+                onClick={() => navigateTo("premium")}
+                className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold shadow-md hover:brightness-95 transition-transform transform hover:scale-105"
+              >
+                ارتقا پلن +
+              </button>
+            )}
           </div>
         </div>
 
@@ -1603,12 +1614,14 @@ export default function Home() {
 
           {/* Right side controls */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigateTo("premium")}
-              className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold text-sm hover:text-emerald-400 transition-colors"
-            >
-              ارتقا پلن +
-            </button>
+            {!isPremium && (
+              <button
+                onClick={() => navigateTo("premium")}
+                className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold text-sm hover:text-emerald-400 transition-colors"
+              >
+                ارتقا پلن +
+              </button>
+            )}
             <NotificationPopover
               notifications={notifications}
               setNotifications={setNotifications}

@@ -86,6 +86,10 @@ export interface User {
   recently_played: UserRecentlyPlayed;
   notification_setting: UserNotificationSetting;
   plan: string;
+  // Optional fields used by various API versions to indicate premium status
+  is_premium?: boolean | string | number;
+  isPremium?: boolean;
+  subscription?: { is_active?: boolean } | null;
   stream_quality: string;
   followers: UserFollows;
   following: UserFollows;

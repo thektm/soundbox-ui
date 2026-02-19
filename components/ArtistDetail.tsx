@@ -166,27 +166,6 @@ const Icon = memo(
 Icon.displayName = "Icon";
 
 // ============== HOOKS ==============
-const useScrollY = (element?: HTMLElement | null) => {
-  const [y, setY] = useState(0);
-  const raf = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    const target = element || window;
-    const onScroll = () => {
-      if (raf.current) return;
-      raf.current = requestAnimationFrame(() => {
-        setY(element ? element.scrollTop : window.scrollY);
-        raf.current = undefined;
-      });
-    };
-    target.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      target.removeEventListener("scroll", onScroll);
-      raf.current && cancelAnimationFrame(raf.current);
-    };
-  }, [element]);
-  return y;
-};
 
 const useVisible = (margin = "50px") => {
   const [visible, setVisible] = useState(false);
@@ -529,14 +508,12 @@ const ArtistSkeleton = () => (
 );
 
 export default function ArtistDetail({ id }: ArtistDetailProps) {
-  const { goBack, currentParams, scrollContainer } = useNavigation();
+  const { goBack, currentParams, scrollY } = useNavigation();
   const { playTrack, setQueue } = usePlayer();
   const { accessToken } = useAuth();
 
   // Support navigation by numeric id OR by unique_id slug (from URL)
   const artistIdOrSlug = id || currentParams?.id || currentParams?.slug;
-
-  const scrollY = useScrollY(scrollContainer);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const headerRef = React.useRef<HTMLElement | null>(null);
   const [data, setData] = useState<ArtistResponse | null>(null);

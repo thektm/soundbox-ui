@@ -29,6 +29,12 @@ interface NavigationContextType {
   isResolving: boolean;
   setIsResolving: (v: boolean) => void;
   scrollContainer: HTMLElement | null;
+  /**
+   * Current Y scroll position of the registered scroll container (or window
+   * when no container is registered). This is kept centrally so all pages
+   * read the same value and subscription timing issues are avoided.
+   */
+  scrollY: number;
 }
 
 // ─── URL ↔ Page mapping ────────────────────────────────────────────────────
@@ -133,6 +139,14 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
 
   const scrollPositions = useRef<Record<string, number>>({});
   const scrollContainerRef = useRef<HTMLElement | null>(null);
+  const containerStack = useRef<HTMLElement[]>([]);
+  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(
+    null,
+  );
+
+  // Centralized scrollY so all pages/components can read the same value and
+  // won't miss updates due to timing/order-of-mount issues.
+  const [scrollY, setScrollY] = useState<number>(0);
   // Stable ref to always-current navigateTo – used inside the popstate handler
   // so the effect can be registered only once (empty dep array).
   const navigateToRef = useRef<
@@ -163,7 +177,30 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   );
 
   const registerScrollContainer = useCallback((element: HTMLElement | null) => {
-    scrollContainerRef.current = element;
+    if (element) {
+      if (!containerStack.current.includes(element)) {
+        containerStack.current.push(element);
+      }
+    } else {
+      containerStack.current.pop();
+    }
+
+    const active =
+      containerStack.current[containerStack.current.length - 1] || null;
+
+    if (scrollContainerRef.current === active) return;
+
+    scrollContainerRef.current = active;
+    setScrollContainer(active);
+
+    // Initialize scrollY immediately so consumers get correct value as soon
+    // as a container is registered (avoids a brief "no-scroll" state).
+    try {
+      if (active) setScrollY(active.scrollTop);
+      else if (typeof window !== "undefined") setScrollY(window.scrollY || 0);
+    } catch (err) {
+      /* ignore */
+    }
   }, []);
 
   const navigateTo = useCallback(
@@ -193,22 +230,80 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   // never becomes stale without needing to be re-registered.
   navigateToRef.current = navigateTo;
 
-  const restoreScroll = useCallback(() => {
-    if (scrollContainerRef.current) {
-      const key = getScrollKey(currentPage, currentParams);
-      const savedPosition = scrollPositions.current[key] || 0;
-      scrollContainerRef.current.scrollTop = savedPosition;
-      requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = savedPosition;
+  // Keep a single scroll listener attached to the currently-registered
+  // scroll container (or `window` as a fallback). This guarantees that
+  // `scrollY` in context always reflects the element that's actually
+  // scrolling, and rebinding happens automatically when `registerScrollContainer`
+  // is called.
+  useEffect(() => {
+    let rafId: number | null = null;
+    const target: any =
+      scrollContainerRef.current ||
+      (typeof window !== "undefined" ? window : null);
+    if (!target) return;
+
+    const onScroll = () => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        try {
+          const y = scrollContainerRef.current
+            ? scrollContainerRef.current.scrollTop
+            : typeof window !== "undefined"
+              ? window.scrollY
+              : 0;
+          setScrollY(y);
+        } catch (err) {
+          // ignore
+        } finally {
+          rafId = null;
         }
       });
+    };
+
+    // attach
+    target.addEventListener("scroll", onScroll, { passive: true });
+
+    // seed initial value
+    onScroll();
+
+    return () => {
+      target.removeEventListener("scroll", onScroll);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [scrollContainer]);
+
+  const restoreScroll = useCallback(() => {
+    const key = getScrollKey(currentPage, currentParams);
+    const savedPosition = scrollPositions.current[key] || 0;
+
+    // Immediately update scrollY context state so pages waiting for it
+    // (like sticky headers) don't flicker or wait for a scroll event.
+    setScrollY(savedPosition);
+
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = savedPosition;
+
+      // Robust multi-stage restoration for cases where content is still reflowing
+      // especially for lazy-loading pages like New Discoveries
+      const frames = [1, 2, 4, 8, 16];
+      frames.forEach((f) => {
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = savedPosition;
+          }
+        }, f * 16.6); // roughly every few frames
+      });
+    } else if (typeof window !== "undefined") {
+      window.scrollTo(0, savedPosition);
     }
   }, [currentPage, currentParams, getScrollKey]);
 
   const scrollToTop = useCallback(() => {
+    setScrollY(0);
     if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = 0;
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    } else if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, []);
 
@@ -277,7 +372,8 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
         setHomeCache,
         isResolving,
         setIsResolving,
-        scrollContainer: scrollContainerRef.current,
+        scrollContainer,
+        scrollY,
       }}
     >
       {children}
@@ -285,6 +381,11 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   );
 };
 
+// useNavigation: access navigation helpers + the centralized `scrollY`.
+// - Prefer `scrollY` from this context instead of local scroll listeners so
+//   components always read the position of the registered app scroll
+//   container (or `window` as fallback). To change which element is watched
+//   call `registerScrollContainer(element)` from your layout/component.
 export const useNavigation = () => {
   const context = useContext(NavigationContext);
   if (!context) {

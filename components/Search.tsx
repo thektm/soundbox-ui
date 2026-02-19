@@ -1396,7 +1396,7 @@ export default function Search() {
       </header>
 
       {/* Filters - Shown on both but styled differently */}
-      {debouncedQuery.trim() && hasResults && (
+      {debouncedQuery.trim() && (
         <div className="sticky top-16 md:top-16 z-40 bg-zinc-900/80 backdrop-blur-md px-4 md:px-6 py-3 border-b border-white/5">
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {[
