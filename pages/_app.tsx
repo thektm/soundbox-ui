@@ -1,7 +1,7 @@
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import dynamic from "next/dynamic";
-import AppRouter from "../components/AppRouter";
+import { AppRouter } from "@/components/AppRouter";
 import ResponsiveAppShell from "../components/ResponsiveAppShell";
 import { Toaster } from "react-hot-toast";
 
