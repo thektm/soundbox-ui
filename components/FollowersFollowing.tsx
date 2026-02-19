@@ -113,7 +113,7 @@ const FollowerCard = memo(
         className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] active:bg-white/[0.04] transition-colors"
       >
         <div className="relative shrink-0">
-          <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800/50 ring-2 ring-white/[0.06]">
+          <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800/50">
             <ImageWithPlaceholder
               src={user.image}
               alt={user.name}
@@ -180,24 +180,21 @@ const FollowingCard = memo(
         layout="position"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        onClick={() =>
-          artist.type === "artist" &&
-          navigateTo("artist-detail", {
-            id: artist.id.toString(),
-            slug: (artist as any).unique_id || createSlug(artist.name),
-          })
-        }
+        onClick={() => {
+          if (artist.type === "artist") {
+            navigateTo("artist-detail", {
+              id: artist.id.toString(),
+              slug: (artist as any).unique_id || createSlug(artist.name),
+            });
+          } else {
+            const uid = (artist as any).unique_id || artist.id.toString();
+            navigateTo("user-detail", { id: uid });
+          }
+        }}
         className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] active:bg-white/[0.04] transition-colors cursor-pointer"
       >
         <div className="relative shrink-0">
-          <div
-            className={cn(
-              "w-12 h-12 rounded-full overflow-hidden bg-zinc-800/50 p-[2px]",
-              artist.is_verified
-                ? "bg-gradient-to-br from-emerald-400 to-cyan-500"
-                : "ring-2 ring-white/[0.06]",
-            )}
-          >
+          <div className="w-12 h-12 rounded-full overflow-hidden bg-zinc-800/50">
             <ImageWithPlaceholder
               src={artist.image}
               alt={artist.name}
@@ -205,11 +202,6 @@ const FollowingCard = memo(
               type={artist.type === "artist" ? "artist" : "song"}
             />
           </div>
-          {artist.is_verified && (
-            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center ring-2 ring-[#030303]">
-              <Icon d={ICONS.verified} className="w-2.5 h-2.5 text-white" />
-            </div>
-          )}
         </div>
 
         <div className="flex-1 min-w-0" dir="rtl">
@@ -251,8 +243,6 @@ export default function FollowersFollowing({
 
   // State
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Data State
@@ -545,19 +535,9 @@ export default function FollowersFollowing({
   }, [activeTab, followersMeta.hasNext, followingMeta.hasNext, isLoadingMore]);
 
   // --- Derived State ---
-  const filteredFollowers = useMemo(() => {
-    if (!searchQuery) return followers;
-    return followers.filter((u) =>
-      u.name.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [searchQuery, followers]);
+  const filteredFollowers = followers;
 
-  const filteredFollowing = useMemo(() => {
-    if (!searchQuery) return following;
-    return following.filter((a) =>
-      a.name.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [searchQuery, following]);
+  const filteredFollowing = following;
 
   return (
     <div
@@ -578,44 +558,8 @@ export default function FollowersFollowing({
               </div>
             </button>
           </div>
-          <button
-            onClick={() => {
-              setShowSearch(!showSearch);
-              if (!showSearch) setSearchQuery("");
-            }}
-            className="w-10 h-10 rounded-full hover:bg-white/[0.04] flex items-center justify-center transition-colors"
-          >
-            <Icon
-              d={showSearch ? ICONS.close : ICONS.search}
-              className="w-5 h-5 text-gray-400"
-            />
-          </button>
+          <div className="w-10 h-10" />
         </div>
-
-        {/* Animated Search Bar */}
-        <motion.div
-          initial={false}
-          animate={{
-            height: showSearch ? "auto" : 0,
-            opacity: showSearch ? 1 : 0,
-          }}
-          className="overflow-hidden px-4"
-        >
-          <div className="pb-3 pt-1 relative">
-            <Icon
-              d={ICONS.search}
-              className="absolute right-3 top-1/2 -translate-y-[calc(50%+6px)] w-4 h-4 text-gray-500"
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="جستجو در لیست..."
-              className="w-full pl-4 pr-10 py-2 bg-white/[0.06] rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:bg-white/[0.1] transition-colors"
-              autoFocus={showSearch}
-            />
-          </div>
-        </motion.div>
 
         {/* Tabs */}
         <div className="flex relative px-2">

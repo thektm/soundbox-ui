@@ -293,7 +293,7 @@ export default function Profile() {
                         : "bg-white/10 border-white/20 text-gray-300"
                     }`}
                   >
-                    {isPremium ? "VIP" : "FREE"}
+                    {isPremium ? "Premium" : "FREE"}
                   </div>
 
                   <button

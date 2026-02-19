@@ -1458,8 +1458,11 @@ CollapsedPlayer.displayName = "CollapsedPlayer";
 // ============================================================================
 // DESKTOP EXPANDED PLAYER - REDESIGNED
 // ============================================================================
-const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
-  ({ onCollapse }) => {
+const DesktopExpandedPlayer = memo<{
+  onCollapse: () => void;
+  userPlan?: string | null;
+}>(
+  ({ onCollapse, userPlan }) => {
     const { navigateTo } = useNavigation();
     const {
       currentTrack,
@@ -1487,6 +1490,8 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
       isAdPlaying,
       currentAd,
     } = usePlayer();
+
+    const isPremium = !!userPlan && String(userPlan).toLowerCase().includes("premium");
 
     const [activeTab, setActiveTab] = useState<"queue" | "lyrics" | "related">(
       "queue",
@@ -1727,11 +1732,22 @@ const DesktopExpandedPlayer = memo<{ onCollapse: () => void }>(
                         </span>
                       </button>
                       <button
-                        onClick={() => download(currentTrack!)}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all"
+                        onClick={() => isPremium && download(currentTrack!)}
+                        disabled={!isPremium}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-full transition-all relative ${
+                          !isPremium
+                            ? "opacity-60 cursor-not-allowed bg-white/3 text-white/60"
+                            : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                        }`}
                       >
                         <Icon.Download c="w-5 h-5" />
-                        <span className="text-sm font-medium">Download</span>
+                        <span className="text-sm font-medium">دانلود آهنگ</span>
+
+                        {!isPremium && (
+                          <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
+                            پریمیوم
+                          </span>
+                        )}
                       </button>
                     </div>
                   )}
@@ -1986,6 +2002,7 @@ const MobileExpandedPlayer = memo<{
   if (!displayTrack) return null;
 
   const isFree = userPlan === "free";
+  const isPremium = !!userPlan && String(userPlan).toLowerCase().includes("premium");
 
   return (
     <motion.div
@@ -2265,14 +2282,24 @@ const MobileExpandedPlayer = memo<{
                 </button>
                 <button
                   onClick={() => {
+                    if (!isPremium) return;
                     setIsMenuOpen(false);
                     if (currentTrack) download(currentTrack);
                   }}
-                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                  disabled={!isPremium}
+                  className={`w-full px-4 py-3 text-right text-white transition-colors flex items-center gap-3 relative ${
+                    !isPremium ? "opacity-60 cursor-not-allowed" : "hover:bg-white/10"
+                  }`}
                   dir="rtl"
                 >
                   <Icon.Download c="w-5 h-5" />
                   دانلود آهنگ
+
+                  {!isPremium && (
+                    <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
+                      پریمیوم
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => {
@@ -2357,7 +2384,7 @@ const ExpandedPlayer = memo<{
   }, []);
 
   if (isDesktop) {
-    return <DesktopExpandedPlayer onCollapse={onCollapse} />;
+    return <DesktopExpandedPlayer onCollapse={onCollapse} userPlan={userPlan} />;
   }
 
   return (

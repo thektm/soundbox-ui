@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import Image from "next/image";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
+import PlaylistOptionsDrawer from "./PlaylistOptionsDrawer";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { usePlayer, Track } from "./PlayerContext";
@@ -268,6 +269,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
 
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isPlaylistDrawerOpen, setIsPlaylistDrawerOpen] = useState(false);
 
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
   const showHeader = scrollY > 50;
@@ -644,6 +646,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
           <button
             type="button"
             className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200"
+            onClick={() => setIsPlaylistDrawerOpen(true)}
           >
             <Icon name="more" className="w-7 h-7" />
           </button>
@@ -669,6 +672,17 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
         onClose={() => setIsDrawerOpen(false)}
         song={selectedSong}
         onAction={handleAction}
+      />
+
+      <PlaylistOptionsDrawer
+        isOpen={isPlaylistDrawerOpen}
+        onClose={() => setIsPlaylistDrawerOpen(false)}
+        playlist={playlist}
+        onAction={(action) => {
+          if (action === "toggle-like") return handleToggleLike();
+          if (action === "share") return handleShare();
+          return undefined;
+        }}
       />
 
       <style jsx global>{`

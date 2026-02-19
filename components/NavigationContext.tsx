@@ -38,7 +38,34 @@ interface NavigationContextType {
 }
 
 // ─── URL ↔ Page mapping ────────────────────────────────────────────────────
-const ROUTED_PAGES = ["home", "search", "library", "premium", "profile"];
+const ROUTED_PAGES = [
+  "home",
+  "search",
+  "library",
+  "premium",
+  "profile",
+  "login",
+  "register",
+  "verify",
+  "forgot-password",
+  "playlists",
+  "downloads-history",
+  "settings",
+  "upgrade-plans",
+  "payment-processing",
+  "payment-success",
+  "popular-artists",
+  "latest-releases",
+  "popular-albums",
+  "new-discoveries",
+  "my-playlists",
+  "liked-songs",
+  "liked-albums",
+  "liked-playlists",
+  "followers-following",
+  "followed-artists",
+  "chart-detail",
+];
 
 function parsePathname(pathname: string): { page: string; params: any } {
   const parts = pathname
@@ -47,8 +74,40 @@ function parsePathname(pathname: string): { page: string; params: any } {
     .filter(Boolean);
   const first = parts[0] || "home";
 
-  if (ROUTED_PAGES.includes(first)) return { page: first, params: null };
+  // simple routed pages
+  if (ROUTED_PAGES.includes(first)) {
+    // map some simple literal paths to pages
+    switch (first) {
+      case "home":
+        return { page: "home", params: null };
+      case "liked-songs":
+      case "liked-albums":
+      case "liked-playlists":
+      case "my-playlists":
+      case "playlists":
+      case "downloads-history":
+      case "settings":
+      case "upgrade-plans":
+      case "payment-processing":
+      case "payment-success":
+      case "popular-artists":
+      case "latest-releases":
+      case "popular-albums":
+      case "new-discoveries":
+      case "followed-artists":
+      case "profile":
+      case "library":
+      case "premium":
+      case "search":
+      case "login":
+      case "register":
+      case "verify":
+      case "forgot-password":
+        return { page: first, params: null };
+    }
+  }
 
+  // short share URLs: /s/<code>
   if (first === "s" && parts[1]) {
     const decoded = decodeShare(parts[1]);
     if (decoded) {
@@ -68,14 +127,67 @@ function parsePathname(pathname: string): { page: string; params: any } {
     }
   }
 
+  // artist by explicit path: /artist/:id
   if (first === "artist" && parts[1]) {
     return { page: "artist-detail", params: { id: parts[1] } };
   }
 
+  // track explicit: /track/:id
   if (first === "track" && parts[1]) {
     return { page: "song-detail", params: { id: parts[1] } };
   }
 
+  // playlist explicit: /playlist/:id or /playlist/:slug
+  if (first === "playlist" && parts[1]) {
+    return {
+      page: "playlist-detail",
+      params: { id: parts[1], slug: parts[2] || null },
+    };
+  }
+
+  // user playlist explicit: /user-playlist/:id
+  if (first === "user-playlist" && parts[1]) {
+    return { page: "user-playlist-detail", params: { id: parts[1] } };
+  }
+
+  // album explicit: /album/:id or /album/:slug
+  if (first === "album" && parts[1]) {
+    return { page: "album-detail", params: { id: parts[1] } };
+  }
+
+  // user details: /user/:id
+  if (first === "user" && parts[1]) {
+    return { page: "user-detail", params: { id: parts[1] } };
+  }
+
+  // followers/following page: /followers-following?tab=followers or /followers-following/following
+  if (first === "followers-following") {
+    return {
+      page: "followers-following",
+      params: { tab: parts[1] || "followers" },
+    };
+  }
+
+  // liked shortcuts: /liked/songs, /liked/albums, /liked/playlists
+  if (first === "liked" && parts[1]) {
+    const key = `liked-${parts[1]}`;
+    if (["songs", "albums", "playlists"].includes(parts[1])) {
+      return { page: key, params: null };
+    }
+  }
+
+  // chart detail: /chart/:type/:title?
+  if (first === "chart" && parts[1]) {
+    return {
+      page: "chart-detail",
+      params: {
+        type: parts[1],
+        title: parts[2] ? decodeURIComponent(parts[2]) : undefined,
+      },
+    };
+  }
+
+  // two-part slugs interpreted as artist/song pair -> /:artistSlug/:songSlug
   if (parts.length === 2) {
     return {
       page: "song-detail",
@@ -86,6 +198,7 @@ function parsePathname(pathname: string): { page: string; params: any } {
     };
   }
 
+  // fallback: treat first as an artist slug
   if (first) {
     return {
       page: "artist-detail",
@@ -97,19 +210,66 @@ function parsePathname(pathname: string): { page: string; params: any } {
 }
 
 function pageToPathname(page: string, params?: any): string | null {
-  if (ROUTED_PAGES.includes(page)) return `/${page}`;
+  // simple pages with direct path
+  if (ROUTED_PAGES.includes(page)) {
+    // ensure we map chart-detail separately
+    if (page === "chart-detail") return "/chart";
+    return `/${page}`;
+  }
+
+  // auth pages (aliases if ever used as page keys)
+  if (page === "login") return "/login";
+  if (page === "register") return "/register";
+  if (page === "verify") return "/verify";
+  if (page === "forgot-password") return "/forgot-password";
+
   if (page === "artist-detail") {
     if (params?.slug) return `/${encodeURIComponent(params.slug)}`;
     if (params?.id) return `/artist/${params.id}`;
   }
+
   if (page === "song-detail") {
     if (params?.artistSlug && params?.songSlug) {
-      return `/${encodeURIComponent(params.artistSlug)}/${encodeURIComponent(
-        params.songSlug,
-      )}`;
+      return `/${encodeURIComponent(params.artistSlug)}/${encodeURIComponent(params.songSlug)}`;
     }
     if (params?.id) return `/track/${params.id}`;
   }
+
+  if (page === "playlist-detail") {
+    if (params?.slug) return `/playlist/${encodeURIComponent(params.slug)}`;
+    if (params?.id) return `/playlist/${params.id}`;
+  }
+
+  if (page === "user-playlist-detail") {
+    if (params?.id) return `/user-playlist/${params.id}`;
+  }
+
+  if (page === "album-detail") {
+    if (params?.slug) return `/album/${encodeURIComponent(params.slug)}`;
+    if (params?.id) return `/album/${params.id}`;
+  }
+
+  if (page === "user-detail") {
+    if (params?.uniqueId) return `/user/${params.uniqueId}`;
+    if (params?.id) return `/user/${params.id}`;
+  }
+
+  if (page === "followers-following") {
+    if (params?.tab) return `/followers-following/${params.tab}`;
+    return "/followers-following";
+  }
+
+  if (page === "liked-songs") return "/liked/songs";
+  if (page === "liked-albums") return "/liked/albums";
+  if (page === "liked-playlists") return "/liked/playlists";
+
+  if (page === "chart-detail") {
+    if (params?.type && params?.title)
+      return `/chart/${params.type}/${encodeURIComponent(params.title)}`;
+    if (params?.type) return `/chart/${params.type}`;
+    return "/chart";
+  }
+
   return null; // other pages: don't change the URL
 }
 // ─────────────────────────────────────────────────────────────────────────────

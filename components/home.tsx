@@ -270,7 +270,10 @@ export default function Home() {
 
   const isPremium = Boolean(
     user &&
-    (user.is_premium ||
+    // explicit plan field (newer API responses)
+    (user.plan === "premium" ||
+      // legacy / alternate fields
+      user.is_premium ||
       user.isPremium ||
       user.subscription?.is_active ||
       user.is_premium === "true" ||
