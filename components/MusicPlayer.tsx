@@ -1461,454 +1461,450 @@ CollapsedPlayer.displayName = "CollapsedPlayer";
 const DesktopExpandedPlayer = memo<{
   onCollapse: () => void;
   userPlan?: string | null;
-}>(
-  ({ onCollapse, userPlan }) => {
-    const { navigateTo } = useNavigation();
-    const {
-      currentTrack,
-      isPlaying,
-      isLoading,
-      togglePlay,
-      progress,
-      duration,
-      seek,
-      isShuffle,
-      repeatMode,
-      toggleShuffle,
-      cycleRepeat,
-      next,
-      previous,
-      playTrack,
-      queue,
-      currentIndex,
-      isLiked,
-      likesCount,
-      isLiking,
-      toggleLike,
-      lyrics,
-      download,
-      isAdPlaying,
-      currentAd,
-    } = usePlayer();
+}>(({ onCollapse, userPlan }) => {
+  const { navigateTo } = useNavigation();
+  const {
+    currentTrack,
+    isPlaying,
+    isLoading,
+    togglePlay,
+    progress,
+    duration,
+    seek,
+    isShuffle,
+    repeatMode,
+    toggleShuffle,
+    cycleRepeat,
+    next,
+    previous,
+    playTrack,
+    queue,
+    currentIndex,
+    isLiked,
+    likesCount,
+    isLiking,
+    toggleLike,
+    lyrics,
+    download,
+    isAdPlaying,
+    currentAd,
+  } = usePlayer();
 
-    const isPremium = !!userPlan && String(userPlan).toLowerCase().includes("premium");
+  const isPremium =
+    !!userPlan && String(userPlan).toLowerCase().includes("premium");
 
-    const [activeTab, setActiveTab] = useState<"queue" | "lyrics" | "related">(
-      "queue",
-    );
+  const [activeTab, setActiveTab] = useState<"queue" | "lyrics" | "related">(
+    "queue",
+  );
 
-    const displayTrack = useMemo(() => {
-      if (isAdPlaying && currentAd) {
-        return {
-          id: `ad-${currentAd.id}`,
-          title: currentAd.title,
-          artist: "Advertisement",
-          image: currentAd.image_cover || (currentTrack?.image as string),
-          duration: formatTime(currentAd.duration),
-          src: currentAd.audio_url,
-        } as Track;
-      }
-      return currentTrack;
-    }, [isAdPlaying, currentAd, currentTrack]);
+  const displayTrack = useMemo(() => {
+    if (isAdPlaying && currentAd) {
+      return {
+        id: `ad-${currentAd.id}`,
+        title: currentAd.title,
+        artist: "Advertisement",
+        image: currentAd.image_cover || (currentTrack?.image as string),
+        duration: formatTime(currentAd.duration),
+        src: currentAd.audio_url,
+      } as Track;
+    }
+    return currentTrack;
+  }, [isAdPlaying, currentAd, currentTrack]);
 
-    const handleArtistClick = useCallback(() => {
-      if (isAdPlaying) return;
-      if (currentTrack) {
-        const artistId =
-          currentTrack.artistId || (currentTrack as any).artist_id;
-        if (artistId) {
-          onCollapse();
-          navigateTo("artist-detail", {
-            id: artistId,
-            slug:
-              (currentTrack as any).artist_unique_id ||
-              createSlug(currentTrack.artist),
-          });
-          return;
-        }
-      }
-    }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
-
-    const handleTitleClick = useCallback(() => {
-      if (isAdPlaying) return;
-      if (currentTrack) {
+  const handleArtistClick = useCallback(() => {
+    if (isAdPlaying) return;
+    if (currentTrack) {
+      const artistId = currentTrack.artistId || (currentTrack as any).artist_id;
+      if (artistId) {
         onCollapse();
-        navigateTo("song-detail", {
-          id: currentTrack.id,
-          artistSlug:
+        navigateTo("artist-detail", {
+          id: artistId,
+          slug:
             (currentTrack as any).artist_unique_id ||
             createSlug(currentTrack.artist),
-          songSlug: createSlug(currentTrack.title),
         });
+        return;
       }
-    }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
+    }
+  }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
 
-    if (!displayTrack) return null;
+  const handleTitleClick = useCallback(() => {
+    if (isAdPlaying) return;
+    if (currentTrack) {
+      onCollapse();
+      navigateTo("song-detail", {
+        id: currentTrack.id,
+        artistSlug:
+          (currentTrack as any).artist_unique_id ||
+          createSlug(currentTrack.artist),
+        songSlug: createSlug(currentTrack.title),
+      });
+    }
+  }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
 
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.3 }}
-        className="fixed inset-0 z-[60] bg-black"
-      >
-        {/* Dynamic Background */}
-        <div className="absolute inset-0 overflow-hidden">
-          <img
-            src={ensureHttps(displayTrack.image) || displayTrack.image}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover scale-110 blur-[100px] opacity-40"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40" />
-        </div>
+  if (!displayTrack) return null;
 
-        {/* Main Content */}
-        <div className="relative z-10 h-full flex flex-col">
-          {/* Header */}
-          <header className="flex items-center justify-between px-8 py-6">
-            <button
-              onClick={onCollapse}
-              className="group flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
-            >
-              <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/20 transition-colors">
-                <Icon.Minimize c="w-5 h-5" />
-              </div>
-              <span className="text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                Minimize
-              </span>
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      className="fixed inset-0 z-[60] bg-black"
+    >
+      {/* Dynamic Background */}
+      <div className="absolute inset-0 overflow-hidden">
+        <img
+          src={ensureHttps(displayTrack.image) || displayTrack.image}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover scale-110 blur-[100px] opacity-40"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-black/40" />
+      </div>
+
+      {/* Main Content */}
+      <div className="relative z-10 h-full flex flex-col">
+        {/* Header */}
+        <header className="flex items-center justify-between px-8 py-6">
+          <button
+            onClick={onCollapse}
+            className="group flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+          >
+            <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/20 transition-colors">
+              <Icon.Minimize c="w-5 h-5" />
+            </div>
+            <span className="text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              Minimize
+            </span>
+          </button>
+
+          <div className="flex items-center gap-3">
+            <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all">
+              <Icon.Share c="w-5 h-5" />
             </button>
-
-            <div className="flex items-center gap-3">
+            {!isAdPlaying && (
               <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all">
-                <Icon.Share c="w-5 h-5" />
+                <Icon.More c="w-5 h-5" />
               </button>
-              {!isAdPlaying && (
-                <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all">
-                  <Icon.More c="w-5 h-5" />
-                </button>
-              )}
-            </div>
-          </header>
+            )}
+          </div>
+        </header>
 
-          {/* Main Layout */}
-          <div className="flex-1 flex items-center px-8 pb-8 gap-12 min-h-0">
-            {/* Left Section - Artwork & Info */}
-            <div className="flex-1 flex items-center justify-center">
-              <div className="flex items-center gap-10 max-w-3xl w-full">
-                {/* Album Art */}
-                <div className="relative flex-shrink-0" key={displayTrack.id}>
-                  <div className="w-72 h-72 xl:w-80 xl:h-80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10">
-                    <ImageWithPlaceholder
-                      src={
-                        ensureHttps(displayTrack.image) || displayTrack.image
-                      }
-                      alt={displayTrack.title}
-                      className="w-full h-full object-cover"
-                      type="song"
-                    />
-                  </div>
-                </div>
-
-                {/* Track Info & Controls */}
-                <div className="flex-1 min-w-0 space-y-8">
-                  {/* Track Meta */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full">
-                        {isAdPlaying ? "Playing Ad" : "Now Playing"}
-                      </span>
-                    </div>
-                    <button
-                      onClick={handleTitleClick}
-                      className={`text-4xl xl:text-5xl font-bold text-white tracking-tight leading-tight text-left ${
-                        isAdPlaying ? "" : "hover:underline"
-                      }`}
-                    >
-                      {displayTrack.title}
-                    </button>
-                    <button
-                      onClick={handleArtistClick}
-                      className={`text-xl text-neutral-300 transition-colors ${
-                        isAdPlaying
-                          ? ""
-                          : "hover:text-white hover:underline decoration-2 underline-offset-4"
-                      }`}
-                    >
-                      {isAdPlaying ? "Ad" : displayTrack.artist}
-                    </button>
-                  </div>
-
-                  {/* Progress */}
-                  <div className="max-w-md">
-                    <ProgressBar
-                      progress={progress}
-                      duration={duration}
-                      onSeek={seek}
-                      variant="desktop"
-                    />
-                  </div>
-
-                  {/* Controls */}
-                  <div className="flex items-center gap-6">
-                    <button
-                      onClick={toggleShuffle}
-                      disabled={isAdPlaying}
-                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                        isShuffle
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
-                      } disabled:opacity-30`}
-                    >
-                      <Icon.Shuffle c="w-5 h-5" />
-                    </button>
-
-                    <button
-                      onClick={previous}
-                      disabled={isAdPlaying}
-                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
-                    >
-                      <Icon.Prev c="w-7 h-7" />
-                    </button>
-
-                    <button
-                      onClick={togglePlay}
-                      disabled={isLoading}
-                      className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-2xl shadow-white/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50"
-                    >
-                      {isLoading ? (
-                        <Spinner size="w-8 h-8" />
-                      ) : isPlaying ? (
-                        <Icon.Pause c="w-9 h-9 text-black" />
-                      ) : (
-                        <Icon.Play c="w-9 h-9 text-black ml-1" />
-                      )}
-                    </button>
-
-                    <button
-                      onClick={next}
-                      disabled={isAdPlaying}
-                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
-                    >
-                      <Icon.Next c="w-7 h-7" />
-                    </button>
-
-                    {!isAdPlaying ? (
-                      <button
-                        onClick={toggleLike}
-                        disabled={isLiking}
-                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                          isLiked
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
-                        } ${isLiking ? "cursor-wait" : ""}`}
-                      >
-                        <div className="relative flex items-center justify-center">
-                          <div
-                            className={isLiking ? "opacity-30" : "opacity-100"}
-                          >
-                            <Icon.Heart c="w-7 h-7" filled={isLiked} />
-                          </div>
-                          {isLiking && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <Spinner size="w-4 h-4" />
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    ) : (
-                      <div className="w-12" />
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  {!isAdPlaying && (
-                    <div className="flex items-center gap-3 pt-2">
-                      <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all">
-                        <Icon.Add c="w-5 h-5" />
-                        <span className="text-sm font-medium">
-                          Add to Playlist
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => isPremium && download(currentTrack!)}
-                        disabled={!isPremium}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-full transition-all relative ${
-                          !isPremium
-                            ? "opacity-60 cursor-not-allowed bg-white/3 text-white/60"
-                            : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
-                        }`}
-                      >
-                        <Icon.Download c="w-5 h-5" />
-                        <span className="text-sm font-medium">دانلود آهنگ</span>
-
-                        {!isPremium && (
-                          <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
-                            پریمیوم
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                  )}
+        {/* Main Layout */}
+        <div className="flex-1 flex items-center px-8 pb-8 gap-12 min-h-0">
+          {/* Left Section - Artwork & Info */}
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex items-center gap-10 max-w-3xl w-full">
+              {/* Album Art */}
+              <div className="relative flex-shrink-0" key={displayTrack.id}>
+                <div className="w-72 h-72 xl:w-80 xl:h-80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10">
+                  <ImageWithPlaceholder
+                    src={ensureHttps(displayTrack.image) || displayTrack.image}
+                    alt={displayTrack.title}
+                    className="w-full h-full object-cover"
+                    type="song"
+                  />
                 </div>
               </div>
-            </div>
 
-            {/* Right Section - Queue/Lyrics Panel */}
-            <div className="w-96 xl:w-[420px] h-full flex flex-col bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
-              {/* Tabs */}
-              <div className="flex border-b border-white/10">
-                {(["queue", "lyrics", "related"] as const).map((tab) => (
+              {/* Track Info & Controls */}
+              <div className="flex-1 min-w-0 space-y-8">
+                {/* Track Meta */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full">
+                      {isAdPlaying ? "Playing Ad" : "Now Playing"}
+                    </span>
+                  </div>
                   <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    disabled={isAdPlaying && tab !== "queue"}
-                    className={`flex-1 py-4 text-sm font-medium transition-all relative ${
-                      activeTab === tab
-                        ? "text-white"
-                        : "text-neutral-500 hover:text-neutral-300"
+                    onClick={handleTitleClick}
+                    className={`text-4xl xl:text-5xl font-bold text-white tracking-tight leading-tight text-left ${
+                      isAdPlaying ? "" : "hover:underline"
+                    }`}
+                  >
+                    {displayTrack.title}
+                  </button>
+                  <button
+                    onClick={handleArtistClick}
+                    className={`text-xl text-neutral-300 transition-colors ${
+                      isAdPlaying
+                        ? ""
+                        : "hover:text-white hover:underline decoration-2 underline-offset-4"
+                    }`}
+                  >
+                    {isAdPlaying ? "Ad" : displayTrack.artist}
+                  </button>
+                </div>
+
+                {/* Progress */}
+                <div className="max-w-md">
+                  <ProgressBar
+                    progress={progress}
+                    duration={duration}
+                    onSeek={seek}
+                    variant="desktop"
+                  />
+                </div>
+
+                {/* Controls */}
+                <div className="flex items-center gap-6">
+                  <button
+                    onClick={toggleShuffle}
+                    disabled={isAdPlaying}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                      isShuffle
+                        ? "bg-emerald-500/20 text-emerald-400"
+                        : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
                     } disabled:opacity-30`}
                   >
-                    {tab === "queue"
-                      ? "Up Next"
-                      : tab === "lyrics"
-                        ? "Lyrics"
-                        : "Related"}
-                    {activeTab === tab && (
-                      <motion.div
-                        layoutId="activeTab"
-                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"
-                      />
+                    <Icon.Shuffle c="w-5 h-5" />
+                  </button>
+
+                  <button
+                    onClick={previous}
+                    disabled={isAdPlaying}
+                    className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
+                  >
+                    <Icon.Prev c="w-7 h-7" />
+                  </button>
+
+                  <button
+                    onClick={togglePlay}
+                    disabled={isLoading}
+                    className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-2xl shadow-white/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50"
+                  >
+                    {isLoading ? (
+                      <Spinner size="w-8 h-8" />
+                    ) : isPlaying ? (
+                      <Icon.Pause c="w-9 h-9 text-black" />
+                    ) : (
+                      <Icon.Play c="w-9 h-9 text-black ml-1" />
                     )}
                   </button>
-                ))}
-              </div>
 
-              {/* Tab Content */}
-              <div className="flex-1 overflow-hidden">
-                {activeTab === "queue" && (
-                  <div className="h-full overflow-y-auto p-4 space-y-1">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
-                        {queue.length} tracks in queue
-                      </span>
-                      <span className="text-xs text-neutral-500">
-                        {currentIndex + 1} of {queue.length}
-                      </span>
-                    </div>
-                    {queue.map((track, i) => (
-                      <motion.div
-                        key={track.id}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.03 }}
-                        onClick={() => !isAdPlaying && playTrack(track)}
-                        className={`group flex items-center gap-3 p-3 rounded-xl transition-all ${
-                          i === currentIndex
-                            ? "bg-emerald-500/10 border border-emerald-500/20"
-                            : isAdPlaying
-                              ? "opacity-50"
-                              : "hover:bg-white/5 cursor-pointer"
-                        }`}
-                      >
-                        <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
-                          <ImageWithPlaceholder
-                            src={ensureHttps(track.image) || track.image}
-                            alt={track.title}
-                            className="w-full h-full object-cover"
-                            type="song"
-                          />
-                          {i === currentIndex && isPlaying && !isAdPlaying ? (
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <PlayingBars />
-                            </div>
-                          ) : !isAdPlaying ? (
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Icon.Play c="w-5 h-5 text-white" />
-                            </div>
-                          ) : null}
+                  <button
+                    onClick={next}
+                    disabled={isAdPlaying}
+                    className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
+                  >
+                    <Icon.Next c="w-7 h-7" />
+                  </button>
+
+                  {!isAdPlaying ? (
+                    <button
+                      onClick={toggleLike}
+                      disabled={isLiking}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                        isLiked
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                      } ${isLiking ? "cursor-wait" : ""}`}
+                    >
+                      <div className="relative flex items-center justify-center">
+                        <div
+                          className={isLiking ? "opacity-30" : "opacity-100"}
+                        >
+                          <Icon.Heart c="w-7 h-7" filled={isLiked} />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div
-                            className={`text-sm font-medium truncate ${
-                              i === currentIndex && !isAdPlaying
-                                ? "text-emerald-400"
-                                : "text-white"
-                            }`}
-                          >
-                            {track.title}
+                        {isLiking && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Spinner size="w-4 h-4" />
                           </div>
-                          <div className="text-xs text-neutral-500 truncate">
-                            {track.artist}
-                          </div>
-                        </div>
-                        <span className="text-xs text-neutral-500 tabular-nums">
-                          {track.duration}
+                        )}
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="w-12" />
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                {!isAdPlaying && (
+                  <div className="flex items-center gap-3 pt-2">
+                    <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all">
+                      <Icon.Add c="w-5 h-5" />
+                      <span className="text-sm font-medium">
+                        Add to Playlist
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => isPremium && download(currentTrack!)}
+                      disabled={!isPremium}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full transition-all relative ${
+                        !isPremium
+                          ? "opacity-60 cursor-not-allowed bg-white/3 text-white/60"
+                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      <Icon.Download c="w-5 h-5" />
+                      <span className="text-sm font-medium">دانلود آهنگ</span>
+
+                      {!isPremium && (
+                        <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
+                          پریمیوم
                         </span>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-
-                {activeTab === "lyrics" && (
-                  <div className="h-full overflow-y-auto p-8">
-                    {lyrics ? (
-                      <div className="space-y-6 text-right" dir="rtl">
-                        {lyrics.split("\n").map((line, i) => (
-                          <p
-                            key={i}
-                            className="text-xl md:text-2xl font-bold text-white/90 hover:text-white transition-colors cursor-default whitespace-pre-wrap"
-                          >
-                            {line}
-                          </p>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="h-full flex items-center justify-center">
-                        <div className="text-center space-y-4">
-                          <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
-                            <Icon.Lyrics c="w-8 h-8 text-neutral-500" />
-                          </div>
-                          <div>
-                            <p className="text-neutral-400 font-medium">
-                              متن آهنگ یافت نشد
-                            </p>
-                            <p className="text-sm text-neutral-600 mt-1">
-                              هنوز متنی برای این آهنگ ثبت نشده است
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === "related" && (
-                  <div className="h-full flex items-center justify-center p-8">
-                    <div className="text-center space-y-4">
-                      <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
-                        <Icon.Queue c="w-8 h-8 text-neutral-500" />
-                      </div>
-                      <div>
-                        <p className="text-neutral-400 font-medium">
-                          Discover similar tracks
-                        </p>
-                        <p className="text-sm text-neutral-600 mt-1">
-                          Coming soon
-                        </p>
-                      </div>
-                    </div>
+                      )}
+                    </button>
                   </div>
                 )}
               </div>
             </div>
           </div>
+
+          {/* Right Section - Queue/Lyrics Panel */}
+          <div className="w-96 xl:w-[420px] h-full flex flex-col bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
+            {/* Tabs */}
+            <div className="flex border-b border-white/10">
+              {(["queue", "lyrics", "related"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  disabled={isAdPlaying && tab !== "queue"}
+                  className={`flex-1 py-4 text-sm font-medium transition-all relative ${
+                    activeTab === tab
+                      ? "text-white"
+                      : "text-neutral-500 hover:text-neutral-300"
+                  } disabled:opacity-30`}
+                >
+                  {tab === "queue"
+                    ? "Up Next"
+                    : tab === "lyrics"
+                      ? "Lyrics"
+                      : "Related"}
+                  {activeTab === tab && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-hidden">
+              {activeTab === "queue" && (
+                <div className="h-full overflow-y-auto p-4 space-y-1">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
+                      {queue.length} tracks in queue
+                    </span>
+                    <span className="text-xs text-neutral-500">
+                      {currentIndex + 1} of {queue.length}
+                    </span>
+                  </div>
+                  {queue.map((track, i) => (
+                    <motion.div
+                      key={track.id}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                      onClick={() => !isAdPlaying && playTrack(track)}
+                      className={`group flex items-center gap-3 p-3 rounded-xl transition-all ${
+                        i === currentIndex
+                          ? "bg-emerald-500/10 border border-emerald-500/20"
+                          : isAdPlaying
+                            ? "opacity-50"
+                            : "hover:bg-white/5 cursor-pointer"
+                      }`}
+                    >
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                        <ImageWithPlaceholder
+                          src={ensureHttps(track.image) || track.image}
+                          alt={track.title}
+                          className="w-full h-full object-cover"
+                          type="song"
+                        />
+                        {i === currentIndex && isPlaying && !isAdPlaying ? (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <PlayingBars />
+                          </div>
+                        ) : !isAdPlaying ? (
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Icon.Play c="w-5 h-5 text-white" />
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div
+                          className={`text-sm font-medium truncate ${
+                            i === currentIndex && !isAdPlaying
+                              ? "text-emerald-400"
+                              : "text-white"
+                          }`}
+                        >
+                          {track.title}
+                        </div>
+                        <div className="text-xs text-neutral-500 truncate">
+                          {track.artist}
+                        </div>
+                      </div>
+                      <span className="text-xs text-neutral-500 tabular-nums">
+                        {track.duration}
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+
+              {activeTab === "lyrics" && (
+                <div className="h-full overflow-y-auto p-8">
+                  {lyrics ? (
+                    <div className="space-y-6 text-right" dir="rtl">
+                      {lyrics.split("\n").map((line, i) => (
+                        <p
+                          key={i}
+                          className="text-xl md:text-2xl font-bold text-white/90 hover:text-white transition-colors cursor-default whitespace-pre-wrap"
+                        >
+                          {line}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="text-center space-y-4">
+                        <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                          <Icon.Lyrics c="w-8 h-8 text-neutral-500" />
+                        </div>
+                        <div>
+                          <p className="text-neutral-400 font-medium">
+                            متن آهنگ یافت نشد
+                          </p>
+                          <p className="text-sm text-neutral-600 mt-1">
+                            هنوز متنی برای این آهنگ ثبت نشده است
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "related" && (
+                <div className="h-full flex items-center justify-center p-8">
+                  <div className="text-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                      <Icon.Queue c="w-8 h-8 text-neutral-500" />
+                    </div>
+                    <div>
+                      <p className="text-neutral-400 font-medium">
+                        Discover similar tracks
+                      </p>
+                      <p className="text-sm text-neutral-600 mt-1">
+                        Coming soon
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </motion.div>
-    );
-  },
-);
+      </div>
+    </motion.div>
+  );
+});
 DesktopExpandedPlayer.displayName = "DesktopExpandedPlayer";
 
 // ============================================================================
@@ -2002,7 +1998,8 @@ const MobileExpandedPlayer = memo<{
   if (!displayTrack) return null;
 
   const isFree = userPlan === "free";
-  const isPremium = !!userPlan && String(userPlan).toLowerCase().includes("premium");
+  const isPremium =
+    !!userPlan && String(userPlan).toLowerCase().includes("premium");
 
   return (
     <motion.div
@@ -2288,13 +2285,14 @@ const MobileExpandedPlayer = memo<{
                   }}
                   disabled={!isPremium}
                   className={`w-full px-4 py-3 text-right text-white transition-colors flex items-center gap-3 relative ${
-                    !isPremium ? "opacity-60 cursor-not-allowed" : "hover:bg-white/10"
+                    !isPremium
+                      ? "opacity-60 cursor-not-allowed"
+                      : "hover:bg-white/10"
                   }`}
                   dir="rtl"
                 >
                   <Icon.Download c="w-5 h-5" />
                   دانلود آهنگ
-
                   {!isPremium && (
                     <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
                       پریمیوم
@@ -2384,7 +2382,9 @@ const ExpandedPlayer = memo<{
   }, []);
 
   if (isDesktop) {
-    return <DesktopExpandedPlayer onCollapse={onCollapse} userPlan={userPlan} />;
+    return (
+      <DesktopExpandedPlayer onCollapse={onCollapse} userPlan={userPlan} />
+    );
   }
 
   return (

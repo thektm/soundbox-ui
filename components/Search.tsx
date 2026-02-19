@@ -196,11 +196,13 @@ const useSearchHistory = () => {
   return { history, add, remove, clear };
 };
 
-const useEventPlaylists = (accessToken?: string) => {
+const useEventPlaylists = (accessToken?: string, enabled = true) => {
   const [eventData, setEventData] = useState<EventPlaylistEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    if (!enabled) return;
+
     // Defer the fetch to after initial render for instant loading
     const timer = setTimeout(() => {
       const fetchEventPlaylists = async () => {
@@ -228,7 +230,7 @@ const useEventPlaylists = (accessToken?: string) => {
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [accessToken]);
+  }, [accessToken, enabled]);
 
   const getTimeOfDay = useCallback(() => {
     const hour = new Date().getHours();
@@ -245,11 +247,13 @@ const useEventPlaylists = (accessToken?: string) => {
   return { currentEvent, isLoading };
 };
 
-const useSearchSections = (accessToken?: string) => {
+const useSearchSections = (accessToken?: string, enabled = true) => {
   const [sections, setSections] = useState<SearchSection[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    if (!enabled) return;
+
     // Defer the fetch to after initial render for instant loading
     const timer = setTimeout(() => {
       const fetchSections = async () => {
@@ -277,7 +281,7 @@ const useSearchSections = (accessToken?: string) => {
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [accessToken]);
+  }, [accessToken, enabled]);
 
   return { sections, isLoading };
 };
@@ -287,6 +291,7 @@ const useSearch = (
   query: string,
   filter: "all" | "songs" | "artists" | "albums" | "playlists" | "users",
   accessToken?: string,
+  enabled = true,
 ) => {
   const [results, setResults] = useState<SearchResults>({
     songs: [],
@@ -298,6 +303,7 @@ const useSearch = (
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!query.trim()) {
       setResults({
         songs: [],
@@ -1118,11 +1124,22 @@ export default function Search() {
     [accessToken],
   );
 
+  // mark ready after first paint; initial network requests wait for this
+  const [isReady, setIsReady] = useState(false);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      const t = setTimeout(() => setIsReady(true), 0);
+      return () => clearTimeout(t);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   // Custom Hooks
   const { results, isLoading } = useSearch(
     debouncedQuery,
     activeFilter,
     accessToken ?? undefined,
+    isReady,
   );
   const {
     history,
@@ -1133,10 +1150,12 @@ export default function Search() {
 
   const { currentEvent, isLoading: isEventLoading } = useEventPlaylists(
     accessToken ?? undefined,
+    isReady,
   );
 
   const { sections, isLoading: isSectionsLoading } = useSearchSections(
     accessToken ?? undefined,
+    isReady,
   );
 
   const [playlistDetails, setPlaylistDetails] = useState<
@@ -1154,7 +1173,7 @@ export default function Search() {
   }, [currentEvent?.id]);
 
   useEffect(() => {
-    if (!currentEvent) {
+    if (!isReady || !currentEvent) {
       fetchedPlaylistIdsRef.current.clear();
       setPlaylistDetails({});
       return;
@@ -1203,7 +1222,7 @@ export default function Search() {
     return () => {
       Object.values(controllers).forEach((controller) => controller.abort());
     };
-  }, [currentEvent, accessToken]);
+  }, [currentEvent, accessToken, isReady]);
 
   // Handlers (Memoized)
   const handleSearch = useCallback(
