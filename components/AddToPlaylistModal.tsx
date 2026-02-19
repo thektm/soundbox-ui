@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "./AuthContext";
+import Image from "next/image";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import { toast } from "react-hot-toast";
 import { Plus, Music, Lock, Globe, Search, X } from "lucide-react";
@@ -180,10 +181,11 @@ export const AddToPlaylistModal = ({
                 {/* Playlist Image */}
                 <div className="relative w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-zinc-800 shadow-md">
                   {playlist.top_three_song_covers?.[0] ? (
-                    <img
+                    <Image
                       src={playlist.top_three_song_covers[0]}
                       alt={playlist.title}
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-800 flex items-center justify-center">

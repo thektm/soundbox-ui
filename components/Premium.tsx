@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
+import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
 import toast from "react-hot-toast";
 
@@ -117,7 +118,7 @@ const Premium: React.FC = () => {
       {/* Premium Header Image - GPU-accelerated */}
       <div
         ref={headerRef}
-        className="sticky top-0 w-full h-[35vh] flex-shrink-0 z-0 origin-center overflow-hidden rounded-b-[3rem]"
+        className="sticky top-0 w-full h-[35vh] flex-shrink-0 z-0 origin-center overflow-hidden rounded-b-[3rem] relative"
         style={{
           willChange: "transform, opacity, border-radius",
           backfaceVisibility: "hidden",
@@ -127,12 +128,12 @@ const Premium: React.FC = () => {
           contain: "layout style paint",
         }}
       >
-        <img
+        <Image
           src="/premium-bg.jpg"
           alt="Premium background"
-          className="w-full h-full rounded-b-[3rem] object-cover"
-          loading="eager"
-          decoding="async"
+          fill
+          className="rounded-b-[3rem] object-cover"
+          priority
         />
         <div
           ref={overlayRef}

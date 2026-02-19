@@ -652,10 +652,11 @@ export default function Profile() {
                         aria-label={track.title}
                       >
                         <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-800">
-                          <img
+                          <Image
                             src={track.cover_image || "/music-listen.webp"}
                             alt={track.title}
-                            className="w-full h-full object-cover"
+                            fill
+                            className="object-cover"
                           />
                         </div>
 

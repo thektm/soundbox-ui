@@ -10,11 +10,7 @@ const nextConfig: NextConfig = {
       { protocol: 'http', hostname: '*' }
     ],
   },
-  compress: true,
-  reactCompiler: true,
-  output: "standalone",
-   poweredByHeader: false,
-   productionBrowserSourceMaps: false,
+  
 };
 
 export default nextConfig;

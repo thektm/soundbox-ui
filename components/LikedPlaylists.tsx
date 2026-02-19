@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
+import Image from "next/image";
 
 // ============================================================================
 // Types
@@ -155,10 +156,11 @@ const PlaylistCardGrid = memo(
             initial={{ y: -10, x: -8, rotate: -6, opacity: 0.3, scale: 0.9 }}
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
           >
-            <img
+            <Image
               src={covers[2] || covers[1] || covers[0]}
               alt=""
-              className="w-full h-full object-cover blur-[0.5px]"
+              fill
+              className="object-cover blur-[0.5px]"
             />
           </motion.div>
 
@@ -171,10 +173,11 @@ const PlaylistCardGrid = memo(
             initial={{ y: -5, x: 6, rotate: 4, opacity: 0.6, scale: 0.96 }}
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
           >
-            <img
+            <Image
               src={covers[1] || covers[0]}
               alt=""
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
             />
           </motion.div>
 
@@ -186,11 +189,11 @@ const PlaylistCardGrid = memo(
             }}
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
           >
-            <img
+            <Image
               src={covers[0]}
               alt={playlist.title}
-              className="w-full h-full object-cover"
-              loading="lazy"
+              fill
+              className="object-cover"
             />
 
             {/* Hover Actions */}
@@ -293,10 +296,11 @@ const PlaylistCard = memo(
             variants={{ hover: { x: -18, y: -8, rotate: -8, opacity: 0.5 } }}
             transition={{ type: "spring", stiffness: 200, damping: 20 }}
           >
-            <img
+            <Image
               src={covers[2] || covers[1] || covers[0]}
               alt=""
-              className="w-full h-full object-cover blur-[0.5px]"
+              fill
+              className="object-cover blur-[0.5px]"
             />
           </motion.div>
 
@@ -307,10 +311,11 @@ const PlaylistCard = memo(
             variants={{ hover: { x: -10, y: -4, rotate: -4, opacity: 0.8 } }}
             transition={{ type: "spring", stiffness: 200, damping: 20 }}
           >
-            <img
+            <Image
               src={covers[1] || covers[0]}
               alt=""
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
             />
           </motion.div>
 
@@ -319,10 +324,11 @@ const PlaylistCard = memo(
             className="relative z-10 w-full h-full rounded-xl overflow-hidden shadow-2xl bg-zinc-900 border border-white/10"
             variants={{ hover: { scale: 1.1, y: -4 } }}
           >
-            <img
+            <Image
               src={covers[0]}
               alt={playlist.title}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
             />
 
             {/* Play Button Overlay */}

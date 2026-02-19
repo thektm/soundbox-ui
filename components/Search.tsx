@@ -891,11 +891,12 @@ const SectionCard = memo(
               {/* Backmost image (3rd) */}
               {stackImages[2] && (
                 <div className="absolute inset-0 scale-[0.88] translate-x-6 -translate-y-2 rotate-6 opacity-50">
-                  <div className="w-full h-full rounded-lg overflow-hidden shadow-2xl border border-white/5 bg-zinc-900">
-                    <img
+                  <div className="w-full h-full rounded-lg overflow-hidden shadow-2xl border border-white/5 bg-zinc-900 relative">
+                    <Image
                       src={stackImages[2]}
                       alt=""
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
                     />
                   </div>
                 </div>
@@ -903,11 +904,12 @@ const SectionCard = memo(
               {/* Middle image (2nd) */}
               {stackImages[1] && (
                 <div className="absolute inset-0 scale-[0.94] translate-x-3 -translate-y-1 rotate-3 opacity-80">
-                  <div className="w-full h-full rounded-lg overflow-hidden shadow-2xl border border-white/5 bg-zinc-800">
-                    <img
+                  <div className="w-full h-full rounded-lg overflow-hidden shadow-2xl border border-white/5 bg-zinc-800 relative">
+                    <Image
                       src={stackImages[1]}
                       alt=""
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
                     />
                   </div>
                 </div>
@@ -1006,31 +1008,24 @@ const SectionHorizontalList = memo(
 );
 
 const ModernBackground = memo(() => (
-  <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-    {/* Spotify-inspired Greenish Glows - Darker & Subtler */}
-    <div className="absolute top-[-20%] left-[-15%] w-[120%] h-[120%] bg-[#1db954]/5 rounded-full blur-[160px] animate-bg-float-1" />
-    <div className="absolute bottom-[-25%] right-[-15%] w-[100%] h-[100%] bg-emerald-600/5 rounded-full blur-[180px] animate-bg-float-2" />
-    <div className="absolute top-[30%] left-[10%] w-[60%] h-[60%] bg-[#1db954]/3 rounded-full blur-[120px] animate-bg-float-3" />
-
-    {/* Clean Modern Subtle Grid */}
+  <div className="fixed inset-0 pointer-events-none z-0">
+    {/* Simple, performant gradient optimized for low-end devices */}
     <div
-      className="absolute inset-0 opacity-[0.02]"
+      className="absolute inset-0"
       style={{
-        backgroundImage: `linear-gradient(rgba(29, 185, 84, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(29, 185, 84, 0.2) 1px, transparent 1px)`,
-        backgroundSize: "120px 120px",
+        background:
+          "linear-gradient(180deg, #061016 0%, #0d1014 50%, #030509 100%)",
       }}
     />
 
-    {/* Very light Noise for texture */}
+    {/* Two very subtle radial highlights (low opacity, no blur/animation) */}
     <div
-      className="absolute inset-0 opacity-[0.012] mix-blend-overlay"
+      className="absolute inset-0 pointer-events-none"
       style={{
-        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+        backgroundImage:
+          "radial-gradient(800px 800px at 10% 10%, rgba(29,185,84,0.04), transparent 12%), radial-gradient(600px 600px at 90% 80%, rgba(59,130,246,0.03), transparent 16%)",
       }}
     />
-
-    {/* Top and Bottom Vignettes for focus on content */}
-    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60" />
   </div>
 ));
 
@@ -1697,11 +1692,14 @@ export default function Search() {
                                         zIndex: recentCovers.length - index,
                                       }}
                                     >
-                                      <img
-                                        src={cover}
-                                        alt={`${playlist.title} cover ${index}`}
-                                        className="w-full h-full object-cover"
-                                      />
+                                      <div className="relative w-full h-full">
+                                        <Image
+                                          src={cover}
+                                          alt={`${playlist.title} cover ${index}`}
+                                          fill
+                                          className="object-cover"
+                                        />
+                                      </div>
                                     </div>
                                   ))
                                 ) : (
@@ -1757,11 +1755,12 @@ export default function Search() {
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes bg-float-1 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
+                                      <Image
           50% { transform: translate(3%, 3%) scale(1.05); }
         }
-        @keyframes bg-float-2 {
-          0%, 100% { transform: translate(0, 0) scale(1.05); }
+                                        fill
+                                        className="object-cover"
+                                      />
           50% { transform: translate(-3%, -3%) scale(1); }
         }
         @keyframes bg-float-3 {

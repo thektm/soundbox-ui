@@ -63,142 +63,84 @@ export const AppRouter: React.FC = () => {
       default:
         return <Login />;
     }
+  } else {
+    switch (currentPage) {
+      case "home":
+        return <Home />;
+      case "song-detail":
+        return <SongDetail id={currentParams?.id} />;
+      case "search":
+        return <Search />;
+      case "library":
+        return <LibraryScreen />;
+      case "playlists":
+        return <Playlists />;
+      case "profile":
+        return isDesktop ? <DesktopProfile /> : <Profile />;
+      case "downloads-history":
+        return <DownloadsHistory />;
+      case "settings":
+        return <Settings />;
+      case "playlist-detail":
+        return (
+          <PlaylistDetail id={currentParams?.id} slug={currentParams?.slug} />
+        );
+      case "user-playlist-detail":
+        return <UserPlaylistDetail id={currentParams?.id} />;
+      case "artist-detail":
+        return <ArtistDetail id={currentParams?.id} />;
+      case "user-detail":
+        return <UserDetail uniqueId={currentParams?.id} />;
+      case "album-detail":
+        return (
+          <AlbumDetail
+            id={currentParams?.id}
+            slug={currentParams?.slug}
+            album={currentParams?.album}
+          />
+        );
+      case "followers-following":
+        return (
+          <FollowersFollowing initialTab={currentParams?.tab || "followers"} />
+        );
+      case "liked-songs":
+        return <LikedSongs />;
+      case "liked-albums":
+        return <LikedAlbums />;
+      case "liked-playlists":
+        return <LikedPlaylists />;
+      case "premium":
+        return <Premium />;
+      case "followed-artists":
+        return <FollowingArtistsPage />;
+      case "my-playlists":
+        return <MyPlaylists />;
+      case "upgrade-plans":
+        return <UpgradePlans />;
+      case "payment-processing":
+        return <PaymentProcessing />;
+      case "payment-success":
+        return <PaymentSuccess />;
+      case "popular-artists":
+        return <PopularArtistsPage />;
+      case "latest-releases":
+        return <LatestReleasesPage />;
+      case "popular-albums":
+        return <PopularAlbumsPage />;
+      case "new-discoveries":
+        return <NewDiscoveriesPage />;
+      case "chart-detail":
+        return (
+          <ChartPage
+            title={currentParams?.title}
+            type={currentParams?.type}
+            initialData={currentParams?.initialData}
+          />
+        );
+      default:
+        return <Home />;
+    }
   }
-
-  // 1. Define Main Tabs to keep mounted in background (instant switching)
-  const mainTabs = ["home", "search", "library", "premium", "profile"];
-
-  // 2. Identify if current page is one of the "Other" (conditionally mounted) pages
-  const isOtherPage = [
-    "song-detail",
-    "playlists",
-    "downloads-history",
-    "settings",
-    "playlist-detail",
-    "user-playlist-detail",
-    "artist-detail",
-    "user-detail",
-    "album-detail",
-    "followers-following",
-    "liked-songs",
-    "liked-albums",
-    "liked-playlists",
-    "followed-artists",
-    "my-playlists",
-    "upgrade-plans",
-    "payment-processing",
-    "payment-success",
-    "popular-artists",
-    "latest-releases",
-    "popular-albums",
-    "new-discoveries",
-    "chart-detail",
-  ].includes(currentPage);
-
-  // Home is the default fallback if the page is unknown
-  const showHome =
-    currentPage === "home" ||
-    (!mainTabs.includes(currentPage) && !isOtherPage);
-
-  return (
-    <div className="contents">
-      {/* --- Keep-Alive Main Tabs --- */}
-      <div style={{ display: showHome ? "contents" : "none" }}>
-        <Home />
-      </div>
-      <div style={{ display: currentPage === "search" ? "contents" : "none" }}>
-        <Search />
-      </div>
-      <div style={{ display: currentPage === "library" ? "contents" : "none" }}>
-        <LibraryScreen />
-      </div>
-      <div style={{ display: currentPage === "premium" ? "contents" : "none" }}>
-        <Premium />
-      </div>
-      <div style={{ display: currentPage === "profile" ? "contents" : "none" }}>
-        {isDesktop ? <DesktopProfile /> : <Profile />}
-      </div>
-
-      {/* --- Conditionally Mounted Pages --- */}
-      {isOtherPage && (
-        <div className="contents">
-          {(() => {
-            switch (currentPage) {
-              case "song-detail":
-                return <SongDetail id={currentParams?.id} />;
-              case "playlists":
-                return <Playlists />;
-              case "downloads-history":
-                return <DownloadsHistory />;
-              case "settings":
-                return <Settings />;
-              case "playlist-detail":
-                return (
-                  <PlaylistDetail
-                    id={currentParams?.id}
-                    slug={currentParams?.slug}
-                  />
-                );
-              case "user-playlist-detail":
-                return <UserPlaylistDetail id={currentParams?.id} />;
-              case "artist-detail":
-                return <ArtistDetail id={currentParams?.id} />;
-              case "user-detail":
-                return <UserDetail uniqueId={currentParams?.id} />;
-              case "album-detail":
-                return (
-                  <AlbumDetail
-                    id={currentParams?.id}
-                    slug={currentParams?.slug}
-                    album={currentParams?.album}
-                  />
-                );
-              case "followers-following":
-                return (
-                  <FollowersFollowing
-                    initialTab={currentParams?.tab || "followers"}
-                  />
-                );
-              case "liked-songs":
-                return <LikedSongs />;
-              case "liked-albums":
-                return <LikedAlbums />;
-              case "liked-playlists":
-                return <LikedPlaylists />;
-              case "followed-artists":
-                return <FollowingArtistsPage />;
-              case "my-playlists":
-                return <MyPlaylists />;
-              case "upgrade-plans":
-                return <UpgradePlans />;
-              case "payment-processing":
-                return <PaymentProcessing />;
-              case "payment-success":
-                return <PaymentSuccess />;
-              case "popular-artists":
-                return <PopularArtistsPage />;
-              case "latest-releases":
-                return <LatestReleasesPage />;
-              case "popular-albums":
-                return <PopularAlbumsPage />;
-              case "new-discoveries":
-                return <NewDiscoveriesPage />;
-              case "chart-detail":
-                return (
-                  <ChartPage
-                    title={currentParams?.title}
-                    type={currentParams?.type}
-                    initialData={currentParams?.initialData}
-                  />
-                );
-              default:
-                return null;
-            }
-          })()}
-        </div>
-      )}
-    </div>
-  );
 };
 
 

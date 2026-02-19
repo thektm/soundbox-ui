@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, memo, useEffect } from "react";
+import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { UserPlaylist, createSlug } from "./mockData";
@@ -274,12 +275,14 @@ const PlaylistCardGrid = memo(
               playlist.id,
             )} opacity-20`}
           />
-          <img
-            src={playlist.image}
-            alt={playlist.title}
-            className="relative w-full h-full object-cover mix-blend-overlay opacity-80 group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
-          />
+          {playlist.image ? (
+            <Image
+              src={playlist.image}
+              alt={playlist.title}
+              fill
+              className="object-cover mix-blend-overlay opacity-80 group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : null}
 
           {/* Hover Overlay with Play Button */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-end justify-between p-3 opacity-0 group-hover:opacity-100">
@@ -363,11 +366,11 @@ const PlaylistCard = memo(
         {/* Playlist Cover */}
         <div className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden bg-zinc-800/50 shadow-lg">
           {playlist.image ? (
-            <img
+            <Image
               src={playlist.image}
               alt={playlist.title}
-              className="w-full h-full object-cover"
-              loading="lazy"
+              fill
+              className="object-cover"
             />
           ) : (
             <div

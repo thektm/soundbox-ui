@@ -15,6 +15,7 @@ import {
   List,
   Heart,
 } from "lucide-react";
+import Image from "next/image";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 
 function ensureHttps(u?: string | null): string | undefined {
@@ -60,10 +61,11 @@ const LibraryItem = ({
           } overflow-hidden group-hover:bg-[#282828] transition-all duration-300 shadow-lg`}
         >
           {imageUrl ? (
-            <img
+            <Image
               src={imageUrl}
               alt={title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              fill
+              className="object-cover group-hover:scale-105 transition-transform duration-500"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
@@ -98,11 +100,7 @@ const LibraryItem = ({
           } overflow-hidden group-hover:bg-[#282828] transition-colors`}
         >
           {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={title}
-              className="w-full h-full object-cover"
-            />
+            <Image src={imageUrl} alt={title} fill className="object-cover" />
           ) : (
             icon || <User className="w-6 h-6 text-zinc-400" />
           )}
@@ -463,12 +461,13 @@ const LibraryScreen: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.3 }}
             exit={{ opacity: 0 }}
-            className="absolute top-0 left-0 right-0 h-[400px] pointer-events-none overflow-hidden z-0"
+            className="absolute top-0 left-0 right-0 h-[400px] pointer-events-none overflow-hidden z-0 relative"
           >
-            <img
-              src={ensureHttps(latestLikedSongCover)}
+            <Image
+              src={ensureHttps(latestLikedSongCover) || ""}
               alt="Background"
-              className="w-full h-full object-cover blur-3xl scale-110"
+              fill
+              className="object-cover blur-3xl scale-110"
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/60 to-black" />
           </motion.div>

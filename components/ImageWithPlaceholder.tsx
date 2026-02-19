@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 
 interface ImageWithPlaceholderProps {
   src?: string | string[];
@@ -56,16 +57,17 @@ const ImageWithPlaceholder: React.FC<ImageWithPlaceholderProps> = ({
           className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none"
           style={secondaryIconStyle}
         >
-          <img
-            src={secondaryIcon}
-            alt=""
-            className={
-              type === "user"
-                ? "w-1/2 h-1/2 object-contain"
-                : "w-1/2 h-1/2 object-contain grayscale"
-            }
-            style={secondaryImgStyle}
-          />
+          <div className="w-1/2 h-1/2 relative">
+            <Image
+              src={secondaryIcon}
+              alt=""
+              fill
+              className={
+                type === "user" ? "object-contain" : "object-contain grayscale"
+              }
+              style={secondaryImgStyle}
+            />
+          </div>
         </div>
 
         {/* Logo - Overlay on top and centered */}
@@ -73,10 +75,11 @@ const ImageWithPlaceholder: React.FC<ImageWithPlaceholderProps> = ({
           className="relative z-10 w-1/3 h-1/3 pointer-events-none flex items-center justify-center"
           style={logoStyle}
         >
-          <img
+          <Image
             src="/logo.png"
             alt="Logo"
-            className="w-full h-full object-contain drop-shadow-2xl"
+            fill
+            className="object-contain drop-shadow-2xl"
           />
         </div>
       </div>
@@ -84,13 +87,15 @@ const ImageWithPlaceholder: React.FC<ImageWithPlaceholderProps> = ({
   }
 
   return (
-    <img
-      src={resolvedSrc as string}
-      alt={alt}
-      className={className}
-      onError={handleImageError}
-      loading="lazy"
-    />
+    <div className={`relative w-full h-full ${className}`}>
+      <Image
+        src={resolvedSrc as string}
+        alt={alt}
+        fill
+        className="object-cover"
+        onError={handleImageError}
+      />
+    </div>
   );
 };
 

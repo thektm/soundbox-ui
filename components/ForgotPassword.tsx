@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import toast from "react-hot-toast";
@@ -33,7 +34,7 @@ const ForgotPassword: React.FC = () => {
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    idx: number
+    idx: number,
   ) => {
     const raw = e.target.value.replace(/\D/g, "");
     const char = raw.slice(-1) || "";
@@ -47,7 +48,7 @@ const ForgotPassword: React.FC = () => {
 
   const handleKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>,
-    idx: number
+    idx: number,
   ) => {
     if (e.key === "Backspace") {
       if (digits[idx] === "") {
@@ -168,11 +169,12 @@ const ForgotPassword: React.FC = () => {
         aria-hidden="true"
       >
         <div className="relative">
-          <div className="w-35 h-35 lg:w-44 lg:h-44 rounded-full md:rounded-none lg:rounded-none flex items-center justify-center overflow-hidden md:overflow-visible lg:overflow-visible">
-            <img
+          <div className="w-35 h-35 lg:w-44 lg:h-44 rounded-full md:rounded-none lg:rounded-none flex items-center justify-center overflow-hidden md:overflow-visible lg:overflow-visible relative">
+            <Image
               src="/logo-text.png"
               alt="SedaBox Logo"
-              className="w-28 lg:w-44 object-contain transform transition-transform duration-300"
+              fill
+              className="object-contain transform transition-transform duration-300"
             />
           </div>
           <div className="absolute inset-0 rounded-full md:rounded-none lg:rounded-none" />
@@ -414,11 +416,12 @@ const ForgotPassword: React.FC = () => {
       </div>
 
       <div className="w-full lg:w-[55%] h-[40vh] lg:h-auto relative order-1 lg:order-2">
-        <div className="absolute inset-0 w-full h-full">
-          <img
+        <div className="absolute inset-0 w-full h-full relative">
+          <Image
             src="/music-listen.webp"
             alt="Music Background"
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
           />
           <div className="absolute inset-0 bg-black/30 mix-blend-multiply" />
           <div className="absolute inset-0 bg-linear-to-t lg:bg-linear-to-r from-[#0a0a0a] via-[#0a0a0a]/80 to-transparent" />

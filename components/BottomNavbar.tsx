@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigation, useNavComponent } from "./NavigationContext";
+import NextImage from "next/image";
 
 // Custom hook for media queries
 const useMediaQuery = (query: string) => {
@@ -32,8 +33,8 @@ if (typeof window !== "undefined") {
     "/premium.svg",
     "/premium-selected.svg",
   ].forEach((src) => {
-    const img = new Image();
-    img.src = src;
+    const im = new window.Image();
+    im.src = src;
   });
 }
 
@@ -75,40 +76,36 @@ const Icons = {
   ),
   Library: ({ active }: { active: boolean }) => (
     <div className="relative w-6 h-6">
-      <img
+      <NextImage
         src="/library.svg"
         alt="library"
-        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
-          active ? "opacity-0" : "opacity-70"
-        }`}
+        fill
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-0" : "opacity-70"}`}
         style={{ filter: "invert(1)" }}
       />
-      <img
+      <NextImage
         src="/library-selected.svg"
         alt="library-selected"
-        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
-          active ? "opacity-100" : "opacity-0"
-        }`}
+        fill
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-100" : "opacity-0"}`}
         style={{ filter: "invert(1)" }}
       />
     </div>
   ),
   Premium: ({ active }: { active: boolean }) => (
     <div className="relative w-6 h-6">
-      <img
+      <NextImage
         src="/premium.svg"
         alt="premium"
-        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
-          active ? "opacity-0" : "opacity-100"
-        }`}
+        fill
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-0" : "opacity-100"}`}
         style={{ filter: "invert(1)" }}
       />
-      <img
+      <NextImage
         src="/premium-selected.svg"
         alt="premium-selected"
-        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
-          active ? "opacity-100" : "opacity-0"
-        }`}
+        fill
+        className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-100" : "opacity-0"}`}
         style={{ filter: "invert(1)" }}
       />
     </div>

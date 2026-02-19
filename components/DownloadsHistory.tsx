@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, memo } from "react";
 import { useNavigation } from "./NavigationContext";
+import Image from "next/image";
 import { usePlayer, Track } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
@@ -92,8 +93,8 @@ export default function DownloadsHistory() {
       <header className="sticky top-0 z-[60] backdrop-blur-2xl bg-black/60 border-b border-white/5 h-20 flex items-center px-6 justify-between transition-all duration-300">
         <div className="flex items-center gap-5">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-900/40 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
-          <History className="w-6 h-6 text-emerald-400" />
-        </div>
+            <History className="w-6 h-6 text-emerald-400" />
+          </div>
           <div>
             <h1 className="text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-white/90 to-white/60">
               تاریخچه دانلودها
@@ -104,12 +105,11 @@ export default function DownloadsHistory() {
           </div>
         </div>
         <button
-            onClick={goBack}
-            className="w-11 h-11 flex items-center justify-center bg-white/5 hover:bg-white/10 active:scale-90 rounded-2xl transition-all border border-white/5"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-        
+          onClick={goBack}
+          className="w-11 h-11 flex items-center justify-center bg-white/5 hover:bg-white/10 active:scale-90 rounded-2xl transition-all border border-white/5"
+        >
+          <ArrowLeft className="w-6 h-6" />
+        </button>
       </header>
 
       <main className="relative z-20 max-w-2xl mx-auto px-6 pt-10">
@@ -160,10 +160,11 @@ export default function DownloadsHistory() {
                   className={`group relative overflow-hidden rounded-[28px] p-4 flex items-center gap-5 transition-all duration-500 border animate-in fade-in slide-in-from-bottom-5 ${isCurrent ? "bg-gradient-to-br from-emerald-500/15 to-transparent border-emerald-500/30" : "bg-white/[0.03] border-white/5 hover:bg-white/[0.07] hover:border-white/10 shadow-2xl shadow-black/50"}`}
                 >
                   <div className="relative shrink-0 w-20 h-20 rounded-2xl overflow-hidden shadow-2xl transition-transform duration-500 group-hover:scale-105">
-                    <img
+                    <Image
                       src={song.cover_image}
                       alt={song.title}
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
                     />
                     <div
                       className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-all duration-300 ${isCurrent ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}

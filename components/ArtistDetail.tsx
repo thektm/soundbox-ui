@@ -212,14 +212,17 @@ const LazyImg = memo(
     }, [priority]);
 
     return (
-      <div ref={ref} className={`${className} overflow-hidden bg-neutral-800`}>
+      <div
+        ref={ref}
+        className={`${className} overflow-hidden bg-neutral-800 relative`}
+      >
         {load && (
-          <img
+          <Image
             src={src}
             alt={alt}
-            className="w-full h-full object-cover"
-            loading={priority ? "eager" : "lazy"}
-            decoding="async"
+            fill
+            className="object-cover"
+            priority={!!priority}
           />
         )}
       </div>

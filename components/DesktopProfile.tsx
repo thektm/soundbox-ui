@@ -415,10 +415,11 @@ export default function DesktopProfile() {
                     className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 transition-all duration-300 will-change-transform hover:scale-105"
                   >
                     <div className="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-800">
-                      <img
+                      <Image
                         src="/music-listen.webp"
                         alt={`کاور ${idx + 1}`}
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
                       />
                     </div>
                     <div className="flex-1">

@@ -11,6 +11,7 @@ import React, {
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import toast from "react-hot-toast";
+import Image from "next/image";
 
 // ============================================================================
 // Icon Component - Optimized with memo
@@ -147,11 +148,11 @@ const AlbumCardGrid = memo(
       >
         {/* Album Art Container */}
         <div className="relative aspect-square rounded-xl overflow-hidden bg-zinc-800/50 shadow-lg mb-3">
-          <img
+          <Image
             src={album.image}
             alt={album.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
           />
 
           {/* Hover Overlay with Play Button */}
@@ -228,11 +229,11 @@ const AlbumCardList = memo(
       >
         {/* Album Art */}
         <div className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-zinc-800/50 shadow-lg">
-          <img
+          <Image
             src={album.image}
             alt={album.title}
-            className="w-full h-full object-cover"
-            loading="lazy"
+            fill
+            className="object-cover"
           />
           {/* Play overlay on hover */}
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-200">

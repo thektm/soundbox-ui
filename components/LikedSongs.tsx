@@ -8,6 +8,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
+import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
@@ -91,11 +92,11 @@ const SongRow = memo(
         </div>
 
         <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-zinc-800">
-          <img
+          <Image
             src={song.image}
             alt={song.title}
-            className="w-full h-full object-cover"
-            loading="lazy"
+            fill
+            className="object-cover"
           />
         </div>
 
