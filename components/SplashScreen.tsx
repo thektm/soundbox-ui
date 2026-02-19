@@ -19,7 +19,7 @@ const SplashScreen: React.FC = () => {
     } else if (visible) {
       // start fade-out then hide
       setFading(true);
-      const t = setTimeout(() => setVisible(false), 420);
+      const t = setTimeout(() => setVisible(false), 220);
       return () => clearTimeout(t);
     }
   }, [isActive]);
