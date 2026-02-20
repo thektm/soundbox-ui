@@ -1752,8 +1752,10 @@ export default function Search() {
         onAction={handleAction}
       />
       <style>{`
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        @media (max-width: 768px) {
+          .scrollbar-hide::-webkit-scrollbar { display: none; }
+          .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        }
         @keyframes bg-float-1 {
                                       <Image
           50% { transform: translate(3%, 3%) scale(1.05); }

@@ -113,7 +113,7 @@ const Premium: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col h-screen bg-[#121212] text-white overflow-y-auto overflow-x-hidden scroll-smooth no-scrollbar"
+      className="flex flex-col h-screen bg-[#121212] text-white overflow-y-auto overflow-x-hidden scroll-smooth"
     >
       {/* Premium Header Image - GPU-accelerated */}
       <div

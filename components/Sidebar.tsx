@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useCallback, memo, useMemo } from "react";
 import { useNavigation } from "./NavigationContext";
-import { createSlug, decodeSlug, getAllPlaylists } from "./mockData";
+import { useAuth } from "./AuthContext";
+import { createSlug } from "./mockData";
+import { CreatePlaylistModal } from "./CreatePlaylistModal";
 
 // ============================================================================
 // ICONS - Spotify-style icons
@@ -263,7 +265,7 @@ interface PlaylistItem {
   id: string;
   name: string;
   type: "playlist" | "artist" | "album" | "podcast";
-  image?: string;
+  image?: string | string[];
   owner?: string;
   pinned?: boolean;
 }
@@ -289,64 +291,7 @@ const mainNavItems: NavItem[] = [
   },
 ];
 
-const mockLibraryItems: PlaylistItem[] = [
-  {
-    id: "liked",
-    name: "آهنگ‌های موردعلاقه",
-    type: "playlist",
-    image: "/liked-songs.png",
-    owner: "شما",
-    pinned: true,
-  },
-  {
-    id: "pl1",
-    name: "پلی‌لیست تمرینی",
-    type: "playlist",
-    image: "https://picsum.photos/seed/pl1/100/100",
-    owner: "شما",
-    pinned: true,
-  },
-  {
-    id: "pl2",
-    name: "آرامش‌بخش",
-    type: "playlist",
-    image: "https://picsum.photos/seed/pl2/100/100",
-    owner: "شما",
-  },
-  {
-    id: "ar1",
-    name: "The Weeknd",
-    type: "artist",
-    image: "https://i.scdn.co/image/ab6761610000e5eb214f3cf1cbe7139c1e26ffbb",
-  },
-  {
-    id: "ar2",
-    name: "Ed Sheeran",
-    type: "artist",
-    image: "https://i.scdn.co/image/ab6761610000e5eb3bcef85e105dfc42399ef0ba",
-  },
-  {
-    id: "al1",
-    name: "After Hours",
-    type: "album",
-    image: "https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36",
-    owner: "The Weeknd",
-  },
-  {
-    id: "pl3",
-    name: "پاپ فارسی",
-    type: "playlist",
-    image: "https://picsum.photos/seed/pl3/100/100",
-    owner: "صدا باکس",
-  },
-  {
-    id: "pl4",
-    name: "هیپ‌هاپ",
-    type: "playlist",
-    image: "https://picsum.photos/seed/pl4/100/100",
-    owner: "شما",
-  },
-];
+// Playlist mock data removed. Sidebar will fetch recommended playlists from API.
 
 // ============================================================================
 // SIDEBAR CONTEXT FOR COLLAPSE STATE
@@ -446,16 +391,29 @@ const LibraryItemComponent = memo(
         >
           <div className="w-full h-full rounded-md overflow-hidden bg-zinc-800">
             {item.image ? (
-              <img
-                src={item.image}
-                alt={item.name}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                style={{
-                  willChange: "transform",
-                  backfaceVisibility: "hidden",
-                  transform: "translateZ(0)",
-                }}
-              />
+              Array.isArray(item.image) ? (
+                <img
+                  src={(item.image as string[])[0]}
+                  alt={item.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  style={{
+                    willChange: "transform",
+                    backfaceVisibility: "hidden",
+                    transform: "translateZ(0)",
+                  }}
+                />
+              ) : (
+                <img
+                  src={String(item.image)}
+                  alt={item.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  style={{
+                    willChange: "transform",
+                    backfaceVisibility: "hidden",
+                    transform: "translateZ(0)",
+                  }}
+                />
+              )
             ) : (
               <div className="w-full h-full bg-linear-to-br from-zinc-700 to-zinc-800 flex items-center justify-center">
                 <Icons.Playlists active={false} />
@@ -495,16 +453,46 @@ const LibraryItemComponent = memo(
         `}
         >
           {item.image ? (
-            <img
-              src={item.image}
-              alt={item.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              style={{
-                willChange: "transform",
-                backfaceVisibility: "hidden",
-                transform: "translateZ(0)",
-              }}
-            />
+            Array.isArray(item.image) ? (
+              // layered cover stack (up to 3 covers) similar to home
+              <div className="relative w-full h-full">
+                {item.image.slice(0, 3).map((src, idx) => {
+                  const offset = idx * 8; // px offset between stacked covers
+                  const z = 30 - idx;
+                  const sizeClass =
+                    viewMode === "grid" && !isCollapsed
+                      ? "w-20 h-20"
+                      : "w-12 h-12";
+                  return (
+                    <img
+                      key={idx}
+                      src={src}
+                      alt={`${item.name} cover ${idx}`}
+                      className={`object-cover rounded-md border border-black bg-zinc-900 absolute shadow-md`}
+                      style={{
+                        right: `${offset}px`,
+                        top: `50%`,
+                        transform: `translateY(-50%)`,
+                        width: viewMode === "grid" && !isCollapsed ? 76 : 48,
+                        height: viewMode === "grid" && !isCollapsed ? 76 : 48,
+                        zIndex: z,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <img
+                src={String(item.image)}
+                alt={item.name}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                style={{
+                  willChange: "transform",
+                  backfaceVisibility: "hidden",
+                  transform: "translateZ(0)",
+                }}
+              />
+            )
           ) : (
             <div className="w-full h-full bg-linear-to-br from-zinc-700 to-zinc-800 flex items-center justify-center">
               <Icons.Playlists active={false} />
@@ -536,60 +524,205 @@ LibraryItemComponent.displayName = "LibraryItemComponent";
 // MAIN SIDEBAR COMPONENT
 // ============================================================================
 function Sidebar() {
-  const { currentPage, navigateTo } = useNavigation();
+  const { currentPage, navigateTo, homeCache } = useNavigation();
 
   // State
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [libraryFilter, setLibraryFilter] = useState<
-    "all" | "playlists" | "artists" | "albums"
-  >("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const { accessToken } = useAuth();
+  const [libraryTab, setLibraryTab] = useState<"playlists" | "library">(
+    "playlists",
+  );
+  const [recommendedPlaylists, setRecommendedPlaylists] = useState<
+    PlaylistItem[]
+  >([]);
+  const [loadingRecommended, setLoadingRecommended] = useState<boolean>(true);
+  const [libraryItems, setLibraryItems] = useState<PlaylistItem[]>([]);
+  const [loadingLibrary, setLoadingLibrary] = useState<boolean>(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Filter library items
-  const filteredLibraryItems = useMemo(() => {
-    // Build canonical playlist items from mockData so sidebar uses the same source
-    const canonicalPlaylists: PlaylistItem[] = getAllPlaylists().map((p) => ({
-      id: p.id,
-      name: p.title,
-      type: "playlist",
-      image: p.image,
-      owner: p.followers || undefined,
-      pinned: p.isNew || false,
-    }));
-
-    // Keep non-playlist demo items from mockLibraryItems (artists/albums)
-    const otherItems = mockLibraryItems.filter((it) => it.type !== "playlist");
-
-    let items: PlaylistItem[] = [...canonicalPlaylists, ...otherItems];
-
-    // Apply type filter
-    if (libraryFilter !== "all") {
-      const typeMap = {
-        playlists: "playlist",
-        artists: "artist",
-        albums: "album",
-      } as const;
-      items = items.filter((item) => item.type === typeMap[libraryFilter]);
+  // Helper for normalizing covers
+  const ensureHttps = (u: any) => {
+    if (!u) return undefined;
+    try {
+      if (typeof u === "string") return u.replace(/^http:\/\//i, "https://");
+      return undefined;
+    } catch (e) {
+      return undefined;
     }
+  };
 
-    // Apply search
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      items = items.filter(
-        (item) =>
-          item.name.toLowerCase().includes(query) ||
-          item.owner?.toLowerCase().includes(query),
-      );
+  const normalizeCover = (src: any) => {
+    if (!src) return undefined;
+    if (typeof src === "string") return ensureHttps(src);
+    if (Array.isArray(src))
+      return src
+        .map((s) => {
+          if (!s) return undefined;
+          if (typeof s === "string") return ensureHttps(s);
+          if (typeof s === "object")
+            return (
+              ensureHttps(s.cover_image || s.cover || s.url || s.image) ||
+              undefined
+            );
+          return undefined;
+        })
+        .filter(Boolean);
+    if (typeof src === "object")
+      return ensureHttps(src.cover_image || src.cover || src.url || src.image);
+    return undefined;
+  };
+
+  // Fetch library items (history) similar to LibraryScreen
+  const fetchLibraryItems = useCallback(async () => {
+    if (!accessToken) return;
+    setLoadingLibrary(true);
+    try {
+      const resp = await fetch("https://api.sedabox.com/api/profile/history/", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const list = data.results || [];
+        const mapped = list.map((h: any) => {
+          const item = h.item;
+          return {
+            id: item.unique_id || item.id,
+            name: item.title || item.name,
+            type: h.type as any,
+            image: normalizeCover(
+              item.cover_image || item.image || item.covers,
+            ),
+            owner: item.owner || undefined,
+            pinned: false,
+          } as PlaylistItem;
+        });
+        setLibraryItems(mapped);
+      }
+    } catch (err) {
+      console.error("Failed to fetch library history:", err);
+    } finally {
+      setLoadingLibrary(false);
     }
+  }, [accessToken]);
 
-    // Sort: pinned first
-    return items.sort((a, b) => {
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      return 0;
-    });
-  }, [libraryFilter, searchQuery]);
+  // Handle playlist creation
+  const handleCreatePlaylist = useCallback(
+    async (name: string, isPublic: boolean) => {
+      if (!accessToken) return;
+      try {
+        const resp = await fetch(
+          "https://api.sedabox.com/api/profile/playlists/create/",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ title: name, public: isPublic }),
+          },
+        );
+        if (resp.ok) {
+          // Refresh playlists if we are in that mode or it was just created
+          // For simplicity, we could re-fetch or just navigate to the new playlist
+          const data = await resp.json();
+          if (data.id) {
+            navigateTo("playlist-detail", { id: data.id });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to create playlist:", err);
+      }
+    },
+    [accessToken, navigateTo],
+  );
+
+  // Fetch recommended playlists once on mount
+  useEffect(() => {
+    let mounted = true;
+    const fetchRecommended = async () => {
+      setLoadingRecommended(true);
+      // If we already have home cache with playlist_recommendations, use it immediately
+      try {
+        if (homeCache?.playlist_recommendations) {
+          const cached = homeCache.playlist_recommendations;
+          const list = Array.isArray(cached) ? cached : cached.results || [];
+          const normalizeCached = (p: any) => {
+            const covers = p.top_three_song_covers || p.covers || [];
+            const mappedCovers = Array.isArray(covers)
+              ? covers
+                  .map((c: any) =>
+                    typeof c === "string"
+                      ? c.replace(/^http:\/\//i, "https://")
+                      : c?.cover_image || c?.url || c?.image,
+                  )
+                  .filter(Boolean)
+              : [];
+            return {
+              id: p.unique_id || p.id,
+              name: p.title || p.name,
+              type: "playlist",
+              image: mappedCovers.length > 0 ? mappedCovers : p.cover_image,
+              owner: p.owner || undefined,
+              pinned: false,
+            } as PlaylistItem;
+          };
+
+          const pre = list.map((p: any) => normalizeCached(p));
+          if (mounted && pre.length > 0) {
+            setRecommendedPlaylists(pre);
+            // keep loadingRecommended true while we refresh in background
+          }
+        }
+      } catch (e) {
+        /* ignore cache transform errors */
+      }
+      try {
+        const resp = await fetch(
+          "https://api.sedabox.com/api/home/playlist-recommendations/",
+          {
+            headers: accessToken
+              ? { Authorization: `Bearer ${accessToken}` }
+              : {},
+          },
+        );
+        if (!mounted) return;
+        if (resp.ok) {
+          const data = await resp.json();
+          const list = Array.isArray(data) ? data : data?.results || [];
+
+          const mapped: PlaylistItem[] = list.map((p: any) => {
+            const covers = normalizeCover(p.top_three_song_covers || p.covers);
+            const single = normalizeCover(p.cover_image) as string | undefined;
+            return {
+              id: p.unique_id || p.id,
+              name: p.title || p.name,
+              type: "playlist",
+              image: (covers && covers.length > 0 ? covers : single) as
+                | string
+                | string[]
+                | undefined,
+              owner: p.owner || undefined,
+              pinned: false,
+            } as PlaylistItem;
+          });
+          setRecommendedPlaylists(mapped);
+        } else {
+          setRecommendedPlaylists([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch recommended playlists:", err);
+        setRecommendedPlaylists([]);
+      } finally {
+        if (mounted) setLoadingRecommended(false);
+      }
+    };
+
+    fetchRecommended();
+    return () => {
+      mounted = false;
+    };
+  }, [accessToken]);
 
   // Check active state
   const isActivePath = useCallback(
@@ -671,101 +804,99 @@ function Sidebar() {
       <div className="flex-1 p-2 overflow-hidden flex flex-col">
         <div className="bg-zinc-900 rounded-lg flex-1 flex flex-col overflow-hidden">
           {/* Library Header */}
-          <div className="p-3 flex items-center justify-between sticky top-0 bg-zinc-900 z-10">
-            <button
-              onClick={() => navigateTo("playlists")}
-              className={`
-                flex items-center gap-3 text-zinc-400 hover:text-white transition-colors
-                ${isCollapsed ? "justify-center w-full" : ""}
-              `}
-            >
-              <Icons.Library active={isActivePath("/playlists")} />
+          <div className="p-3 pb-2 flex items-center justify-between sticky top-0 bg-zinc-900 z-10 transition-colors duration-200">
+            <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
+              <button
+                onClick={() => {
+                  setLibraryTab("playlists");
+                  // No re-fetch needed if we have them, usually
+                }}
+                className={`
+                  flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300
+                  ${
+                    libraryTab === "playlists"
+                      ? "bg-white/15 text-white shadow-xl shadow-black/20"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
+                  }
+                  ${isCollapsed ? "hidden" : "block shrink-0"}
+                `}
+              >
+                <Icons.Library active={libraryTab === "playlists"} />
+                <span className="font-bold text-xs whitespace-nowrap">
+                  پلی‌لیست‌ها
+                </span>
+              </button>
               {!isCollapsed && (
-                <span className="font-bold text-base"> پلی‌لیست‌ها</span>
+                <button
+                  onClick={() => {
+                    setLibraryTab("library");
+                    // Always fetch library items when switching to the Library tab
+                    fetchLibraryItems();
+                  }}
+                  className={`
+                    flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300
+                    ${
+                      libraryTab === "library"
+                        ? "bg-white/15 text-white shadow-xl shadow-black/20"
+                        : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
+                    }
+                    ${isCollapsed ? "hidden" : "block shrink-0"}
+                  `}
+                >
+                  <Icons.Search active={libraryTab === "library"} />
+                  <span className="font-bold text-xs whitespace-nowrap">
+                    کتابخانه شما
+                  </span>
+                </button>
               )}
-            </button>
+
+              {isCollapsed && (
+                <button
+                  onClick={() => {
+                    const next =
+                      libraryTab === "playlists" ? "library" : "playlists";
+                    setLibraryTab(next);
+                    // When toggling in collapsed mode, fetch every time we switch to library
+                    if (next === "library") fetchLibraryItems();
+                  }}
+                  className="p-1 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center justify-center w-full"
+                >
+                  {libraryTab === "playlists" ? (
+                    <Icons.Library active={true} />
+                  ) : (
+                    <Icons.Search active={true} />
+                  )}
+                </button>
+              )}
+            </div>
+
             {!isCollapsed && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => {}}
-                  className="p-2 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
-                  title="ایجاد پلی‌لیست جدید"
-                >
-                  <Icons.Plus />
-                </button>
-                <button
-                  onClick={() => navigateTo("playlists")}
-                  className="p-2 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
-                  title="مشاهده همه"
-                >
-                  <Icons.ArrowRight />
-                </button>
+              <div className="flex items-center gap-1 shrink-0 mr-1.5">
+                {libraryTab === "playlists" ? (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="p-2 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-all transform active:scale-95 duration-200"
+                    title="ایجاد پلی‌لیست جدید"
+                  >
+                    <Icons.Plus />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => navigateTo("liked-songs")}
+                    className="p-2 rounded-full hover:bg-white/10 text-emerald-500 hover:text-emerald-400 transition-all transform active:scale-95 animate-in fade-in zoom-in duration-300"
+                    title="آهنگ‌های لایک شده"
+                  >
+                    <Icons.Heart filled={true} />
+                  </button>
+                )}
               </div>
             )}
           </div>
 
-          {/* Filter Chips */}
-          {!isCollapsed && (
-            <div className="px-3 pb-2 flex gap-2 overflow-x-auto no-scrollbar">
-              {(
-                [
-                  { id: "all", label: "همه" },
-                  { id: "playlists", label: "پلی‌لیست" },
-                  { id: "artists", label: "هنرمندان" },
-                  { id: "albums", label: "آلبوم‌ها" },
-                ] as const
-              ).map((filter) => (
-                <button
-                  key={filter.id}
-                  onClick={() => setLibraryFilter(filter.id)}
-                  className={`
-                    px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap
-                    transition-all duration-200
-                    ${
-                      libraryFilter === filter.id
-                        ? "bg-white text-black"
-                        : "bg-zinc-800 text-white hover:bg-zinc-700"
-                    }
-                  `}
-                  style={{
-                    willChange: "background-color, color",
-                    backfaceVisibility: "hidden",
-                    transform: "translateZ(0)",
-                  }}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Search & View Toggle */}
-          {!isCollapsed && (
-            <div className="px-3 pb-2 flex items-center justify-between">
-              <button
-                onClick={() => {}}
-                className="p-1.5 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
-              >
-                <Icons.Search active={false} />
-              </button>
-              <div className="flex items-center gap-1 text-zinc-400">
-                <span className="text-xs">اخیر</span>
-                <button
-                  onClick={() =>
-                    setViewMode(viewMode === "list" ? "grid" : "list")
-                  }
-                  className="p-1.5 rounded-md hover:bg-white/10 hover:text-white transition-colors"
-                >
-                  {viewMode === "list" ? <Icons.Grid /> : <Icons.List />}
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Library Items */}
           <div
             className={`
-            flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2
+            flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 scroll-smooth
             ${
               viewMode === "grid" && !isCollapsed
                 ? "grid grid-cols-2 gap-2 content-start"
@@ -774,78 +905,71 @@ function Sidebar() {
             ${isCollapsed ? "grid grid-cols-1 gap-2 px-2" : ""}
           `}
           >
-            {filteredLibraryItems.map((item) => (
-              <LibraryItemComponent
-                key={item.id}
-                item={item}
-                isCollapsed={isCollapsed}
-                viewMode={viewMode}
-                onClick={() => {
-                  // Navigate to the correct detail page based on item type.
-                  if (item.type === "artist") {
-                    navigateTo("artist-detail", {
-                      id: item.id,
-                      slug:
-                        (item as any).unique_id || createSlug(item.name || ""),
-                    });
-                    return;
-                  }
-
-                  if (item.type === "album") {
-                    navigateTo("album-detail", {
-                      id: item.id,
-                      slug: createSlug(item.name),
-                      album: item,
-                    });
-                    return;
-                  }
-
-                  if (item.type === "playlist") {
-                    // Try to find a matching playlist from the canonical mock data
-                    const all = getAllPlaylists();
-                    const targetSlug = createSlug(item.name);
-                    const found = all.find((p) => {
-                      try {
-                        const s1 = decodeSlug(
-                          createSlug(p.title),
-                        ).toLowerCase();
-                        const s2 = decodeSlug(targetSlug).toLowerCase();
-                        if (s1 === s2) return true;
-                        // fallback: compare normalized titles
-                        const normP = p.title
-                          .toLowerCase()
-                          .replace(/\s+/g, " ")
-                          .trim();
-                        const normItem = item.name
-                          .toLowerCase()
-                          .replace(/\s+/g, " ")
-                          .trim();
-                        return normP === normItem;
-                      } catch (e) {
-                        return false;
-                      }
-                    });
-
-                    if (found) {
-                      navigateTo("playlist-detail", {
-                        slug: createSlug(found.title),
-                      });
-                    } else {
-                      // Last resort: navigate using the item name slug (may show not-found)
-                      navigateTo("playlist-detail", { slug: targetSlug });
+            {(libraryTab === "playlists" ? loadingRecommended : loadingLibrary)
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={"skeleton-" + i}
+                    className={
+                      viewMode === "grid" && !isCollapsed
+                        ? "w-full h-24 bg-zinc-800/50 rounded-md animate-pulse"
+                        : "w-full h-12 bg-zinc-800/50 rounded-md animate-pulse mb-2"
                     }
+                  />
+                ))
+              : (libraryTab === "playlists"
+                  ? recommendedPlaylists
+                  : libraryItems
+                ).map((item) => (
+                  <LibraryItemComponent
+                    key={`${item.type}-${item.id}`}
+                    item={item}
+                    isCollapsed={isCollapsed}
+                    viewMode={viewMode}
+                    onClick={() => {
+                      if (item.type === "artist") {
+                        navigateTo("artist-detail", {
+                          id: item.id,
+                          slug: createSlug(item.name || ""),
+                        });
+                        return;
+                      }
 
-                    return;
-                  }
+                      if (item.type === "album") {
+                        navigateTo("album-detail", {
+                          id: item.id,
+                          slug: createSlug(item.name),
+                          album: item,
+                        });
+                        return;
+                      }
 
-                  // Fallback to the playlists list view
-                  navigateTo("playlists");
-                }}
-              />
-            ))}
+                      if (item.type === "playlist") {
+                        navigateTo("playlist-detail", { id: item.id });
+                        return;
+                      }
+
+                      if (item.type === "song") {
+                        // maybe navigate to song detail?
+                        navigateTo("song-detail", { id: item.id });
+                        return;
+                      }
+                    }}
+                  />
+                ))}
           </div>
         </div>
       </div>
+
+      {/* Profile quick access removed for brevity or kept if needed */}
+      {/* Portals and Modals */}
+      <CreatePlaylistModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={(name, isPub) => {
+          handleCreatePlaylist(name, isPub);
+          setShowCreateModal(false);
+        }}
+      />
 
       {/* Bottom Section - Profile Quick Access */}
       <div className="p-2">
