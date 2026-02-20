@@ -264,7 +264,7 @@ interface NavItem {
 interface PlaylistItem {
   id: string;
   name: string;
-  type: "playlist" | "artist" | "album" | "podcast";
+  type: "playlist" | "artist" | "album" | "podcast" | "song";
   image?: string | string[];
   owner?: string;
   pinned?: boolean;
@@ -380,6 +380,7 @@ const LibraryItemComponent = memo(
       artist: "هنرمند",
       album: "آلبوم",
       podcast: "پادکست",
+      song: "آهنگ",
     };
 
     if (isCollapsed) {
