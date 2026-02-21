@@ -71,6 +71,7 @@ const ICONS = {
 
 type Section =
   | "overview"
+  | "downloads-history"
   | "liked-songs"
   | "liked-albums"
   | "liked-playlists"
@@ -116,6 +117,15 @@ export default function DesktopProfile() {
       localStorage.setItem("sedabox_user_plan", "premium");
     }
   }, [currentParams]);
+
+  // Navigate when a menu item that points to an external page is selected
+  useEffect(() => {
+    if (activeSection === "downloads-history") {
+      navigateTo("downloads-history");
+      // return to overview to avoid staying in this temporary state
+      setActiveSection("overview");
+    }
+  }, [activeSection, navigateTo]);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -221,6 +231,11 @@ export default function DesktopProfile() {
   const menuItems = [
     { key: "overview" as Section, label: "نمای کلی", icon: ICONS.profile },
     {
+      key: "downloads-history" as Section,
+      label: "تاریخچه دانلودها",
+      icon: ICONS.playlists,
+    },
+    {
       key: "liked-songs" as Section,
       label: "آهنگ‌های لایک‌شده",
       icon: ICONS.heart,
@@ -252,324 +267,360 @@ export default function DesktopProfile() {
     switch (activeSection) {
       case "overview":
         return (
-          <div className="p-8 space-y-8">
-            {/* Profile Header */}
-            <div className="flex items-center gap-8">
-              <div className="relative">
-                <div
-                  className={`w-32 h-32 rounded-full p-1 ${
-                    isPremium
-                      ? "bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500"
-                      : "bg-gradient-to-br from-emerald-400 to-blue-500"
-                  }`}
-                >
-                  <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
-                    <span className="text-4xl font-bold text-white">
-                      {formData.firstName[0]}
-                      {formData.lastName[0]}
-                    </span>
-                  </div>
-                </div>
-                <div
-                  className={`absolute -top-3 -left-3 px-3 py-1.5 rounded-xl border text-sm font-bold shadow-lg ${
-                    isPremium
-                      ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400"
-                      : "bg-white/10 border-white/20 text-gray-300"
-                  }`}
-                >
-                  {isPremium ? "VIP" : "FREE"}
-                </div>
-                <button
-                  onClick={() => setIsSheetOpen(true)}
-                  className="absolute -bottom-3 -right-3 p-3 bg-emerald-500 rounded-full hover:bg-emerald-600 transition-all duration-300 hover:scale-110 will-change-transform"
-                >
-                  <Icon d={ICONS.edit} className="w-6 h-6" />
-                </button>
-              </div>
-              <div className="flex-1">
-                <h1 className="text-4xl font-bold text-white mb-2">
-                  {user.name}
-                </h1>
-                <p className="text-gray-400 text-lg mb-1">{user.phone}</p>
-                <p className="text-gray-400 text-lg mb-1">{user.email}</p>
-                <p className="text-gray-400 text-lg">عضو از {user.joinDate}</p>
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-6">
-              {[
-                {
-                  label: "پلی لیست‌ها",
-                  value: authUser?.user_playlists_count || 0,
-                  type: "playlists",
-                  action: "my-playlists",
-                },
-                {
-                  label: "دنبال کنندگان",
-                  value: authUser?.followers_count || 0,
-                  type: "followers",
-                  action: "followers-following",
-                  tab: "followers",
-                },
-                {
-                  label: "دنبال شده",
-                  value: authUser?.following_count || 0,
-                  type: "following",
-                  action: "followers-following",
-                  tab: "following",
-                },
-              ].map((stat) => (
-                <button
-                  key={stat.type}
-                  onClick={() =>
-                    navigateTo(
-                      stat.action,
-                      stat.tab ? { tab: stat.tab } : undefined,
-                    )
-                  }
-                  className="text-center py-6 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/30 hover:bg-white/8 active:scale-95 transition-all duration-300 will-change-transform"
-                >
-                  <div className="flex items-center justify-center mb-3">
-                    <Icon
-                      d={ICONS[stat.type as keyof typeof ICONS]}
-                      className="w-8 h-8 text-emerald-400"
-                    />
-                  </div>
-                  <div className="text-3xl font-bold text-white mb-2">
-                    {(stat.value || 0).toLocaleString("fa-IR")}
-                  </div>
-                  <div className="text-sm text-gray-400">{stat.label}</div>
-                </button>
-              ))}
-            </div>
-
-            {/* Plan Section */}
-            <div
-              className={`relative w-full rounded-3xl overflow-hidden border shadow-2xl ${
-                isPremium
-                  ? "bg-gradient-to-br from-[#0d1f17] via-[#0a1a12] to-[#061210] border-emerald-500/30"
-                  : "bg-[#070707] border-white/8"
-              }`}
-            >
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent opacity-50"></div>
-              {isPremium ? (
-                <div className="relative p-8">
-                  <div className="absolute top-[-50%] right-[-30%] w-[400px] h-[400px] bg-emerald-500/10 rounded-full blur-[150px] pointer-events-none" />
-                  <div className="absolute bottom-[-50%] left-[-30%] w-[350px] h-[350px] bg-yellow-500/5 rounded-full blur-[120px] pointer-events-none" />
-                  <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 flex items-center justify-center shadow-lg shadow-yellow-500/20">
-                          <svg
-                            className="w-8 h-8 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path d={ICONS.crownReal} />
-                          </svg>
-                        </div>
-                        <div>
-                          <h2 className="text-2xl font-bold text-white">
-                            کاربر پریمیوم
-                          </h2>
-                          <p className="text-lg text-emerald-400">
-                            دسترسی کامل به همه امکانات
-                          </p>
-                        </div>
-                      </div>
-                      <div className="px-4 py-2 rounded-xl bg-yellow-500/20 border border-yellow-500/30">
-                        <span className="text-lg font-bold text-yellow-400">
-                          VIP
-                        </span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                      {[
-                        { label: "کیفیت پخش", value: "۳۲۰ kbps" },
-                        { label: "تبلیغات", value: "بدون تبلیغات" },
-                      ].map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="p-4 rounded-2xl bg-white/5 border border-white/10"
-                        >
-                          <p className="text-sm text-gray-500 mb-2">
-                            {item.label}
-                          </p>
-                          <p className="text-xl font-medium text-emerald-400">
-                            {item.value}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                      <div className="flex items-center justify-between">
-                        <span className="text-lg text-gray-300">اعتبار تا</span>
-                        <span className="text-lg font-medium text-white">
-                          {new Date(
-                            Date.now() + 30 * 24 * 60 * 60 * 1000,
-                          ).toLocaleDateString("fa-IR")}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col md:flex-row relative">
-                  <div className="relative flex-1 p-8 z-10">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-white/5 border border-white/10">
-                          <Icon
-                            d={ICONS.users}
-                            className="w-6 h-6 text-gray-400"
-                          />
-                        </div>
-                        <span className="text-xl font-semibold text-gray-300">
-                          پلن فعلی
-                        </span>
-                      </div>
-                      <span className="text-lg px-3 py-1.5 rounded-lg bg-white/10 text-gray-400 border border-white/5">
-                        رایگان
+          <div className="p-8">
+            <div className="transform scale-90 origin-top-right space-y-8">
+              {/* Profile Header */}
+              <div className="flex items-center gap-8">
+                <div className="relative">
+                  <div
+                    className={`w-32 h-32 rounded-full p-1 ${
+                      isPremium
+                        ? "bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500"
+                        : "bg-gradient-to-br from-emerald-400 to-blue-500"
+                    }`}
+                  >
+                    <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
+                      <span className="text-4xl font-bold text-white">
+                        {formData.firstName[0]}
+                        {formData.lastName[0]}
                       </span>
                     </div>
-                    <div className="space-y-4">
-                      <div>
-                        <h2 className="text-3xl font-bold text-white mb-2">
-                          کاربر عادی
-                        </h2>
-                        <p className="text-lg text-gray-500">
-                          دسترسی محدود به امکانات
-                        </p>
-                      </div>
+                  </div>
+                  <div
+                    className={`absolute -top-3 -left-3 px-3 py-1.5 rounded-xl border text-sm font-bold shadow-lg ${
+                      isPremium
+                        ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400"
+                        : "bg-white/10 border-white/20 text-gray-300"
+                    }`}
+                  >
+                    {isPremium ? "VIP" : "FREE"}
+                  </div>
+                  <button
+                    onClick={() => setIsSheetOpen(true)}
+                    className="absolute -bottom-3 -right-3 p-3 bg-emerald-500 rounded-full hover:bg-emerald-600 transition-all duration-300 hover:scale-110 will-change-transform"
+                  >
+                    <Icon d={ICONS.edit} className="w-6 h-6" />
+                  </button>
+                </div>
+                <div className="flex-1">
+                  <h1 className="text-4xl font-bold text-white mb-2">
+                    {user.name}
+                  </h1>
+                  <p className="text-gray-400 text-lg mb-1">{user.phone}</p>
+                  <p className="text-gray-400 text-lg mb-1">{user.email}</p>
+                  <p className="text-gray-400 text-lg">
+                    عضو از {user.joinDate}
+                  </p>
+                </div>
+              </div>
+
+              {/* Downloads History Card (match mobile Profile styles & navigation) */}
+              <button
+                onClick={() => navigateTo("downloads-history")}
+                className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98]"
+              >
+                <div className="relative z-10 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors">
+                      <Icon
+                        d={ICONS.playlists}
+                        className="w-6 h-6 text-emerald-400"
+                      />
+                    </div>
+                    <div className="text-right">
+                      <h3 className="text-lg font-bold text-white leading-tight">
+                        تاریخچه دانلودها
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        مشاهده تمام آهنگ‌های دریافت شده
+                      </p>
                     </div>
                   </div>
-                  <div className="hidden md:block w-px bg-gradient-to-b from-transparent via-white/10 to-transparent"></div>
-                  <div
-                    className="relative flex-1 p-8 overflow-hidden group cursor-pointer"
-                    onClick={() => navigateTo("upgrade-plans")}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/25 to-[#020202] group-hover:from-emerald-800/25 transition-all duration-500"></div>
-                    <div className="absolute -right-8 -top-8 w-32 h-32 bg-emerald-900/8 rounded-full blur-3xl group-hover:bg-emerald-800/8 transition-all"></div>
-                    <div className="absolute -left-6 bottom-0 w-40 h-40 bg-blue-900/6 rounded-full blur-4xl"></div>
-                    <div className="relative z-10 h-full flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-6">
-                        <div>
-                          <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 to-yellow-500">
-                              اشتراک ویژه
-                            </span>
-                            <Icon
-                              d={ICONS.crownReal}
-                              className="w-6 h-6 text-yellow-400 animate-pulse"
-                            />
-                          </h2>
-                          <p className="text-lg text-gray-400 mt-2">
-                            بدون محدودیت گوش کنید
-                          </p>
-                        </div>
-                      </div>
-                      <ul className="space-y-3 mb-6">
-                        <li className="flex items-center gap-3 text-base text-gray-300">
-                          <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
-                          کیفیت پخش بالاتر
-                        </li>
-                        <li className="flex items-center gap-3 text-base text-gray-300">
-                          <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
-                          بدون تبلیغات
-                        </li>
-                      </ul>
-                      <button className="w-full py-4 relative overflow-hidden rounded-2xl group/btn">
-                        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all group-hover/btn:scale-105 will-change-transform"></div>
-                        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-                        <div className="absolute inset-0 -translate-x-full group-hover/btn:animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent z-10"></div>
-                        <div className="relative z-20 flex items-center justify-center gap-3">
-                          <span className="text-white font-bold text-lg">
-                            ارتقا به نسخه پرو
-                          </span>
-                          <Icon
-                            d={ICONS.lightning}
-                            className="w-6 h-6 text-yellow-200"
-                          />
-                        </div>
-                      </button>
-                    </div>
+                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
+                    <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
                   </div>
                 </div>
-              )}
-            </div>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
+              </button>
 
-            {/* Recent Plays */}
-            <div>
-              <h2 className="text-2xl font-semibold text-white mb-6">
-                اخیراً پخش شده
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                {isFetching ? (
-                  Array.from({ length: 4 }).map((_, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 animate-pulse"
-                    >
-                      <div className="w-16 h-16 rounded-lg bg-white/10" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-4 bg-white/10 rounded w-3/4" />
-                        <div className="h-3 bg-white/5 rounded w-1/2" />
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-6">
+                {[
+                  {
+                    label: "پلی لیست‌ها",
+                    value: authUser?.user_playlists_count || 0,
+                    type: "playlists",
+                    action: "my-playlists",
+                  },
+                  {
+                    label: "دنبال کنندگان",
+                    value: authUser?.followers_count || 0,
+                    type: "followers",
+                    action: "followers-following",
+                    tab: "followers",
+                  },
+                  {
+                    label: "دنبال شده",
+                    value: authUser?.following_count || 0,
+                    type: "following",
+                    action: "followers-following",
+                    tab: "following",
+                  },
+                ].map((stat) => (
+                  <button
+                    key={stat.type}
+                    onClick={() =>
+                      navigateTo(
+                        stat.action,
+                        stat.tab ? { tab: stat.tab } : undefined,
+                      )
+                    }
+                    className="text-center py-6 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/30 hover:bg-white/8 active:scale-95 transition-all duration-300 will-change-transform"
+                  >
+                    <div className="flex items-center justify-center mb-3">
+                      <Icon
+                        d={ICONS[stat.type as keyof typeof ICONS]}
+                        className="w-8 h-8 text-emerald-400"
+                      />
+                    </div>
+                    <div className="text-3xl font-bold text-white mb-2">
+                      {(stat.value || 0).toLocaleString("fa-IR")}
+                    </div>
+                    <div className="text-sm text-gray-400">{stat.label}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Plan Section */}
+              <div
+                className={`relative w-full rounded-3xl overflow-hidden border shadow-2xl ${
+                  isPremium
+                    ? "bg-gradient-to-br from-[#0d1f17] via-[#0a1a12] to-[#061210] border-emerald-500/30"
+                    : "bg-[#070707] border-white/8"
+                }`}
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent opacity-50"></div>
+                {isPremium ? (
+                  <div className="relative p-8">
+                    <div className="absolute top-[-50%] right-[-30%] w-[400px] h-[400px] bg-emerald-500/10 rounded-full blur-[150px] pointer-events-none" />
+                    <div className="absolute bottom-[-50%] left-[-30%] w-[350px] h-[350px] bg-yellow-500/5 rounded-full blur-[120px] pointer-events-none" />
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 flex items-center justify-center shadow-lg shadow-yellow-500/20">
+                            <svg
+                              className="w-8 h-8 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d={ICONS.crownReal} />
+                            </svg>
+                          </div>
+                          <div>
+                            <h2 className="text-2xl font-bold text-white">
+                              کاربر پریمیوم
+                            </h2>
+                            <p className="text-lg text-emerald-400">
+                              دسترسی کامل به همه امکانات
+                            </p>
+                          </div>
+                        </div>
+                        <div className="px-4 py-2 rounded-xl bg-yellow-500/20 border border-yellow-500/30">
+                          <span className="text-lg font-bold text-yellow-400">
+                            VIP
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                        {[
+                          { label: "کیفیت پخش", value: "۳۲۰ kbps" },
+                          { label: "تبلیغات", value: "بدون تبلیغات" },
+                        ].map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="p-4 rounded-2xl bg-white/5 border border-white/10"
+                          >
+                            <p className="text-sm text-gray-500 mb-2">
+                              {item.label}
+                            </p>
+                            <p className="text-xl font-medium text-emerald-400">
+                              {item.value}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="flex items-center justify-between">
+                          <span className="text-lg text-gray-300">
+                            اعتبار تا
+                          </span>
+                          <span className="text-lg font-medium text-white">
+                            {new Date(
+                              Date.now() + 30 * 24 * 60 * 60 * 1000,
+                            ).toLocaleDateString("fa-IR")}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  ))
-                ) : authUser?.recently_played?.items?.length ? (
-                  authUser.recently_played.items
-                    .slice(0, 6)
-                    .map((track: any) => (
-                      <button
-                        key={track.id}
-                        onClick={() =>
-                          navigateTo("song-detail", {
-                            id: track.id,
-                            artistSlug:
-                              track.artist_unique_id ||
-                              createSlug(track.artist_name || "artist"),
-                            songSlug: createSlug(track.title),
-                          })
-                        }
-                        className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 transition-all duration-300 will-change-transform"
-                      >
-                        <div className="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-800">
-                          <Image
-                            src={
-                              track.image ||
-                              track.cover_image ||
-                              "/music-listen.webp"
-                            }
-                            alt={track.title}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg text-white truncate">
-                            {track.title}
-                          </h3>
-                          <p className="text-gray-400 text-sm truncate">
-                            {track.artist_name}
-                          </p>
-                          <p className="text-gray-500 text-xs mt-1">
-                            {track.played_at
-                              ? new Date(track.played_at).toLocaleDateString(
-                                  "fa-IR",
-                                )
-                              : ""}{" "}
-                            • {track.duration_display || track.duration || "-"}
-                          </p>
-                        </div>
-                      </button>
-                    ))
+                  </div>
                 ) : (
-                  <div className="w-full text-center py-8 text-gray-500 text-sm">
-                    هنوز آهنگی پخش نکرده‌اید
+                  <div className="flex flex-col md:flex-row relative">
+                    <div className="relative flex-1 p-8 z-10">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-xl bg-white/5 border border-white/10">
+                            <Icon
+                              d={ICONS.users}
+                              className="w-6 h-6 text-gray-400"
+                            />
+                          </div>
+                          <span className="text-xl font-semibold text-gray-300">
+                            پلن فعلی
+                          </span>
+                        </div>
+                        <span className="text-lg px-3 py-1.5 rounded-lg bg-white/10 text-gray-400 border border-white/5">
+                          رایگان
+                        </span>
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <h2 className="text-3xl font-bold text-white mb-2">
+                            کاربر عادی
+                          </h2>
+                          <p className="text-lg text-gray-500">
+                            دسترسی محدود به امکانات
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="hidden md:block w-px bg-gradient-to-b from-transparent via-white/10 to-transparent"></div>
+                    <div
+                      className="relative flex-1 p-8 overflow-hidden group cursor-pointer"
+                      onClick={() => navigateTo("upgrade-plans")}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/25 to-[#020202] group-hover:from-emerald-800/25 transition-all duration-500"></div>
+                      <div className="absolute -right-8 -top-8 w-32 h-32 bg-emerald-900/8 rounded-full blur-3xl group-hover:bg-emerald-800/8 transition-all"></div>
+                      <div className="absolute -left-6 bottom-0 w-40 h-40 bg-blue-900/6 rounded-full blur-4xl"></div>
+                      <div className="relative z-10 h-full flex flex-col justify-between">
+                        <div className="flex items-start justify-between mb-6">
+                          <div>
+                            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                              <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 to-yellow-500">
+                                اشتراک ویژه
+                              </span>
+                              <Icon
+                                d={ICONS.crownReal}
+                                className="w-6 h-6 text-yellow-400 animate-pulse"
+                              />
+                            </h2>
+                            <p className="text-lg text-gray-400 mt-2">
+                              بدون محدودیت گوش کنید
+                            </p>
+                          </div>
+                        </div>
+                        <ul className="space-y-3 mb-6">
+                          <li className="flex items-center gap-3 text-base text-gray-300">
+                            <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                            کیفیت پخش بالاتر
+                          </li>
+                          <li className="flex items-center gap-3 text-base text-gray-300">
+                            <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                            بدون تبلیغات
+                          </li>
+                        </ul>
+                        <button className="w-full py-4 relative overflow-hidden rounded-2xl group/btn">
+                          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all group-hover/btn:scale-105 will-change-transform"></div>
+                          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
+                          <div className="absolute inset-0 -translate-x-full group-hover/btn:animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent z-10"></div>
+                          <div className="relative z-20 flex items-center justify-center gap-3">
+                            <span className="text-white font-bold text-lg">
+                              ارتقا به نسخه پرو
+                            </span>
+                            <Icon
+                              d={ICONS.lightning}
+                              className="w-6 h-6 text-yellow-200"
+                            />
+                          </div>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
+              </div>
+
+              {/* Recent Plays */}
+              <div>
+                <h2 className="text-2xl font-semibold text-white mb-6">
+                  اخیراً پخش شده
+                </h2>
+                <div className="grid grid-cols-2 gap-4">
+                  {isFetching ? (
+                    Array.from({ length: 4 }).map((_, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 animate-pulse"
+                      >
+                        <div className="w-16 h-16 rounded-lg bg-white/10" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-white/10 rounded w-3/4" />
+                          <div className="h-3 bg-white/5 rounded w-1/2" />
+                        </div>
+                      </div>
+                    ))
+                  ) : authUser?.recently_played?.items?.length ? (
+                    authUser.recently_played.items
+                      .slice(0, 6)
+                      .map((track: any) => (
+                        <button
+                          key={track.id}
+                          onClick={() =>
+                            navigateTo("song-detail", {
+                              id: track.id,
+                              artistSlug:
+                                track.artist_unique_id ||
+                                createSlug(track.artist_name || "artist"),
+                              songSlug: createSlug(track.title),
+                            })
+                          }
+                          className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 transition-all duration-300 will-change-transform"
+                        >
+                          <div className="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-800">
+                            <Image
+                              src={
+                                track.image ||
+                                track.cover_image ||
+                                "/music-listen.webp"
+                              }
+                              alt={track.title}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg text-white truncate">
+                              {track.title}
+                            </h3>
+                            <p className="text-gray-400 text-sm truncate">
+                              {track.artist_name}
+                            </p>
+                            <p className="text-gray-500 text-xs mt-1">
+                              {track.played_at
+                                ? new Date(track.played_at).toLocaleDateString(
+                                    "fa-IR",
+                                  )
+                                : ""}{" "}
+                              •{" "}
+                              {track.duration_display || track.duration || "-"}
+                            </p>
+                          </div>
+                        </button>
+                      ))
+                  ) : (
+                    <div className="w-full text-center py-8 text-gray-500 text-sm">
+                      هنوز آهنگی پخش نکرده‌اید
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

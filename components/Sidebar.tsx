@@ -826,6 +826,7 @@ function Sidebar() {
                     // Always fetch library items when switching to the Library tab
                     fetchLibraryItems();
                   }}
+                  onDoubleClick={() => navigateTo("library")}
                   className={`
                     flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300
                     ${
@@ -852,6 +853,7 @@ function Sidebar() {
                     // When toggling in collapsed mode, fetch every time we switch to library
                     if (next === "library") fetchLibraryItems();
                   }}
+                  onDoubleClick={() => navigateTo("library")}
                   className="p-1 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center justify-center w-full"
                 >
                   {libraryTab === "playlists" ? (

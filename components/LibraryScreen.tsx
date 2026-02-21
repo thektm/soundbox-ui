@@ -15,7 +15,6 @@ import {
   List,
   Heart,
 } from "lucide-react";
-import Image from "next/image";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 
 function ensureHttps(u?: string | null): string | undefined {
@@ -61,11 +60,10 @@ const LibraryItem = ({
           } overflow-hidden group-hover:bg-[#282828] transition-all duration-300 shadow-lg`}
         >
           {imageUrl ? (
-            <Image
+            <img
               src={imageUrl}
               alt={title}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
@@ -100,7 +98,11 @@ const LibraryItem = ({
           } overflow-hidden group-hover:bg-[#282828] transition-colors`}
         >
           {imageUrl ? (
-            <Image src={imageUrl} alt={title} fill className="object-cover" />
+            <img
+              src={imageUrl}
+              alt={title}
+              className="w-full h-full object-cover"
+            />
           ) : (
             icon || <User className="w-6 h-6 text-zinc-400" />
           )}
@@ -292,8 +294,7 @@ const LibraryScreen: React.FC = () => {
     setPage(1);
     fetchHistory(1, activeFilter || undefined);
     fetchLikedSongs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchHistory, fetchLikedSongs]);
 
   // Debounce filter changes (when not searching) to avoid rapid intermediate requests
   const filterDebounceRef = useRef<any>(null);
@@ -318,8 +319,7 @@ const LibraryScreen: React.FC = () => {
     return () => {
       if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFilter]);
+  }, [activeFilter, searchQuery, fetchHistory]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -444,13 +444,12 @@ const LibraryScreen: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.3 }}
             exit={{ opacity: 0 }}
-            className="absolute top-0 left-0 right-0 h-[400px] pointer-events-none overflow-hidden z-0 relative"
+            className="absolute top-0 left-0 right-0 h-[400px] pointer-events-none overflow-hidden z-0"
           >
-            <Image
-              src={ensureHttps(latestLikedSongCover) || ""}
+            <img
+              src={ensureHttps(latestLikedSongCover)}
               alt="Background"
-              fill
-              className="object-cover blur-3xl scale-110"
+              className="w-full h-full object-cover blur-3xl scale-110"
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/60 to-black" />
           </motion.div>
@@ -459,7 +458,7 @@ const LibraryScreen: React.FC = () => {
 
       {/* Sticky Header with Glassmorphism */}
       <header className="sticky top-0 z-50 bg-[#121212]/60 backdrop-blur-2xl border-b border-white/5 px-4 pt-4 pb-3">
-        <div className="max-w-xl mx-auto">
+        <div className="max-w-full mx-auto lg:max-w-6xl">
           {/* Header First Row */}
           <div className="relative h-12 flex items-center justify-between overflow-hidden">
             <AnimatePresence mode="wait">
@@ -589,7 +588,7 @@ const LibraryScreen: React.FC = () => {
       {/* Content Area */}
       <div className="overflow-y-auto pb-24">
         <div
-          className={`max-w-xl mx-auto px-4 mt-6 ${
+          className={`max-w-full mx-auto lg:max-w-6xl px-4 mt-6 ${
             viewMode === "grid"
               ? "grid grid-cols-3 gap-x-4 gap-y-8"
               : "flex flex-col space-y-2"

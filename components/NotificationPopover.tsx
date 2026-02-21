@@ -111,7 +111,7 @@ export default function NotificationPopover({
 
       <AnimatePresence>
         {open && (
-            <ContentComponent
+          <ContentComponent
             notifications={notifications}
             markingReadIds={markingReadIds}
             onMarkAsRead={onMarkAsRead}
