@@ -196,7 +196,13 @@ const useSearchHistory = () => {
   return { history, add, remove, clear };
 };
 
-const useEventPlaylists = (accessToken?: string, enabled = true) => {
+const useEventPlaylists = (
+  authenticatedFetch: (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<Response>,
+  enabled = true,
+) => {
   const [eventData, setEventData] = useState<EventPlaylistEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -208,13 +214,8 @@ const useEventPlaylists = (accessToken?: string, enabled = true) => {
       const fetchEventPlaylists = async () => {
         setIsLoading(true);
         try {
-          const response = await fetch(
+          const response = await authenticatedFetch(
             "https://api.sedabox.com/api/search/event-playlists/",
-            {
-              headers: accessToken
-                ? { Authorization: `Bearer ${accessToken}` }
-                : {},
-            },
           );
           if (response.ok) {
             const data = await response.json();
@@ -230,7 +231,7 @@ const useEventPlaylists = (accessToken?: string, enabled = true) => {
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [accessToken, enabled]);
+  }, [authenticatedFetch, enabled]);
 
   const getTimeOfDay = useCallback(() => {
     const hour = new Date().getHours();
@@ -247,7 +248,13 @@ const useEventPlaylists = (accessToken?: string, enabled = true) => {
   return { currentEvent, isLoading };
 };
 
-const useSearchSections = (accessToken?: string, enabled = true) => {
+const useSearchSections = (
+  authenticatedFetch: (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<Response>,
+  enabled = true,
+) => {
   const [sections, setSections] = useState<SearchSection[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -259,13 +266,8 @@ const useSearchSections = (accessToken?: string, enabled = true) => {
       const fetchSections = async () => {
         setIsLoading(true);
         try {
-          const response = await fetch(
+          const response = await authenticatedFetch(
             "https://api.sedabox.com/api/search/sections/",
-            {
-              headers: accessToken
-                ? { Authorization: `Bearer ${accessToken}` }
-                : {},
-            },
           );
           if (response.ok) {
             const data = await response.json();
@@ -281,7 +283,7 @@ const useSearchSections = (accessToken?: string, enabled = true) => {
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [accessToken, enabled]);
+  }, [authenticatedFetch, enabled]);
 
   return { sections, isLoading };
 };
@@ -290,7 +292,10 @@ const useSearchSections = (accessToken?: string, enabled = true) => {
 const useSearch = (
   query: string,
   filter: "all" | "songs" | "artists" | "albums" | "playlists" | "users",
-  accessToken?: string,
+  authenticatedFetch: (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<Response>,
   enabled = true,
 ) => {
   const [results, setResults] = useState<SearchResults>({
@@ -336,13 +341,10 @@ const useSearch = (
         });
         if (typeParam) params.append("type", typeParam);
 
-        const response = await fetch(
+        const response = await authenticatedFetch(
           `https://api.sedabox.com/api/search/?${params.toString()}`,
           {
             signal: abortController.signal,
-            headers: accessToken
-              ? { Authorization: `Bearer ${accessToken}` }
-              : {},
           },
         );
 
@@ -439,7 +441,7 @@ const useSearch = (
     return () => {
       abortController.abort();
     };
-  }, [query, filter, accessToken]);
+  }, [query, filter, authenticatedFetch, enabled]);
 
   return { results, isLoading };
 };
@@ -1008,7 +1010,7 @@ const SectionHorizontalList = memo(
 );
 
 const ModernBackground = memo(() => (
-  <div className="fixed inset-0 pointer-events-none z-0">
+  <div className="fixed inset-0 pointer-events-none" style={{ zIndex: -1 }}>
     {/* Simple, performant gradient optimized for low-end devices */}
     <div
       className="absolute inset-0"
@@ -1033,7 +1035,7 @@ const ModernBackground = memo(() => (
 export default function Search() {
   const { navigateTo } = useNavigation();
   const { playTrack } = usePlayer();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   const [isFocused, setIsFocused] = useState(false);
@@ -1078,18 +1080,12 @@ export default function Search() {
 
   const handleFollow = useCallback(
     (artistId: string, currentlyFollowing: boolean) => {
-      if (!accessToken) {
-        toast.error("برای دنبال کردن ابتدا وارد شوید");
-        return;
-      }
-
       setFollowingId(artistId);
 
-      fetch(`https://api.sedabox.com/api/follow/`, {
+      authenticatedFetch(`https://api.sedabox.com/api/follow/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ artist_id: artistId }),
       })
@@ -1116,7 +1112,7 @@ export default function Search() {
           setFollowingId(null);
         });
     },
-    [accessToken],
+    [authenticatedFetch],
   );
 
   // mark ready after first paint; initial network requests wait for this
@@ -1133,7 +1129,7 @@ export default function Search() {
   const { results, isLoading } = useSearch(
     debouncedQuery,
     activeFilter,
-    accessToken ?? undefined,
+    authenticatedFetch,
     isReady,
   );
   const {
@@ -1144,12 +1140,12 @@ export default function Search() {
   } = useSearchHistory();
 
   const { currentEvent, isLoading: isEventLoading } = useEventPlaylists(
-    accessToken ?? undefined,
+    authenticatedFetch,
     isReady,
   );
 
   const { sections, isLoading: isSectionsLoading } = useSearchSections(
-    accessToken ?? undefined,
+    authenticatedFetch,
     isReady,
   );
 
@@ -1186,10 +1182,12 @@ export default function Search() {
       const controller = new AbortController();
       controllers[playlist.id] = controller;
 
-      fetch(`https://api.sedabox.com/api/playlists/${playlist.id}/`, {
-        signal: controller.signal,
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-      })
+      authenticatedFetch(
+        `https://api.sedabox.com/api/playlists/${playlist.id}/`,
+        {
+          signal: controller.signal,
+        },
+      )
         .then((response) => {
           if (!response.ok) {
             throw new Error("Failed to fetch playlist detail");

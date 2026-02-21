@@ -37,7 +37,7 @@ export const ReportModal = ({
   targetType,
   targetTitle,
 }: ReportModalProps) => {
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const [selectedReason, setSelectedReason] = useState<string>("");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,14 +78,13 @@ export const ReportModal = ({
         body.artist_id = targetId;
       }
 
-      const response = await fetch("https://api.sedabox.com/api/reports/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+      const response = await authenticatedFetch(
+        "https://api.sedabox.com/api/reports/",
+        {
+          method: "POST",
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      });
+      );
 
       if (response.status === 201) {
         toast.success("گزارش شما با موفقیت ثبت شد و در حال بررسی است ");

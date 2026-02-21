@@ -162,7 +162,7 @@ const LibrarySkeletonItem: React.FC<{ viewMode?: "list" | "grid" }> = ({
 
 const LibraryScreen: React.FC = () => {
   const { navigateTo } = useNavigation();
-  const { user, accessToken } = useAuth();
+  const { user, accessToken, authenticatedFetch } = useAuth();
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -193,15 +193,9 @@ const LibraryScreen: React.FC = () => {
   ];
 
   const fetchLikedSongs = useCallback(async () => {
-    if (!accessToken) return;
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         "https://api.sedabox.com/api/profile/liked-songs/",
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        },
       );
       if (response.ok) {
         const data = await response.json();
@@ -213,12 +207,10 @@ const LibraryScreen: React.FC = () => {
     } catch (error) {
       console.error("Error fetching liked songs count:", error);
     }
-  }, [accessToken]);
+  }, [authenticatedFetch]);
 
   const fetchHistory = useCallback(
     async (pageNum: number, type?: string) => {
-      if (!accessToken) return;
-
       if (pageNum === 1) {
         setIsLoading(true);
       } else {
@@ -231,11 +223,7 @@ const LibraryScreen: React.FC = () => {
         queryParams.append("page", pageNum.toString());
 
         const url = `https://api.sedabox.com/api/profile/history/?${queryParams.toString()}`;
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
+        const response = await authenticatedFetch(url);
 
         if (response.ok) {
           const data = await response.json();
@@ -252,13 +240,11 @@ const LibraryScreen: React.FC = () => {
         setIsFetchingMore(false);
       }
     },
-    [accessToken],
+    [authenticatedFetch],
   );
 
   const fetchSearch = useCallback(
     async (pageNum: number, q: string, type?: string) => {
-      if (!accessToken) return;
-
       if (pageNum === 1) {
         setIsLoading(true);
       } else {
@@ -279,10 +265,7 @@ const LibraryScreen: React.FC = () => {
         queryParams.append("page", pageNum.toString());
 
         const url = `https://api.sedabox.com/api/profile/history/search/?${queryParams.toString()}`;
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
+        const response = await authenticatedFetch(url, {
           signal: controller.signal,
         });
         if (response.ok) {
@@ -301,7 +284,7 @@ const LibraryScreen: React.FC = () => {
         setIsFetchingMore(false);
       }
     },
-    [accessToken],
+    [authenticatedFetch],
   );
 
   // Initial load: fetch history on mount

@@ -263,7 +263,7 @@ export function createSlug(title: string): string {
 }
 
 export default function Home() {
-  const { logout, accessToken, user } = useAuth();
+  const { logout, accessToken, user, authenticatedFetch } = useAuth();
   const { setCurrentPage, navigateTo, homeCache, setHomeCache } =
     useNavigation();
   const { setQueue } = usePlayer();
@@ -352,13 +352,8 @@ export default function Home() {
 
     const fetchHomeData = async (background: boolean) => {
       try {
-        const authHeaders = { Authorization: `Bearer ${accessToken}` };
-
-        const response = await fetch(
+        const response = await authenticatedFetch(
           "https://api.sedabox.com/api/home/summary/",
-          {
-            headers: authHeaders,
-          },
         );
         if (response.ok) {
           const data = await response.json();
@@ -412,11 +407,8 @@ export default function Home() {
       key: string,
     ) => {
       try {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           `https://api.sedabox.com/api/home/${endpoint}/`,
-          {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          },
         );
         if (response.ok) {
           const data = await response.json();
@@ -455,13 +447,9 @@ export default function Home() {
   }, [accessToken]);
 
   const fetchNotifications = useCallback(async () => {
-    if (!accessToken) return;
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         "https://api.sedabox.com/api/notifications/",
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        },
       );
       if (response.ok) {
         const data = await response.json();
@@ -470,7 +458,7 @@ export default function Home() {
     } catch (error) {
       console.error("Error fetching notifications:", error);
     }
-  }, [accessToken]);
+  }, [authenticatedFetch]);
 
   useEffect(() => {
     if (accessToken) {
@@ -479,15 +467,14 @@ export default function Home() {
   }, [accessToken, fetchNotifications]);
 
   const handleMarkAsRead = async (id: number) => {
-    if (!accessToken || markingReadIds.has(id)) return;
+    if (markingReadIds.has(id)) return;
 
     setMarkingReadIds((prev) => new Set(prev).add(id));
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `https://api.sedabox.com/api/notifications/${id}/read/`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}` },
         },
       );
 
@@ -520,13 +507,12 @@ export default function Home() {
   };
 
   const handleMarkAllAsRead = async () => {
-    if (!accessToken || notifications.length === 0) return;
+    if (notifications.length === 0) return;
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         "https://api.sedabox.com/api/notifications/read/",
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}` },
         },
       );
 
@@ -543,16 +529,14 @@ export default function Home() {
 
   const fetchNextPlaylists = async () => {
     // playlistRecommendations can be either an array or a paginated response.
-    if (!playlistRecommendations || !accessToken) return;
+    if (!playlistRecommendations) return;
     if (Array.isArray(playlistRecommendations)) return; // no pagination available
 
     const nextUrl = playlistRecommendations.next;
     if (!nextUrl) return;
     try {
       const url = nextUrl.replace(/^http:/, "https:");
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const res = await authenticatedFetch(url);
       if (res.ok) {
         const data = await res.json();
         setPlaylistRecommendations((prev) => {
@@ -598,13 +582,12 @@ export default function Home() {
       | "songs_recommendations"
       | "discoveries",
   ) => {
-    if (!homeData || !accessToken) return;
+    if (!homeData) return;
     const section = (homeData as any)[sectionKey];
     if (!section || !section.next) return;
     try {
-      const authHeaders = { Authorization: `Bearer ${accessToken}` };
       const url = section.next.replace(/^http:/, "https:");
-      const res = await fetch(url, { headers: authHeaders });
+      const res = await authenticatedFetch(url);
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
       const page = await res.json();
 
@@ -1911,8 +1894,47 @@ const HorizontalList = ({
   onItemClick,
   onPlay,
 }: HorizontalListProps) => {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const isDown = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+
+  const handleMouseDown = (e: any) => {
+    if (!scrollerRef.current) return;
+    isDown.current = true;
+    scrollerRef.current.style.cursor = "grabbing";
+    startX.current = e.pageX - scrollerRef.current.offsetLeft;
+    scrollLeft.current = scrollerRef.current.scrollLeft;
+  };
+  const handleMouseMove = (e: any) => {
+    if (!isDown.current || !scrollerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollerRef.current.offsetLeft;
+    const walk = x - startX.current;
+    scrollerRef.current.scrollLeft = scrollLeft.current - walk;
+  };
+  const handleMouseUp = () => {
+    if (!scrollerRef.current) return;
+    isDown.current = false;
+    scrollerRef.current.style.cursor = "grab";
+  };
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.style.cursor = "grab";
+    const onDragStart = (ev: any) => ev.preventDefault();
+    el.addEventListener("dragstart", onDragStart);
+    return () => el.removeEventListener("dragstart", onDragStart);
+  }, []);
+
   return (
     <div
+      ref={scrollerRef}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
       className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4 will-change-transform"
       style={{ direction: "rtl" }}
     >
@@ -2086,8 +2108,49 @@ type ChartListProps = {
   onPlay?: (item: ItemType) => void;
 };
 const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const isDown = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+
+  const handleMouseDown = (e: any) => {
+    if (!scrollerRef.current) return;
+    isDown.current = true;
+    scrollerRef.current.style.cursor = "grabbing";
+    startX.current = e.pageX - scrollerRef.current.offsetLeft;
+    scrollLeft.current = scrollerRef.current.scrollLeft;
+  };
+  const handleMouseMove = (e: any) => {
+    if (!isDown.current || !scrollerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollerRef.current.offsetLeft;
+    const walk = x - startX.current;
+    scrollerRef.current.scrollLeft = scrollLeft.current - walk;
+  };
+  const handleMouseUp = () => {
+    if (!scrollerRef.current) return;
+    isDown.current = false;
+    scrollerRef.current.style.cursor = "grab";
+  };
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.style.cursor = "grab";
+    const onDragStart = (ev: any) => ev.preventDefault();
+    el.addEventListener("dragstart", onDragStart);
+    return () => el.removeEventListener("dragstart", onDragStart);
+  }, []);
+
   return (
-    <div className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4 will-change-transform">
+    <div
+      ref={scrollerRef}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4 will-change-transform"
+    >
       {items.map((item, index) => (
         <div
           key={item.id}
@@ -2139,57 +2202,97 @@ const PremiumChartList = ({
 }: {
   items: ItemType[];
   onPlay?: (item: ItemType) => void;
-}) => (
-  <div
-    className="flex overflow-x-auto gap-6 px-4 snap-x snap-mandatory no-scrollbar pb-6"
-    style={{ direction: "rtl" }}
-  >
-    {items.map((item, index) => (
-      <div
-        key={item.id}
-        onClick={() => onPlay?.(item)}
-        className="snap-start shrink-0 w-[75vw] sm:w-80 group cursor-pointer relative"
-      >
-        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur opacity-0 group-hover:opacity-20 transition duration-500" />
-        <div className="relative flex items-center gap-4 bg-zinc-900/40 backdrop-blur-md border border-white/5 p-3 rounded-2xl hover:bg-zinc-800/60 transition-all duration-300">
-          <div className="relative shrink-0">
-            <div className="w-20 h-20 rounded-xl overflow-hidden shadow-2xl">
-              <ImageWithPlaceholder
-                src={item.img}
-                alt={item.title}
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                type="song"
+}) => {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const isDown = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+
+  const handleMouseDown = (e: any) => {
+    if (!scrollerRef.current) return;
+    isDown.current = true;
+    scrollerRef.current.style.cursor = "grabbing";
+    startX.current = e.pageX - scrollerRef.current.offsetLeft;
+    scrollLeft.current = scrollerRef.current.scrollLeft;
+  };
+  const handleMouseMove = (e: any) => {
+    if (!isDown.current || !scrollerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollerRef.current.offsetLeft;
+    const walk = x - startX.current;
+    scrollerRef.current.scrollLeft = scrollLeft.current - walk;
+  };
+  const handleMouseUp = () => {
+    if (!scrollerRef.current) return;
+    isDown.current = false;
+    scrollerRef.current.style.cursor = "grab";
+  };
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.style.cursor = "grab";
+    const onDragStart = (ev: any) => ev.preventDefault();
+    el.addEventListener("dragstart", onDragStart);
+    return () => el.removeEventListener("dragstart", onDragStart);
+  }, []);
+
+  return (
+    <div
+      ref={scrollerRef}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      className="flex overflow-x-auto gap-6 px-4 snap-x snap-mandatory no-scrollbar pb-6"
+      style={{ direction: "rtl" }}
+    >
+      {items.map((item, index) => (
+        <div
+          key={item.id}
+          onClick={() => onPlay?.(item)}
+          className="snap-start shrink-0 w-[75vw] sm:w-80 group cursor-pointer relative"
+        >
+          <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur opacity-0 group-hover:opacity-20 transition duration-500" />
+          <div className="relative flex items-center gap-4 bg-zinc-900/40 backdrop-blur-md border border-white/5 p-3 rounded-2xl hover:bg-zinc-800/60 transition-all duration-300">
+            <div className="relative shrink-0">
+              <div className="w-20 h-20 rounded-xl overflow-hidden shadow-2xl">
+                <ImageWithPlaceholder
+                  src={item.img}
+                  alt={item.title}
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  type="song"
+                />
+              </div>
+              <div className="absolute -top-2 -right-2 w-8 h-8 bg-emerald-500 text-black rounded-full flex items-center justify-center font-black text-sm shadow-lg border-2 border-zinc-900">
+                {index + 1}
+              </div>
+            </div>
+            <div className="flex-1 min-w-0 text-right">
+              <h4 className="text-white font-bold truncate text-base">
+                {item.title}
+              </h4>
+              <p className="text-zinc-400 text-xs truncate mt-0.5">
+                {item.subtitle}
+              </p>
+              <div className="flex items-center justify-end gap-2 mt-2">
+                <span className="text-[10px] text-emerald-500 font-medium px-2 py-0.5 bg-emerald-500/10 rounded-full">
+                  TOP CHART
+                </span>
+              </div>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500 transition-colors duration-300">
+              <Play
+                fill="currentColor"
+                className="w-4 h-4 text-emerald-500 group-hover:text-black translate-x-0.5"
               />
             </div>
-            <div className="absolute -top-2 -right-2 w-8 h-8 bg-emerald-500 text-black rounded-full flex items-center justify-center font-black text-sm shadow-lg border-2 border-zinc-900">
-              {index + 1}
-            </div>
-          </div>
-          <div className="flex-1 min-w-0 text-right">
-            <h4 className="text-white font-bold truncate text-base">
-              {item.title}
-            </h4>
-            <p className="text-zinc-400 text-xs truncate mt-0.5">
-              {item.subtitle}
-            </p>
-            <div className="flex items-center justify-end gap-2 mt-2">
-              <span className="text-[10px] text-emerald-500 font-medium px-2 py-0.5 bg-emerald-500/10 rounded-full">
-                TOP CHART
-              </span>
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500 transition-colors duration-300">
-            <Play
-              fill="currentColor"
-              className="w-4 h-4 text-emerald-500 group-hover:text-black translate-x-0.5"
-            />
           </div>
         </div>
-      </div>
-    ))}
-  </div>
-);
-
+      ))}
+    </div>
+  );
+};
 const GlassAlbumGrid = ({
   items,
   onItemClick,
@@ -2261,42 +2364,82 @@ const SpotlightArtistList = ({
 }: {
   items: ItemType[];
   onItemClick?: (item: ItemType) => void;
-}) => (
-  <div
-    className="flex overflow-x-auto gap-8 px-6 no-scrollbar pb-4"
-    style={{ direction: "rtl" }}
-  >
-    {items.map((item) => (
-      <div
-        key={item.id}
-        onClick={() => onItemClick?.(item)}
-        className="shrink-0 group cursor-pointer flex flex-col items-center"
-      >
-        <div className="relative w-32 h-32 sm:w-40 sm:h-40 mb-4">
-          <div className="absolute inset-0 bg-emerald-500 rounded-full blur-2xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
-          <div className="relative w-full h-full rounded-full overflow-hidden ring-4 ring-zinc-800 group-hover:ring-emerald-500 transition-all duration-500 shadow-2xl">
-            <ImageWithPlaceholder
-              src={item.img}
-              alt={item.title}
-              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-              type="artist"
-            />
-          </div>
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[10px] font-black px-3 py-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
-            VERIFIED
-          </div>
-        </div>
-        <h4 className="text-white font-bold text-sm group-hover:text-emerald-400 transition-colors">
-          {item.title}
-        </h4>
-        <p className="text-zinc-500 text-[10px] mt-1 uppercase tracking-widest font-medium">
-          Artist
-        </p>
-      </div>
-    ))}
-  </div>
-);
+}) => {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const isDown = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
 
+  const handleMouseDown = (e: any) => {
+    if (!scrollerRef.current) return;
+    isDown.current = true;
+    scrollerRef.current.style.cursor = "grabbing";
+    startX.current = e.pageX - scrollerRef.current.offsetLeft;
+    scrollLeft.current = scrollerRef.current.scrollLeft;
+  };
+  const handleMouseMove = (e: any) => {
+    if (!isDown.current || !scrollerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollerRef.current.offsetLeft;
+    const walk = x - startX.current;
+    scrollerRef.current.scrollLeft = scrollLeft.current - walk;
+  };
+  const handleMouseUp = () => {
+    if (!scrollerRef.current) return;
+    isDown.current = false;
+    scrollerRef.current.style.cursor = "grab";
+  };
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.style.cursor = "grab";
+    const onDragStart = (ev: any) => ev.preventDefault();
+    el.addEventListener("dragstart", onDragStart);
+    return () => el.removeEventListener("dragstart", onDragStart);
+  }, []);
+
+  return (
+    <div
+      ref={scrollerRef}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      className="flex overflow-x-auto gap-8 px-6 no-scrollbar pb-4"
+      style={{ direction: "rtl" }}
+    >
+      {items.map((item) => (
+        <div
+          key={item.id}
+          onClick={() => onItemClick?.(item)}
+          className="shrink-0 group cursor-pointer flex flex-col items-center"
+        >
+          <div className="relative w-32 h-32 sm:w-40 sm:h-40 mb-4">
+            <div className="absolute inset-0 bg-emerald-500 rounded-full blur-2xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
+            <div className="relative w-full h-full rounded-full overflow-hidden ring-4 ring-zinc-800 group-hover:ring-emerald-500 transition-all duration-500 shadow-2xl">
+              <ImageWithPlaceholder
+                src={item.img}
+                alt={item.title}
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                type="artist"
+              />
+            </div>
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[10px] font-black px-3 py-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+              VERIFIED
+            </div>
+          </div>
+          <h4 className="text-white font-bold text-sm group-hover:text-emerald-400 transition-colors">
+            {item.title}
+          </h4>
+          <p className="text-zinc-500 text-[10px] mt-1 uppercase tracking-widest font-medium">
+            Artist
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+};
 const SectionSkeleton = ({
   title,
   variant = "horizontal",

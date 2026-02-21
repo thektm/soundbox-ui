@@ -100,6 +100,9 @@ const ICONS = {
     "M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z",
   grid: "M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z",
   list: "M4 6h16M4 10h16M4 14h16M4 18h16",
+  share: "M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98",
+  shareIcon:
+    "M18 5c0 1.657-1.343 3-3 3-.332 0-.649-.054-.943-.153L8.537 11.168c.288.583.463 1.237.463 1.932s-.175 1.349-.463 1.932l5.52 3.321c.294-.099.611-.153.943-.153 1.657 0 3 1.343 3 3s-1.343 3-3 3-3-1.343-3-3c0-.695.175-1.349.463-1.932l-5.52-3.321c-.294.099-.611.153-.943.153-1.657 0-3-1.343-3-3s1.343-3 3-3c.332 0 .649.054.943.153l5.52-3.321c-.288-.583-.463-1.237-.463-1.932 0-1.657 1.343-3 3-3s3 1.343 3 3z",
 };
 
 // ============================================================================
@@ -412,7 +415,7 @@ SkeletonPlaylistCard.displayName = "SkeletonPlaylistCard";
 // ============================================================================
 export default function LikedPlaylists() {
   const { navigateTo, goBack, scrollToTop } = useNavigation();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
 
   const [viewState, setViewState] = useState({
     isLoading: true, // Initial full page load
@@ -458,8 +461,6 @@ export default function LikedPlaylists() {
   // Unified Fetch Function
   const fetchPlaylists = useCallback(
     async (mode: "MAIN" | "SEARCH", url?: string, query?: string) => {
-      if (!accessToken) return;
-
       const isPagination = !!url;
 
       // Set Loading States
@@ -479,9 +480,7 @@ export default function LikedPlaylists() {
               : "https://api.sedabox.com/api/profile/liked-playlists/";
         }
 
-        const res = await fetch(ensureHttps(endpoint)!, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        const res = await authenticatedFetch(ensureHttps(endpoint)!);
 
         if (res.ok) {
           const data: LikedPlaylistsResponse = await res.json();
@@ -600,11 +599,8 @@ export default function LikedPlaylists() {
           ? `https://api.sedabox.com/api/home/playlist-recommendations/${playlist.unique_id}/like/`
           : `https://api.sedabox.com/api/playlists/${playlist.id}/like/`;
 
-        const resp = await fetch(url, {
+        const resp = await authenticatedFetch(url, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
         });
         if (resp.ok) {
           const data = await resp.json();
@@ -728,9 +724,9 @@ export default function LikedPlaylists() {
       />
 
       {/* Header */}
-      <div className="relative z-60 pt-14">
-        {/* Navigation Bar */}
-        <div className="flex items-center flex-row-reverse justify-between px-4 p-2.5 fixed top-0 left-0 right-0 bg-[#030303]/80 z-60">
+      <div className="relative z-60 pt-14 lg:pt-20">
+        {/* Navigation Bar - Hidden on Desktop */}
+        <div className="flex items-center flex-row-reverse justify-between px-4 p-2.5 fixed top-0 left-0 right-0 bg-[#030303]/80 z-60 lg:hidden">
           <button
             onClick={handleBack}
             className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
@@ -762,7 +758,7 @@ export default function LikedPlaylists() {
         {/* Hero Section */}
         <div className="px-6 pt-10 pb-10">
           {/* Playlist Icon with Glassmorphism */}
-          <div className="relative w-32 h-32 mx-auto mb-8 group">
+          <div className="relative w-32 h-32 mx-auto mb-8 group lg:w-48 lg:h-48">
             <div className="absolute inset-0 bg-emerald-500 rounded-[2.5rem] blur-3xl opacity-20 group-hover:opacity-40 transition-opacity duration-500" />
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -770,8 +766,11 @@ export default function LikedPlaylists() {
               transition={{ type: "spring", stiffness: 100 }}
               className="relative w-full h-full rounded-[2.5rem] bg-gradient-to-br from-white/10 to-white/5 border border-white/20 backdrop-blur-2xl flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
             >
-              <div className="p-6 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-3xl shadow-lg shadow-emerald-500/40">
-                <Icon d={ICONS.playlist} className="w-12 h-12 text-white" />
+              <div className="p-6 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-3xl shadow-lg shadow-emerald-500/40 lg:p-10">
+                <Icon
+                  d={ICONS.playlist}
+                  className="w-12 h-12 text-white lg:w-20 lg:h-20"
+                />
               </div>
             </motion.div>
           </div>
@@ -779,7 +778,7 @@ export default function LikedPlaylists() {
           <motion.h1
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="text-3xl font-black text-white text-center mb-3 tracking-tight"
+            className="text-3xl font-black text-white text-center mb-3 tracking-tight lg:text-5xl"
           >
             پلی‌لیست‌های لایک‌شده
           </motion.h1>
@@ -787,15 +786,47 @@ export default function LikedPlaylists() {
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="text-zinc-500 text-sm text-center font-medium bg-white/5 w-fit mx-auto px-4 py-1.5 rounded-full border border-white/5"
+            className="text-zinc-500 text-sm text-center font-medium bg-white/5 w-fit mx-auto px-4 py-1.5 rounded-full border border-white/5 lg:text-base lg:px-6"
           >
             {formatNumber(activeTotal)} پلی‌لیست
           </motion.p>
+
+          {/* Desktop Search & Controls */}
+          <div className="hidden lg:flex flex-col items-center gap-6 mt-12 max-w-2xl mx-auto">
+            <div className="relative w-full">
+              <Icon
+                d={ICONS.search}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
+              />
+              <input
+                type="text"
+                value={viewState.query}
+                onChange={(e) =>
+                  setViewState((p) => ({ ...p, query: e.target.value }))
+                }
+                placeholder="جستجو در پلی‌لیست‌ها..."
+                className="w-full pl-6 pr-12 py-4 bg-white/[0.06] border border-white/[0.08] rounded-2xl text-lg text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:bg-white/[0.1] transition-all"
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={toggleViewMode}
+                className="px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center gap-3"
+              >
+                <Icon
+                  d={viewMode === "grid" ? ICONS.grid : ICONS.list}
+                  className="w-5 h-5 text-emerald-400"
+                />
+                <span className="text-sm font-medium">تغییر نمایش</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Search Bar - Animated */}
+        {/* Search Bar - Animated - Hidden on Desktop */}
         <div
-          className={`overflow-hidden transition-all duration-300 ease-out ${
+          className={`overflow-hidden transition-all duration-300 ease-out lg:hidden ${
             viewState.showSearchBar
               ? "max-h-16 opacity-100"
               : "max-h-0 opacity-0"

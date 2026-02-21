@@ -84,6 +84,8 @@ const ICONS = {
     "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z",
   search: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
   close: "M6 18L18 6M6 6l12 12",
+  share:
+    "M18 5c0 1.657-1.343 3-3 3-.332 0-.649-.054-.943-.153L8.537 11.168c.288.583.463 1.237.463 1.932s-.175 1.349-.463 1.932l5.52 3.321c.294-.099.611-.153.943-.153 1.657 0 3 1.343 3 3s-1.343 3-3 3-3-1.343-3-3c0-.695.175-1.349.463-1.932l-5.52-3.321c-.294.099-.611.153-.943.153-1.657 0-3-1.343-3-3s1.343-3 3-3c.332 0 .649.054.943.153l5.52-3.321c-.288-.583-.463-1.237-.463-1.932 0-1.657 1.343-3 3-3s3 1.343 3 3z",
   edit: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
   trash:
     "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
@@ -518,7 +520,7 @@ CreatePlaylistCard.displayName = "CreatePlaylistCard";
 // ============================================================================
 export default function MyPlaylists() {
   const { navigateTo, goBack, scrollToTop } = useNavigation();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -529,21 +531,11 @@ export default function MyPlaylists() {
 
   // Fetch playlists from API
   const fetchPlaylists = useCallback(async () => {
-    if (!accessToken) {
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(
+      const response = await authenticatedFetch(
         "https://api.sedabox.com/api/profile/user-playlists/",
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        },
       );
 
       if (response.ok) {
@@ -557,7 +549,7 @@ export default function MyPlaylists() {
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, [authenticatedFetch]);
 
   useEffect(() => {
     fetchPlaylists();
@@ -587,16 +579,13 @@ export default function MyPlaylists() {
 
   const handleCreatePlaylist = useCallback(
     async (name: string, isPublic: boolean) => {
-      if (!accessToken) return;
-
       try {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           "https://api.sedabox.com/api/profile/user-playlists/",
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
               title: name,
@@ -615,7 +604,7 @@ export default function MyPlaylists() {
         console.error("Error creating playlist:", err);
       }
     },
-    [accessToken],
+    [authenticatedFetch],
   );
 
   const handleEditPlaylist = useCallback((playlistId: string) => {
@@ -652,9 +641,9 @@ export default function MyPlaylists() {
       />
 
       {/* Header */}
-      <div className="relative z-10 pt-14">
-        {/* Navigation Bar */}
-        <div className="flex items-center flex-row-reverse justify-between px-4 p-2.5 fixed top-0 left-0 right-0 bg-[#030303]/80 z-60">
+      <div className="relative z-10 pt-14 lg:pt-20">
+        {/* Navigation Bar - Hidden on Desktop */}
+        <div className="flex items-center flex-row-reverse justify-between px-4 p-2.5 fixed top-0 left-0 right-0 bg-[#030303]/80 z-60 lg:hidden">
           <button
             onClick={handleBack}
             className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
@@ -684,23 +673,66 @@ export default function MyPlaylists() {
         </div>
 
         {/* Hero Section */}
-        <div className="px-6 pt-8 pb-6">
+        <div className="px-6 pt-8 pb-6 lg:pb-12">
           {/* Folder Icon with Gradient */}
-          <div className="w-28 h-28 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-teal-500 via-cyan-500 to-sky-500 flex items-center justify-center shadow-2xl shadow-teal-500/30">
-            <Icon d={ICONS.folder} className="w-14 h-14 text-white" />
+          <div className="w-28 h-28 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-teal-500 via-cyan-500 to-sky-500 flex items-center justify-center shadow-2xl shadow-teal-500/30 lg:w-40 lg:h-40 lg:rounded-3xl">
+            <Icon
+              d={ICONS.folder}
+              className="w-14 h-14 text-white lg:w-20 lg:h-20"
+            />
           </div>
 
-          <h1 className="text-2xl font-bold text-white text-center mb-2">
+          <h1 className="text-2xl font-bold text-white text-center mb-2 lg:text-4xl">
             پلی‌لیست‌های من
           </h1>
-          <p className="text-gray-400 text-sm text-center">
+          <p className="text-gray-400 text-sm text-center lg:text-base">
             {playlists.length} پلی‌لیست
           </p>
+
+          {/* Desktop Controls */}
+          <div className="hidden lg:flex flex-col items-center gap-6 mt-10 max-w-2xl mx-auto">
+            <div className="relative w-full">
+              <Icon
+                d={ICONS.search}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="جستجو در پلی‌لیست‌ها..."
+                className="w-full pl-6 pr-12 py-3.5 bg-white/[0.06] border border-white/[0.08] rounded-2xl text-lg text-white placeholder-gray-500 focus:outline-none focus:border-teal-500 focus:bg-white/[0.1] transition-all"
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={toggleViewMode}
+                className="px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center gap-3"
+              >
+                <Icon
+                  d={viewMode === "grid" ? ICONS.list : ICONS.grid}
+                  className="w-5 h-5 text-teal-400"
+                />
+                <span className="text-sm font-medium text-gray-300">
+                  تغییر نمایش
+                </span>
+              </button>
+
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="px-8 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-black font-bold transition-all flex items-center gap-2"
+              >
+                <Icon d={ICONS.plus} className="w-5 h-5" />
+                <span>ساخت پلی‌لیست جدید</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Search Bar - Animated */}
+        {/* Search Bar - Animated - Hidden on Desktop */}
         <div
-          className={`overflow-hidden transition-all duration-300 ease-out ${
+          className={`overflow-hidden transition-all duration-300 ease-out lg:hidden ${
             showSearch ? "max-h-16 opacity-100" : "max-h-0 opacity-0"
           }`}
         >

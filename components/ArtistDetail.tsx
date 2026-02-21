@@ -513,7 +513,7 @@ const ArtistSkeleton = () => (
 export default function ArtistDetail({ id }: ArtistDetailProps) {
   const { goBack, currentParams, scrollY } = useNavigation();
   const { playTrack, setQueue } = usePlayer();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
 
   // Support navigation by numeric id OR by unique_id slug (from URL)
   const artistIdOrSlug = id || currentParams?.id || currentParams?.slug;
@@ -536,12 +536,8 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     const fetchArtist = async () => {
       setLoading(true);
       try {
-        const headers: Record<string, string> = {};
-        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-
-        const res = await fetch(
+        const res = await authenticatedFetch(
           `https://api.sedabox.com/api/artists/${artistIdOrSlug}/`,
-          { headers },
         );
 
         // Guard against HTML error pages (404, 500, etc.)
@@ -664,14 +660,13 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
 
     setIsFollowLoading(true);
     try {
-      const res = await fetch(`https://api.sedabox.com/api/follow/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+      const res = await authenticatedFetch(
+        `https://api.sedabox.com/api/follow/`,
+        {
+          method: "POST",
+          body: JSON.stringify({ artist_id: followId }),
         },
-        body: JSON.stringify({ artist_id: followId }),
-      });
+      );
 
       if (!res.ok) throw new Error("Follow failed");
 
@@ -702,10 +697,8 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
       }
       try {
         const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;
-        const headers: Record<string, string> = {};
-        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
-        const resp = await fetch(url, { method: "POST", headers });
+        const resp = await authenticatedFetch(url, { method: "POST" });
         if (!resp.ok) {
           toast.error("خطا در بروزرسانی لایک");
           const errText = await resp.text().catch(() => "");
@@ -1215,9 +1208,7 @@ const PlaylistSnippetCard = ({
   const { navigateTo } = useNavigation();
   return (
     <div
-      onClick={() =>
-        navigateTo("playlist-detail", { slug: String(playlist.id) })
-      }
+      onClick={() => navigateTo("playlist-detail", { id: playlist.id })}
       className="flex-shrink-0 w-36 sm:w-44 bg-white/[0.03] border border-white/[0.05] rounded-xl p-3 hover:bg-white/[0.06] transition-all cursor-pointer group"
     >
       <div className="w-full aspect-square rounded-lg mb-3 overflow-hidden relative shadow-lg">

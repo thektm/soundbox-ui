@@ -26,26 +26,17 @@ export const AddToPlaylistModal = ({
   onClose,
   songId,
 }: AddToPlaylistModalProps) => {
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const [playlists, setPlaylists] = useState<APIUserPlaylist[]>([]);
   const [loading, setLoading] = useState(true);
   const [addingToId, setAddingToId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [creatingTitle, setCreatingTitle] = useState("");
-  const [creatingPublic, setCreatingPublic] = useState(false);
-  const [creating, setCreating] = useState(false);
 
   const fetchPlaylists = useCallback(async () => {
-    if (!accessToken) return;
     try {
       setLoading(true);
-      const response = await fetch(
+      const response = await authenticatedFetch(
         "https://api.sedabox.com/api/profile/user-playlists/",
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        },
       );
       if (response.ok) {
         const data = await response.json();
@@ -56,7 +47,7 @@ export const AddToPlaylistModal = ({
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, [authenticatedFetch]);
 
   useEffect(() => {
     if (isOpen) {
@@ -65,86 +56,17 @@ export const AddToPlaylistModal = ({
     }
   }, [isOpen, fetchPlaylists]);
 
-  const handleCreateAndAdd = async () => {
-    if (!accessToken || creating) return;
-    if (!creatingTitle.trim()) {
-      toast.error("لطفا عنوان پلی‌لیست را وارد کنید");
-      return;
-    }
-
-    setCreating(true);
-    try {
-      // 1) Create playlist
-      const resp = await fetch(
-        "https://api.sedabox.com/api/profile/user-playlists/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ title: creatingTitle.trim(), public: creatingPublic }),
-        },
-      );
-
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        toast.error(err.message || "خطا در ایجاد پلی‌لیست");
-        return;
-      }
-
-      const newPlaylist: APIUserPlaylist = await resp.json();
-      // Add to local list so user sees it immediately
-      setPlaylists((prev) => [newPlaylist, ...prev]);
-
-      // 2) Add song to newly created playlist
-      setAddingToId(newPlaylist.id);
-      const addResp = await fetch(
-        `https://api.sedabox.com/api/profile/user-playlists/${newPlaylist.id}/add-song/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ song_id: Number(songId) }),
-        },
-      );
-
-      if (addResp.ok) {
-        toast.success("پلی‌لیست ساخته شد و آهنگ اضافه شد");
-        onClose();
-      } else {
-        if (addResp.status === 409) {
-          toast.error("این آهنگ قبلاً در این پلی‌لیست وجود دارد");
-        } else {
-          const err = await addResp.json().catch(() => ({}));
-          toast.error(err.message || "خطا در افزودن آهنگ به پلی‌لیست");
-        }
-      }
-    } catch (error) {
-      console.error("Create + add playlist error:", error);
-      toast.error("خطا در برقراری ارتباط با سرور");
-    } finally {
-      setCreating(false);
-      setAddingToId(null);
-      setCreatingTitle("");
-      setCreatingPublic(false);
-    }
-  };
-
   const handleAddToPlaylist = async (playlistId: number) => {
-    if (!accessToken || addingToId !== null) return;
+    if (addingToId !== null) return;
 
     setAddingToId(playlistId);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `https://api.sedabox.com/api/profile/user-playlists/${playlistId}/add-song/`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ song_id: Number(songId) }),
         },
@@ -207,46 +129,8 @@ export const AddToPlaylistModal = ({
           </button>
         </div>
 
-        {/* Create Playlist + Search */}
-        <div className="p-4 space-y-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={creatingTitle}
-                onChange={(e) => setCreatingTitle(e.target.value)}
-                placeholder="ایجاد پلی‌لیست جدید..."
-                className="flex-1 pl-4 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/40 transition-colors"
-              />
-
-              <button
-                type="button"
-                onClick={() => setCreatingPublic((p) => !p)}
-                title={creatingPublic ? "عمومی" : "خصوصی"}
-                className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:bg-white/6 transition"
-              >
-                {creatingPublic ? (
-                  <Globe className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <Lock className="w-4 h-4 text-gray-400" />
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCreateAndAdd}
-                disabled={creating}
-                className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/15 transition disabled:opacity-50"
-              >
-                {creating ? (
-                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Plus className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-          </div>
-
+        {/* Search */}
+        <div className="p-4">
           <div className="relative">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input

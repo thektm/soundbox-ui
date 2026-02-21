@@ -651,7 +651,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     useNavigation();
   const { currentTrack, isPlaying, playTrack, togglePlay, download } =
     usePlayer();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
 
   const idOrSlug = useMemo(() => {
     if (propId) return propId;
@@ -687,18 +687,8 @@ export default function SongDetail({ id: propId }: { id?: string }) {
       if (!idOrSlug) return;
       setLoading(true);
       try {
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (accessToken) {
-          headers["Authorization"] = `Bearer ${accessToken}`;
-        }
-
-        const resp = await fetch(
+        const resp = await authenticatedFetch(
           `https://api.sedabox.com/api/songs/${idOrSlug}/`,
-          {
-            headers,
-          },
         );
 
         if (resp.ok) {
@@ -850,14 +840,8 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     setIsLiking(true);
     try {
       const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;
-      const headers: Record<string, string> = {};
-      if (accessToken) {
-        headers["Authorization"] = `Bearer ${accessToken}`;
-      }
-
-      const resp = await fetch(url, {
+      const resp = await authenticatedFetch(url, {
         method: "POST",
-        headers,
       });
 
       if (resp.ok) {
@@ -1036,17 +1020,19 @@ export default function SongDetail({ id: propId }: { id?: string }) {
 
       {/* Desktop Header */}
       <header className="hidden md:flex sticky top-0 z-50 h-16 items-center px-6 bg-zinc-900/80 backdrop-blur-xl">
+        
+        <div className="flex-1 flex justify-center overflow-hidden px-4">
+          <h2 className="text-lg font-bold text-white truncate">
+            {song.title}
+          </h2>
+          
+        </div>
         <button
           onClick={goBack}
           className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors shrink-0"
         >
           <Icon name="arrowLeft" size={24} />
         </button>
-        <div className="flex-1 flex justify-center overflow-hidden px-4">
-          <h2 className="text-lg font-bold text-white truncate">
-            {song.title}
-          </h2>
-        </div>
         <div className="w-10 shrink-0" />{" "}
         {/* Spacer to balance the back button */}
       </header>

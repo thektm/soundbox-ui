@@ -117,6 +117,10 @@ interface AuthContextType {
   fetchUserProfile: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   updateStreamQuality: (quality: "medium" | "high") => Promise<void>;
+  authenticatedFetch: (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<Response>;
   verificationContext: string | null;
   setVerificationContext: (context: string | null) => void;
   formatErrorMessage: (error: any) => string;
@@ -140,27 +144,63 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     null,
   );
 
-  const formatErrorMessage = (error: any): string => {
-    if (!error) return "خطای نامشخص رخ داده است";
+  const formatErrorMessage = (errorArg: any): string => {
+    const error = errorArg?.error || errorArg;
+    if (!error) return "خطای نامشخصی رخ داده است";
+
+    const errorMap: Record<string, string> = {
+      "Invalid credentials": "نام کاربری یا رمز عبور اشتباه است",
+      "User already exists": "این کاربر قبلاً ثبت‌نام کرده است",
+      "Invalid OTP": "کد تایید وارد شده اشتباه است",
+      "OTP expired": "کد تایید منقضی شده است",
+      "Phone number not found": "شماره همراه یافت نشد",
+      "Passwords do not match": "رمز عبور با تکرار آن مطابقت ندارد",
+      "Phone number already exists": "این شماره همراه قبلاً در سیستم وجود دارد",
+      "Account is not active": "حساب کاربری فعال نیست",
+      "Token is invalid or expired":
+        "زمان نشست شما به پایان رسیده است، مجدداً وارد شوید",
+      "User not found": "کاربر مورد نظر پیدا نشد",
+      "Password reset failed": "تغییر رمز عبور با شکست مواجه شد",
+      "Registration failed": "ثبت‌نام انجام نشد",
+      "Login failed": "ورود به حساب با خطا مواجه شد",
+      "Verification failed": "تایید کد ناموفق بود",
+      "OTP request failed": "خطا در ارسال کد تایید",
+      "Method Not Allowed": "دسترسی غیرمجاز",
+      "Internal Server Error": "خطا در سمت سرور رخ داده است",
+      "Bad Request": "درخواست نامعتبر",
+      "Too many requests": "تعداد درخواست‌ها بیش از حد مجاز است",
+      "User not logged in": "لطفا ابتدا وارد حساب خود شوید",
+      "No active subscription found.": "شما اشتراک فعال ندارید",
+    };
 
     if (error.code === "RATE_LIMIT") {
       const seconds = error.retry_after_seconds || 30;
       return `لطفا ${seconds} ثانیه صبر کنید و سپس دوباره امتحان کنید`;
     }
 
-    let msg = error.message || "خطا رخ داده است";
     if (error.fields) {
-      msg += ": " + Object.values(error.fields).flat().join(", ");
+      const msgs = Object.values(error.fields)
+        .flat()
+        .map((m: any) => errorMap[m] || m);
+      return msgs.join(" - ");
     }
-    return msg;
+
+    const detail =
+      error.detail ||
+      error.message ||
+      (typeof error === "string" ? error : null);
+    if (detail) {
+      return errorMap[detail] || detail;
+    }
+
+    return "خطایی رخ داده است. لطفا دوباره تلاش کنید";
   };
 
-  async function get(path: string, token: string) {
-    const res = await fetch(`${API_ROOT}${path}`, {
+  async function get(path: string) {
+    const res = await authenticatedFetch(`${API_ROOT}${path}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
     });
     const text = await res.text();
@@ -176,20 +216,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   }
 
   async function post(path: string, body: any) {
-    console.log(
-      "Making POST request to:",
-      `${API_ROOT}${path}`,
-      "with body:",
-      body,
-    );
-    const res = await fetch(`${API_ROOT}${path}`, {
+    // Only use authenticatedFetch for non-auth paths or if we want refresh logic
+    // For login/refresh itself, we use standard fetch to avoid infinite loops
+    const isAuthPath = path.includes("/auth/");
+    const fetchFn = isAuthPath ? fetch : authenticatedFetch;
+
+    const res = await fetchFn(`${API_ROOT}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    console.log("Response status:", res.status, "ok:", res.ok);
     const text = await res.text();
-    console.log("Response text:", text);
     try {
       return {
         ok: res.ok,
@@ -201,12 +238,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   }
 
-  async function patch(path: string, body: any, token: string) {
-    const res = await fetch(`${API_ROOT}${path}`, {
+  async function patch(path: string, body: any) {
+    const res = await authenticatedFetch(`${API_ROOT}${path}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });
@@ -223,16 +259,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   }
 
   const fetchUserProfile = async (providedToken?: string) => {
-    const token =
-      providedToken ||
-      accessToken ||
-      (typeof window !== "undefined"
-        ? localStorage.getItem("accessToken")
-        : null);
-    if (!token) return;
-
+    // If a token is provided manually, we use it, otherwise authenticatedFetch handles it
     try {
-      const r = await get("/profile/", token);
+      let r;
+      if (providedToken) {
+        const res = await fetch(`${API_ROOT}/profile/`, {
+          headers: { Authorization: `Bearer ${providedToken}` },
+        });
+        const body = await res.json();
+        r = { ok: res.ok, body };
+      } else {
+        r = await get("/profile/");
+      }
+
       if (r.ok && r.body) {
         setUser(r.body as User);
       }
@@ -242,14 +281,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const updateProfile = async (updateData: Partial<User>) => {
-    const token =
-      accessToken ||
-      (typeof window !== "undefined"
-        ? localStorage.getItem("accessToken")
-        : null);
-    if (!token) throw new Error("Authentication required");
-
-    const r = await patch("/profile/", updateData, token);
+    const r = await patch("/profile/", updateData);
     if (!r.ok) throw r.body || new Error("Failed to update profile");
 
     if (r.body) {
@@ -258,25 +290,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const updateStreamQuality = async (quality: "medium" | "high") => {
-    const token =
-      accessToken ||
-      (typeof window !== "undefined"
-        ? localStorage.getItem("accessToken")
-        : null);
-    if (!token) throw new Error("Authentication required");
-
-    const r = await patch(
-      "/profile/settings/stream-quality/",
-      { stream_quality: quality },
-      token,
-    );
+    const r = await patch("/profile/settings/stream-quality/", {
+      stream_quality: quality,
+    });
     if (!r.ok) {
       throw r.body || new Error("Failed to update stream quality");
     }
 
-    // Response returns new stream_quality and plan (GET returns both; update returns the new value)
     if (r.body) {
-      // r.body may be { stream_quality: 'high' } or { stream_quality: 'high', plan: 'premium' }
       setUser((prev) => {
         if (!prev) return prev;
         const updated: User = {
@@ -289,21 +310,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const tryRefreshToken = async (refreshToken?: string) => {
+  const tryRefreshToken = async (
+    refreshTokenArg?: string,
+  ): Promise<string | null> => {
     const token =
-      refreshToken ||
+      refreshTokenArg ||
       (typeof window !== "undefined"
         ? localStorage.getItem("refreshToken")
         : null);
-    if (!token) return false;
+    if (!token) return null;
     try {
       const r = await post("/auth/token/refresh/", { refreshToken: token });
       if (!r.ok) {
-        if (typeof window !== "undefined")
-          localStorage.removeItem("refreshToken");
-        setAccessToken(null);
-        setIsLoggedIn(false);
-        return false;
+        if (r.status === 401) {
+          if (typeof window !== "undefined")
+            localStorage.removeItem("refreshToken");
+          setAccessToken(null);
+          setIsLoggedIn(false);
+          setUser(null);
+        }
+        return null;
       }
       const data = r.body;
       setAccessToken(data.accessToken);
@@ -320,10 +346,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         await fetchUserProfile(data.accessToken);
       }
       setIsLoggedIn(true);
-      return true;
+      return data.accessToken;
     } catch (err) {
-      return false;
+      return null;
     }
+  };
+
+  const authenticatedFetch = async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> => {
+    let currentToken = accessToken;
+
+    const applyAuth = (token: string | null) => {
+      const options = { ...init };
+      if (!token) return options;
+      const headers = new Headers(options.headers || {});
+      if (!headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+      options.headers = headers;
+      return options;
+    };
+
+    let response = await fetch(input, applyAuth(currentToken));
+
+    if (response.status === 401) {
+      const newToken = await tryRefreshToken();
+      if (newToken) {
+        response = await fetch(input, applyAuth(newToken));
+      }
+    }
+
+    return response;
   };
 
   const formatPhoneForApi = (phoneArg: string) => {
@@ -504,6 +559,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         fetchUserProfile,
         updateProfile,
         updateStreamQuality,
+        authenticatedFetch,
         verificationContext,
         setVerificationContext,
         formatErrorMessage,

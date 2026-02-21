@@ -12,6 +12,7 @@ import {
   Loader2,
   Music,
   User,
+  Share2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -33,7 +34,7 @@ interface PaginatedResponse<T> {
 }
 
 const FollowingArtistsPage: React.FC = () => {
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const { navigateTo, goBack, registerScrollContainer, restoreScroll } =
     useNavigation();
   const [artists, setArtists] = useState<ApiArtist[]>([]);
@@ -55,11 +56,8 @@ const FollowingArtistsPage: React.FC = () => {
     const fetchArtists = async () => {
       setLoading(true);
       try {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           "https://api.sedabox.com/api/profile/my-artists/",
-          {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          },
         );
         if (response.ok) {
           const data: PaginatedResponse<ApiArtist> = await response.json();
@@ -73,18 +71,16 @@ const FollowingArtistsPage: React.FC = () => {
       }
     };
 
-    if (accessToken) {
-      fetchArtists();
-    }
-  }, [accessToken]);
+    fetchArtists();
+  }, [authenticatedFetch]);
 
   const loadMore = useCallback(async () => {
     if (!nextUrl || isFetchingMore) return;
     setIsFetchingMore(true);
     try {
-      const response = await fetch(nextUrl.replace("http://", "https://"), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const response = await authenticatedFetch(
+        nextUrl.replace("http://", "https://"),
+      );
       if (response.ok) {
         const data: PaginatedResponse<ApiArtist> = await response.json();
         setArtists((prev) => [...prev, ...data.results]);
@@ -95,7 +91,7 @@ const FollowingArtistsPage: React.FC = () => {
     } finally {
       setIsFetchingMore(false);
     }
-  }, [nextUrl, isFetchingMore, accessToken]);
+  }, [nextUrl, isFetchingMore, authenticatedFetch]);
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current || !nextUrl || isFetchingMore || loading) return;
@@ -119,8 +115,8 @@ const FollowingArtistsPage: React.FC = () => {
         <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-blue-900/10 rounded-full blur-[100px]" />
       </div>
 
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#030303]/80 backdrop-blur-xl border-b border-white/5 px-4 sm:px-6 py-4 flex items-center justify-between">
+      {/* Header - Hidden on Desktop */}
+      <div className="sticky top-0 z-50 bg-[#030303]/80 backdrop-blur-xl border-b border-white/5 px-4 sm:px-6 py-4 flex items-center justify-between lg:hidden">
         <div className="flex items-center gap-4">
           <button
             onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
@@ -160,12 +156,36 @@ const FollowingArtistsPage: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
+            className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6"
           >
-            <h2 className="text-4xl sm:text-5xl font-black text-white mb-2">
-              هنرمندان شما
-            </h2>
-            <div className="h-1 w-20 bg-emerald-500 rounded-full" />
+            <div>
+              <h2 className="text-4xl sm:text-5xl font-black text-white mb-2">
+                هنرمندان شما
+              </h2>
+              <div className="h-1 w-20 bg-emerald-500 rounded-full" />
+            </div>
+
+            {/* Desktop Actions */}
+            <div className="hidden lg:flex items-center gap-4">
+              <button
+                onClick={() =>
+                  setViewMode(viewMode === "grid" ? "list" : "grid")
+                }
+                className="p-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-white/10 transition-all flex items-center gap-2"
+              >
+                {viewMode === "grid" ? (
+                  <>
+                    <List className="w-5 h-5 text-zinc-400" />
+                    <span className="text-sm font-medium">نمای لیستی</span>
+                  </>
+                ) : (
+                  <>
+                    <LayoutGrid className="w-5 h-5 text-zinc-400" />
+                    <span className="text-sm font-medium">نمای شبکه‌ای</span>
+                  </>
+                )}
+              </button>
+            </div>
           </motion.div>
 
           <AnimatePresence mode="popLayout">

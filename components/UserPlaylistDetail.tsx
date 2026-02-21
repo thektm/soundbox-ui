@@ -264,7 +264,7 @@ interface UserPlaylistDetailProps {
 
 const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({ id }) => {
   const { goBack, scrollY } = useNavigation();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
   const [playlist, setPlaylist] = useState<UserPlaylistResponse | null>(null);
@@ -280,14 +280,11 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({ id }) => {
   const showHeader = scrollY > 50;
 
   const fetchPlaylist = useCallback(async () => {
-    if (!id || !accessToken) return;
+    if (!id) return;
     setLoading(true);
     try {
-      const resp = await fetch(
+      const resp = await authenticatedFetch(
         `https://api.sedabox.com/api/profile/user-playlists/${id}/`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        },
       );
       if (resp.ok) {
         const data = await resp.json();
@@ -302,7 +299,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({ id }) => {
     } finally {
       setLoading(false);
     }
-  }, [id, accessToken]);
+  }, [id, authenticatedFetch]);
 
   useEffect(() => {
     fetchPlaylist();
@@ -315,13 +312,10 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({ id }) => {
     }
     setIsLiking(true);
     try {
-      const resp = await fetch(
+      const resp = await authenticatedFetch(
         `https://api.sedabox.com/api/profile/user-playlists/${playlist.id}/like/`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
         },
       );
       if (resp.ok) {

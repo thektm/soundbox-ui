@@ -21,7 +21,10 @@ import {
   useTransform,
   animate,
 } from "framer-motion";
+import toast from "react-hot-toast";
 import QueueSheet from "./QueueSheet";
+import { AddToPlaylistModal } from "./AddToPlaylistModal";
+import { getFullShareUrl } from "../utils/share";
 import { MOCK_ARTISTS, createSlug } from "./mockData";
 import { Sparkles, User, UserRoundCog } from "lucide-react";
 
@@ -343,13 +346,12 @@ const ProgressBar = memo<ProgressProps>(
         if (!ref.current || mini) return;
         const rect = ref.current.getBoundingClientRect();
         setIsSeeking(true);
-        onSeek(
-          Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) *
-            duration,
-        );
+        const pos = (e.clientX - rect.left) / rect.width;
+        const t = pos * duration;
+        onSeek(Math.max(0, Math.min(1, t / duration)) * duration);
         setTimeout(() => setIsSeeking(false), 50);
       },
-      [duration, onSeek, mini],
+      [duration, onSeek, mini, variant],
     );
 
     const handleMouseMove = useCallback(
@@ -357,9 +359,10 @@ const ProgressBar = memo<ProgressProps>(
         if (!ref.current) return;
         const rect = ref.current.getBoundingClientRect();
         const pos = (e.clientX - rect.left) / rect.width;
-        setHoverPosition(pos * duration);
+        const t = pos * duration;
+        setHoverPosition(t);
       },
-      [duration],
+      [duration, variant],
     );
 
     if (mini) {
@@ -377,38 +380,54 @@ const ProgressBar = memo<ProgressProps>(
       return (
         <div className="w-full">
           <div
+            dir="ltr"
             ref={ref}
             className="relative h-1.5 bg-white/10 rounded-full cursor-pointer group"
             onClick={handleClick}
             onMouseMove={handleMouseMove}
             onMouseLeave={() => setHoverPosition(null)}
           >
-            {hoverPosition !== null && (
-              <div
-                className="absolute -top-8 px-2 py-1 bg-neutral-800 rounded text-xs text-white transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-                style={{
-                  left: `${(hoverPosition / duration) * 100}%`,
-                }}
-              >
-                {formatTime(hoverPosition)}
-              </div>
-            )}
-            <div className="absolute inset-0 bg-white/5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div
-              className={`h-full bg-white group-hover:bg-emerald-500 rounded-full relative ${
-                isSeeking ? "" : "transition-[width] duration-100 ease-linear"
-              }`}
-              style={{ width: `${pct}%` }}
-            >
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
+            {hoverPosition !== null &&
+              (() => {
+                const pctHover = (hoverPosition / duration) * 100;
+                return (
+                  <div
+                    className="absolute -top-8 px-2 py-1 bg-neutral-800 rounded text-xs text-white transform translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                    style={{ left: `${pctHover}%` }}
+                  >
+                    {formatTime(hoverPosition)}
+                  </div>
+                );
+              })()}
+            <div className="absolute inset-0 bg-white/5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-0" />
+            {(() => {
+              const fillStyle = { width: `${pct}%`, left: 0, right: "auto" };
+              const knobStyle = { left: `${pct}%` };
+              return (
+                <>
+                  <div
+                    className={`h-full bg-white group-hover:bg-emerald-500 rounded-full relative z-10 ${
+                      isSeeking
+                        ? ""
+                        : "transition-[width] duration-100 ease-linear"
+                    }`}
+                    style={fillStyle}
+                  />
+
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                    style={knobStyle}
+                  />
+                </>
+              );
+            })()}
           </div>
           <div className="flex justify-between mt-2">
             <span className="text-[11px] text-neutral-400 tabular-nums font-medium">
-              {formatTime(progress)}
+              {formatTime(duration)}
             </span>
             <span className="text-[11px] text-neutral-400 tabular-nums font-medium">
-              {formatTime(duration)}
+              {formatTime(progress)}
             </span>
           </div>
         </div>
@@ -1343,15 +1362,41 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
           <div className="flex flex-col items-center gap-2 w-[40%] max-w-[722px]">
             <div className="flex items-center gap-4">
               <button
-                onClick={toggleShuffle}
+                onClick={
+                  (() => {
+                    if (isAdPlaying) return;
+                    setTimeout(() => {
+                      if (isShuffle) {
+                        toggleShuffle();
+                        cycleRepeat();
+                      } else if (repeatMode === "one") {
+                        cycleRepeat();
+                        cycleRepeat();
+                      } else {
+                        toggleShuffle();
+                      }
+                    }, 0);
+                  }) as unknown as React.MouseEventHandler
+                }
                 disabled={isAdPlaying}
-                className={`p-2 transition-colors ${
-                  isShuffle
+                className={`p-2 transition-colors relative ${
+                  isShuffle || repeatMode === "one" || repeatMode === "all"
                     ? "text-emerald-500"
                     : "text-zinc-400 hover:text-white"
                 } disabled:opacity-30`}
               >
-                <Icon.Shuffle c="w-4 h-4" />
+                {isShuffle ? (
+                  <Icon.Shuffle c="w-4 h-4" />
+                ) : repeatMode === "one" ? (
+                  <>
+                    <Icon.Repeat c="w-4 h-4" />
+                    <span className="absolute -top-1 -right-1 text-[10px] font-semibold text-emerald-500">
+                      1
+                    </span>
+                  </>
+                ) : (
+                  <Icon.Repeat c="w-4 h-4" />
+                )}
               </button>
               <button
                 onClick={previous}
@@ -1421,7 +1466,12 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                   }}
                 >
                   {!isAdPlaying && (
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{
+                        left: `${duration > 0 ? (progress / duration) * 100 : 0}%`,
+                      }}
+                    />
                   )}
                 </div>
               </div>
@@ -1461,7 +1511,9 @@ CollapsedPlayer.displayName = "CollapsedPlayer";
 const DesktopExpandedPlayer = memo<{
   onCollapse: () => void;
   userPlan?: string | null;
-}>(({ onCollapse, userPlan }) => {
+  banner?: BannerAd | null;
+  bannerLoaded?: boolean;
+}>(({ onCollapse, userPlan, banner, bannerLoaded }) => {
   const { navigateTo } = useNavigation();
   const {
     currentTrack,
@@ -1492,10 +1544,53 @@ const DesktopExpandedPlayer = memo<{
 
   const isPremium =
     !!userPlan && String(userPlan).toLowerCase().includes("premium");
+  const isFree = userPlan === "free";
+
+  const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
+  const [addSongId, setAddSongId] = useState<string | number | null>(null);
 
   const [activeTab, setActiveTab] = useState<"queue" | "lyrics" | "related">(
     "queue",
   );
+
+  const { accessToken, authenticatedFetch } = useAuth();
+  const [relatedSongs, setRelatedSongs] = useState<Track[]>([]);
+  const [isLoadingRelated, setIsLoadingRelated] = useState(false);
+
+  useEffect(() => {
+    const fetchRelatedSongs = async () => {
+      if (!currentTrack || isAdPlaying) return;
+
+      setIsLoadingRelated(true);
+      try {
+        const resp = await authenticatedFetch(
+          `https://api.sedabox.com/api/songs/${currentTrack.id}/`,
+        );
+
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.similar_songs?.items) {
+            const mapped: Track[] = data.similar_songs.items.map((s: any) => ({
+              id: s.id.toString(),
+              title: s.title,
+              artist: s.artist_name,
+              artistId: s.artist_id || s.artist,
+              image: s.cover_image,
+              duration: s.duration_display || "0:00",
+              src: s.stream_url || s.audio_file || "",
+            }));
+            setRelatedSongs(mapped);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch related songs:", err);
+      } finally {
+        setIsLoadingRelated(false);
+      }
+    };
+
+    fetchRelatedSongs();
+  }, [currentTrack?.id, accessToken, isAdPlaying]);
 
   const displayTrack = useMemo(() => {
     if (isAdPlaying && currentAd) {
@@ -1528,6 +1623,98 @@ const DesktopExpandedPlayer = memo<{
     }
   }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
 
+  // Desktop menu / share positioning
+  const [isMenuOpenDesktop, setIsMenuOpenDesktop] = useState(false);
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
+  const [sharePos, setSharePos] = useState({ x: 0, y: 0 });
+  const [isQueueOpenDesktop, setIsQueueOpenDesktop] = useState(false);
+
+  const openMenuAt = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const x = e.clientX;
+    const y = e.clientY;
+    const offsetX = 12;
+    const offsetY = 8;
+    const width = 220; // approx menu width
+    const left = Math.min(
+      Math.max(8, x + offsetX),
+      window.innerWidth - width - 8,
+    );
+    const top = Math.min(Math.max(8, y + offsetY), window.innerHeight - 40 - 8);
+    setMenuPos({ x: left, y: top });
+    setIsMenuOpenDesktop(true);
+    setIsShareMenuOpen(false);
+  };
+
+  const openShareAt = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const x = e.clientX;
+    const y = e.clientY;
+    const offsetX = 12;
+    const offsetY = 8;
+    const width = 200;
+    const left = Math.min(
+      Math.max(8, x + offsetX),
+      window.innerWidth - width - 8,
+    );
+    const top = Math.min(Math.max(8, y + offsetY), window.innerHeight - 40 - 8);
+    setSharePos({ x: left, y: top });
+    setIsShareMenuOpen(true);
+    setIsMenuOpenDesktop(false);
+  };
+
+  useEffect(() => {
+    const onDoc = (ev: MouseEvent) => {
+      const tgt = ev.target as Element | null;
+      if (tgt && tgt.closest && tgt.closest(".desktop-menu") === null) {
+        setIsMenuOpenDesktop(false);
+      }
+      if (tgt && tgt.closest && tgt.closest(".desktop-share-menu") === null) {
+        setIsShareMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const generateAndCopyLink = async (type: "song" | "artist") => {
+    try {
+      if (!displayTrack) return;
+      const id = (displayTrack.id as any) ?? "";
+      const url = getFullShareUrl(type === "song" ? "song" : "artist", id);
+
+      if (typeof navigator !== "undefined" && (navigator as any).share) {
+        try {
+          await (navigator as any).share({
+            title: displayTrack.title || displayTrack.artist || "SedaBox",
+            text: `G گوش دادن به ${displayTrack.title || "آهنگ"} از ${displayTrack.artist || "هنرمند"} در سداباکس`,
+            url,
+          });
+          setIsShareMenuOpen(false);
+          return;
+        } catch (e) {
+          console.error("Web Share failed:", e);
+        }
+      }
+
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        toast.success("لینک کپی شد");
+        setIsShareMenuOpen(false);
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        window.open(url, "_blank");
+        setIsShareMenuOpen(false);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("خطا در تولید لینک");
+    }
+  };
+
   const handleTitleClick = useCallback(() => {
     if (isAdPlaying) return;
     if (currentTrack) {
@@ -1546,6 +1733,7 @@ const DesktopExpandedPlayer = memo<{
 
   return (
     <motion.div
+      dir="rtl"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -1575,16 +1763,22 @@ const DesktopExpandedPlayer = memo<{
               <Icon.Minimize c="w-5 h-5" />
             </div>
             <span className="text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-              Minimize
+              بازگشت
             </span>
           </button>
 
           <div className="flex items-center gap-3">
-            <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all">
+            <button
+              onClick={(e) => openShareAt(e)}
+              className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all"
+            >
               <Icon.Share c="w-5 h-5" />
             </button>
             {!isAdPlaying && (
-              <button className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all">
+              <button
+                onClick={(e) => openMenuAt(e)}
+                className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-neutral-400 hover:text-white hover:bg-white/20 transition-all"
+              >
                 <Icon.More c="w-5 h-5" />
               </button>
             )}
@@ -1592,168 +1786,234 @@ const DesktopExpandedPlayer = memo<{
         </header>
 
         {/* Main Layout */}
-        <div className="flex-1 flex items-center px-8 pb-8 gap-12 min-h-0">
+        <div className="flex-1 flex items-center px-8 pb-8 gap-12 min-h-0 flex-row-reverse">
           {/* Left Section - Artwork & Info */}
-          <div className="flex-1 flex items-center justify-center">
-            <div className="flex items-center gap-10 max-w-3xl w-full">
-              {/* Album Art */}
-              <div className="relative flex-shrink-0" key={displayTrack.id}>
-                <div className="w-72 h-72 xl:w-80 xl:h-80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10">
-                  <ImageWithPlaceholder
-                    src={ensureHttps(displayTrack.image) || displayTrack.image}
-                    alt={displayTrack.title}
-                    className="w-full h-full object-cover"
-                    type="song"
-                  />
-                </div>
-              </div>
-
-              {/* Track Info & Controls */}
-              <div className="flex-1 min-w-0 space-y-8">
-                {/* Track Meta */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full">
-                      {isAdPlaying ? "Playing Ad" : "Now Playing"}
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleTitleClick}
-                    className={`text-4xl xl:text-5xl font-bold text-white tracking-tight leading-tight text-left ${
-                      isAdPlaying ? "" : "hover:underline"
-                    }`}
-                  >
-                    {displayTrack.title}
-                  </button>
-                  <button
-                    onClick={handleArtistClick}
-                    className={`text-xl text-neutral-300 transition-colors ${
-                      isAdPlaying
-                        ? ""
-                        : "hover:text-white hover:underline decoration-2 underline-offset-4"
-                    }`}
-                  >
-                    {isAdPlaying ? "Ad" : displayTrack.artist}
-                  </button>
-                </div>
-
-                {/* Progress */}
-                <div className="max-w-md">
-                  <ProgressBar
-                    progress={progress}
-                    duration={duration}
-                    onSeek={seek}
-                    variant="desktop"
-                  />
-                </div>
-
-                {/* Controls */}
-                <div className="flex items-center gap-6">
-                  <button
-                    onClick={toggleShuffle}
-                    disabled={isAdPlaying}
-                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                      isShuffle
-                        ? "bg-emerald-500/20 text-emerald-400"
-                        : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
-                    } disabled:opacity-30`}
-                  >
-                    <Icon.Shuffle c="w-5 h-5" />
-                  </button>
-
-                  <button
-                    onClick={previous}
-                    disabled={isAdPlaying}
-                    className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
-                  >
-                    <Icon.Prev c="w-7 h-7" />
-                  </button>
-
-                  <button
-                    onClick={togglePlay}
-                    disabled={isLoading}
-                    className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-2xl shadow-white/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50"
-                  >
-                    {isLoading ? (
-                      <Spinner size="w-8 h-8" />
-                    ) : isPlaying ? (
-                      <Icon.Pause c="w-9 h-9 text-black" />
-                    ) : (
-                      <Icon.Play c="w-9 h-9 text-black ml-1" />
-                    )}
-                  </button>
-
-                  <button
-                    onClick={next}
-                    disabled={isAdPlaying}
-                    className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
-                  >
-                    <Icon.Next c="w-7 h-7" />
-                  </button>
-
-                  {!isAdPlaying ? (
-                    <button
-                      onClick={toggleLike}
-                      disabled={isLiking}
-                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                        isLiked
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
-                      } ${isLiking ? "cursor-wait" : ""}`}
+          <div className="flex-1 flex flex-col items-center justify-start pt-[2vh]">
+            <AnimatePresence>
+              {isFree && banner && bannerLoaded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+                  animate={{ height: "auto", opacity: 1, marginBottom: 24 }}
+                  exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+                  transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                  className="w-full flex justify-center overflow-hidden px-8"
+                  style={{ willChange: "height, opacity, margin" }}
+                >
+                  <div className="w-full max-w-[40vw] aspect-25/8">
+                    <a
+                      href={banner.navigate_link || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full h-full block group"
                     >
-                      <div className="relative flex items-center justify-center">
-                        <div
-                          className={isLiking ? "opacity-30" : "opacity-100"}
-                        >
-                          <Icon.Heart c="w-7 h-7" filled={isLiked} />
-                        </div>
-                        {isLiking && (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Spinner size="w-4 h-4" />
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  ) : (
-                    <div className="w-12" />
-                  )}
+                      <img
+                        src={ensureHttps(banner.image) || banner.image}
+                        alt={banner.title}
+                        className="w-full h-full object-cover rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 group-hover:border-white/20 transition-all duration-300"
+                      />
+                    </a>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <div className="flex-1 flex items-center justify-center w-full min-h-0">
+              <div className="flex items-center gap-10 max-w-3xl w-full">
+                {/* Album Art */}
+                <div className="relative flex-shrink-0" key={displayTrack.id}>
+                  <div className="w-72 h-72 xl:w-80 xl:h-80 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 ring-1 ring-white/10">
+                    <ImageWithPlaceholder
+                      src={
+                        ensureHttps(displayTrack.image) || displayTrack.image
+                      }
+                      alt={displayTrack.title}
+                      className="w-full h-full object-cover"
+                      type="song"
+                    />
+                  </div>
                 </div>
 
-                {/* Action Buttons */}
-                {!isAdPlaying && (
-                  <div className="flex items-center gap-3 pt-2">
-                    <button className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all">
-                      <Icon.Add c="w-5 h-5" />
-                      <span className="text-sm font-medium">
-                        Add to Playlist
+                {/* Track Info & Controls */}
+                <div className="flex-1 min-w-0 space-y-8 text-right">
+                  {/* Track Meta */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 justify-start">
+                      <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 rounded-full">
+                        {isAdPlaying ? "تبلیغ" : "در حال پخش"}
                       </span>
-                    </button>
+                    </div>
                     <button
-                      onClick={() => isPremium && download(currentTrack!)}
-                      disabled={!isPremium}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full transition-all relative ${
-                        !isPremium
-                          ? "opacity-60 cursor-not-allowed bg-white/3 text-white/60"
-                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                      onClick={handleTitleClick}
+                      className={`text-4xl xl:text-3xl font-bold text-white tracking-tight leading-tight text-right ${
+                        isAdPlaying ? "" : "hover:underline"
                       }`}
                     >
-                      <Icon.Download c="w-5 h-5" />
-                      <span className="text-sm font-medium">دانلود آهنگ</span>
-
-                      {!isPremium && (
-                        <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
-                          پریمیوم
-                        </span>
-                      )}
+                      {displayTrack.title}
+                    </button>
+                    <button
+                      onClick={handleArtistClick}
+                      className={`text-xl text-neutral-300 transition-colors ${
+                        isAdPlaying
+                          ? ""
+                          : "hover:text-white hover:underline decoration-2 underline-offset-4"
+                      }`}
+                    >
+                      {isAdPlaying ? "تبلیغ" : displayTrack.artist}
                     </button>
                   </div>
-                )}
+
+                  {/* Progress */}
+                  <div className="max-w-md">
+                    <ProgressBar
+                      progress={progress}
+                      duration={duration}
+                      onSeek={seek}
+                      variant="desktop"
+                    />
+                  </div>
+
+                  {/* Controls */}
+                  <div className="flex items-center gap-6">
+                    <button
+                      onClick={
+                        (() => {
+                          if (isAdPlaying) return;
+                          setTimeout(() => {
+                            if (isShuffle) {
+                              toggleShuffle();
+                              cycleRepeat();
+                            } else if (repeatMode === "one") {
+                              cycleRepeat();
+                              cycleRepeat();
+                            } else {
+                              toggleShuffle();
+                            }
+                          }, 0);
+                        }) as unknown as React.MouseEventHandler
+                      }
+                      disabled={isAdPlaying}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all relative ${
+                        isShuffle ||
+                        repeatMode === "one" ||
+                        repeatMode === "all"
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                      } disabled:opacity-30`}
+                    >
+                      {isShuffle ? (
+                        <Icon.Shuffle c="w-5 h-5" />
+                      ) : repeatMode === "one" ? (
+                        <>
+                          <Icon.Repeat c="w-5 h-5" />
+                          <span className="absolute -top-1 -right-1 text-[10px] font-semibold text-emerald-500">
+                            1
+                          </span>
+                        </>
+                      ) : (
+                        <Icon.Repeat c="w-5 h-5" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={next}
+                      disabled={isAdPlaying}
+                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
+                    >
+                      <Icon.Next c="w-7 h-7" />
+                    </button>
+                    <button
+                      onClick={togglePlay}
+                      disabled={isLoading}
+                      className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-2xl shadow-white/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50"
+                    >
+                      {isLoading ? (
+                        <Spinner size="w-8 h-8" />
+                      ) : isPlaying ? (
+                        <Icon.Pause c="w-9 h-9 text-black" />
+                      ) : (
+                        <Icon.Play c="w-9 h-9 text-black ml-1" />
+                      )}
+                    </button>
+                    <button
+                      onClick={previous}
+                      disabled={isAdPlaying}
+                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
+                    >
+                      <Icon.Prev c="w-7 h-7" />
+                    </button>
+
+                    {!isAdPlaying ? (
+                      <button
+                        onClick={toggleLike}
+                        disabled={isLiking}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                          isLiked
+                            ? "bg-emerald-500/20 text-emerald-400"
+                            : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                        } ${isLiking ? "cursor-wait" : ""}`}
+                      >
+                        <div className="relative flex items-center justify-center">
+                          <div
+                            className={isLiking ? "opacity-30" : "opacity-100"}
+                          >
+                            <Icon.Heart c="w-7 h-7" filled={isLiked} />
+                          </div>
+                          {isLiking && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Spinner size="w-4 h-4" />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="w-12" />
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  {!isAdPlaying && (
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        onClick={() => {
+                          setAddSongId(displayTrack.id);
+                          setIsAddToPlaylistOpen(true);
+                        }}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 transition-all"
+                      >
+                        <Icon.Add c="w-5 h-5" />
+                        <span className="text-sm font-medium">
+                          افزودن به پلی‌لیست
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => isPremium && download(currentTrack!)}
+                        disabled={!isPremium}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-full transition-all relative ${
+                          !isPremium
+                            ? "opacity-60 cursor-not-allowed bg-white/3 text-white/60"
+                            : "bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10"
+                        }`}
+                      >
+                        <Icon.Download c="w-5 h-5" />
+                        <span className="text-sm font-medium">دانلود آهنگ</span>
+
+                        {!isPremium && (
+                          <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
+                            پریمیوم
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
           {/* Right Section - Queue/Lyrics Panel */}
-          <div className="w-96 xl:w-[420px] h-full flex flex-col bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
+          <div
+            dir="rtl"
+            className="w-96 xl:w-[420px] h-full flex flex-col bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden"
+          >
             {/* Tabs */}
             <div className="flex border-b border-white/10">
               {(["queue", "lyrics", "related"] as const).map((tab) => (
@@ -1768,10 +2028,10 @@ const DesktopExpandedPlayer = memo<{
                   } disabled:opacity-30`}
                 >
                   {tab === "queue"
-                    ? "Up Next"
+                    ? "پخش بعدی"
                     : tab === "lyrics"
-                      ? "Lyrics"
-                      : "Related"}
+                      ? "متن"
+                      : "مرتبط"}
                   {activeTab === tab && (
                     <motion.div
                       layoutId="activeTab"
@@ -1788,10 +2048,10 @@ const DesktopExpandedPlayer = memo<{
                 <div className="h-full overflow-y-auto p-4 space-y-1">
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
-                      {queue.length} tracks in queue
+                      {queue.length} آهنگ در صف
                     </span>
                     <span className="text-xs text-neutral-500">
-                      {currentIndex + 1} of {queue.length}
+                      {currentIndex + 1} از {queue.length}
                     </span>
                   </div>
                   {queue.map((track, i) => (
@@ -1882,26 +2142,211 @@ const DesktopExpandedPlayer = memo<{
               )}
 
               {activeTab === "related" && (
-                <div className="h-full flex items-center justify-center p-8">
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
-                      <Icon.Queue c="w-8 h-8 text-neutral-500" />
+                <div className="h-full overflow-y-auto p-4 space-y-1">
+                  {isLoadingRelated ? (
+                    <div className="h-full flex items-center justify-center">
+                      <Spinner size="w-8 h-8" />
                     </div>
-                    <div>
-                      <p className="text-neutral-400 font-medium">
-                        Discover similar tracks
-                      </p>
-                      <p className="text-sm text-neutral-600 mt-1">
-                        Coming soon
-                      </p>
+                  ) : relatedSongs.length > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between mb-4 px-2">
+                        <span className="text-xs text-neutral-500 uppercase tracking-wider font-medium">
+                          آهنگ‌های پیشنهادی مشابه
+                        </span>
+                      </div>
+                      {relatedSongs.map((track, i) => (
+                        <motion.div
+                          key={track.id}
+                          initial={false}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.03 }}
+                          onClick={() => !isAdPlaying && playTrack(track)}
+                          className="group flex items-center gap-3 p-3 rounded-xl transition-all hover:bg-white/5 cursor-pointer"
+                        >
+                          <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                            <ImageWithPlaceholder
+                              src={ensureHttps(track.image) || track.image}
+                              alt={track.title}
+                              className="w-full h-full object-cover"
+                              type="song"
+                            />
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Icon.Play c="w-5 h-5 text-white" />
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate text-white">
+                              {track.title}
+                            </div>
+                            <div className="text-xs text-neutral-500 truncate">
+                              {track.artist}
+                            </div>
+                          </div>
+                          <span className="text-xs text-neutral-500 tabular-nums">
+                            {track.duration}
+                          </span>
+                        </motion.div>
+                      ))}
+                    </>
+                  ) : (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="text-center space-y-4">
+                        <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
+                          <Icon.Queue c="w-8 h-8 text-neutral-500" />
+                        </div>
+                        <div>
+                          <p className="text-neutral-400 font-medium">
+                            آهنگ مشابهی پیدا نشد
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
         </div>
       </div>
+      <AddToPlaylistModal
+        isOpen={isAddToPlaylistOpen}
+        onClose={() => setIsAddToPlaylistOpen(false)}
+        songId={addSongId ?? (displayTrack ? (displayTrack.id as any) : "")}
+      />
+      {/* Desktop fixed menus (positioned at mouse click) */}
+      <AnimatePresence>
+        {isMenuOpenDesktop && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="fixed desktop-menu z-[80] bg-neutral-800 rounded-lg shadow-2xl border border-white/10 overflow-hidden min-w-[200px]"
+            style={{ left: menuPos.x, top: menuPos.y }}
+          >
+            <div className="py-2" dir="rtl">
+              <button
+                onClick={() => {
+                  setIsMenuOpenDesktop(false);
+                  handleArtistClick();
+                }}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <Icon.More c="w-5 h-5" />
+                مشاهده هنرمند
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsMenuOpenDesktop(false);
+                  setAddSongId(displayTrack.id);
+                  setIsAddToPlaylistOpen(true);
+                }}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <Icon.Add c="w-5 h-5" />
+                افزودن به پلی‌لیست
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsMenuOpenDesktop(false);
+                  if (isPremium && currentTrack) download(currentTrack);
+                }}
+                disabled={!isPremium}
+                className={`w-full px-4 py-3 text-right text-white transition-colors flex items-center gap-3 relative ${
+                  !isPremium
+                    ? "opacity-60 cursor-not-allowed"
+                    : "hover:bg-white/10"
+                }`}
+                dir="rtl"
+              >
+                <Icon.Download c="w-5 h-5" />
+                دانلود آهنگ
+                {!isPremium && (
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
+                    پریمیوم
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsMenuOpenDesktop(false);
+                  setIsQueueOpenDesktop(true);
+                }}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <Icon.Queue c="w-5 h-5" />
+                نمایش صف پخش
+              </button>
+
+              <button
+                onClick={(e) => {
+                  // open share sub-menu at same position
+                  setIsMenuOpenDesktop(false);
+                  openShareAt(e as unknown as React.MouseEvent);
+                }}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <Icon.Share c="w-5 h-5" />
+                اشتراک‌گذاری
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsMenuOpenDesktop(false);
+                  generateAndCopyLink("song");
+                }}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <Icon.Share c="w-5 h-5" />
+                کپی لینک آهنگ
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isShareMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="fixed desktop-share-menu z-[81] bg-neutral-800 rounded-lg shadow-2xl border border-white/10 overflow-hidden min-w-[180px]"
+            style={{ left: sharePos.x, top: sharePos.y }}
+          >
+            <div className="py-2" dir="rtl">
+              <button
+                onClick={() => generateAndCopyLink("song")}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <Icon.Share c="w-5 h-5" />
+                اشتراک‌گذاری آهنگ
+              </button>
+              <button
+                onClick={() => generateAndCopyLink("artist")}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <User className="w-5 h-5" />
+                اشتراک‌گذاری هنرمند
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <QueueSheet
+        isOpen={isQueueOpenDesktop}
+        onClose={() => setIsQueueOpenDesktop(false)}
+      />
     </motion.div>
   );
 });
@@ -2383,7 +2828,12 @@ const ExpandedPlayer = memo<{
 
   if (isDesktop) {
     return (
-      <DesktopExpandedPlayer onCollapse={onCollapse} userPlan={userPlan} />
+      <DesktopExpandedPlayer
+        onCollapse={onCollapse}
+        userPlan={userPlan}
+        banner={banner}
+        bannerLoaded={bannerLoaded}
+      />
     );
   }
 
@@ -2402,7 +2852,7 @@ ExpandedPlayer.displayName = "ExpandedPlayer";
 // MAIN COMPONENT
 // ============================================================================
 export default function MusicPlayer() {
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn, user, authenticatedFetch } = useAuth();
   const userPlan = user?.plan || null;
   const { isVisible, isExpanded, expand, collapse, setVolume } = usePlayer();
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
@@ -2418,7 +2868,7 @@ export default function MusicPlayer() {
     let img: HTMLImageElement | null = null;
     if (isLoggedIn && userPlan === "free") {
       setBannerLoaded(false);
-      fetch("https://api.sedabox.com/api/ads/banner/")
+      authenticatedFetch("https://api.sedabox.com/api/ads/banner/")
         .then((res) => res.json())
         .then((data) => {
           if (cancelled) return;

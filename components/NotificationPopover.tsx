@@ -51,6 +51,7 @@ export default function NotificationPopover({
 }: NotificationPopoverProps) {
   const [open, setOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
 
   // Close on ESC key
   useEffect(() => {
@@ -66,9 +67,12 @@ export default function NotificationPopover({
   // Close on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const dialog = document.querySelector('[aria-label="اعلان‌ها"]');
       if (
         popoverRef.current &&
-        !popoverRef.current.contains(event.target as Node)
+        !popoverRef.current.contains(target) &&
+        !(dialog && dialog.contains(target))
       ) {
         setOpen(false);
       }
@@ -89,7 +93,14 @@ export default function NotificationPopover({
         <button
           aria-label="اعلان‌ها"
           className="text-white/90 p-2 rounded-md hover:bg-white/5 transition relative"
-          onClick={() => setOpen(!open)}
+          onClick={(e) => {
+            // Capture desktop click coords so popover can appear to the right and below cursor
+            if (e && "clientX" in e) {
+              const ev = e as React.MouseEvent;
+              setAnchor({ x: ev.clientX, y: ev.clientY });
+            }
+            setOpen((v) => !v);
+          }}
         >
           <Bell className="w-6 h-6" />
           {notifications.some((n) => !n.has_read) && (
@@ -100,13 +111,14 @@ export default function NotificationPopover({
 
       <AnimatePresence>
         {open && (
-          <ContentComponent
+            <ContentComponent
             notifications={notifications}
             markingReadIds={markingReadIds}
             onMarkAsRead={onMarkAsRead}
             onMarkAllAsRead={onMarkAllAsRead}
             getTimeAgo={getTimeAgo}
             onClose={() => setOpen(false)}
+            anchor={!isMobile ? (anchor ?? undefined) : undefined}
           />
         )}
       </AnimatePresence>
@@ -121,6 +133,7 @@ interface ContentProps {
   onMarkAllAsRead: () => void;
   getTimeAgo: (dateStr: string) => string;
   onClose: () => void;
+  anchor?: { x: number; y: number } | undefined;
 }
 
 // Mobile: Full-width centered container with slide animation from top
@@ -261,7 +274,29 @@ function DesktopContent({
   onMarkAllAsRead,
   getTimeAgo,
   onClose,
+  anchor,
 }: ContentProps) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!anchor || typeof window === "undefined") {
+      setPos(null);
+      return;
+    }
+
+    const width = 320;
+    const padding = 12;
+    const calcLeft = Math.min(
+      anchor.x + 8,
+      Math.max(8, window.innerWidth - width - padding),
+    );
+    const calcTop = Math.min(
+      anchor.y + 8,
+      Math.max(8, window.innerHeight - 80),
+    );
+    setPos({ top: calcTop, left: calcLeft });
+  }, [anchor]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -273,10 +308,12 @@ function DesktopContent({
       }}
       role="dialog"
       aria-label="اعلان‌ها"
-      className="absolute z-100"
+      className="z-100"
       style={{
-        top: "calc(100% + 8px)",
-        right: 0,
+        position: pos ? "fixed" : "absolute",
+        top: pos ? `${pos.top}px` : "calc(100% + 8px)",
+        left: pos ? `${pos.left}px` : undefined,
+        right: pos ? undefined : 0,
         width: "320px",
         minWidth: "320px",
         transform: "translateZ(0)",

@@ -458,7 +458,7 @@ FloatingParticle.displayName = "FloatingParticle";
    ─────────────────────────────────────────── */
 export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
   const { navigateTo, goBack } = useNavigation();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
@@ -505,13 +505,8 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
     const fetchProfile = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           `https://api.sedabox.com/api/profile/u/${uniqueId}/`,
-          {
-            headers: accessToken
-              ? { Authorization: `Bearer ${accessToken}` }
-              : {},
-          },
         );
         if (response.ok) {
           const data = await response.json();
@@ -539,14 +534,13 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
     setIsFollowLoading(true);
     setFollowAnimating(true);
     try {
-      const response = await fetch(`https://api.sedabox.com/api/follow/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+      const response = await authenticatedFetch(
+        `https://api.sedabox.com/api/follow/`,
+        {
+          method: "POST",
+          body: JSON.stringify({ user_id: profile.id }),
         },
-        body: JSON.stringify({ user_id: profile.id }),
-      });
+      );
 
       if (response.ok) {
         const data = await response.json();

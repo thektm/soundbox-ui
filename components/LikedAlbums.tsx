@@ -55,6 +55,8 @@ const ICONS = {
   disc: "M12 2a10 10 0 100 20 10 10 0 000-20zm0 14a4 4 0 110-8 4 4 0 010 8z",
   search: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
   close: "M6 18L18 6M6 6l12 12",
+  share:
+    "M18 5c0 1.657-1.343 3-3 3-.332 0-.649-.054-.943-.153L8.537 11.168c.288.583.463 1.237.463 1.932s-.175 1.349-.463 1.932l5.52 3.321c.294-.099.611-.153.943-.153 1.657 0 3 1.343 3 3s-1.343 3-3 3-3-1.343-3-3c0-.695.175-1.349.463-1.932l-5.52-3.321c-.294.099-.611.153-.943.153-1.657 0-3-1.343-3-3s1.343-3 3-3c.332 0 .649.054.943.153l5.52-3.321c-.288-.583-.463-1.237-.463-1.932 0-1.657 1.343-3 3-3s3 1.343 3 3z",
   grid: "M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z",
   list: "M4 6h16M4 10h16M4 14h16M4 18h16",
 };
@@ -284,7 +286,7 @@ AlbumCardList.displayName = "AlbumCardList";
 // ============================================================================
 export default function LikedAlbums() {
   const { navigateTo, goBack, scrollToTop } = useNavigation();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   // Mirror LikedSongs search behavior: separate main/search states,
   // debounced search to server, pagination via IntersectionObserver.
   const [viewState, setViewState] = useState({
@@ -352,11 +354,10 @@ export default function LikedAlbums() {
       if (viewState.isSearching) setSearchData((prev) => removeFrom(prev));
 
       try {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           `https://api.sedabox.com/api/albums/${albumId}/like/`,
           {
             method: "POST",
-            headers: { Authorization: `Bearer ${accessToken}` },
           },
         );
 
@@ -373,7 +374,7 @@ export default function LikedAlbums() {
         toast.error("خطا در اتصال");
       }
     },
-    [accessToken, viewState.isSearching],
+    [authenticatedFetch, viewState.isSearching],
   );
 
   const toggleViewMode = useCallback(() => {
@@ -383,8 +384,6 @@ export default function LikedAlbums() {
   // Unified fetch for main/search similar to LikedSongs
   const fetchAlbums = useCallback(
     async (mode: "MAIN" | "SEARCH", url?: string, query?: string) => {
-      if (!accessToken) return;
-
       const isPagination = !!url;
 
       setViewState((prev) => ({
@@ -403,9 +402,7 @@ export default function LikedAlbums() {
               : "https://api.sedabox.com/api/profile/liked-albums/";
         }
 
-        const res = await fetch(endpoint, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        const res = await authenticatedFetch(endpoint);
 
         if (res.ok) {
           const data: ApiResponse = await res.json();
@@ -509,9 +506,9 @@ export default function LikedAlbums() {
       />
 
       {/* Header */}
-      <div className="relative z-60 pt-14">
-        {/* Navigation Bar */}
-        <div className="flex items-center flex-row-reverse justify-between px-4 p-2.5 fixed top-0 left-0 right-0 bg-[#030303]/80 z-60">
+      <div className="relative z-60 pt-14 lg:pt-20">
+        {/* Navigation Bar - Hidden on Desktop */}
+        <div className="flex items-center flex-row-reverse justify-between px-4 p-2.5 fixed top-0 left-0 right-0 bg-[#030303]/80 z-60 lg:hidden">
           <button
             onClick={handleBack}
             className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
@@ -548,23 +545,61 @@ export default function LikedAlbums() {
         </div>
 
         {/* Hero Section */}
-        <div className="px-6 pt-8 pb-6">
+        <div className="px-6 pt-8 pb-6 lg:pb-12">
           {/* Disc Icon with Gradient */}
-          <div className="w-28 h-28 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-2xl shadow-purple-500/30">
-            <Icon d={ICONS.disc} className="w-14 h-14 text-white" filled />
+          <div className="w-28 h-28 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-2xl shadow-purple-500/30 lg:w-40 lg:h-40 lg:rounded-3xl">
+            <Icon
+              d={ICONS.disc}
+              className="w-14 h-14 text-white lg:w-20 lg:h-20"
+              filled
+            />
           </div>
 
-          <h1 className="text-2xl font-bold text-white text-center mb-2">
+          <h1 className="text-2xl font-bold text-white text-center mb-2 lg:text-4xl">
             آلبوم‌های لایک‌شده
           </h1>
-          <p className="text-gray-400 text-sm text-center">
+          <p className="text-gray-400 text-sm text-center lg:text-base">
             {activeTotal} آلبوم
           </p>
+
+          {/* Desktop Search & Controls */}
+          <div className="hidden lg:flex flex-col items-center gap-6 mt-10 max-w-2xl mx-auto">
+            <div className="relative w-full">
+              <Icon
+                d={ICONS.search}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
+              />
+              <input
+                type="text"
+                value={viewState.query}
+                onChange={(e) =>
+                  setViewState((p) => ({ ...p, query: e.target.value }))
+                }
+                placeholder="جستجو در آلبوم‌های لایک‌شده..."
+                className="w-full pl-6 pr-12 py-3.5 bg-white/[0.06] border border-white/[0.08] rounded-2xl text-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:bg-white/[0.1] transition-all"
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={toggleViewMode}
+                className="px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center gap-3"
+              >
+                <Icon
+                  d={viewMode === "grid" ? ICONS.list : ICONS.grid}
+                  className="w-5 h-5 text-purple-400"
+                />
+                <span className="text-sm font-medium text-gray-300">
+                  تغییر نمایش
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Search Bar - Animated */}
+        {/* Search Bar - Animated - Hidden on Desktop */}
         <div
-          className={`overflow-hidden transition-all duration-300 ease-out ${
+          className={`overflow-hidden transition-all duration-300 ease-out lg:hidden ${
             viewState.showSearchBar
               ? "max-h-16 opacity-100"
               : "max-h-0 opacity-0"

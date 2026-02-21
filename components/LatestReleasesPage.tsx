@@ -25,7 +25,7 @@ interface PaginatedResponse<T> {
 }
 
 const LatestReleasesPage: React.FC = () => {
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const { setQueue } = usePlayer();
   const [songs, setSongs] = useState<ApiSong[]>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
@@ -34,11 +34,8 @@ const LatestReleasesPage: React.FC = () => {
   useEffect(() => {
     const fetchLatest = async () => {
       try {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           "https://api.sedabox.com/api/home/latest-releases/",
-          {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          },
         );
         if (response.ok) {
           const data: PaginatedResponse<ApiSong> = await response.json();
@@ -59,9 +56,9 @@ const LatestReleasesPage: React.FC = () => {
     if (!nextUrl || loading) return;
     setLoading(true);
     try {
-      const response = await fetch(nextUrl.replace("http://", "https://"), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const response = await authenticatedFetch(
+        nextUrl.replace("http://", "https://"),
+      );
       if (response.ok) {
         const data: PaginatedResponse<ApiSong> = await response.json();
         setSongs((prev) => [...prev, ...data.results]);

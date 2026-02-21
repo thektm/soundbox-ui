@@ -272,7 +272,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   album: albumProp,
 }) => {
   const { goBack, currentParams, navigateTo } = useNavigation();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const { setQueue, currentTrack, isPlaying: isPlayerPlaying } = usePlayer();
 
   const albumId = idProp || currentParams?.id;
@@ -294,13 +294,8 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
 
       try {
         setLoading(true);
-        const response = await fetch(
+        const response = await authenticatedFetch(
           `https://api.sedabox.com/api/albums/${albumId}/`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          },
         );
         if (response.ok) {
           const data: ApiAlbumResponse = await response.json();
@@ -366,13 +361,10 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
 
     setLiking(true);
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `https://api.sedabox.com/api/albums/${albumData.id}/like/`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
         },
       );
       if (response.ok) {

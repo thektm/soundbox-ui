@@ -43,7 +43,7 @@ const Register: React.FC = () => {
         return "کد تایید برای شما ارسال شد";
       },
       error: (e) => {
-        const msg = formatErrorMessage(e?.error);
+        const msg = formatErrorMessage(e);
         setError(msg);
         return msg;
       },

@@ -21,7 +21,7 @@ interface PaginatedResponse<T> {
 }
 
 const PopularAlbumsPage: React.FC = () => {
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const { navigateTo } = useNavigation();
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
@@ -30,11 +30,8 @@ const PopularAlbumsPage: React.FC = () => {
   useEffect(() => {
     const fetchAlbums = async () => {
       try {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           "https://api.sedabox.com/api/home/popular-albums/",
-          {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          },
         );
         if (response.ok) {
           const data: PaginatedResponse<ApiAlbum> = await response.json();
@@ -55,9 +52,9 @@ const PopularAlbumsPage: React.FC = () => {
     if (!nextUrl || loading) return;
     setLoading(true);
     try {
-      const response = await fetch(nextUrl.replace("http://", "https://"), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const response = await authenticatedFetch(
+        nextUrl.replace("http://", "https://"),
+      );
       if (response.ok) {
         const data: PaginatedResponse<ApiAlbum> = await response.json();
         setAlbums((prev) => [...prev, ...data.results]);

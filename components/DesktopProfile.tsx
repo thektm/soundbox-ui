@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import Image from "next/image";
+import toast from "react-hot-toast";
+import { createSlug } from "./mockData";
 import LikedSongs from "./LikedSongs";
 import LikedAlbums from "./LikedAlbums";
 import LikedPlaylists from "./LikedPlaylists";
@@ -77,14 +79,29 @@ type Section =
   | "settings";
 
 export default function DesktopProfile() {
-  const { logout } = useAuth();
+  const {
+    logout,
+    user: authUser,
+    fetchUserProfile,
+    updateProfile,
+    formatErrorMessage,
+  } = useAuth();
   const { navigateTo, currentParams } = useNavigation();
 
   const [activeSection, setActiveSection] = useState<Section>("overview");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
+  const [isFetching, setIsFetching] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
   // --- USER PLAN LOGIC ---
   const [planStatus, setPlanStatus] = useState<"free" | "premium">(() => {
+    if (
+      (typeof window !== "undefined" &&
+        (window as any)?.sedabox_user_plan === "premium") ||
+      false
+    )
+      return "premium";
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("sedabox_user_plan");
       return saved === "premium" ? "premium" : "free";
@@ -101,21 +118,100 @@ export default function DesktopProfile() {
   }, [currentParams]);
 
   const [formData, setFormData] = useState({
-    firstName: "علی",
-    lastName: "رضایی",
-    email: "ali.rezaei@example.com",
+    firstName: "",
+    lastName: "",
+    email: "",
+    uniqueId: "",
   });
 
   const user = {
-    name: `${formData.firstName} ${formData.lastName}`,
-    phone: "09123456789",
-    email: formData.email,
-    joinDate: "اردیبهشت ۱۴۰۲",
+    name:
+      authUser?.first_name || authUser?.last_name
+        ? `${authUser.first_name} ${authUser.last_name}`.trim()
+        : "کاربر صداباکس",
+    phone: authUser?.phone_number || "09123456789",
+    email: authUser?.email || "ایمیل ثبت نشده",
+    uniqueId: authUser?.unique_id || "شناسه ثبت نشده",
+    joinDate: authUser?.date_joined
+      ? new Date(authUser.date_joined).toLocaleDateString("fa-IR", {
+          year: "numeric",
+          month: "long",
+        })
+      : "اردیبهشت ۱۴۰۲",
   };
+
+  useEffect(() => {
+    if (authUser) {
+      setFormData({
+        firstName: authUser.first_name ?? "",
+        lastName: authUser.last_name ?? "",
+        email: authUser.email ?? "",
+        uniqueId: authUser.unique_id ?? "",
+      });
+    }
+  }, [authUser]);
+
+  useEffect(() => {
+    if (authUser?.plan) {
+      setPlanStatus(authUser.plan === "premium" ? "premium" : "free");
+    }
+  }, [authUser]);
+
+  useEffect(() => {
+    const fetch = async () => {
+      setIsFetching(true);
+      await fetchUserProfile();
+      setIsFetching(false);
+    };
+    fetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
   const handleSave = () => setIsSheetOpen(false);
+
+  const saveProfile = async () => {
+    setIsSaving(true);
+    const toastId = toast.loading("در حال ذخیره تغییرات...");
+    try {
+      const body = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        unique_id: formData.uniqueId || null,
+      };
+      await updateProfile(body as any);
+      toast.success("پروفایل با موفقیت بروزرسانی شد", { id: toastId });
+      setIsSheetOpen(false);
+    } catch (err: any) {
+      const body = err?.body || err;
+      const uniqueErr =
+        body &&
+        (body.unique_id ||
+          body.uniqueId ||
+          (body.error && body.error.unique_id));
+      if (uniqueErr) {
+        const msg = Array.isArray(uniqueErr) ? uniqueErr[0] : uniqueErr;
+        const lc = String(msg).toLowerCase();
+        if (
+          lc.includes("unique id") ||
+          lc.includes("unique_id") ||
+          lc.includes("user with this unique id")
+        ) {
+          toast.error("شناسه منحصر به فرد قبلا استفاده شده است", {
+            id: toastId,
+          });
+        } else {
+          toast.error(formatErrorMessage(err), { id: toastId });
+        }
+      } else {
+        toast.error(formatErrorMessage(err), { id: toastId });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -205,20 +301,20 @@ export default function DesktopProfile() {
               {[
                 {
                   label: "پلی لیست‌ها",
-                  value: 24,
+                  value: authUser?.user_playlists_count || 0,
                   type: "playlists",
                   action: "my-playlists",
                 },
                 {
                   label: "دنبال کنندگان",
-                  value: 156,
+                  value: authUser?.followers_count || 0,
                   type: "followers",
                   action: "followers-following",
                   tab: "followers",
                 },
                 {
                   label: "دنبال شده",
-                  value: 89,
+                  value: authUser?.following_count || 0,
                   type: "following",
                   action: "followers-following",
                   tab: "following",
@@ -241,7 +337,7 @@ export default function DesktopProfile() {
                     />
                   </div>
                   <div className="text-3xl font-bold text-white mb-2">
-                    {stat.value.toLocaleString("fa-IR")}
+                    {(stat.value || 0).toLocaleString("fa-IR")}
                   </div>
                   <div className="text-sm text-gray-400">{stat.label}</div>
                 </button>
@@ -409,32 +505,71 @@ export default function DesktopProfile() {
                 اخیراً پخش شده
               </h2>
               <div className="grid grid-cols-2 gap-4">
-                {Array.from({ length: 6 }).map((_, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 transition-all duration-300 will-change-transform hover:scale-105"
-                  >
-                    <div className="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-800">
-                      <Image
-                        src="/music-listen.webp"
-                        alt={`کاور ${idx + 1}`}
-                        fill
-                        className="object-cover"
-                      />
+                {isFetching ? (
+                  Array.from({ length: 4 }).map((_, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 animate-pulse"
+                    >
+                      <div className="w-16 h-16 rounded-lg bg-white/10" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-white/10 rounded w-3/4" />
+                        <div className="h-3 bg-white/5 rounded w-1/2" />
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg text-white truncate">
-                        ترانه {idx + 1}
-                      </h3>
-                      <p className="text-gray-400 text-sm truncate">
-                        هنرمند {idx + 1}
-                      </p>
-                      <p className="text-gray-500 text-xs mt-1">
-                        {idx % 2 === 0 ? "دیروز" : "2 روز پیش"} • 3:12
-                      </p>
-                    </div>
+                  ))
+                ) : authUser?.recently_played?.items?.length ? (
+                  authUser.recently_played.items
+                    .slice(0, 6)
+                    .map((track: any) => (
+                      <button
+                        key={track.id}
+                        onClick={() =>
+                          navigateTo("song-detail", {
+                            id: track.id,
+                            artistSlug:
+                              track.artist_unique_id ||
+                              createSlug(track.artist_name || "artist"),
+                            songSlug: createSlug(track.title),
+                          })
+                        }
+                        className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 transition-all duration-300 will-change-transform"
+                      >
+                        <div className="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-800">
+                          <Image
+                            src={
+                              track.image ||
+                              track.cover_image ||
+                              "/music-listen.webp"
+                            }
+                            alt={track.title}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg text-white truncate">
+                            {track.title}
+                          </h3>
+                          <p className="text-gray-400 text-sm truncate">
+                            {track.artist_name}
+                          </p>
+                          <p className="text-gray-500 text-xs mt-1">
+                            {track.played_at
+                              ? new Date(track.played_at).toLocaleDateString(
+                                  "fa-IR",
+                                )
+                              : ""}{" "}
+                            • {track.duration_display || track.duration || "-"}
+                          </p>
+                        </div>
+                      </button>
+                    ))
+                ) : (
+                  <div className="w-full text-center py-8 text-gray-500 text-sm">
+                    هنوز آهنگی پخش نکرده‌اید
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -593,6 +728,12 @@ export default function DesktopProfile() {
                 placeholder: "ایمیل خود را وارد کنید",
                 type: "email",
               },
+              {
+                key: "uniqueId",
+                label: "شناسه منحصر به فرد",
+                placeholder: "شناسه منحصر به فرد خود را وارد کنید",
+                info: true,
+              },
             ].map((field) => (
               <div key={field.key}>
                 <label className="block text-lg font-medium text-gray-400 mb-3">
@@ -611,14 +752,19 @@ export default function DesktopProfile() {
           </div>
           <div className="flex gap-4 flex-shrink-0">
             <button
-              onClick={handleSave}
-              className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-2xl hover:from-emerald-600 hover:to-emerald-700 transition-all will-change-transform"
+              onClick={saveProfile}
+              disabled={isSaving}
+              className="flex-1 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-2xl hover:from-emerald-600 hover:to-emerald-700 transition-all will-change-transform disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              ذخیره تغییرات
+              {isSaving && (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              )}
+              {isSaving ? "در حال ذخیره..." : "ذخیره تغییرات"}
             </button>
             <button
               onClick={() => setIsSheetOpen(false)}
-              className="px-8 py-4 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-2xl hover:border-white/20 transition-colors"
+              disabled={isSaving}
+              className="px-8 py-4 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-2xl hover:border-white/20 transition-colors disabled:opacity-50"
             >
               انصراف
             </button>

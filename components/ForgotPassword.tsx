@@ -104,7 +104,7 @@ const ForgotPassword: React.FC = () => {
         return "کد بازیابی برای شما ارسال شد";
       },
       error: (e) => {
-        const msg = formatErrorMessage(e?.error);
+        const msg = formatErrorMessage(e);
         setError(msg);
         return msg;
       },
@@ -139,7 +139,7 @@ const ForgotPassword: React.FC = () => {
         return "رمز عبور با موفقیت تغییر کرد. اکنون می‌توانید وارد شوید";
       },
       error: (e) => {
-        const msg = formatErrorMessage(e?.error);
+        const msg = formatErrorMessage(e);
         setError(msg);
         return msg;
       },
@@ -432,10 +432,10 @@ const ForgotPassword: React.FC = () => {
           className="absolute bottom-10 right-10 hidden lg:block text-right"
           dir="rtl"
         >
-          <div className="text-6xl font-bold text-white/10 tracking-tighter select-none">
+          <div className="text-6xl font-bold text-white/5 tracking-tighter select-none">
             MUSIC
           </div>
-          <div className="text-6xl font-bold text-white/10 tracking-tighter select-none -mt-5">
+          <div className="text-6xl font-bold text-white/5 tracking-tighter select-none -mt-5">
             IS LIFE
           </div>
         </div>

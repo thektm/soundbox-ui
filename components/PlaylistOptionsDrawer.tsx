@@ -28,7 +28,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
   playlist,
   onAction,
 }) => {
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const [processing, setProcessing] = useState<string | null>(null);
 
   if (!playlist) return null;
@@ -72,10 +72,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
           ? `https://api.sedabox.com/api/home/playlist-recommendations/${playlist.unique_id}/like/`
           : `https://api.sedabox.com/api/playlists/${playlist.id}/like/`;
 
-        const headers: Record<string, string> = {};
-        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-
-        const resp = await fetch(url, { method: "POST", headers });
+        const resp = await authenticatedFetch(url, { method: "POST" });
         if (resp.ok) {
           const data = await resp.json();
           const liked = data.liked ?? data.is_liked ?? true;

@@ -530,7 +530,7 @@ function Sidebar() {
   // State
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const [libraryTab, setLibraryTab] = useState<"playlists" | "library">(
     "playlists",
   );
@@ -576,12 +576,11 @@ function Sidebar() {
 
   // Fetch library items (history) similar to LibraryScreen
   const fetchLibraryItems = useCallback(async () => {
-    if (!accessToken) return;
     setLoadingLibrary(true);
     try {
-      const resp = await fetch("https://api.sedabox.com/api/profile/history/", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const resp = await authenticatedFetch(
+        "https://api.sedabox.com/api/profile/history/",
+      );
       if (resp.ok) {
         const data = await resp.json();
         const list = data.results || [];
@@ -605,20 +604,18 @@ function Sidebar() {
     } finally {
       setLoadingLibrary(false);
     }
-  }, [accessToken]);
+  }, [authenticatedFetch]);
 
   // Handle playlist creation
   const handleCreatePlaylist = useCallback(
     async (name: string, isPublic: boolean) => {
-      if (!accessToken) return;
       try {
-        const resp = await fetch(
+        const resp = await authenticatedFetch(
           "https://api.sedabox.com/api/profile/playlists/create/",
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
             },
             body: JSON.stringify({ title: name, public: isPublic }),
           },
@@ -635,7 +632,7 @@ function Sidebar() {
         console.error("Failed to create playlist:", err);
       }
     },
-    [accessToken, navigateTo],
+    [authenticatedFetch, navigateTo],
   );
 
   // Fetch recommended playlists once on mount
@@ -679,13 +676,8 @@ function Sidebar() {
         /* ignore cache transform errors */
       }
       try {
-        const resp = await fetch(
+        const resp = await authenticatedFetch(
           "https://api.sedabox.com/api/home/playlist-recommendations/",
-          {
-            headers: accessToken
-              ? { Authorization: `Bearer ${accessToken}` }
-              : {},
-          },
         );
         if (!mounted) return;
         if (resp.ok) {
@@ -723,7 +715,7 @@ function Sidebar() {
     return () => {
       mounted = false;
     };
-  }, [accessToken]);
+  }, [authenticatedFetch]);
 
   // Check active state
   const isActivePath = useCallback(

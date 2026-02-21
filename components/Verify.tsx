@@ -30,7 +30,7 @@ const Verify: React.FC = () => {
       loading: "در حال ارسال مجدد کد...",
       success: "کد تایید مجدداً ارسال شد",
       error: (e) => {
-        const msg = formatErrorMessage(e?.error);
+        const msg = formatErrorMessage(e);
         setError(msg);
         return msg;
       },
@@ -48,7 +48,7 @@ const Verify: React.FC = () => {
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    idx: number
+    idx: number,
   ) => {
     const raw = e.target.value.replace(/\D/g, "");
     const char = raw.slice(-1) || "";
@@ -62,7 +62,7 @@ const Verify: React.FC = () => {
 
   const handleKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>,
-    idx: number
+    idx: number,
   ) => {
     if (e.key === "Backspace") {
       if (digits[idx] === "") {
@@ -110,7 +110,7 @@ const Verify: React.FC = () => {
           : "/auth/verify/";
       console.log(
         "Sending OTP verification request to:",
-        `https://api.sedabox.com/api${endpoint}`
+        `https://api.sedabox.com/api${endpoint}`,
       );
       console.log("Sending OTP verification request with body:", {
         otp: code,
@@ -128,7 +128,7 @@ const Verify: React.FC = () => {
         },
         error: (e) => {
           console.log("OTP verification failed, full response:", e);
-          const msg = formatErrorMessage(e?.error);
+          const msg = formatErrorMessage(e);
           setError(msg);
           return msg;
         },

@@ -42,11 +42,11 @@ export const ResponsiveSheet = ({
     return (
       <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 transform-gpu animate-fade-in" />
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] transform-gpu animate-fade-in" />
           <Dialog.Content
             className={`fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ${desktopWidth} max-h-[85vh] 
-            bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 
-            z-[60] outline-none transform-gpu animate-scale-in overflow-hidden flex flex-col`}
+              bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 
+              z-[80] outline-none transform-gpu animate-scale-in overflow-hidden flex flex-col`}
           >
             {children}
           </Dialog.Content>
@@ -58,8 +58,8 @@ export const ResponsiveSheet = ({
   return (
     <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
-        <Drawer.Content className="fixed bottom-0 left-0 right-0 max-h-[90vh] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 z-[60] flex flex-col outline-none">
+        <Drawer.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70]" />
+        <Drawer.Content className="fixed bottom-0 left-0 right-0 max-h-[90vh] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 z-[80] flex flex-col outline-none">
           <div className="flex-1 overflow-y-auto rounded-t-3xl">
             <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-4 mb-4 flex-shrink-0" />
             {children}

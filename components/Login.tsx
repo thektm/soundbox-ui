@@ -94,7 +94,7 @@ const Login: React.FC = () => {
         return "کد تایید با موفقیت ارسال شد";
       },
       error: (e) => {
-        const msg = formatErrorMessage(e?.error);
+        const msg = formatErrorMessage(e);
         setError(msg);
         return msg;
       },
@@ -116,7 +116,7 @@ const Login: React.FC = () => {
         return "خوش آمدید!";
       },
       error: (e) => {
-        const msg = formatErrorMessage(e?.error);
+        const msg = formatErrorMessage(e);
         setError(msg);
         return msg;
       },

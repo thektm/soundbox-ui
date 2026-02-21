@@ -689,19 +689,7 @@ export default function Profile() {
                     </div>
                   )}
 
-                  {!isFetching && authUser?.recently_played?.has_next && (
-                    <div className="min-w-[140px] shrink-0 rounded-xl p-3 flex items-center justify-center bg-white/3 border border-dashed border-white/7">
-                      <button className="w-full h-full flex flex-col items-center justify-center gap-1">
-                        <span className="text-white font-medium">
-                          مشاهده همه
-                        </span>
-                        <Icon
-                          d={ICONS.chevron}
-                          className="w-5 h-5 text-gray-300 rotate-180"
-                        />
-                      </button>
-                    </div>
-                  )}
+                  {/* Removed 'مشاهده همه' (See more) card per UI change request */}
                 </div>
               </div>
 

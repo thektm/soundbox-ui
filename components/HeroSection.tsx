@@ -294,7 +294,7 @@ function HeroSection({
               <div className="flex flex-col gap-3 text-[11px] text-zinc-300/80 sm:text-xs">
                 <div className="flex items-center justify-end gap-4">
                   <div
-                    className={`flex ${shouldReverse ? "flex-row-reverse" : "flex-row"} items-center w-full gap-2 text-right`}
+                    className={`relative z-30 flex ${shouldReverse ? "flex-row-reverse" : "flex-row"} items-center w-full gap-2 text-right`}
                   >
                     <span className="w-fit max-w-[45%] text-sm font-semibold text-emerald-300">
                       {isPlaylist
@@ -313,7 +313,7 @@ function HeroSection({
                 </div>
 
                 <div
-                  className={`mt-1 grid w-full ${isSingleAlbum ? "grid-cols-1" : "grid-cols-2"} gap-2`}
+                  className={`mt-1 grid relative z-30 w-full ${isSingleAlbum ? "grid-cols-1" : "grid-cols-2"} gap-2`}
                 >
                   <div className="rounded-2xl bg-white/5 px-3 py-2 w-full border border-white/5">
                     <div className="flex flex-row-reverse items-center justify-between gap-3">

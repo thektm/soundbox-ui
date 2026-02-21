@@ -44,7 +44,7 @@ export const SongOptionsDrawer = ({
 }: SongOptionsDrawerProps) => {
   if (!song) return null;
 
-  const { accessToken, user } = useAuth();
+  const { accessToken, user, authenticatedFetch } = useAuth();
   const { download, playTrack, queue, setQueue, isVisible, currentIndex } =
     usePlayer();
 
@@ -66,13 +66,8 @@ export const SongOptionsDrawer = ({
       const fetchDetail = async () => {
         setIsLoadingDetail(true);
         try {
-          const resp = await fetch(
+          const resp = await authenticatedFetch(
             `https://api.sedabox.com/api/songs/${song.id}/`,
-            {
-              headers: accessToken
-                ? { Authorization: `Bearer ${accessToken}` }
-                : {},
-            },
           );
           if (resp.ok) {
             const data = await resp.json();
@@ -87,7 +82,7 @@ export const SongOptionsDrawer = ({
 
       fetchDetail();
     }
-  }, [isOpen, song?.id, accessToken]);
+  }, [isOpen, song?.id, authenticatedFetch]);
 
   const isLiked = localIsLiked ?? song.is_liked;
 
@@ -263,11 +258,7 @@ export const SongOptionsDrawer = ({
               // Parent did not return a promise; perform fallback API call so drawer waits and notifies
               try {
                 const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;
-                const headers: Record<string, string> = {};
-                if (accessToken)
-                  headers["Authorization"] = `Bearer ${accessToken}`;
-
-                const resp = await fetch(url, { method: "POST", headers });
+                const resp = await authenticatedFetch(url, { method: "POST" });
                 if (resp.ok) {
                   const data = await resp.json();
                   console.log("Like response (fallback):", data);
@@ -310,11 +301,7 @@ export const SongOptionsDrawer = ({
             // Fallback: perform the same API call as other components
             try {
               const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;
-              const headers: Record<string, string> = {};
-              if (accessToken)
-                headers["Authorization"] = `Bearer ${accessToken}`;
-
-              const resp = await fetch(url, { method: "POST", headers });
+              const resp = await authenticatedFetch(url, { method: "POST" });
               if (resp.ok) {
                 const data = await resp.json();
                 console.log("Like response:", data);

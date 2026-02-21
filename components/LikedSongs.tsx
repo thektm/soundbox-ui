@@ -158,7 +158,7 @@ SkeletonSongRow.displayName = "SkeletonSongRow";
 export default function LikedSongs() {
   const { goBack, scrollToTop } = useNavigation();
   const { currentTrack, isPlaying, playTrack, togglePlay } = usePlayer();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
 
   // Combined State Objects to reduce renders
   const [viewState, setViewState] = useState({
@@ -204,8 +204,6 @@ export default function LikedSongs() {
   // Unified Fetch Function
   const fetchTracks = useCallback(
     async (mode: "MAIN" | "SEARCH", url?: string, query?: string) => {
-      if (!accessToken) return;
-
       const isPagination = !!url;
 
       // Set Loading States
@@ -225,9 +223,7 @@ export default function LikedSongs() {
               : "https://api.sedabox.com/api/profile/liked-songs/";
         }
 
-        const res = await fetch(ensureHttps(endpoint)!, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        const res = await authenticatedFetch(ensureHttps(endpoint)!);
 
         if (res.ok) {
           const data = await res.json();
@@ -352,15 +348,17 @@ export default function LikedSongs() {
       if (viewState.isSearching) setSearchData(removeFromList);
 
       try {
-        await fetch(`https://api.sedabox.com/api/songs/${songId}/like/`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        await authenticatedFetch(
+          `https://api.sedabox.com/api/songs/${songId}/like/`,
+          {
+            method: "POST",
+          },
+        );
       } catch (e) {
         console.error(e);
       }
     },
-    [accessToken, viewState.isSearching],
+    [authenticatedFetch, viewState.isSearching],
   );
 
   // Total Duration Calculation
@@ -442,7 +440,7 @@ export default function LikedSongs() {
       <div className="absolute top-0 inset-x-0 h-96 bg-gradient-to-b from-emerald-900/20 via-emerald-900/5 to-transparent pointer-events-none" />
 
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#030303]/80 backdrop-blur-md px-4 py-3 flex items-center justify-between flex-row-reverse">
+      <div className="sticky top-0 z-50 bg-[#030303]/80 backdrop-blur-md px-4 py-3 flex items-center justify-between flex-row-reverse md:hidden">
         <button
           onClick={goBack}
           className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition"
@@ -463,6 +461,9 @@ export default function LikedSongs() {
           <Icon d={viewState.showSearchBar ? ICONS.close : ICONS.search} />
         </button>
       </div>
+
+      {/* Desktop-only share button */}
+      <div className="hidden md:flex absolute top-4 right-4 z-70"></div>
 
       {/* Hero & Controls */}
       <div className="px-6 pb-6 relative z-10">

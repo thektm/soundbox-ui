@@ -22,7 +22,7 @@ const API_ROOT = "https://api.sedabox.com/api";
 export default function DownloadsHistory() {
   const { goBack, navigateTo } = useNavigation();
   const { playTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
 
   const [downloads, setDownloads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,12 +30,9 @@ export default function DownloadsHistory() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const fetchDownloads = useCallback(async () => {
-    if (!accessToken) return;
     setLoading(true);
     try {
-      const resp = await fetch(`${API_ROOT}/profile/downloads/`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const resp = await authenticatedFetch(`${API_ROOT}/profile/downloads/`);
       if (resp.ok) {
         const data = await resp.json();
         setDownloads(data.results || []);
@@ -46,7 +43,7 @@ export default function DownloadsHistory() {
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, [authenticatedFetch]);
 
   useEffect(() => {
     fetchDownloads();

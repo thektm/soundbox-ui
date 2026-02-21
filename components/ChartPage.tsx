@@ -14,7 +14,7 @@ interface ChartPageProps {
 }
 
 const ChartPage: React.FC<ChartPageProps> = ({ title, type, initialData }) => {
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch } = useAuth();
   const { navigateTo } = useNavigation();
   const { setQueue } = usePlayer();
   const [items, setItems] = useState<any[]>(initialData?.results || []);
@@ -59,11 +59,8 @@ const ChartPage: React.FC<ChartPageProps> = ({ title, type, initialData }) => {
 
     const fetchChart = async () => {
       try {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           `https://api.sedabox.com/api/home/${endpoint}/`,
-          {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          },
         );
         if (response.ok) {
           const data = await response.json();
@@ -84,9 +81,9 @@ const ChartPage: React.FC<ChartPageProps> = ({ title, type, initialData }) => {
     if (!nextUrl || loading) return;
     setLoading(true);
     try {
-      const response = await fetch(nextUrl.replace("http://", "https://"), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const response = await authenticatedFetch(
+        nextUrl.replace("http://", "https://"),
+      );
       if (response.ok) {
         const data = await response.json();
         setItems((prev) => [...prev, ...data.results]);

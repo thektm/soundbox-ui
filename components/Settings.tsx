@@ -398,7 +398,7 @@ const SessionsSheet = ({
   isOpen: boolean;
   onClose: () => void;
 }) => {
-  const { accessToken, formatErrorMessage } = useAuth();
+  const { accessToken, formatErrorMessage, authenticatedFetch } = useAuth();
   const [sessions, setSessions] = useState<Array<any>>([]);
   const [loading, setLoading] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -442,12 +442,8 @@ const SessionsSheet = ({
         const url = `https://api.sedabox.com/api/auth/sessions/?refreshToken=${encodeURIComponent(
           refreshToken,
         )}`;
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
-        const res = await fetch(url, { method: "GET", headers });
+        const res = await authenticatedFetch(url, { method: "GET" });
         const text = await res.text();
         const body = text ? JSON.parse(text) : null;
         if (!res.ok) {
@@ -478,12 +474,8 @@ const SessionsSheet = ({
       const url = `https://api.sedabox.com/api/auth/sessions/${encodeURIComponent(
         sessionId,
       )}/revoke/`;
-      const res = await fetch(url, {
+      const res = await authenticatedFetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
       });
       const text = await res.text();
       const body = text ? JSON.parse(text) : null;
@@ -516,12 +508,8 @@ const SessionsSheet = ({
     setRevokingOthers(true);
     try {
       const url = `https://api.sedabox.com/api/auth/sessions/revoke-others/`;
-      const res = await fetch(url, {
+      const res = await authenticatedFetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
         body: JSON.stringify({ refreshToken }),
       });
       const text = await res.text();
@@ -757,6 +745,7 @@ export default function Settings() {
     updateStreamQuality,
     formatErrorMessage,
     accessToken,
+    authenticatedFetch,
   } = useAuth();
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -922,12 +911,8 @@ export default function Settings() {
     const tid = toast.loading("در حال تغییر رمز عبور...");
     try {
       const url = `https://api.sedabox.com/api/auth/password/change/`;
-      const res = await fetch(url, {
+      const res = await authenticatedFetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 

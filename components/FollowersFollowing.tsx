@@ -239,7 +239,7 @@ export default function FollowersFollowing({
   initialTab?: TabType;
 }) {
   const { navigateTo } = useNavigation();
-  const { user, accessToken } = useAuth();
+  const { user, accessToken, authenticatedFetch } = useAuth();
 
   // State
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
@@ -297,14 +297,13 @@ export default function FollowersFollowing({
       );
 
       try {
-        const res = await fetch("https://api.sedabox.com/api/follow/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
+        const res = await authenticatedFetch(
+          "https://api.sedabox.com/api/follow/",
+          {
+            method: "POST",
+            body: JSON.stringify({ user_id: id }),
           },
-          body: JSON.stringify({ user_id: id }),
-        });
+        );
 
         if (!res.ok) throw new Error("Network response was not ok");
 
@@ -481,17 +480,12 @@ export default function FollowersFollowing({
   const loadMore = async () => {
     const nextUrl =
       activeTab === "followers" ? followersMeta.next : followingMeta.next;
-    if (!nextUrl || isLoadingMore || !accessToken) return;
+    if (!nextUrl || isLoadingMore) return;
 
     setIsLoadingMore(true);
     try {
       const cleanUrl = nextUrl.replace("http://", "https://");
-      const res = await fetch(cleanUrl, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-      });
+      const res = await authenticatedFetch(cleanUrl);
       const data = await res.json();
 
       if (activeTab === "followers") {
