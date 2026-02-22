@@ -14,6 +14,7 @@ import { useAuth } from "./AuthContext";
 import { usePlayer } from "./PlayerContext";
 import { toast } from "react-hot-toast";
 import { slugify } from "../utils/share";
+import { ResponsiveSheet } from "./ResponsiveSheet";
 
 interface UserPlaylist {
   id: number;
@@ -482,6 +483,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [followAnimating, setFollowAnimating] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Particles data (memoized so they don't re-create)
@@ -938,6 +940,9 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
 
             {/* More button */}
             <button
+              onClick={() => setOptionsOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={optionsOpen}
               className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
               style={{
                 background: "rgba(255,255,255,0.06)",
@@ -1049,6 +1054,124 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
             )}
           </div>
         </section>
+      )}
+
+      {/* Options: responsive sheet on mobile, modal on desktop */}
+      {optionsOpen && (
+        <>
+          {/* Desktop modal */}
+          <div className="hidden md:flex fixed inset-0 items-center justify-center z-60">
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setOptionsOpen(false)}
+            />
+            <div
+              className="relative w-full max-w-sm rounded-2xl p-4 bg-zinc-900 border border-zinc-800"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={async () => {
+                    await handleFollow();
+                    setOptionsOpen(false);
+                  }}
+                  disabled={isFollowLoading}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-white/5 transition"
+                >
+                  {profile.is_following ? "لغو دنبال کردن" : "دنبال کردن"}
+                </button>
+
+                <button
+                  onClick={async () => {
+                    const shareUrl =
+                      typeof window !== "undefined" && window.location
+                        ? `${window.location.origin}/u/${profile.unique_id}/${slugify(fullName)}`
+                        : `/u/${profile.unique_id}`;
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({
+                          title: fullName,
+                          url: shareUrl,
+                        });
+                      } catch (e) {}
+                    } else if (
+                      typeof navigator !== "undefined" &&
+                      (navigator as any).clipboard
+                    ) {
+                      try {
+                        await (navigator as any).clipboard.writeText(shareUrl);
+                        toast.success("لینک کپی شد");
+                      } catch (e) {
+                        toast.error("اشتراک‌گذاری ممکن نیست");
+                      }
+                    } else {
+                      toast("اشتراک‌گذاری در این مرورگر پشتیبانی نمی‌شود");
+                    }
+                    setOptionsOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-white/5 transition"
+                >
+                  اشتراک گذاری پروفایل
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile sheet using ResponsiveSheet component */}
+          <ResponsiveSheet
+            isOpen={optionsOpen}
+            onClose={() => setOptionsOpen(false)}
+          >
+            <div className="p-4">
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={async () => {
+                    await handleFollow();
+                    setOptionsOpen(false);
+                  }}
+                  disabled={isFollowLoading}
+                  className="w-full text-right px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800"
+                >
+                  {profile.is_following ? "لغو دنبال کردن" : "دنبال کردن"}
+                </button>
+
+                <button
+                  onClick={async () => {
+                    const shareUrl =
+                      typeof window !== "undefined" && window.location
+                        ? `${window.location.origin}/u/${profile.unique_id}/${slugify(fullName)}`
+                        : `/u/${profile.unique_id}`;
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({
+                          title: fullName,
+                          url: shareUrl,
+                        });
+                      } catch (e) {}
+                    } else if (
+                      typeof navigator !== "undefined" &&
+                      (navigator as any).clipboard
+                    ) {
+                      try {
+                        await (navigator as any).clipboard.writeText(shareUrl);
+                        toast.success("لینک کپی شد");
+                      } catch (e) {
+                        toast.error("اشتراک‌گذاری ممکن نیست");
+                      }
+                    } else {
+                      toast("اشتراک‌گذاری در این مرورگر پشتیبانی نمی‌شود");
+                    }
+                    setOptionsOpen(false);
+                  }}
+                  className="w-full text-right px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800"
+                >
+                  اشتراک گذاری پروفایل
+                </button>
+              </div>
+            </div>
+          </ResponsiveSheet>
+        </>
       )}
 
       {/* Empty state */}
