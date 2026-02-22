@@ -6,7 +6,7 @@ import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { usePlayer, Track } from "./PlayerContext";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
-import { getFullShareUrl } from "../utils/share";
+import { getFullShareUrl, slugify } from "../utils/share";
 import toast from "react-hot-toast";
 import { SEO } from "./SEO";
 
@@ -293,6 +293,19 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
         return;
       }
 
+      // Optimization: if we already have the album data in params (e.g. from nav or from ourselves), just use it
+      if (
+        currentParams?.album &&
+        String(currentParams.album.id) === String(albumId)
+      ) {
+        if (!albumData) {
+          setAlbumData(currentParams.album);
+          setIsLiked(currentParams.album.is_liked);
+        }
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         const response = await authenticatedFetch(
@@ -302,6 +315,26 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
           const data: ApiAlbumResponse = await response.json();
           setAlbumData(data);
           setIsLiked(data.is_liked);
+
+          // Fix URL if slug is missing or does not match
+          const hasSlug =
+            currentParams?.title ||
+            currentParams?.slug ||
+            (typeof window !== "undefined" &&
+              window.location.pathname.includes(`-${slugify(data.title)}`));
+
+          if (data && data.title && !hasSlug) {
+            navigateTo(
+              "album-detail",
+              {
+                ...currentParams,
+                id: data.id,
+                title: data.title,
+                album: data,
+              },
+              "replace",
+            );
+          }
         }
       } catch (error) {
         console.error("Error fetching album:", error);
@@ -311,7 +344,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
     };
 
     fetchAlbum();
-  }, [albumId, accessToken]);
+  }, [albumId, accessToken, currentParams, navigateTo]);
 
   const handleMore = useCallback((song: ApiSong) => {
     setSelectedSong(song);

@@ -16,7 +16,11 @@ interface NavigationContextType {
   previousPage: string | null;
   setCurrentPage: (page: string) => void;
   setCurrentParams: (params: any) => void;
-  navigateTo: (page: string, params?: any) => void;
+  navigateTo: (
+    page: string,
+    params?: any,
+    pushHistory?: boolean | "replace",
+  ) => void;
   goBack: () => void;
   visibilityMap: Record<string, boolean>;
   setComponentVisibility: (component: string, visible: boolean) => void;
@@ -403,7 +407,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   const navigateTo = useCallback(
-    (page: string, params?: any, pushHistory = true) => {
+    (page: string, params?: any, pushHistory: boolean | "replace" = true) => {
       if (scrollContainerRef.current) {
         const key = getScrollKey(currentPage, currentParams);
         scrollPositions.current[key] = scrollContainerRef.current.scrollTop;
@@ -411,11 +415,19 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
 
       if (pushHistory && typeof window !== "undefined") {
         const path = pageToPathname(page, params);
-        window.history.pushState(
-          { page, params: params || null },
-          "",
-          path || window.location.pathname,
-        );
+        if (pushHistory === "replace") {
+          window.history.replaceState(
+            { page, params: params || null },
+            "",
+            path || window.location.pathname,
+          );
+        } else {
+          window.history.pushState(
+            { page, params: params || null },
+            "",
+            path || window.location.pathname,
+          );
+        }
       }
 
       setPreviousPage(currentPage);
