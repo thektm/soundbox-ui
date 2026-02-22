@@ -13,6 +13,7 @@ import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { usePlayer, Track } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
+import { useResponsiveLayout } from "./ResponsiveLayout";
 import {
   motion,
   AnimatePresence,
@@ -1218,8 +1219,8 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
     shuffleQueue,
   } = usePlayer();
 
+  const { isDesktop } = useResponsiveLayout();
   const [dragX, setDragX] = useState(0);
-  const [isDesktop, setIsDesktop] = useState(false);
   const [hasDragged, setHasDragged] = useState(false);
   const { navigateTo } = useNavigation();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1240,15 +1241,6 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
     }
     return currentTrack;
   }, [isAdPlaying, currentAd, currentTrack]);
-
-  useEffect(() => {
-    const checkDesktop = () => {
-      setIsDesktop(window.innerWidth >= 768);
-    };
-    checkDesktop();
-    window.addEventListener("resize", checkDesktop);
-    return () => window.removeEventListener("resize", checkDesktop);
-  }, []);
 
   const handleDragStart = useCallback(() => {
     setHasDragged(false);
@@ -3111,16 +3103,7 @@ const ExpandedPlayer = memo<{
   banner: BannerAd | null;
   bannerLoaded?: boolean;
 }>(({ onCollapse, userPlan, banner, bannerLoaded }) => {
-  const [isDesktop, setIsDesktop] = useState(false);
-
-  useEffect(() => {
-    const checkDesktop = () => {
-      setIsDesktop(window.innerWidth >= 768);
-    };
-    checkDesktop();
-    window.addEventListener("resize", checkDesktop);
-    return () => window.removeEventListener("resize", checkDesktop);
-  }, []);
+  const { isDesktop } = useResponsiveLayout();
 
   if (isDesktop) {
     return (

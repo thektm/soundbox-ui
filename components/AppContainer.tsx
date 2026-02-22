@@ -26,10 +26,12 @@ const AppContainer: React.FC<AppContainerProps> = ({ children }) => {
       <AuthProvider>
         <DiscoveryProvider>
           <PlayerProvider>
-            <ResponsiveLayoutProvider>{children}</ResponsiveLayoutProvider>
-            <MusicPlayer />
-            <SplashScreen />
-            <InitialModal />
+            <ResponsiveLayoutProvider>
+              {children}
+              <MusicPlayer />
+              <SplashScreen />
+              <InitialModal />
+            </ResponsiveLayoutProvider>
           </PlayerProvider>
         </DiscoveryProvider>
       </AuthProvider>

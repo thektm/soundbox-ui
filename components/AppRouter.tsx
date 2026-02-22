@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { useResponsiveLayout } from "./ResponsiveLayout";
 
 // ── Generic page skeleton for dynamic loading ─────────────────────────────
 const PageSkeleton = () => (
@@ -112,21 +113,7 @@ const PaymentSuccess = dynamic(() => import("./PaymentSuccess"), {
 export const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
   const { isLoggedIn } = useAuth();
-
-  // Correctly initialize state for the first client-side render (prevent CLS)
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth >= 1024;
-  });
-
-  useEffect(() => {
-    const checkDesktop = () => {
-      setIsDesktop(window.innerWidth >= 1024);
-    };
-    checkDesktop();
-    window.addEventListener("resize", checkDesktop);
-    return () => window.removeEventListener("resize", checkDesktop);
-  }, []);
+  const { isDesktop } = useResponsiveLayout();
 
   if (!isLoggedIn) {
     switch (currentPage) {

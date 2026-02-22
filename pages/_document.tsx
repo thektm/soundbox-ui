@@ -18,6 +18,12 @@ export default function Document() {
         <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="manifest" href="/manifest.json" />
 
+        {/* Essential Viewport Meta Tag for Mobile devices */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover"
+        />
+
         {/* Preload the primary font weight used on every page */}
         <link
           rel="preload"

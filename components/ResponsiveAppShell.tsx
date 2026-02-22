@@ -42,20 +42,37 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
     };
   }, []);
 
-  // UNIFIED RETURN: Merge mobile and desktop shell logic into a single DOM tree.
-  // This uses CSS utility classes (like hidden md:block) instead of JS state swaps
-  // to avoid Cumulative Layout Shift (CLS) when calculating device breakpoints.
+  // Mobile: render a simplified shell to avoid desktop-only layout transforms
+  if (isMobile) {
+    return (
+      <>
+        <div
+          className="w-full overflow-y-auto overflow-x-hidden"
+          ref={registerScrollContainer}
+          style={{
+            minHeight: "calc(var(--vh, 1vh) * 100)",
+            maxHeight: "calc(var(--vh, 1vh) * 100)",
+            position: "relative",
+            overscrollBehavior: "contain",
+            willChange: "scroll-position",
+          }}
+        >
+          {children}
+        </div>
+
+        {/* Bottom Navbar - only visible on mobile via its own classes */}
+        {isLoggedIn && <BottomNavbar />}
+
+        <div id="music-player-root" />
+      </>
+    );
+  }
+
+  // Tablet / Desktop: use the responsive layout shell (sidebar + rounded content)
   return (
     <>
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-6 focus:py-3 focus:bg-emerald-500 focus:text-white focus:rounded-full focus:font-bold focus:shadow-2xl focus:outline-none focus:ring-4 focus:ring-emerald-500/50 transition-all"
-      >
-        پرش به محتوای اصلی
-      </a>
-
       <div dir="rtl" className="flex min-h-screen">
-        {/* Sidebar - internal CSS 'hidden md:flex' handles its own visibility */}
+        {/* Sidebar - Hidden on mobile, visible on tablet/desktop when logged in */}
         {isLoggedIn && <Sidebar />}
 
         {/* Main Content Area */}
@@ -65,29 +82,28 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
               ? "md:m-2 md:mr-0 md:bg-linear-to-b md:from-zinc-900 md:via-zinc-900/95 md:to-black md:rounded-lg"
               : ""
           }`}
-          style={{
-            contain: "layout style",
-            overscrollBehavior: "contain",
-            position: "relative",
-          }}
+          style={{ contain: "layout style", overscrollBehavior: "contain" }}
         >
-          <main
-            id="main-content"
-            className="flex-1 overflow-y-auto overflow-x-hidden md:min-h-0 md:max-h-none scroll-smooth min-h-[calc(var(--vh,1vh)*100)] max-h-[calc(var(--vh,1vh)*100)]"
+          <div
+            className="flex-1 md:overflow-y-auto"
             ref={registerScrollContainer}
             style={{
               overscrollBehavior: "contain",
+              willChange: "scroll-position",
             }}
           >
             {children}
-          </main>
+          </div>
         </div>
       </div>
 
-      {/* Bottom Navbar - handles its own visibility via internal checks and CSS */}
+      {/* Bottom Navbar */}
       {isLoggedIn && <BottomNavbar />}
 
-      {/* Portal root for modals and overlays */}
+      {/* Music Player */}
+      {/* <MusicPlayer /> - not implemented */}
+
+      {/* Portal root for modals */}
       <div id="music-player-root" />
     </>
   );

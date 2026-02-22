@@ -10,6 +10,7 @@ import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { useDiscovery } from "./DiscoveryContext";
 import { usePlayer } from "./PlayerContext";
+import { useResponsiveLayout } from "./ResponsiveLayout";
 import type { Track } from "./PlayerContext";
 
 // API Interfaces
@@ -335,7 +336,8 @@ export default function Home() {
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
   const navRef = useRef<HTMLDivElement>(null);
   const lastFetchedToken = useRef<string | null>(null);
-  const [isMobileView, setIsMobileView] = useState(false);
+  const { isDesktop } = useResponsiveLayout();
+  const isMobileView = !isDesktop;
 
   const sectionTitles = [
     "برای شما",
@@ -746,105 +748,95 @@ export default function Home() {
     }
   }, [activeIndex]);
 
-  // Detect mobile view for NotificationPopover
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobileView(window.innerWidth < 1024);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
   if (isLoading || !sectionData || !homeData) {
     return (
       <>
-      <SEO />
-      <div
-        dir="rtl"
-        className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
-        style={{ minHeight: "calc(var(--vh, 1vh) * 100)" }}
-      >
-        <div className="pt-4">
-          <div className="px-4 text-right">
-            <div className="h-8 w-48 rounded bg-zinc-800 animate-pulse" />
-          </div>
-          <div className="flex flex-col gap-8 mt-4">
-            {/* Four placeholder sections */}
-            <div className="flex flex-col gap-3">
-              <div className="px-4 text-right">
-                <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
-              </div>
-              <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="snap-start shrink-0 w-36 flex flex-col gap-2"
-                  >
-                    <div className="aspect-square rounded-lg bg-zinc-800 animate-pulse" />
-                    <div className="h-3 w-28 rounded bg-zinc-800 animate-pulse" />
-                    <div className="h-2 w-20 rounded bg-zinc-800 animate-pulse" />
-                  </div>
-                ))}
-              </div>
+        <SEO />
+        <div
+          dir="rtl"
+          className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
+          style={{ minHeight: "calc(var(--vh, 1vh) * 100)" }}
+        >
+          <div className="pt-4">
+            <div className="px-4 text-right">
+              <div className="h-8 w-48 rounded bg-zinc-800 animate-pulse" />
             </div>
+            <div className="flex flex-col gap-8 mt-4">
+              {/* Four placeholder sections */}
+              <div className="flex flex-col gap-3">
+                <div className="px-4 text-right">
+                  <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
+                </div>
+                <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="snap-start shrink-0 w-36 flex flex-col gap-2"
+                    >
+                      <div className="aspect-square rounded-lg bg-zinc-800 animate-pulse" />
+                      <div className="h-3 w-28 rounded bg-zinc-800 animate-pulse" />
+                      <div className="h-2 w-20 rounded bg-zinc-800 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-            <div className="flex flex-col gap-3">
-              <div className="px-4 text-right">
-                <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
+              <div className="flex flex-col gap-3">
+                <div className="px-4 text-right">
+                  <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
+                </div>
+                <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="snap-start shrink-0 w-40 flex flex-col gap-2"
+                    >
+                      <div className="aspect-square rounded-lg bg-zinc-800 animate-pulse" />
+                      <div className="h-3 w-28 rounded bg-zinc-800 animate-pulse" />
+                      <div className="h-2 w-20 rounded bg-zinc-800 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="snap-start shrink-0 w-40 flex flex-col gap-2"
-                  >
-                    <div className="aspect-square rounded-lg bg-zinc-800 animate-pulse" />
-                    <div className="h-3 w-28 rounded bg-zinc-800 animate-pulse" />
-                    <div className="h-2 w-20 rounded bg-zinc-800 animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            <div className="flex flex-col gap-3">
-              <div className="px-4 text-right">
-                <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
+              <div className="flex flex-col gap-3">
+                <div className="px-4 text-right">
+                  <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
+                </div>
+                <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="snap-start shrink-0 w-28 flex flex-col gap-2"
+                    >
+                      <div className="aspect-square rounded-full bg-zinc-800 animate-pulse" />
+                      <div className="h-3 w-24 rounded bg-zinc-800 animate-pulse" />
+                      <div className="h-2 w-16 rounded bg-zinc-800 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="snap-start shrink-0 w-28 flex flex-col gap-2"
-                  >
-                    <div className="aspect-square rounded-full bg-zinc-800 animate-pulse" />
-                    <div className="h-3 w-24 rounded bg-zinc-800 animate-pulse" />
-                    <div className="h-2 w-16 rounded bg-zinc-800 animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            <div className="flex flex-col gap-3">
-              <div className="px-4 text-right">
-                <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
-              </div>
-              <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="snap-start shrink-0 w-40 flex flex-col gap-2"
-                  >
-                    <div className="aspect-square rounded-lg bg-zinc-800 animate-pulse" />
-                    <div className="h-3 w-28 rounded bg-zinc-800 animate-pulse" />
-                    <div className="h-2 w-20 rounded bg-zinc-800 animate-pulse" />
-                  </div>
-                ))}
+              <div className="flex flex-col gap-3">
+                <div className="px-4 text-right">
+                  <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
+                </div>
+                <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="snap-start shrink-0 w-40 flex flex-col gap-2"
+                    >
+                      <div className="aspect-square rounded-lg bg-zinc-800 animate-pulse" />
+                      <div className="h-3 w-28 rounded bg-zinc-800 animate-pulse" />
+                      <div className="h-2 w-20 rounded bg-zinc-800 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
       </>
     );
   }
@@ -1477,383 +1469,385 @@ export default function Home() {
 
   return (
     <>
-    <SEO />
-    <div
-      dir="rtl"
-      className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
-      style={{ minHeight: "calc(var(--vh, 1vh) * 100)" }}
-    >
-      {/* Background gradients - adjusted for responsive */}
-      <div className="fixed top-0 left-0 w-full h-96 bg-gradient-to-b from-emerald-900/40 to-transparent pointer-events-none z-0 md:rounded-t-lg" />
-      <div className="absolute top-[-10%] w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+      <SEO />
+      <div
+        dir="rtl"
+        className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
+        style={{ minHeight: "calc(var(--vh, 1vh) * 100)" }}
+      >
+        {/* Background gradients - adjusted for responsive */}
+        <div className="fixed top-0 left-0 w-full h-96 bg-gradient-to-b from-emerald-900/40 to-transparent pointer-events-none z-0 md:rounded-t-lg" />
+        <div className="absolute top-[-10%] w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
 
-      {/* Mobile Header - only visible on mobile */}
-      <header className="md:hidden sticky top-0 z-50 px-4 pt-4 pb-2 bg-black/90  transition-all duration-300">
-        <div className="flex flex-row-reverse items-center justify-between mb-4">
-          <div className="flex flex-row-reverse items-center gap-2 fade-in">
-            <div
-              onClick={() => navigateTo("profile")}
-              className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 cursor-pointer transition-transform active:scale-95"
-            >
-              <UserIcon className="w-6 h-6 text-zinc-400" />
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center shrink-0">
-              <div className="h-10 w-10">
-                <Image
-                  src="/logo.png"
-                  width={40}
-                  height={40}
-                  alt="SedaBox Logo"
-                  className="w-full h-full object-contain drop-shadow-lg"
-                />
-              </div>
+        {/* Mobile Header - only visible on mobile */}
+        <header className="md:hidden sticky top-0 z-50 px-4 pt-4 pb-2 bg-black/90  transition-all duration-300">
+          <div className="flex flex-row-reverse items-center justify-between mb-4">
+            <div className="flex flex-row-reverse items-center gap-2 fade-in">
               <div
-                className={`brand-text ${
-                  showBrandText ? "brand-text-visible" : "brand-text-hidden"
-                }`}
-                aria-hidden={!showBrandText}
+                onClick={() => navigateTo("profile")}
+                className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 cursor-pointer transition-transform active:scale-95"
               >
-                صداباکس
+                <UserIcon className="w-6 h-6 text-zinc-400" />
               </div>
             </div>
-            <NotificationPopover
-              notifications={notifications}
-              setNotifications={setNotifications}
-              markingReadIds={markingReadIds}
-              setMarkingReadIds={setMarkingReadIds}
-              onMarkAsRead={handleMarkAsRead}
-              onMarkAllAsRead={handleMarkAllAsRead}
-              getTimeAgo={getTimeAgo}
-              isMobile={true}
-            />
-            {!isPremium && (
-              <button
-                onClick={() => navigateTo("premium")}
-                className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold shadow-md hover:brightness-95 transition-transform transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-              >
-                ارتقا پلن +
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div
-          ref={navRef}
-          className="flex gap-3 overflow-x-auto no-scrollbar pb-2 items-center will-change-transform"
-          style={{ direction: "rtl" }}
-          aria-label="بخش‌های خانه"
-        >
-          {availableSections.map((s, i) => (
-            <button
-              key={s.key}
-              data-index={i}
-              onClick={() => {
-                const el = sectionRefs.current[i];
-                if (el) {
-                  el.scrollIntoView({ behavior: "auto", block: "start" });
-                  setActiveIndex(i);
-                }
-              }}
-              aria-pressed={i === activeIndex}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none ${
-                i === activeIndex
-                  ? "bg-green-500 text-black"
-                  : "bg-zinc-800 text-white hover:bg-zinc-700"
-              }`}
-            >
-              {s.title}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      {/* Desktop Header */}
-      <header className="hidden md:block sticky top-0 z-50 px-6 pt-4 pb-2">
-        <div className="flex items-center justify-between mb-4">
-          {/* Navigation buttons */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => window.history.back()}
-              className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-              aria-label="برگشت"
-            >
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={() => window.history.forward()}
-              className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-              aria-label="جلو"
-            >
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-          </div>
-
-          {/* Center: Section navigation pills */}
-          <div className="flex-1 flex justify-center">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-3xl">
-              {availableSections.map((s, i) => (
-                <button
-                  key={s.key}
-                  onClick={() => {
-                    const el = sectionRefs.current[i];
-                    if (el) {
-                      el.scrollIntoView({ behavior: "auto", block: "start" });
-                      setActiveIndex(i);
-                    }
-                  }}
-                  aria-pressed={i === activeIndex}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none ${
-                    i === activeIndex
-                      ? "bg-white text-black"
-                      : "bg-zinc-800 text-white hover:bg-zinc-700"
+            <div className="flex items-center gap-3">
+              <div className="flex items-center shrink-0">
+                <div className="h-10 w-10">
+                  <Image
+                    src="/logo.png"
+                    width={40}
+                    height={40}
+                    alt="SedaBox Logo"
+                    className="w-full h-full object-contain drop-shadow-lg"
+                  />
+                </div>
+                <div
+                  className={`brand-text ${
+                    showBrandText ? "brand-text-visible" : "brand-text-hidden"
                   }`}
+                  aria-hidden={!showBrandText}
                 >
-                  {s.title}
+                  صداباکس
+                </div>
+              </div>
+              <NotificationPopover
+                notifications={notifications}
+                setNotifications={setNotifications}
+                markingReadIds={markingReadIds}
+                setMarkingReadIds={setMarkingReadIds}
+                onMarkAsRead={handleMarkAsRead}
+                onMarkAllAsRead={handleMarkAllAsRead}
+                getTimeAgo={getTimeAgo}
+                isMobile={true}
+              />
+              {!isPremium && (
+                <button
+                  onClick={() => navigateTo("premium")}
+                  className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold shadow-md hover:brightness-95 transition-transform transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                >
+                  ارتقا پلن +
                 </button>
-              ))}
+              )}
             </div>
           </div>
 
-          {/* Right side controls */}
-          <div className="flex items-center gap-3">
-            {!isPremium && (
-              <button
-                onClick={() => navigateTo("premium")}
-                className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold text-sm hover:text-emerald-400 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-              >
-                ارتقا پلن +
-              </button>
-            )}
-            <NotificationPopover
-              notifications={notifications}
-              setNotifications={setNotifications}
-              markingReadIds={markingReadIds}
-              setMarkingReadIds={setMarkingReadIds}
-              onMarkAsRead={handleMarkAsRead}
-              onMarkAllAsRead={handleMarkAllAsRead}
-              getTimeAgo={getTimeAgo}
-              isMobile={false}
-            />
-            <button
-              onClick={() => navigateTo("profile")}
-              className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-              aria-label="مشاهده پروفایل"
-            >
-              <UserIcon className="w-6 h-6 text-zinc-400" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="relative z-10 flex flex-col gap-8 pt-2 md:gap-10 md:pt-4">
-        <HeroSection
-          homeData={homeData}
-          sectionData={sectionData}
-          heroHighlights={heroHighlights}
-          stats={heroStats}
-          onPrimaryPlay={handleHeroPrimaryPlay}
-          onGoToDiscover={() => scrollToSectionByKey("discoveries")}
-          onCardPlay={handleHeroCardPlay}
-        />
-        {availableSections.map((s, i) => (
-          <Section
-            key={s.key}
-            title={s.title}
-            subtitle={s.subtitle}
-            sectionRef={(el) => (sectionRefs.current[i] = el)}
-            dataIndex={i}
-            showMore={s.showMore}
-            onShowMore={s.onShowMore}
-            onTitleClick={s.onTitleClick}
+          <div
+            ref={navRef}
+            className="flex gap-3 overflow-x-auto no-scrollbar pb-2 items-center will-change-transform"
+            style={{ direction: "rtl" }}
+            aria-label="بخش‌های خانه"
           >
-            {s.content}
-          </Section>
-        ))}
-      </main>
+            {availableSections.map((s, i) => (
+              <button
+                key={s.key}
+                data-index={i}
+                onClick={() => {
+                  const el = sectionRefs.current[i];
+                  if (el) {
+                    el.scrollIntoView({ behavior: "auto", block: "start" });
+                    setActiveIndex(i);
+                  }
+                }}
+                aria-pressed={i === activeIndex}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none ${
+                  i === activeIndex
+                    ? "bg-green-500 text-black"
+                    : "bg-zinc-800 text-white hover:bg-zinc-700"
+                }`}
+              >
+                {s.title}
+              </button>
+            ))}
+          </div>
+        </header>
 
-      <style jsx global>{`
-        /* styles preserved from reference */
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .no-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-        .pb-safe {
-          padding-bottom: env(safe-area-inset-bottom, 20px);
-        }
-        @keyframes fadeIn {
-          from {
+        {/* Desktop Header */}
+        <header className="hidden md:block sticky top-0 z-50 px-6 pt-4 pb-2">
+          <div className="flex items-center justify-between mb-4">
+            {/* Navigation buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => window.history.back()}
+                className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                aria-label="برگشت"
+              >
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={() => window.history.forward()}
+                className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                aria-label="جلو"
+              >
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Center: Section navigation pills */}
+            <div className="flex-1 flex justify-center">
+              <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-3xl">
+                {availableSections.map((s, i) => (
+                  <button
+                    key={s.key}
+                    onClick={() => {
+                      const el = sectionRefs.current[i];
+                      if (el) {
+                        el.scrollIntoView({ behavior: "auto", block: "start" });
+                        setActiveIndex(i);
+                      }
+                    }}
+                    aria-pressed={i === activeIndex}
+                    className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none ${
+                      i === activeIndex
+                        ? "bg-white text-black"
+                        : "bg-zinc-800 text-white hover:bg-zinc-700"
+                    }`}
+                  >
+                    {s.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Right side controls */}
+            <div className="flex items-center gap-3">
+              {!isPremium && (
+                <button
+                  onClick={() => navigateTo("premium")}
+                  className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold text-sm hover:text-emerald-400 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                >
+                  ارتقا پلن +
+                </button>
+              )}
+              <NotificationPopover
+                notifications={notifications}
+                setNotifications={setNotifications}
+                markingReadIds={markingReadIds}
+                setMarkingReadIds={setMarkingReadIds}
+                onMarkAsRead={handleMarkAsRead}
+                onMarkAllAsRead={handleMarkAllAsRead}
+                getTimeAgo={getTimeAgo}
+                isMobile={false}
+              />
+              <button
+                onClick={() => navigateTo("profile")}
+                className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                aria-label="مشاهده پروفایل"
+              >
+                <UserIcon className="w-6 h-6 text-zinc-400" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="relative z-10 flex flex-col gap-8 pt-2 md:gap-10 md:pt-4">
+          <HeroSection
+            homeData={homeData}
+            sectionData={sectionData}
+            heroHighlights={heroHighlights}
+            stats={heroStats}
+            onPrimaryPlay={handleHeroPrimaryPlay}
+            onGoToDiscover={() => scrollToSectionByKey("discoveries")}
+            onCardPlay={handleHeroCardPlay}
+          />
+          {availableSections.map((s, i) => (
+            <Section
+              key={s.key}
+              title={s.title}
+              subtitle={s.subtitle}
+              sectionRef={(el) => (sectionRefs.current[i] = el)}
+              dataIndex={i}
+              showMore={s.showMore}
+              onShowMore={s.onShowMore}
+              onTitleClick={s.onTitleClick}
+            >
+              {s.content}
+            </Section>
+          ))}
+        </main>
+
+        <style jsx global>{`
+          /* styles preserved from reference */
+          .no-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+          .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+          .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+          }
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+            will-change: opacity, transform;
+            backface-visibility: hidden;
+            transform: translateZ(0);
+          }
+          .notif-checkbox {
+            transition: all 180ms ease-in-out;
+            will-change: background-color, border-color, transform, opacity;
+            backface-visibility: hidden;
+            transform: translateZ(0);
+          }
+          .notif-checkbox svg {
+            transition:
+              transform 200ms ease,
+              opacity 200ms ease;
+            will-change: transform, opacity;
+            backface-visibility: hidden;
+            transform: translateZ(0);
+          }
+          @keyframes notifCheck {
+            0% {
+              transform: scale(0.8) rotate(-8deg);
+              opacity: 0;
+            }
+            50% {
+              transform: scale(1.12) rotate(8deg);
+              opacity: 1;
+            }
+            100% {
+              transform: scale(1) rotate(0deg);
+              opacity: 1;
+            }
+          }
+          .notif-checkbox.notif-checked svg {
+            animation: notifCheck 240ms ease forwards;
+          }
+          .notif-item {
+            transform: translateX(0);
+            opacity: 1;
+            transition:
+              transform 320ms ease,
+              opacity 280ms ease;
+            will-change: transform, opacity;
+            backface-visibility: hidden;
+            transform: translateZ(0);
+          }
+          .notif-item.removing {
+            transform: translateX(140%);
             opacity: 0;
-            transform: translateY(10px);
           }
-          to {
+          .brand-text {
+            display: inline-block;
+            overflow: hidden;
+            white-space: nowrap;
+            max-width: 220px;
+            padding-inline-start: 0.5rem;
+            padding-inline-end: 0.5rem;
             opacity: 1;
-            transform: translateY(0);
+            transform: translateX(0);
+            font-weight: 700;
+            font-size: 1rem;
+            color: #10b981;
+            transition:
+              max-width 480ms cubic-bezier(0.22, 0.9, 0.3, 1),
+              padding 480ms cubic-bezier(0.22, 0.9, 0.3, 1),
+              opacity 360ms ease,
+              transform 360ms ease;
+            will-change: max-width, padding, transform, opacity;
+            backface-visibility: hidden;
+            transform: translateZ(0);
           }
-        }
-        .fade-in {
-          animation: fadeIn 0.5s ease-out forwards;
-          will-change: opacity, transform;
-          backface-visibility: hidden;
-          transform: translateZ(0);
-        }
-        .notif-checkbox {
-          transition: all 180ms ease-in-out;
-          will-change: background-color, border-color, transform, opacity;
-          backface-visibility: hidden;
-          transform: translateZ(0);
-        }
-        .notif-checkbox svg {
-          transition:
-            transform 200ms ease,
-            opacity 200ms ease;
-          will-change: transform, opacity;
-          backface-visibility: hidden;
-          transform: translateZ(0);
-        }
-        @keyframes notifCheck {
-          0% {
-            transform: scale(0.8) rotate(-8deg);
+          .brand-text-hidden {
+            max-width: 0;
+            padding-inline-start: 0;
+            padding-inline-end: 0;
             opacity: 0;
+            transform: translateX(-8px);
           }
-          50% {
-            transform: scale(1.12) rotate(8deg);
-            opacity: 1;
-          }
-          100% {
-            transform: scale(1) rotate(0deg);
-            opacity: 1;
-          }
-        }
-        .notif-checkbox.notif-checked svg {
-          animation: notifCheck 240ms ease forwards;
-        }
-        .notif-item {
-          transform: translateX(0);
-          opacity: 1;
-          transition:
-            transform 320ms ease,
-            opacity 280ms ease;
-          will-change: transform, opacity;
-          backface-visibility: hidden;
-          transform: translateZ(0);
-        }
-        .notif-item.removing {
-          transform: translateX(140%);
-          opacity: 0;
-        }
-        .brand-text {
-          display: inline-block;
-          overflow: hidden;
-          white-space: nowrap;
-          max-width: 220px;
-          padding-inline-start: 0.5rem;
-          padding-inline-end: 0.5rem;
-          opacity: 1;
-          transform: translateX(0);
-          font-weight: 700;
-          font-size: 1rem;
-          color: #10b981;
-          transition:
-            max-width 480ms cubic-bezier(0.22, 0.9, 0.3, 1),
-            padding 480ms cubic-bezier(0.22, 0.9, 0.3, 1),
-            opacity 360ms ease,
-            transform 360ms ease;
-          will-change: max-width, padding, transform, opacity;
-          backface-visibility: hidden;
-          transform: translateZ(0);
-        }
-        .brand-text-hidden {
-          max-width: 0;
-          padding-inline-start: 0;
-          padding-inline-end: 0;
-          opacity: 0;
-          transform: translateX(-8px);
-        }
 
-        /* Premium layered stack animations */
-        .layered-stack {
-          perspective: 1000px;
-        }
-        .layered-stack .layer {
-          transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-          transform-style: preserve-3d;
-        }
-        .layered-stack:hover .layer-1 {
-          transform: translateY(-8px) translateX(4px) rotateZ(-2deg) scale(0.92);
-        }
-        .layered-stack:hover .layer-2 {
-          transform: translateY(-4px) translateX(2px) rotateZ(-1deg) scale(0.96);
-        }
-        .layered-stack:hover .layer-main {
-          transform: translateY(-2px) scale(1.02);
-          box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
-        }
+          /* Premium layered stack animations */
+          .layered-stack {
+            perspective: 1000px;
+          }
+          .layered-stack .layer {
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform-style: preserve-3d;
+          }
+          .layered-stack:hover .layer-1 {
+            transform: translateY(-8px) translateX(4px) rotateZ(-2deg)
+              scale(0.92);
+          }
+          .layered-stack:hover .layer-2 {
+            transform: translateY(-4px) translateX(2px) rotateZ(-1deg)
+              scale(0.96);
+          }
+          .layered-stack:hover .layer-main {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
+          }
 
-        /* Hero section */
-        .hero-shell {
-          isolation: isolate;
-          backdrop-filter: blur(22px);
-          -webkit-backdrop-filter: blur(22px);
-        }
-        .hero-bg-img {
-          background-size: cover;
-          background-position: center;
-          filter: saturate(1.3);
-          will-change: opacity, transform;
-        }
-        .hero-slider-shell {
-          touch-action: pan-y;
-          -webkit-tap-highlight-color: transparent;
-          will-change: transform;
-        }
-        .hero-card {
-          will-change: transform, opacity, filter;
-          transition:
-            transform 420ms cubic-bezier(0.22, 0.9, 0.3, 1),
-            opacity 260ms ease-out,
-            filter 260ms ease-out;
-        }
-        .hero-card:hover {
-          transform: translateY(-4px) scale(1.01) !important;
-        }
-        @media (max-width: 768px) {
+          /* Hero section */
           .hero-shell {
-            border-radius: 1.5rem;
+            isolation: isolate;
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
           }
-        }
-      `}</style>
-    </div>
+          .hero-bg-img {
+            background-size: cover;
+            background-position: center;
+            filter: saturate(1.3);
+            will-change: opacity, transform;
+          }
+          .hero-slider-shell {
+            touch-action: pan-y;
+            -webkit-tap-highlight-color: transparent;
+            will-change: transform;
+          }
+          .hero-card {
+            will-change: transform, opacity, filter;
+            transition:
+              transform 420ms cubic-bezier(0.22, 0.9, 0.3, 1),
+              opacity 260ms ease-out,
+              filter 260ms ease-out;
+          }
+          .hero-card:hover {
+            transform: translateY(-4px) scale(1.01) !important;
+          }
+          @media (max-width: 768px) {
+            .hero-shell {
+              border-radius: 1.5rem;
+            }
+          }
+        `}</style>
+      </div>
     </>
   );
 }

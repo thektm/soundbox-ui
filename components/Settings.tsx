@@ -5,6 +5,7 @@ import { Drawer } from "vaul";
 import { useNavigation } from "./NavigationContext";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import { useAuth, User } from "./AuthContext";
+import { useResponsiveLayout } from "./ResponsiveLayout";
 import toast from "react-hot-toast";
 import UserIcon from "./UserIcon";
 
@@ -69,13 +70,7 @@ const ProfileEditSheet = ({
   isSaving?: boolean;
   disableSave?: boolean;
 }) => {
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => {
-    const check = () => setIsDesktop(window.innerWidth >= 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  const { isDesktop } = useResponsiveLayout();
 
   const content = (
     <div className="p-6 h-full flex flex-col" dir="rtl">
@@ -711,7 +706,9 @@ const SecuritySheet = ({
                 }
                 onPaste={(e) => {
                   e.preventDefault();
-                  const paste = (e.clipboardData?.getData("text") || "").replace(/\s/g, "");
+                  const paste = (
+                    e.clipboardData?.getData("text") || ""
+                  ).replace(/\s/g, "");
                   setPasswords((prev) => ({
                     ...prev,
                     [field.key]: String((prev as any)[field.key] || "") + paste,
