@@ -1055,7 +1055,7 @@ export default function Search() {
   const handleAction = async (action: string, s: any) => {
     if (action === "share" && s) {
       try {
-        const url = getFullShareUrl("song", s.id);
+        const url = getFullShareUrl("song", s.id, s.title);
         const text = `گوش دادن به آهنگ ${s.title} از ${s.artist_name} در سداباکس`;
         if (typeof navigator !== "undefined" && navigator.share) {
           await navigator.share({ title: s.title, text, url });

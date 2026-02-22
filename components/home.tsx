@@ -7,6 +7,7 @@ import HeroSection from "./HeroSection";
 import NotificationPopover from "./NotificationPopover";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
+import { useDiscovery } from "./DiscoveryContext";
 import { usePlayer } from "./PlayerContext";
 import type { Track } from "./PlayerContext";
 
@@ -266,6 +267,13 @@ export default function Home() {
   const { logout, accessToken, user, authenticatedFetch } = useAuth();
   const { setCurrentPage, navigateTo, homeCache, setHomeCache } =
     useNavigation();
+  const {
+    recommendedPlaylists: playlistRecommendations,
+    isLoading: loadingPlaylistRecommendations,
+    setRecommendedData,
+    nextUrl: recommendedNextUrl,
+    loadMoreRecommended,
+  } = useDiscovery();
   const { setQueue } = usePlayer();
 
   const isPremium = Boolean(
@@ -291,9 +299,6 @@ export default function Home() {
     useState<PaginatedResponse<ApiTopArtist> | null>(null);
   const [dailyTopSongs, setDailyTopSongs] =
     useState<PaginatedResponse<ApiTopSong> | null>(null);
-  const [playlistRecommendations, setPlaylistRecommendations] = useState<
-    PaginatedResponse<ApiPlaylist> | ApiPlaylist[] | null
-  >(null);
   const [weeklyTopAlbums, setWeeklyTopAlbums] =
     useState<PaginatedResponse<ApiTopAlbum> | null>(null);
   const [weeklyTopArtists, setWeeklyTopArtists] =
@@ -305,7 +310,6 @@ export default function Home() {
     dailyTopAlbums: true,
     dailyTopArtists: true,
     dailyTopSongs: true,
-    playlistRecommendations: true,
     weeklyTopAlbums: true,
     weeklyTopArtists: true,
     weeklyTopSongs: true,
@@ -429,11 +433,6 @@ export default function Home() {
     );
     fetchExtra("daily-top-songs-global", setDailyTopSongs, "dailyTopSongs");
     fetchExtra(
-      "playlist-recommendations",
-      setPlaylistRecommendations,
-      "playlistRecommendations",
-    );
-    fetchExtra(
       "weekly-top-albums-global",
       setWeeklyTopAlbums,
       "weeklyTopAlbums",
@@ -528,32 +527,10 @@ export default function Home() {
   };
 
   const fetchNextPlaylists = async () => {
-    // playlistRecommendations can be either an array or a paginated response.
-    if (!playlistRecommendations) return;
-    if (Array.isArray(playlistRecommendations)) return; // no pagination available
-
-    const nextUrl = playlistRecommendations.next;
-    if (!nextUrl) return;
+    // Use DiscoveryContext's loader for pagination
+    if (!loadMoreRecommended) return;
     try {
-      const url = nextUrl.replace(/^http:/, "https:");
-      const res = await authenticatedFetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setPlaylistRecommendations((prev) => {
-          // prev can be an array or a paginated response
-          if (Array.isArray(prev)) {
-            return {
-              ...data,
-              results: [...prev, ...data.results],
-            } as PaginatedResponse<ApiPlaylist>;
-          }
-
-          return {
-            ...data,
-            results: [...(prev?.results || []), ...data.results],
-          } as PaginatedResponse<ApiPlaylist>;
-        });
-      }
+      await loadMoreRecommended();
     } catch (error) {
       console.error("Error fetching next playlists:", error);
     }
@@ -690,12 +667,7 @@ export default function Home() {
             duration: formatDuration(song.duration_seconds),
             isNew: index < 3,
           })),
-        newPlaylists: (playlistRecommendations
-          ? Array.isArray(playlistRecommendations)
-            ? playlistRecommendations
-            : playlistRecommendations.results || []
-          : []
-        ).map((playlist: any) => ({
+        newPlaylists: (playlistRecommendations || []).map((playlist: any) => ({
           id: playlist.unique_id,
           title: playlist.title,
           subtitle: playlist.description,
@@ -852,6 +824,7 @@ export default function Home() {
     content: React.ReactNode;
     showMore?: boolean;
     onShowMore?: () => void;
+    onTitleClick?: () => void;
   }> = [];
 
   if (homeData.songs_recommendations && homeData.songs_recommendations.songs) {
@@ -872,8 +845,11 @@ export default function Home() {
           }
         />
       ),
-      showMore: !!homeData.songs_recommendations.next,
-      onShowMore: () => fetchNextFor("songs_recommendations"),
+      // Always show the "نمایش بیشتر" button on the home screen for the
+      // personalized section so users can open the dedicated "for-you" page
+      // regardless of whether the server returned a `next` page here.
+      showMore: true,
+      onShowMore: () => navigateTo("for-you"),
     });
   }
 
@@ -978,7 +954,7 @@ export default function Home() {
     });
   }
 
-  if (loadingExtra.playlistRecommendations) {
+  if (loadingPlaylistRecommendations) {
     availableSections.push({
       key: "playlist_recommendations_skeleton",
       title: "پلی لیست‌های جدید برای شما",
@@ -989,15 +965,8 @@ export default function Home() {
         />
       ),
     });
-  } else if (
-    playlistRecommendations &&
-    (Array.isArray(playlistRecommendations)
-      ? playlistRecommendations.length > 0
-      : playlistRecommendations.results?.length > 0)
-  ) {
-    const playlists = Array.isArray(playlistRecommendations)
-      ? playlistRecommendations
-      : playlistRecommendations.results;
+  } else if (playlistRecommendations && playlistRecommendations.length > 0) {
+    const playlists = playlistRecommendations;
 
     availableSections.push({
       key: "playlist_recommendations",
@@ -1020,10 +989,8 @@ export default function Home() {
           }
         />
       ),
-      showMore:
-        !Array.isArray(playlistRecommendations) &&
-        !!playlistRecommendations?.next,
-      onShowMore: fetchNextPlaylists,
+      showMore: true,
+      onShowMore: () => navigateTo("recommended-playlists"),
     });
   }
 
@@ -1351,7 +1318,7 @@ export default function Home() {
 
   const playlistForHero = Array.isArray(playlistRecommendations)
     ? playlistRecommendations[0]
-    : playlistRecommendations?.results?.[0];
+    : undefined;
   if (playlistForHero) {
     const idx = heroHighlights.length % meshGradients.length;
     heroHighlights.push({
@@ -1387,11 +1354,10 @@ export default function Home() {
       homeData.popular_artists?.count ||
       homeData.popular_artists?.results?.length ||
       0,
-    totalPlaylists: Array.isArray(playlistRecommendations)
-      ? playlistRecommendations.length
-      : playlistRecommendations?.count ||
-        playlistRecommendations?.results?.length ||
-        0,
+    totalPlaylists:
+      (Array.isArray(playlistRecommendations)
+        ? playlistRecommendations.length
+        : 0) || 0,
   };
 
   const scrollToSectionByKey = (key: string) => {
@@ -1647,6 +1613,7 @@ export default function Home() {
             dataIndex={i}
             showMore={s.showMore}
             onShowMore={s.onShowMore}
+            onTitleClick={s.onTitleClick}
           >
             {s.content}
           </Section>
@@ -1823,6 +1790,7 @@ type SectionProps = {
   dataIndex?: number;
   showMore?: boolean;
   onShowMore?: () => void;
+  onTitleClick?: () => void;
 };
 const Section = ({
   title,
@@ -1832,6 +1800,7 @@ const Section = ({
   dataIndex,
   showMore,
   onShowMore,
+  onTitleClick,
 }: SectionProps) => (
   <section
     ref={sectionRef}
@@ -1868,9 +1837,23 @@ const Section = ({
         </button>
       )}
       <div className="w-full flex flex-col items-end">
-        <h2 className="text-2xl font-bold tracking-tight leading-none text-right w-full">
-          {title}
-        </h2>
+        {onTitleClick ? (
+          <h2 className="text-2xl font-bold tracking-tight leading-none text-right w-full">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onTitleClick();
+              }}
+              className="text-2xl font-bold tracking-tight leading-none text-right w-full text-left md:text-right"
+            >
+              {title}
+            </button>
+          </h2>
+        ) : (
+          <h2 className="text-2xl font-bold tracking-tight leading-none text-right w-full">
+            {title}
+          </h2>
+        )}
         {subtitle && (
           <p className="text-zinc-400 text-xs font-medium text-right w-full mt-1">
             {subtitle}

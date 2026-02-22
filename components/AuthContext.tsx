@@ -5,6 +5,7 @@ import React, {
   ReactNode,
   useEffect,
 } from "react";
+import { toast } from "react-hot-toast";
 
 export interface UserRecentlyPlayedItem {
   id: number;
@@ -124,6 +125,9 @@ interface AuthContextType {
   verificationContext: string | null;
   setVerificationContext: (context: string | null) => void;
   formatErrorMessage: (error: any) => string;
+  needsInitialCheck: boolean;
+  setNeedsInitialCheck: (needs: boolean) => void;
+  markInitialCheckCompleted: (genreIds: number[]) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -143,6 +147,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [verificationContext, setVerificationContext] = useState<string | null>(
     null,
   );
+  const [needsInitialCheck, setNeedsInitialCheck] = useState<boolean>(false);
 
   const formatErrorMessage = (errorArg: any): string => {
     const error = errorArg?.error || errorArg;
@@ -310,6 +315,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const checkInitialStatus = async (token?: string) => {
+    try {
+      const url = `${API_ROOT}/profile/initial-check/`;
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token || accessToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (res.status === 404) {
+        setNeedsInitialCheck(true);
+      } else if (res.ok) {
+        setNeedsInitialCheck(false);
+      }
+    } catch (err) {
+      console.error("Failed to check initial status", err);
+    }
+  };
+
+  const markInitialCheckCompleted = async (genreIds: number[]) => {
+    try {
+      const r = await post("/profile/initial-check/", { genre_ids: genreIds });
+      if (r.ok) {
+        setNeedsInitialCheck(false);
+      }
+    } catch (err) {
+      console.error("Failed to mark initial check completed", err);
+    }
+  };
+
   const tryRefreshToken = async (
     refreshTokenArg?: string,
   ): Promise<string | null> => {
@@ -346,6 +382,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         await fetchUserProfile(data.accessToken);
       }
       setIsLoggedIn(true);
+
+      // Check initial check status after refreshing token
+      await checkInitialStatus(data.accessToken);
+
       return data.accessToken;
     } catch (err) {
       return null;
@@ -369,16 +409,56 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       return options;
     };
 
-    let response = await fetch(input, applyAuth(currentToken));
+    try {
+      let response = await fetch(input, applyAuth(currentToken));
 
-    if (response.status === 401) {
-      const newToken = await tryRefreshToken();
-      if (newToken) {
-        response = await fetch(input, applyAuth(newToken));
+      if (response.status === 401) {
+        const newToken = await tryRefreshToken();
+        if (newToken) {
+          response = await fetch(input, applyAuth(newToken));
+        }
       }
-    }
 
-    return response;
+      if (!response.ok) {
+        // Try to parse server error body to produce a nicer message
+        let parsedBody: any = null;
+        try {
+          const text = await response.text();
+          parsedBody = text ? JSON.parse(text) : null;
+        } catch (e) {
+          parsedBody = null;
+        }
+
+        const defaultMsg =
+          response.status >= 500
+            ? "در ارتباط با سرور خطایی رخ داد. لطفاً بعداً دوباره تلاش کنید"
+            : "درخواست با خطا مواجه شد. لطفاً دوباره تلاش کنید";
+
+        const message = parsedBody
+          ? formatErrorMessage(parsedBody)
+          : defaultMsg;
+
+        // Show Farsi toast without emojis
+        try {
+          toast.error(message || defaultMsg);
+        } catch (e) {
+          // swallow toast errors
+          console.error("Toast error", e);
+        }
+      }
+
+      return response;
+    } catch (err) {
+      // Network or other unexpected error
+      const netMsg =
+        "در ارتباط با سرور خطایی رخ داد. لطفاً اتصال اینترنت خود را بررسی کنید و دوباره تلاش کنید";
+      try {
+        toast.error(netMsg);
+      } catch (e) {
+        console.error("Toast error", e);
+      }
+      throw err;
+    }
   };
 
   const formatPhoneForApi = (phoneArg: string) => {
@@ -448,6 +528,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       await fetchUserProfile(data.accessToken);
     }
     setIsLoggedIn(true);
+    await checkInitialStatus(data.accessToken);
   };
 
   const register = async (phoneArg: string, passwordArg: string) => {
@@ -481,6 +562,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       await fetchUserProfile(data.accessToken);
     }
     setIsLoggedIn(true);
+    await checkInitialStatus(data.accessToken);
     return true;
   };
 
@@ -505,6 +587,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       await fetchUserProfile(data.accessToken);
     }
     setIsLoggedIn(true);
+    await checkInitialStatus(data.accessToken);
     return true;
   };
 
@@ -533,6 +616,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setAccessToken(null);
     setIsLoggedIn(false);
     setUser(null);
+    setNeedsInitialCheck(false);
   };
 
   return (
@@ -563,6 +647,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         verificationContext,
         setVerificationContext,
         formatErrorMessage,
+        needsInitialCheck,
+        setNeedsInitialCheck,
+        markInitialCheckCompleted,
       }}
     >
       {children}

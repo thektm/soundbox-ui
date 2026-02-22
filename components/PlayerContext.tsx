@@ -90,11 +90,14 @@ interface PlayerContextType {
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   cycleQuality: () => void;
+  setQuality: (quality: "low" | "medium" | "high") => void;
   next: () => void;
   previous: () => void;
   toggleLike: () => Promise<void>;
   download: (track?: Track) => Promise<void>;
   close: () => void;
+  reorderQueue: (newQueue: Track[]) => void;
+  shuffleQueue: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
@@ -1089,6 +1092,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setQualityValue = useCallback((q: "low" | "medium" | "high") => {
+    setQuality(q);
+  }, []);
+
   const toggleLike = useCallback(async () => {
     if (!currentTrack || !accessTokenRef.current || isLiking) return;
 
@@ -1132,22 +1139,92 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const next = useCallback(() => {
     if (queue.length === 0) return;
-    const nextIdx = currentIndex < queue.length - 1 ? currentIndex + 1 : 0;
-    setCurrentIndex(nextIdx);
-    playAtIndex(nextIdx);
-  }, [queue.length, currentIndex, playAtIndex]);
+
+    // If repeat-one is active, replay the same track
+    if (repeatMode === "one") {
+      playAtIndex(currentIndex);
+      return;
+    }
+
+    // If shuffle mode is active, pick a random next index (avoid immediate repeat when possible)
+    if (isShuffle) {
+      if (queue.length === 1) {
+        playAtIndex(currentIndex);
+        return;
+      }
+      let nextIdx = currentIndex;
+      let tries = 0;
+      while (nextIdx === currentIndex && tries < 10) {
+        nextIdx = Math.floor(Math.random() * queue.length);
+        tries += 1;
+      }
+      setCurrentIndex(nextIdx);
+      playAtIndex(nextIdx);
+      return;
+    }
+
+    // Normal sequential behavior. If repeat all is set, wrap; otherwise stop at end.
+    const nextIdx =
+      currentIndex < queue.length - 1
+        ? currentIndex + 1
+        : repeatMode === "all"
+          ? 0
+          : -1;
+    if (nextIdx >= 0) {
+      setCurrentIndex(nextIdx);
+      playAtIndex(nextIdx);
+    } else {
+      // reached end and repeat is off
+      setIsPlaying(false);
+    }
+  }, [queue.length, currentIndex, playAtIndex, repeatMode, isShuffle]);
 
   const previous = useCallback(() => {
     if (queue.length === 0) return;
+
     if (audioRef.current && audioRef.current.currentTime > 3) {
       // Reload track to get fresh token and UID for counting
       playAtIndex(currentIndex);
       return;
     }
-    const prevIdx = currentIndex > 0 ? currentIndex - 1 : queue.length - 1;
-    setCurrentIndex(prevIdx);
-    playAtIndex(prevIdx);
-  }, [queue.length, currentIndex, playAtIndex]);
+
+    // If repeat-one is active, replay the same track
+    if (repeatMode === "one") {
+      playAtIndex(currentIndex);
+      return;
+    }
+
+    // If shuffle mode is active, pick a random previous index
+    if (isShuffle) {
+      if (queue.length === 1) {
+        playAtIndex(currentIndex);
+        return;
+      }
+      let prevIdx = currentIndex;
+      let tries = 0;
+      while (prevIdx === currentIndex && tries < 10) {
+        prevIdx = Math.floor(Math.random() * queue.length);
+        tries += 1;
+      }
+      setCurrentIndex(prevIdx);
+      playAtIndex(prevIdx);
+      return;
+    }
+
+    const prevIdx =
+      currentIndex > 0
+        ? currentIndex - 1
+        : repeatMode === "all"
+          ? queue.length - 1
+          : -1;
+    if (prevIdx >= 0) {
+      setCurrentIndex(prevIdx);
+      playAtIndex(prevIdx);
+    } else {
+      // At start and repeat is off: just restart current
+      playAtIndex(currentIndex);
+    }
+  }, [queue.length, currentIndex, playAtIndex, repeatMode, isShuffle]);
 
   const close = useCallback(() => {
     if (audioRef.current) {
@@ -1266,6 +1343,116 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [currentTrack],
   );
 
+  const reorderQueue = useCallback(
+    (newQueue: Track[]) => {
+      const currentId = currentTrackRef.current?.id;
+
+      // If current track still exists in new queue, update index and keep playing
+      if (currentId) {
+        const newIdx = newQueue.findIndex((t) => t.id === currentId);
+        if (newIdx !== -1) {
+          setQueueState(newQueue);
+          setCurrentIndex(newIdx);
+          return;
+        }
+      }
+
+      // Current track was removed (or there was no current). Handle accordingly.
+      if (newQueue.length === 0) {
+        // Stop playback and reset state
+        if (audioRef.current) {
+          try {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            audioRef.current.src = "";
+          } catch (e) {
+            // ignore
+          }
+        }
+        setIsPlaying(false);
+        setIsVisible(false);
+        setIsExpanded(false);
+        setProgress(0);
+        setUniqueOtplayId(null);
+        uniqueOtplayIdRef.current = null;
+        setQueueState([]);
+        setCurrentIndex(0);
+        return;
+      }
+
+      // Choose a sensible new index (clamp previous index) and start playing that track
+      setQueueState(newQueue);
+      setCurrentIndex((prevIndex) => {
+        const newIndex = Math.min(prevIndex, newQueue.length - 1);
+        // Start playback at the chosen index
+        try {
+          playAtIndex(newIndex, newQueue);
+        } catch (e) {
+          // ignore play errors here
+        }
+        return newIndex;
+      });
+    },
+    [playAtIndex],
+  );
+
+  const shuffleQueue = useCallback(() => {
+    if (queue.length <= 1) return;
+
+    // Create a copy of the queue
+    const newQueue = [...queue];
+    const curTrack = newQueue[currentIndex];
+
+    // Remove the current track from the array to shuffle the rest
+    newQueue.splice(currentIndex, 1);
+
+    // Fisher-Yates shuffle for the remaining tracks
+    for (let i = newQueue.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newQueue[i], newQueue[j]] = [newQueue[j], newQueue[i]];
+    }
+
+    // Put the current track back at the beginning (index 0)
+    const finalQueue = [curTrack, ...newQueue];
+
+    // Update both states
+    setQueueState(finalQueue);
+    setCurrentIndex(0);
+  }, [queue, currentIndex]);
+
+  // When shuffle mode is enabled, rearrange the queue so playback moves through a shuffled list.
+  // Implement shuffle here using setQueueState to avoid depending on the shuffleQueue callback
+  // (that callback's identity can change and would cause repeated runs).
+  useEffect(() => {
+    if (!isShuffle) return;
+
+    setQueueState((prev) => {
+      if (!prev || prev.length <= 1) return prev;
+
+      const curId = currentTrackRef.current?.id;
+      // find current track index in prev
+      const idx = curId
+        ? prev.findIndex((t) => String(t.id) === String(curId))
+        : -1;
+      const copy = [...prev];
+      let curTrack = null as any;
+      if (idx >= 0) {
+        curTrack = copy.splice(idx, 1)[0];
+      }
+
+      // Fisher-Yates shuffle
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+
+      const finalQueue = curTrack ? [curTrack, ...copy] : copy;
+      // ensure playback index points to start
+      setCurrentIndex(0);
+      return finalQueue;
+    });
+  }, [isShuffle]);
+
   const value: PlayerContextType = {
     currentTrack,
     previousTrack,
@@ -1304,11 +1491,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     toggleShuffle,
     cycleRepeat,
     cycleQuality,
+    setQuality: setQualityValue,
     toggleLike,
     next,
     previous,
     download,
     close,
+    reorderQueue,
+    shuffleQueue,
   };
 
   return (

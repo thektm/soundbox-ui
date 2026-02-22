@@ -27,6 +27,8 @@ import PopularArtistsPage from "./PopularArtistsPage";
 import LatestReleasesPage from "./LatestReleasesPage";
 import PopularAlbumsPage from "./PopularAlbumsPage";
 import NewDiscoveriesPage from "./NewDiscoveriesPage";
+import RecommendedPlaylistsPage from "./RecommendedPlaylistsPage";
+import ForYouPage from "./ForYouPage";
 import ChartPage from "./ChartPage";
 import LibraryScreen from "./LibraryScreen";
 import Premium from "./Premium";
@@ -86,7 +88,12 @@ export const AppRouter: React.FC = () => {
           <PlaylistDetail id={currentParams?.id} slug={currentParams?.slug} />
         );
       case "user-playlist-detail":
-        return <UserPlaylistDetail id={currentParams?.id} />;
+        return (
+          <UserPlaylistDetail
+            id={currentParams?.id}
+            isOwner={currentParams?.isOwner}
+          />
+        );
       case "artist-detail":
         return <ArtistDetail id={currentParams?.id} />;
       case "user-detail":
@@ -127,8 +134,12 @@ export const AppRouter: React.FC = () => {
         return <LatestReleasesPage />;
       case "popular-albums":
         return <PopularAlbumsPage />;
+      case "recommended-playlists":
+        return <RecommendedPlaylistsPage />;
       case "new-discoveries":
         return <NewDiscoveriesPage />;
+      case "for-you":
+        return <ForYouPage />;
       case "chart-detail":
         return (
           <ChartPage
@@ -142,5 +153,3 @@ export const AppRouter: React.FC = () => {
     }
   }
 };
-
-

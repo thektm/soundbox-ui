@@ -8,7 +8,7 @@ import React, {
   useEffect,
   useMemo,
 } from "react";
-import { decodeShare, encodeShare } from "../utils/share";
+import { decodeShare, slugify } from "../utils/share";
 
 interface NavigationContextType {
   currentPage: string;
@@ -58,6 +58,7 @@ const ROUTED_PAGES = [
   "latest-releases",
   "popular-albums",
   "new-discoveries",
+  "for-you",
   "my-playlists",
   "liked-songs",
   "liked-albums",
@@ -65,7 +66,17 @@ const ROUTED_PAGES = [
   "followers-following",
   "followed-artists",
   "chart-detail",
+  "recommended-playlists",
 ];
+
+/**
+ * Extracts the numeric ID from a "{id}-{slug}" URL segment.
+ * e.g. "123-some-artist-name" → "123"
+ */
+function extractIdFromSegment(segment: string): string {
+  const dashIdx = segment.indexOf("-");
+  return dashIdx === -1 ? segment : segment.slice(0, dashIdx);
+}
 
 function parsePathname(pathname: string): { page: string; params: any } {
   const parts = pathname
@@ -85,6 +96,7 @@ function parsePathname(pathname: string): { page: string; params: any } {
       case "liked-playlists":
       case "my-playlists":
       case "playlists":
+      case "recommended-playlists":
       case "downloads-history":
       case "settings":
       case "upgrade-plans":
@@ -94,6 +106,7 @@ function parsePathname(pathname: string): { page: string; params: any } {
       case "latest-releases":
       case "popular-albums":
       case "new-discoveries":
+      case "for-you":
       case "followed-artists":
       case "profile":
       case "library":
@@ -127,37 +140,54 @@ function parsePathname(pathname: string): { page: string; params: any } {
     }
   }
 
-  // artist by explicit path: /artist/:id
-  if (first === "artist" && parts[1]) {
-    return { page: "artist-detail", params: { id: parts[1] } };
+  // artist: /artists/{id}-{slug} (new) or /artist/{id} (legacy)
+  if ((first === "artists" || first === "artist") && parts[1]) {
+    return {
+      page: "artist-detail",
+      params: { id: extractIdFromSegment(parts[1]) },
+    };
   }
 
-  // track explicit: /track/:id
+  // track: /track/{id}-{slug}
   if (first === "track" && parts[1]) {
-    return { page: "song-detail", params: { id: parts[1] } };
+    return {
+      page: "song-detail",
+      params: { id: extractIdFromSegment(parts[1]) },
+    };
   }
 
-  // playlist explicit: /playlist/:id or /playlist/:slug
+  // playlist: /playlist/{id}-{slug}
   if (first === "playlist" && parts[1]) {
+    const id = extractIdFromSegment(parts[1]);
+    // If the segment has no leading digits it's likely an old slug-only URL
     return {
       page: "playlist-detail",
-      params: { id: parts[1], slug: parts[2] || null },
+      params: { id, slug: /^\d/.test(parts[1]) ? null : parts[1] },
     };
   }
 
   // user playlist explicit: /user-playlist/:id
   if (first === "user-playlist" && parts[1]) {
-    return { page: "user-playlist-detail", params: { id: parts[1] } };
+    return {
+      page: "user-playlist-detail",
+      params: { id: extractIdFromSegment(parts[1]) },
+    };
   }
 
-  // album explicit: /album/:id or /album/:slug
+  // album: /album/{id}-{slug}
   if (first === "album" && parts[1]) {
-    return { page: "album-detail", params: { id: parts[1] } };
+    return {
+      page: "album-detail",
+      params: { id: extractIdFromSegment(parts[1]) },
+    };
   }
 
-  // user details: /user/:id
+  // user details: /user/{id}-{unique_id}
   if (first === "user" && parts[1]) {
-    return { page: "user-detail", params: { id: parts[1] } };
+    return {
+      page: "user-detail",
+      params: { id: extractIdFromSegment(parts[1]) },
+    };
   }
 
   // followers/following page: /followers-following?tab=followers or /followers-following/following
@@ -187,25 +217,7 @@ function parsePathname(pathname: string): { page: string; params: any } {
     };
   }
 
-  // two-part slugs interpreted as artist/song pair -> /:artistSlug/:songSlug
-  if (parts.length === 2) {
-    return {
-      page: "song-detail",
-      params: {
-        artistSlug: decodeURIComponent(parts[0]),
-        songSlug: decodeURIComponent(parts[1]),
-      },
-    };
-  }
-
-  // fallback: treat first as an artist slug
-  if (first) {
-    return {
-      page: "artist-detail",
-      params: { slug: decodeURIComponent(first) },
-    };
-  }
-
+  // Unrecognised path → home
   return { page: "home", params: null };
 }
 
@@ -224,20 +236,38 @@ function pageToPathname(page: string, params?: any): string | null {
   if (page === "forgot-password") return "/forgot-password";
 
   if (page === "artist-detail") {
-    if (params?.slug) return `/${encodeURIComponent(params.slug)}`;
-    if (params?.id) return `/artist/${params.id}`;
+    if (params?.id) {
+      const namePart = params.name
+        ? `-${slugify(params.name)}`
+        : params.slug
+          ? `-${slugify(params.slug)}`
+          : "";
+      return `/artists/${params.id}${namePart}`;
+    }
   }
 
   if (page === "song-detail") {
-    if (params?.artistSlug && params?.songSlug) {
-      return `/${encodeURIComponent(params.artistSlug)}/${encodeURIComponent(params.songSlug)}`;
+    if (params?.id) {
+      const titlePart = params.title
+        ? `-${slugify(params.title)}`
+        : params.songSlug
+          ? `-${slugify(params.songSlug)}`
+          : "";
+      return `/track/${params.id}${titlePart}`;
     }
-    if (params?.id) return `/track/${params.id}`;
   }
 
   if (page === "playlist-detail") {
+    if (params?.id) {
+      const titlePart = params.title
+        ? `-${slugify(params.title)}`
+        : params.slug
+          ? `-${slugify(params.slug)}`
+          : "";
+      return `/playlist/${params.id}${titlePart}`;
+    }
+    // slug-only (legacy)
     if (params?.slug) return `/playlist/${encodeURIComponent(params.slug)}`;
-    if (params?.id) return `/playlist/${params.id}`;
   }
 
   if (page === "user-playlist-detail") {
@@ -245,13 +275,22 @@ function pageToPathname(page: string, params?: any): string | null {
   }
 
   if (page === "album-detail") {
+    if (params?.id) {
+      const titlePart = params.title
+        ? `-${slugify(params.title)}`
+        : params.slug
+          ? `-${slugify(params.slug)}`
+          : "";
+      return `/album/${params.id}${titlePart}`;
+    }
     if (params?.slug) return `/album/${encodeURIComponent(params.slug)}`;
-    if (params?.id) return `/album/${params.id}`;
   }
 
   if (page === "user-detail") {
-    if (params?.uniqueId) return `/user/${params.uniqueId}`;
-    if (params?.id) return `/user/${params.id}`;
+    if (params?.id) {
+      const uniquePart = params.uniqueId ? `-${params.uniqueId}` : "";
+      return `/user/${params.id}${uniquePart}`;
+    }
   }
 
   if (page === "followers-following") {

@@ -296,7 +296,7 @@ const QualitySheet = ({
                 {locked && (
                   <div className="absolute inset-0 flex items-center justify-end pr-4 pointer-events-none">
                     <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/30 font-medium">
-                      ویژه
+                     Premium
                     </span>
                   </div>
                 )}
@@ -884,7 +884,7 @@ export default function Settings() {
   const handleQualitySelect = async (quality: string) => {
     // Prevent non-premium users from selecting high quality
     if (quality === "high" && authUser?.plan !== "premium") {
-      toast.error("کیفیت ۳۲۰ فقط برای کاربران ویژه فعال است.");
+      toast.error("کیفیت ۳۲۰ فقط برای کاربران Premium فعال است.");
       return;
     }
 
@@ -1067,7 +1067,7 @@ export default function Settings() {
                     : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                 }`}
               >
-                {authUser?.plan === "premium" ? "حساب ویژه" : "حساب رایگان"}
+                {authUser?.plan === "premium" ? "حساب Premium " : "حساب رایگان"}
               </div>
             </div>
             <button

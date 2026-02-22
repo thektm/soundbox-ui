@@ -1,10 +1,33 @@
 // Share links utility for sedabox
-// Encodes and decodes shared content pointers
+// Generates clean, human-readable share URLs.
 
-type ShareType = "song" | "artist" | "album" | "playlist" | "user-playlist";
+export type ShareType = "song" | "artist" | "album" | "playlist" | "user-playlist";
 
-const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const SALT = 0x5EDB0; // SedaBox-ish hex salt
+/**
+ * Converts a string into a URL-friendly slug.
+ * Keeps Latin letters/digits, Persian/Arabic characters, and hyphens.
+ */
+export function slugify(str: string): string {
+  return String(str)
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^\w\u0600-\u06FF\-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+const TYPE_PREFIX: Record<ShareType, string> = {
+  song: "track",
+  artist: "artists",
+  album: "album",
+  playlist: "playlist",
+  "user-playlist": "playlist",
+};
+
+// ─── Legacy decode helpers (for old /s/{code} links) ─────────────────────────
+const ALPHABET =
+  "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const SALT = 0x5edb0;
 
 const TYPE_MAP: Record<string, ShareType> = {
   s: "song",
@@ -22,83 +45,76 @@ const REVERSE_TYPE_MAP: Record<ShareType, string> = {
   "user-playlist": "u",
 };
 
-function encodeContentId(type: ShareType, id: string | number): string {
-  const typeChar = REVERSE_TYPE_MAP[type];
-  const numericId = typeof id === "number" ? id : parseInt(id, 10);
-  
-  if (isNaN(numericId)) {
-    // Fallback if not numeric (unlikely for our DB IDs)
-    return btoa(`${typeChar}${id}`).replace(/=+$/, "").split("").reverse().join("");
-  }
-
-  // Obfuscate
-  let n = numericId ^ SALT;
-  let str = "";
-  while (n > 0) {
-    str = ALPHABET[n % 62] + str;
-    n = Math.floor(n / 62);
-  }
-  return typeChar + (str || "0");
+/**
+ * Gets the relative share path for a piece of content.
+ * Format: /{prefix}/{id}-{name-slug}
+ */
+export function getSharePath(
+  type: ShareType,
+  id: string | number,
+  name?: string,
+): string {
+  const prefix = TYPE_PREFIX[type];
+  const namePart = name ? `-${slugify(name)}` : "";
+  return `/${prefix}/${id}${namePart}`;
 }
 
-function decodeContentId(code: string): { type: ShareType; id: string } | null {
-  try {
-    const typeChar = code.charAt(0);
-    const type = TYPE_MAP[typeChar];
-    if (!type) return null;
+/**
+ * Gets the full share URL for a piece of content.
+ * Format: https://app.sedabox.com/{prefix}/{id}-{name-slug}
+ */
+export function getFullShareUrl(
+  type: ShareType,
+  id: string | number,
+  name?: string,
+): string {
+  if (typeof window === "undefined") return "";
+  return `${window.location.origin}${getSharePath(type, id, name)}`;
+}
 
-    const encodedId = code.substring(1);
+// ─── Legacy compatibility ─────────────────────────────────────────────────────
+// These allow old /s/{code} deep-links arriving from previously shared URLs to
+// still open the correct page via NavigationContext.
+
+/** @deprecated – new share URLs are human-readable. Use getSharePath instead. */
+export function encodeShare(type: ShareType, id: string | number): string {
+  return `${REVERSE_TYPE_MAP[type]}${id}`;
+}
+
+/**
+ * Decodes a legacy /s/{code} share code.
+ * Supports both the old obfuscated format and newer plain "{typeChar}{id}" format.
+ */
+export function decodeShare(
+  code: string,
+): { type: ShareType; id: string } | null {
+  if (!code || code.length < 2) return null;
+
+  const typeChar = code[0];
+  const type = TYPE_MAP[typeChar];
+  if (!type) return null;
+
+  const raw = code.slice(1);
+
+  // Plain numeric format (new links or already-decoded)
+  if (/^\d+$/.test(raw)) {
+    return { type, id: raw };
+  }
+
+  // Legacy obfuscated base-62 + XOR format
+  try {
     let n = 0;
-    for (let i = 0; i < encodedId.length; i++) {
-      const idx = ALPHABET.indexOf(encodedId[i]);
-      if (idx === -1) throw new Error("Invalid char");
+    for (let i = 0; i < raw.length; i++) {
+      const idx = ALPHABET.indexOf(raw[i]);
+      if (idx === -1) throw new Error("invalid char");
       n = n * 62 + idx;
     }
-    
     const id = (n ^ SALT).toString();
-    return { type, id };
-  } catch (e) {
-    // Fallback for old links or non-numeric
-    try {
-      const normalB64 = code.split("").reverse().join("");
-      let padded = normalB64.replace(/-/g, "+").replace(/_/g, "/");
-      while (padded.length % 4 !== 0) padded += "=";
-      const decoded = atob(padded);
-      const typeChar = decoded.charAt(0);
-      const id = decoded.substring(1);
-      const type = TYPE_MAP[typeChar];
-      if (type && id) return { type, id };
-    } catch (e2) {}
-    return null;
+    if (parseInt(id, 10) > 0) return { type, id };
+  } catch (_) {
+    // ignore
   }
-}
 
-/**
- * Encodes a type and id into a "nice" looking short string.
- */
-export function encodeShare(type: ShareType, id: string | number): string {
-  return encodeContentId(type, id);
-}
-
-/**
- * Decodes a shared string back into type and id.
- */
-export function decodeShare(code: string): { type: ShareType; id: string } | null {
-  return decodeContentId(code);
-}
-
-/**
- * Gets the relative share path for a specific content
- */
-export function getSharePath(type: ShareType, id: string | number): string {
-  return `/s/${encodeShare(type, id)}`;
-}
-
-/**
- * Gets the full share URL
- */
-export function getFullShareUrl(type: ShareType, id: string | number): string {
-  if (typeof window === "undefined") return "";
-  const origin = window.location.origin;
-  return `${origin}${getSharePath(type, id)}`;
+  // Fallback: treat remaining string as id as-is
+  return { type, id: raw };
 }

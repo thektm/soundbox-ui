@@ -708,22 +708,24 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           setIsLiked(data.is_liked);
           setLikesCount(data.likes_count);
 
-          // Update browser URL to canonical format: /artist-slug/song-slug
+          // Update browser URL to canonical format: /track/{id}-{slug}
           if (typeof window !== "undefined") {
-            const artistS =
-              data.artist_unique_id || createSlug(data.artist_name);
-            const songS = createSlug(data.title);
-            if (artistS && songS) {
-              const targetPath = `/${artistS}/${songS}`;
+            const trackId = data.id;
+            const slug = data.title
+              ? data.title
+                  .trim()
+                  .replace(/\s+/g, "-")
+                  .replace(/[^\w\u0600-\u06FF\-]/g, "")
+                  .replace(/-+/g, "-")
+                  .replace(/^-+|-+$/g, "")
+              : "";
+            if (trackId) {
+              const targetPath = `/track/${trackId}${slug ? `-${slug}` : ""}`;
               if (window.location.pathname !== targetPath) {
                 window.history.replaceState(
                   {
                     page: "song-detail",
-                    params: {
-                      id: data.id,
-                      artistSlug: artistS,
-                      songSlug: songS,
-                    },
+                    params: { id: trackId },
                   },
                   "",
                   targetPath,
@@ -871,7 +873,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   const handleShare = useCallback(() => {
     if (!song) return;
     try {
-      const url = getFullShareUrl("song", song.id);
+      const url = getFullShareUrl("song", song.id, song.title);
       const artistLabel =
         (song as any).artist_name || (song as any).artist || "";
       const text = `درحال گوش دادن به ${song.title} از ${artistLabel} در سداباکس`;
@@ -1020,12 +1022,10 @@ export default function SongDetail({ id: propId }: { id?: string }) {
 
       {/* Desktop Header */}
       <header className="hidden md:flex sticky top-0 z-50 h-16 items-center px-6 bg-zinc-900/80 backdrop-blur-xl">
-        
         <div className="flex-1 flex justify-center overflow-hidden px-4">
           <h2 className="text-lg font-bold text-white truncate">
             {song.title}
           </h2>
-          
         </div>
         <button
           onClick={goBack}

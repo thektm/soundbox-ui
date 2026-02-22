@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, memo, useMemo } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { useDiscovery } from "./DiscoveryContext";
 import { createSlug } from "./mockData";
 import { CreatePlaylistModal } from "./CreatePlaylistModal";
 
@@ -534,10 +535,11 @@ function Sidebar() {
   const [libraryTab, setLibraryTab] = useState<"playlists" | "library">(
     "playlists",
   );
-  const [recommendedPlaylists, setRecommendedPlaylists] = useState<
-    PlaylistItem[]
-  >([]);
-  const [loadingRecommended, setLoadingRecommended] = useState<boolean>(true);
+  const {
+    recommendedPlaylists: rawRecommended,
+    isLoading: loadingRecommended,
+  } = useDiscovery();
+
   const [libraryItems, setLibraryItems] = useState<PlaylistItem[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState<boolean>(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -573,6 +575,23 @@ function Sidebar() {
       return ensureHttps(src.cover_image || src.cover || src.url || src.image);
     return undefined;
   };
+
+  const recommendedPlaylists = useMemo(() => {
+    return rawRecommended.map((p: any) => {
+      const covers = normalizeCover(p.top_three_song_covers || p.covers);
+      const single = normalizeCover(p.cover_image) as string | undefined;
+      return {
+        id: p.unique_id || p.id,
+        name: p.title || p.name,
+        type: "playlist",
+        image: (covers && (Array.isArray(covers) ? covers.length > 0 : !!covers)
+          ? covers
+          : single) as string | string[] | undefined,
+        owner: p.owner || undefined,
+        pinned: false,
+      } as PlaylistItem;
+    });
+  }, [rawRecommended]);
 
   // Fetch library items (history) similar to LibraryScreen
   const fetchLibraryItems = useCallback(async () => {
@@ -611,7 +630,7 @@ function Sidebar() {
     async (name: string, isPublic: boolean) => {
       try {
         const resp = await authenticatedFetch(
-          "https://api.sedabox.com/api/profile/playlists/create/",
+          "https://api.sedabox.com/api/profile/user-playlists/",
           {
             method: "POST",
             headers: {
@@ -621,101 +640,18 @@ function Sidebar() {
           },
         );
         if (resp.ok) {
-          // Refresh playlists if we are in that mode or it was just created
-          // For simplicity, we could re-fetch or just navigate to the new playlist
           const data = await resp.json();
-          if (data.id) {
-            navigateTo("playlist-detail", { id: data.id });
+          if (data?.id) {
+            return String(data.id);
           }
         }
       } catch (err) {
         console.error("Failed to create playlist:", err);
       }
+      return null;
     },
-    [authenticatedFetch, navigateTo],
+    [authenticatedFetch],
   );
-
-  // Fetch recommended playlists once on mount
-  useEffect(() => {
-    let mounted = true;
-    const fetchRecommended = async () => {
-      setLoadingRecommended(true);
-      // If we already have home cache with playlist_recommendations, use it immediately
-      try {
-        if (homeCache?.playlist_recommendations) {
-          const cached = homeCache.playlist_recommendations;
-          const list = Array.isArray(cached) ? cached : cached.results || [];
-          const normalizeCached = (p: any) => {
-            const covers = p.top_three_song_covers || p.covers || [];
-            const mappedCovers = Array.isArray(covers)
-              ? covers
-                  .map((c: any) =>
-                    typeof c === "string"
-                      ? c.replace(/^http:\/\//i, "https://")
-                      : c?.cover_image || c?.url || c?.image,
-                  )
-                  .filter(Boolean)
-              : [];
-            return {
-              id: p.unique_id || p.id,
-              name: p.title || p.name,
-              type: "playlist",
-              image: mappedCovers.length > 0 ? mappedCovers : p.cover_image,
-              owner: p.owner || undefined,
-              pinned: false,
-            } as PlaylistItem;
-          };
-
-          const pre = list.map((p: any) => normalizeCached(p));
-          if (mounted && pre.length > 0) {
-            setRecommendedPlaylists(pre);
-            // keep loadingRecommended true while we refresh in background
-          }
-        }
-      } catch (e) {
-        /* ignore cache transform errors */
-      }
-      try {
-        const resp = await authenticatedFetch(
-          "https://api.sedabox.com/api/home/playlist-recommendations/",
-        );
-        if (!mounted) return;
-        if (resp.ok) {
-          const data = await resp.json();
-          const list = Array.isArray(data) ? data : data?.results || [];
-
-          const mapped: PlaylistItem[] = list.map((p: any) => {
-            const covers = normalizeCover(p.top_three_song_covers || p.covers);
-            const single = normalizeCover(p.cover_image) as string | undefined;
-            return {
-              id: p.unique_id || p.id,
-              name: p.title || p.name,
-              type: "playlist",
-              image: (covers && covers.length > 0 ? covers : single) as
-                | string
-                | string[]
-                | undefined,
-              owner: p.owner || undefined,
-              pinned: false,
-            } as PlaylistItem;
-          });
-          setRecommendedPlaylists(mapped);
-        } else {
-          setRecommendedPlaylists([]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch recommended playlists:", err);
-        setRecommendedPlaylists([]);
-      } finally {
-        if (mounted) setLoadingRecommended(false);
-      }
-    };
-
-    fetchRecommended();
-    return () => {
-      mounted = false;
-    };
-  }, [authenticatedFetch]);
 
   // Check active state
   const isActivePath = useCallback(
@@ -804,6 +740,7 @@ function Sidebar() {
                   setLibraryTab("playlists");
                   // No re-fetch needed if we have them, usually
                 }}
+                onDoubleClick={() => navigateTo("recommended-playlists")}
                 className={`
                   flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300
                   ${
@@ -853,7 +790,13 @@ function Sidebar() {
                     // When toggling in collapsed mode, fetch every time we switch to library
                     if (next === "library") fetchLibraryItems();
                   }}
-                  onDoubleClick={() => navigateTo("library")}
+                  onDoubleClick={() =>
+                    navigateTo(
+                      libraryTab === "playlists"
+                        ? "recommended-playlists"
+                        : "library",
+                    )
+                  }
                   className="p-1 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center justify-center w-full"
                 >
                   {libraryTab === "playlists" ? (
@@ -960,10 +903,7 @@ function Sidebar() {
       <CreatePlaylistModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onCreate={(name, isPub) => {
-          handleCreatePlaylist(name, isPub);
-          setShowCreateModal(false);
-        }}
+        onCreate={handleCreatePlaylist}
       />
 
       {/* Bottom Section - Profile Quick Access */}

@@ -40,7 +40,8 @@ Icon.displayName = "Icon";
 interface CreatePlaylistModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, isPublic: boolean) => void;
+  // onCreate should return a truthy value (e.g. new id) when creation succeeded
+  onCreate: (name: string, isPublic: boolean) => Promise<any> | any;
 }
 
 export const CreatePlaylistModal = memo(
@@ -48,14 +49,24 @@ export const CreatePlaylistModal = memo(
     const [name, setName] = useState("");
     const [isPublic, setIsPublic] = useState(true);
 
-    const handleCreate = useCallback(() => {
-      if (name.trim()) {
-        onCreate(name.trim(), isPublic);
-        setName("");
-        setIsPublic(true);
-        onClose();
+    const [submitting, setSubmitting] = useState(false);
+
+    const handleCreate = useCallback(async () => {
+      if (!name.trim() || submitting) return;
+      setSubmitting(true);
+      try {
+        const res = await onCreate(name.trim(), isPublic);
+        if (res) {
+          setName("");
+          setIsPublic(true);
+          onClose();
+        }
+      } catch (e) {
+        console.error("CreatePlaylistModal create error:", e);
+      } finally {
+        setSubmitting(false);
       }
-    }, [name, isPublic, onCreate, onClose]);
+    }, [name, isPublic, onCreate, onClose, submitting]);
 
     return (
       <ResponsiveSheet
@@ -134,10 +145,10 @@ export const CreatePlaylistModal = memo(
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!name.trim()}
+                disabled={!name.trim() || submitting}
                 className="flex-1 py-3 bg-emerald-500 text-white font-medium rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                ایجاد
+                {submitting ? "در حال ارسال..." : "ایجاد"}
               </button>
             </div>
           </div>

@@ -320,7 +320,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   const handleAction = async (action: string, s: any) => {
     if (action === "share" && s) {
       try {
-        const url = getFullShareUrl("song", s.id);
+        const url = getFullShareUrl("song", s.id, s.title);
         if (typeof navigator !== "undefined" && navigator.share) {
           await navigator.share({
             title: s.title,
@@ -340,11 +340,11 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   const handleShare = async () => {
     if (!albumData) return;
     try {
-      const url = getFullShareUrl("album", albumData.id);
+      const url = getFullShareUrl("album", albumData.id, albumData.title);
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: albumData.title,
-          text: `G گوش دادن به آلبوم ${albumData.title} از ${albumData.artist_name} در سداباکس`,
+          text: `گوش دادن به آلبوم ${albumData.title} از ${albumData.artist_name} در سداباکس`,
           url: url,
         });
       } else if (typeof navigator !== "undefined" && navigator.clipboard) {

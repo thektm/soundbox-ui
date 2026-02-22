@@ -35,7 +35,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
 
   const handleShare = async () => {
     try {
-      const url = getFullShareUrl("playlist", playlist.id);
+      const url = getFullShareUrl("playlist", playlist.id, playlist.title);
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: playlist.title,

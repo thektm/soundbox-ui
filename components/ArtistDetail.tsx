@@ -550,18 +550,24 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         setData(json);
         setFollowing(json.artist?.is_following ?? false);
 
-        // Update browser URL to canonical artist slug after data loads
+        // Update browser URL to canonical format: /artists/{id}-{slug}
         if (typeof window !== "undefined" && json.artist) {
-          const artistSlug =
-            json.artist.unique_id ||
-            createSlug(json.artist.artistic_name || json.artist.name || "");
-          if (artistSlug) {
-            const targetPath = `/${artistSlug}`;
+          const artistName =
+            json.artist.artistic_name || json.artist.name || "";
+          const artistId = json.artist.id;
+          if (artistId) {
+            const slug = (json.artist.unique_id || artistName)
+              .trim()
+              .replace(/\s+/g, "-")
+              .replace(/[^\w\u0600-\u06FF\-]/g, "")
+              .replace(/-+/g, "-")
+              .replace(/^-+|-+$/g, "");
+            const targetPath = `/artists/${artistId}${slug ? `-${slug}` : ""}`;
             if (window.location.pathname !== targetPath) {
               window.history.replaceState(
                 {
                   page: "artist-detail",
-                  params: { id: json.artist.id, slug: artistSlug },
+                  params: { id: artistId },
                 },
                 "",
                 targetPath,
@@ -749,8 +755,8 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         // If a specific song is provided, share the song
         const isSong = song && (song.id || song.title);
         const url = isSong
-          ? getFullShareUrl("song", song.id)
-          : getFullShareUrl("artist", artist!.id);
+          ? getFullShareUrl("song", song.id, song.title)
+          : getFullShareUrl("artist", artist!.id, artist?.name);
 
         const title = isSong ? song.title : artist?.name;
         const text = isSong

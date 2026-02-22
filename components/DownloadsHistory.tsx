@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, memo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigation } from "./NavigationContext";
 import Image from "next/image";
 import { usePlayer, Track } from "./PlayerContext";
@@ -14,6 +15,7 @@ import {
   Pause,
   MoreVertical,
   Music,
+  Trash,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -28,6 +30,8 @@ export default function DownloadsHistory() {
   const [loading, setLoading] = useState(true);
   const [selectedSong, setSelectedSong] = useState<any>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [deletingItem, setDeletingItem] = useState<any>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const fetchDownloads = useCallback(async () => {
     setLoading(true);
@@ -67,6 +71,35 @@ export default function DownloadsHistory() {
   const handleOpenOptions = (songData: any) => {
     setSelectedSong(songData);
     setIsDrawerOpen(true);
+  };
+
+  const handleDeleteClick = (historyItem: any) => {
+    setDeletingItem(historyItem);
+    setIsDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingItem) return;
+    try {
+      const resp = await authenticatedFetch(
+        `${API_ROOT}/profile/downloads/${deletingItem.id}/`,
+        { method: "DELETE" },
+      );
+
+      if (resp.ok || resp.status === 204) {
+        setDownloads((d) => d.filter((x) => x.id !== deletingItem.id));
+        toast.success("آیتم از تاریخچه حذف شد");
+      } else {
+        const data = await resp.json().catch(() => ({}));
+        toast.error(data.detail || "خطا در حذف آیتم از تاریخچه");
+      }
+    } catch (err) {
+      console.error("Delete history error:", err);
+      toast.error("خطا در ارتباط با سرور");
+    } finally {
+      setIsDeleteOpen(false);
+      setDeletingItem(null);
+    }
   };
 
   return (
@@ -210,6 +243,13 @@ export default function DownloadsHistory() {
                   </div>
 
                   <button
+                    onClick={() => handleDeleteClick(item)}
+                    className="w-10 h-10 flex items-center justify-center text-red-400 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-90"
+                  >
+                    <Trash className="w-5 h-5" />
+                  </button>
+
+                  <button
                     onClick={() => handleOpenOptions(song)}
                     className="w-10 h-10 flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-90"
                   >
@@ -233,6 +273,83 @@ export default function DownloadsHistory() {
           }}
         />
       )}
+
+      <AnimatePresence>
+        {isDeleteOpen && deletingItem && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-xl"
+              onClick={() => {
+                setIsDeleteOpen(false);
+                setDeletingItem(null);
+              }}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-md bg-[#0f1112] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl flex flex-col"
+              dir="rtl"
+            >
+              <div className="px-6 pt-6 pb-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-400">
+                    <Trash className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white leading-tight">
+                      حذف از تاریخچه
+                    </h3>
+                    <p className="text-sm text-white/40 mt-1 truncate max-w-[220px]">
+                      {deletingItem?.song?.title}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsDeleteOpen(false);
+                    setDeletingItem(null);
+                  }}
+                  className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:bg-white/10 hover:text-white transition-all"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="px-6 pb-6 pt-2 text-right">
+                <p className="text-sm text-white/60 mb-6">
+                  آیا از حذف این آیتم از تاریخچه دانلودها مطمئن هستید؟ این عمل
+                  قابل بازگشت نیست.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setIsDeleteOpen(false);
+                      setDeletingItem(null);
+                    }}
+                    className="flex-1 py-3 bg-white/5 border border-white/10 text-gray-300 font-medium rounded-2xl hover:bg-white/10 transition-all"
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    onClick={handleConfirmDelete}
+                    className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center gap-3 text-black font-black text-base shadow-xl shadow-emerald-500/20 active:scale-95"
+                  >
+                    حذف از تاریخچه
+                  </button>
+                </div>
+              </div>
+
+              <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-500/6 blur-[60px] pointer-events-none rounded-full" />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

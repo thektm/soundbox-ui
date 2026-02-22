@@ -8,6 +8,7 @@ interface ImageWithPlaceholderProps {
   alt: string;
   className?: string;
   type?: "artist" | "song" | "user";
+  fill?: boolean;
 }
 
 const ImageWithPlaceholder: React.FC<ImageWithPlaceholderProps> = ({

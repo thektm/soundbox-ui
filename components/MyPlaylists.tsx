@@ -1,7 +1,15 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, memo, useEffect } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  memo,
+  useEffect,
+  useRef,
+} from "react";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { UserPlaylist, createSlug } from "./mockData";
@@ -111,19 +119,29 @@ const CreatePlaylistModal = memo(
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (name: string, isPublic: boolean) => void;
+    // onCreate may return a truthy value (e.g. created id) when successful
+    onCreate: (name: string, isPublic: boolean) => Promise<any> | any;
   }) => {
     const [name, setName] = useState("");
     const [isPublic, setIsPublic] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
 
-    const handleCreate = useCallback(() => {
-      if (name.trim()) {
-        onCreate(name.trim(), isPublic);
-        setName("");
-        setIsPublic(true);
-        onClose();
+    const handleCreate = useCallback(async () => {
+      if (!name.trim() || submitting) return;
+      setSubmitting(true);
+      try {
+        const res = await onCreate(name.trim(), isPublic);
+        if (res) {
+          setName("");
+          setIsPublic(true);
+          onClose();
+        }
+      } catch (e) {
+        console.error("Failed to create playlist (MyPlaylists):", e);
+      } finally {
+        setSubmitting(false);
       }
-    }, [name, isPublic, onCreate, onClose]);
+    }, [name, isPublic, onCreate, onClose, submitting]);
 
     return (
       <ResponsiveSheet
@@ -210,10 +228,10 @@ const CreatePlaylistModal = memo(
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!name.trim()}
+                disabled={!name.trim() || submitting}
                 className="flex-1 py-3 bg-emerald-500 text-white font-medium rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                ایجاد
+                {submitting ? "در حال ارسال..." : "ایجاد"}
               </button>
             </div>
           </div>
@@ -226,8 +244,200 @@ const CreatePlaylistModal = memo(
 CreatePlaylistModal.displayName = "CreatePlaylistModal";
 
 // ============================================================================
+// Edit Playlist Modal
+// ============================================================================
+const EditPlaylistModal = memo(
+  ({
+    isOpen,
+    onClose,
+    onEdit,
+    playlist,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onEdit: (name: string, isPublic: boolean) => Promise<any> | any;
+    playlist: UserPlaylist | null | undefined;
+  }) => {
+    const [name, setName] = useState("");
+    const [isPublic, setIsPublic] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+      if (isOpen && playlist) {
+        setName(playlist.title);
+        setIsPublic(playlist.isPublic);
+      }
+    }, [isOpen, playlist]);
+
+    const handleEdit = useCallback(async () => {
+      if (!name.trim() || submitting) return;
+      setSubmitting(true);
+      try {
+        const res = await onEdit(name.trim(), isPublic);
+        if (res) {
+          onClose();
+        }
+      } catch (e) {
+        console.error("Failed to edit playlist:", e);
+      } finally {
+        setSubmitting(false);
+      }
+    }, [name, isPublic, onEdit, onClose, submitting]);
+
+    return (
+      <ResponsiveSheet
+        isOpen={isOpen}
+        onClose={onClose}
+        desktopWidth="w-[450px]"
+      >
+        <div className="h-full flex flex-col" dir="rtl">
+          {/* Header */}
+          <div className="relative p-6 pb-4 flex-shrink-0">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+              <Icon d={ICONS.edit} className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-xl font-bold text-white text-center">
+              ویرایش پلی‌لیست
+            </h2>
+            <p className="text-gray-400 text-sm text-center mt-1">
+              نام یا حریم خصوصی پلی‌لیست را تغییر دهید
+            </p>
+          </div>
+
+          {/* Form */}
+          <div className="px-6 pb-6 space-y-4 flex-1 overflow-y-auto">
+            {/* Name Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-2">
+                نام پلی‌لیست
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="پلی‌لیست من..."
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                autoFocus
+              />
+            </div>
+
+            {/* Privacy Toggle */}
+            <div className="flex items-center justify-between p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    isPublic ? "bg-emerald-500/20" : "bg-gray-500/20"
+                  }`}
+                >
+                  <Icon
+                    d={isPublic ? ICONS.globe : ICONS.lock}
+                    className={`w-5 h-5 ${
+                      isPublic ? "text-emerald-400" : "text-gray-400"
+                    }`}
+                  />
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-white">
+                    {isPublic ? "عمومی" : "خصوصی"}
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    {isPublic ? "همه می‌توانند ببینند" : "فقط شما می‌بینید"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPublic(!isPublic)}
+                className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                  isPublic ? "bg-emerald-500" : "bg-zinc-700"
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                    isPublic ? "right-1" : "right-6"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors"
+              >
+                انصراف
+              </button>
+              <button
+                onClick={handleEdit}
+                disabled={!name.trim() || submitting}
+                className="flex-1 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? "در حال ارسال..." : "ذخیره تغییرات"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </ResponsiveSheet>
+    );
+  },
+);
+
+EditPlaylistModal.displayName = "EditPlaylistModal";
+
+// ============================================================================
 // Playlist Card Component - Optimized
 // ============================================================================
+
+// Render children into document.body to avoid being inside the clickable card
+const MenuPortal = ({ children }: { children: React.ReactNode }) => {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+};
+// Simple confirmation dialog (Spotify-inspired minimal style)
+const ConfirmDialog = ({
+  isOpen,
+  title,
+  description,
+  confirmLabel = "حذف",
+  onConfirm,
+  onCancel,
+}: {
+  isOpen: boolean;
+  title: string;
+  description?: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) => {
+  if (!isOpen || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
+      <div className="relative z-10 w-[92%] max-w-md rounded-2xl bg-zinc-900 border border-white/10 p-6">
+        <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
+        {description && (
+          <p className="text-sm text-gray-400 mb-4">{description}</p>
+        )}
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-xl bg-white/5 text-gray-300 hover:bg-white/10"
+          >
+            انصراف
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
 // ============================================================================
 // Random Gradients for Grid Cards
 // ============================================================================
@@ -358,11 +568,72 @@ const PlaylistCard = memo(
     onDelete: () => void;
   }) => {
     const [showMenu, setShowMenu] = useState(false);
+    const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+    const menuRef = useRef<HTMLDivElement | null>(null);
+    const [menuPos, setMenuPos] = useState<{
+      top: number;
+      left: number;
+    } | null>(null);
+
+    useEffect(() => {
+      if (!showMenu) return;
+      const handleMouseDown = (e: MouseEvent) => {
+        const target = e.target as Node | null;
+        if (
+          menuRef.current &&
+          !menuRef.current.contains(target) &&
+          menuButtonRef.current &&
+          !menuButtonRef.current.contains(target)
+        ) {
+          setShowMenu(false);
+        }
+      };
+
+      const handleTouchStart = (e: TouchEvent) => {
+        const target = e.target as Node | null;
+        if (
+          menuRef.current &&
+          !menuRef.current.contains(target) &&
+          menuButtonRef.current &&
+          !menuButtonRef.current.contains(target)
+        ) {
+          setShowMenu(false);
+        }
+      };
+
+      const handleEsc = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setShowMenu(false);
+      };
+
+      document.addEventListener("mousedown", handleMouseDown);
+      document.addEventListener("touchstart", handleTouchStart);
+      document.addEventListener("keydown", handleEsc);
+      return () => {
+        document.removeEventListener("mousedown", handleMouseDown);
+        document.removeEventListener("touchstart", handleTouchStart);
+        document.removeEventListener("keydown", handleEsc);
+      };
+    }, [showMenu]);
+
+    const openMenu = useCallback((e: React.MouseEvent) => {
+      e.stopPropagation();
+      const btn = menuButtonRef.current;
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        setMenuPos({
+          top: rect.bottom + window.scrollY + 6,
+          left: rect.left + window.scrollX,
+        });
+      } else {
+        setMenuPos(null);
+      }
+      setShowMenu((s) => !s);
+    }, []);
 
     return (
       <div
         onClick={onPress}
-        className="group relative flex items-center gap-4 p-3 rounded-2xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.05] active:scale-[0.99] cursor-pointer transition-all duration-200 overflow-hidden"
+        className="group relative flex items-center gap-4 p-3 rounded-2xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.05] active:scale-[0.99] cursor-pointer transition-all duration-200"
         style={{ willChange: "transform" }}
       >
         {/* Playlist Cover */}
@@ -435,50 +706,52 @@ const PlaylistCard = memo(
         {/* More Menu */}
         <div className="relative shrink-0">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowMenu(!showMenu);
-            }}
+            ref={menuButtonRef}
+            onClick={openMenu}
             className="p-2.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+            aria-haspopup="true"
+            aria-expanded={showMenu}
           >
             <Icon d={ICONS.moreVertical} className="w-5 h-5 text-gray-400" />
           </button>
 
-          {/* Dropdown Menu */}
           {showMenu && (
-            <>
+            <MenuPortal>
               <div
-                className="fixed inset-0 z-40"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMenu(false);
+                ref={menuRef}
+                style={{
+                  position: "absolute",
+                  top: menuPos ? `${menuPos.top}px` : "auto",
+                  left: menuPos ? `${menuPos.left}px` : "auto",
+                  zIndex: 1100,
                 }}
-              />
-              <div className="absolute top-full left-0 mt-1 z-50 min-w-[140px] py-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit();
-                    setShowMenu(false);
-                  }}
-                  className="w-full px-4 py-2.5 text-right text-sm text-gray-300 hover:bg-white/5 flex items-center gap-3"
-                >
-                  <Icon d={ICONS.edit} className="w-4 h-4" />
-                  ویرایش
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete();
-                    setShowMenu(false);
-                  }}
-                  className="w-full px-4 py-2.5 text-right text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-3"
-                >
-                  <Icon d={ICONS.trash} className="w-4 h-4" />
-                  حذف
-                </button>
+              >
+                <div className="min-w-[140px] py-2 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit();
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2.5 text-right text-sm text-gray-300 hover:bg-white/5 flex items-center gap-3"
+                  >
+                    <Icon d={ICONS.edit} className="w-4 h-4" />
+                    ویرایش
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete();
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2.5 text-right text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-3"
+                  >
+                    <Icon d={ICONS.trash} className="w-4 h-4" />
+                    حذف
+                  </button>
+                </div>
               </div>
-            </>
+            </MenuPortal>
           )}
         </div>
       </div>
@@ -525,6 +798,9 @@ export default function MyPlaylists() {
   const [showSearch, setShowSearch] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedPlaylistForEdit, setSelectedPlaylistForEdit] =
+    useState<UserPlaylist | null>(null);
   const [playlists, setPlaylists] = useState<UserPlaylist[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -572,7 +848,9 @@ export default function MyPlaylists() {
 
   const handlePlaylistPress = useCallback(
     (playlist: UserPlaylist) => {
-      navigateTo("user-playlist-detail", { id: playlist.id });
+      // indicate this is the current user's playlist so detail page
+      // can enable song-removal endpoints/UI
+      navigateTo("user-playlist-detail", { id: playlist.id, isOwner: true });
     },
     [navigateTo],
   );
@@ -597,24 +875,100 @@ export default function MyPlaylists() {
         if (response.ok) {
           const newPl = await response.json();
           setPlaylists((prev) => [mapAPIToUserPlaylist(newPl), ...prev]);
+          return String(newPl.id);
         } else {
           console.error("Failed to create playlist");
         }
       } catch (err) {
         console.error("Error creating playlist:", err);
       }
+      return null;
     },
     [authenticatedFetch],
   );
 
-  const handleEditPlaylist = useCallback((playlistId: string) => {
-    console.log("Edit playlist:", playlistId);
-    // Open edit modal
+  const handleEditPlaylist = useCallback(
+    (playlist: UserPlaylist) => {
+      setSelectedPlaylistForEdit(playlist);
+      setShowEditModal(true);
+    },
+    [setSelectedPlaylistForEdit, setShowEditModal],
+  );
+
+  const handleUpdatePlaylist = useCallback(
+    async (name: string, isPublic: boolean) => {
+      if (!selectedPlaylistForEdit) return null;
+
+      try {
+        const response = await authenticatedFetch(
+          `https://api.sedabox.com/api/profile/user-playlists/${selectedPlaylistForEdit.id}/`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              title: name,
+              public: isPublic,
+            }),
+          },
+        );
+
+        if (response.ok) {
+          const updatedPl = await response.json();
+          setPlaylists((prev) =>
+            prev.map((p) =>
+              p.id === selectedPlaylistForEdit.id
+                ? mapAPIToUserPlaylist(updatedPl)
+                : p,
+            ),
+          );
+          return updatedPl;
+        } else {
+          console.error("Failed to update playlist");
+          alert("خطا در بروزرسانی پلی‌لیست");
+        }
+      } catch (err) {
+        console.error("Error updating playlist:", err);
+        alert("خطا در برقراری ارتباط با سرور");
+      }
+      return null;
+    },
+    [authenticatedFetch, selectedPlaylistForEdit],
+  );
+
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    title?: string;
+  } | null>(null);
+
+  const requestDeletePlaylist = useCallback((id: string, title?: string) => {
+    setPendingDelete({ id, title });
   }, []);
 
-  const handleDeletePlaylist = useCallback((playlistId: string) => {
-    setPlaylists((prev) => prev.filter((p) => p.id !== playlistId));
-  }, []);
+  const performDeletePlaylist = useCallback(
+    async (playlistId: string) => {
+      try {
+        const response = await authenticatedFetch(
+          `https://api.sedabox.com/api/profile/user-playlists/${playlistId}/`,
+          {
+            method: "DELETE",
+          },
+        );
+
+        if (response.ok) {
+          setPlaylists((prev) => prev.filter((p) => p.id !== playlistId));
+        } else {
+          console.error("Failed to delete playlist");
+          alert("خطا در حذف پلی‌لیست");
+        }
+      } catch (err) {
+        console.error("Error deleting playlist:", err);
+        alert("خطا در برقراری ارتباط با سرور");
+      }
+    },
+    [authenticatedFetch],
+  );
 
   const toggleSearch = useCallback(() => {
     scrollToTop();
@@ -799,8 +1153,10 @@ export default function MyPlaylists() {
                     key={playlist.id}
                     playlist={playlist}
                     onPress={() => handlePlaylistPress(playlist)}
-                    onEdit={() => handleEditPlaylist(playlist.id)}
-                    onDelete={() => handleDeletePlaylist(playlist.id)}
+                    onEdit={() => handleEditPlaylist(playlist)}
+                    onDelete={() =>
+                      requestDeletePlaylist(playlist.id, playlist.title)
+                    }
                   />
                 ))}
               </div>
@@ -811,8 +1167,10 @@ export default function MyPlaylists() {
                     key={playlist.id}
                     playlist={playlist}
                     onPress={() => handlePlaylistPress(playlist)}
-                    onEdit={() => handleEditPlaylist(playlist.id)}
-                    onDelete={() => handleDeletePlaylist(playlist.id)}
+                    onEdit={() => handleEditPlaylist(playlist)}
+                    onDelete={() =>
+                      requestDeletePlaylist(playlist.id, playlist.title)
+                    }
                   />
                 ))}
               </div>
@@ -822,10 +1180,39 @@ export default function MyPlaylists() {
       </div>
 
       {/* Create Playlist Modal */}
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        title="حذف پلی‌لیست"
+        description={
+          pendingDelete?.title
+            ? `آیا از حذف «${pendingDelete.title}» مطمئن هستید؟ این عمل قابل بازگشت نیست.`
+            : "آیا از حذف این پلی‌لیست مطمئن هستید؟"
+        }
+        confirmLabel="حذف"
+        onConfirm={() => {
+          if (pendingDelete) {
+            performDeletePlaylist(pendingDelete.id);
+            setPendingDelete(null);
+          }
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
+      {/* Create Playlist Modal */}
       <CreatePlaylistModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreatePlaylist}
+      />
+
+      {/* Edit Playlist Modal */}
+      <EditPlaylistModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedPlaylistForEdit(null);
+        }}
+        onEdit={handleUpdatePlaylist}
+        playlist={selectedPlaylistForEdit}
       />
     </div>
   );

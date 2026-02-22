@@ -683,12 +683,7 @@ export default function DesktopProfile() {
             >
               <Icon d={ICONS.settings} className="w-7 h-7 text-white" />
             </button>
-            <button
-              onClick={() => navigateTo("home")}
-              className="w-14 h-14 rounded-2xl bg-black/50 hover:bg-black/70 flex items-center justify-center transition-all duration-300 hover:scale-105 will-change-transform"
-            >
-              <Icon d={ICONS.back} className="w-7 h-7 text-white" />
-            </button>
+            
           </div>
         </div>
       </div>

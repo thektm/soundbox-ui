@@ -92,11 +92,11 @@ export const SongOptionsDrawer = ({
 
       if (actionId === "share") {
         try {
-          const url = getFullShareUrl("song", song.id);
+          const url = getFullShareUrl("song", song.id, song.title);
           if (typeof navigator !== "undefined" && navigator.share) {
             await navigator.share({
               title: song.title,
-              text: `G گوش دادن به ${song.title} از ${song.artist_name} در سداباکس`,
+              text: `گوش دادن به ${song.title} از ${song.artist_name} در سداباکس`,
               url: url,
             });
           } else if (typeof navigator !== "undefined" && navigator.clipboard) {

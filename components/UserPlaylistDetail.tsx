@@ -260,9 +260,13 @@ SongRow.displayName = "SongRow";
 
 interface UserPlaylistDetailProps {
   id: number | string;
+  isOwner?: boolean;
 }
 
-const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({ id }) => {
+const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
+  id,
+  isOwner,
+}) => {
   const { goBack, scrollY } = useNavigation();
   const { accessToken, authenticatedFetch } = useAuth();
   const { setQueue, currentTrack, isPlaying } = usePlayer();

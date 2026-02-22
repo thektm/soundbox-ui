@@ -14,6 +14,9 @@ export default function App({ Component, pageProps }: AppProps) {
     <AppContainer>
       <Toaster
         position="bottom-center"
+        containerStyle={{
+          zIndex: 100000,
+        }}
         toastOptions={{
           duration: 4000,
           style: {

@@ -379,11 +379,11 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
   const handleShare = async () => {
     if (!playlist) return;
     try {
-      const url = getFullShareUrl("playlist", playlist.id);
+      const url = getFullShareUrl("playlist", playlist.id, playlist.title);
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: playlist.title,
-          text: `G گوش دادن به این لیست پخش در سداباکس`,
+          text: `گوش دادن به این لیست پخش در سداباکس`,
           url: url,
         });
       } else if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -398,7 +398,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
   const handleAction = useCallback(async (action: string, song: any) => {
     if (action === "share" && song) {
       try {
-        const url = getFullShareUrl("song", song.id);
+        const url = getFullShareUrl("song", song.id, song.title);
         const text = `گوش دادن به آهنگ ${song.title} از ${song.artist_name} در سداباکس`;
         if (typeof navigator !== "undefined" && navigator.share) {
           await navigator.share({ title: song.title, text, url });

@@ -47,11 +47,11 @@ export const ArtistOptionsDrawer = ({
 
   const handleShare = async () => {
     try {
-      const url = getFullShareUrl("artist", artist.id);
+      const url = getFullShareUrl("artist", artist.id, artist.name);
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: artist.name,
-          text: `G مشاهده هنرمند ${artist.name} در سداباکس`,
+          text: `مشاهده هنرمند ${artist.name} در سداباکس`,
           url: url,
         });
       } else if (typeof navigator !== "undefined" && navigator.clipboard) {

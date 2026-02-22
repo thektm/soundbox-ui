@@ -24,6 +24,7 @@ import {
 import toast from "react-hot-toast";
 import QueueSheet from "./QueueSheet";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
+import { ResponsiveSheet } from "./ResponsiveSheet";
 import { getFullShareUrl } from "../utils/share";
 import { MOCK_ARTISTS, createSlug } from "./mockData";
 import { Sparkles, User, UserRoundCog } from "lucide-react";
@@ -137,6 +138,28 @@ const Icon = {
       strokeWidth={2}
     >
       <path d="M19 9l-7 7-7-7" />
+    </svg>
+  ),
+  ChevronUp: ({ c = "w-4 h-4" }: { c?: string }) => (
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path d="M18 15l-6-6-6 6" />
+    </svg>
+  ),
+  ChevronDown: ({ c = "w-4 h-4" }: { c?: string }) => (
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path d="M6 9l6 6 6-6" />
     </svg>
   ),
   More: ({ c = "w-5 h-5" }: { c?: string }) => (
@@ -593,6 +616,106 @@ const TrackSlide = memo<{
   },
 );
 TrackSlide.displayName = "TrackSlide";
+
+// ============================================================================
+// QUALITY SELECTOR SHEET
+// ============================================================================
+const QualitySelectorSheet = memo<{
+  isOpen: boolean;
+  onClose: () => void;
+  currentQuality: string;
+  onSelect: (q: "medium" | "high") => void;
+  isPremium: boolean;
+}>(({ isOpen, onClose, currentQuality, onSelect, isPremium }) => {
+  const qualities = [
+    { value: "medium", label: "متوسط", description: "160 kbps - توصیه شده" },
+    {
+      value: "high",
+      label: "بالا",
+      description: "320 kbps - کیفیت عالی (مخصوص پریمیوم)",
+    },
+  ];
+
+  return (
+    <ResponsiveSheet
+      keyboardDismiss={true}
+      isOpen={isOpen}
+      onClose={onClose}
+      desktopWidth="w-[450px]"
+    >
+      <div className="p-6 h-full flex flex-col" dir="rtl">
+        <div className="flex items-center justify-between mb-6 flex-shrink-0">
+          <h3 className="text-xl font-bold text-white">کیفیت پخش</h3>
+          <button
+            onClick={onClose}
+            className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hidden md:block"
+          >
+            <Icon.Close c="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-2 mb-6 flex-1 overflow-y-auto">
+          {qualities.map((q) => {
+            const locked = q.value === "high" && !isPremium;
+            return (
+              <div key={q.value} className="relative">
+                <button
+                  onClick={() => {
+                    if (locked) return;
+                    onSelect(q.value as "medium" | "high");
+                    onClose();
+                  }}
+                  aria-disabled={locked}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all group ${
+                    currentQuality === q.value
+                      ? "bg-emerald-500/10 border-emerald-500/50 shadow-inner shadow-emerald-500/5"
+                      : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
+                  } ${locked ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  <div className="text-right flex-1">
+                    <div
+                      className={`font-medium transition-colors ${
+                        currentQuality === q.value
+                          ? "text-emerald-400"
+                          : "text-white"
+                      }`}
+                    >
+                      {q.label}
+                    </div>
+                    <div className="text-xs text-neutral-400 mt-1">
+                      {q.description}
+                    </div>
+                  </div>
+                  {currentQuality === q.value && (
+                    <div className="w-5 h-5 flex items-center justify-center text-emerald-400">
+                      <svg
+                        className="w-5 h-5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={3}
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+                {locked && (
+                  <div className="absolute inset-0 flex items-center justify-end pr-4 pointer-events-none">
+                    <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/30 font-medium">
+                      Premium
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </ResponsiveSheet>
+  );
+});
+QualitySelectorSheet.displayName = "QualitySelectorSheet";
 
 // ============================================================================
 // ACTION PREVIEW COMPONENT
@@ -1092,6 +1215,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
     toggleLike,
     isAdPlaying,
     currentAd,
+    shuffleQueue,
   } = usePlayer();
 
   const [dragX, setDragX] = useState(0);
@@ -1424,21 +1548,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
               >
                 <Icon.Next c="w-5 h-5" />
               </button>
-              <button
-                onClick={cycleRepeat}
-                disabled={isAdPlaying}
-                className={`p-2 transition-colors ${
-                  repeatMode !== "off"
-                    ? "text-emerald-500"
-                    : "text-zinc-400 hover:text-white"
-                } disabled:opacity-30`}
-              >
-                {repeatMode === "one" ? (
-                  <Icon.RepeatOne c="w-4 h-4" />
-                ) : (
-                  <Icon.Repeat c="w-4 h-4" />
-                )}
-              </button>
+              {/* Single dynamic button above handles shuffle/repeat display and actions; duplicate repeat button removed */}
             </div>
             <div className="w-full flex items-center gap-2">
               <span className="text-xs text-zinc-400 w-10 text-right tabular-nums">
@@ -1532,6 +1642,7 @@ const DesktopExpandedPlayer = memo<{
     playTrack,
     queue,
     currentIndex,
+    reorderQueue,
     isLiked,
     likesCount,
     isLiking,
@@ -1540,13 +1651,19 @@ const DesktopExpandedPlayer = memo<{
     download,
     isAdPlaying,
     currentAd,
+    shuffleQueue,
+    quality,
+    setQuality,
   } = usePlayer();
+
+  const { updateStreamQuality, formatErrorMessage } = useAuth();
 
   const isPremium =
     !!userPlan && String(userPlan).toLowerCase().includes("premium");
   const isFree = userPlan === "free";
 
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
+  const [isQualitySheetOpen, setIsQualitySheetOpen] = useState(false);
   const [addSongId, setAddSongId] = useState<string | number | null>(null);
 
   const [activeTab, setActiveTab] = useState<"queue" | "lyrics" | "related">(
@@ -1682,13 +1799,19 @@ const DesktopExpandedPlayer = memo<{
     try {
       if (!displayTrack) return;
       const id = (displayTrack.id as any) ?? "";
-      const url = getFullShareUrl(type === "song" ? "song" : "artist", id);
+      const name = type === "song" ? displayTrack.title : displayTrack.artist;
+      const url = getFullShareUrl(
+        type === "song" ? "song" : "artist",
+        id,
+        name,
+      );
 
+      const shareText = `گوش دادن به ${displayTrack.title || "آهنگ"} از ${displayTrack.artist || "هنرمند"} در سداباکس`;
       if (typeof navigator !== "undefined" && (navigator as any).share) {
         try {
           await (navigator as any).share({
             title: displayTrack.title || displayTrack.artist || "SedaBox",
-            text: `G گوش دادن به ${displayTrack.title || "آهنگ"} از ${displayTrack.artist || "هنرمند"} در سداباکس`,
+            text: shareText,
             url,
           });
           setIsShareMenuOpen(false);
@@ -2103,6 +2226,72 @@ const DesktopExpandedPlayer = memo<{
                       <span className="text-xs text-neutral-500 tabular-nums">
                         {track.duration}
                       </span>
+
+                      <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isAdPlaying || i === 0) return;
+                            const newQueue = [...queue];
+                            const items = newQueue.splice(i, 1);
+                            newQueue.splice(i - 1, 0, items[0]);
+                            reorderQueue(newQueue);
+                          }}
+                          disabled={i === 0}
+                          aria-label="move up"
+                          title="move up"
+                          className={`p-1 rounded-md hover:bg-white/10 transition-colors ${
+                            i === 0
+                              ? "opacity-30 cursor-not-allowed"
+                              : "text-neutral-400"
+                          }`}
+                        >
+                          <Icon.ChevronUp c="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isAdPlaying || i === queue.length - 1) return;
+                            const newQueue = [...queue];
+                            const items = newQueue.splice(i, 1);
+                            newQueue.splice(i + 1, 0, items[0]);
+                            reorderQueue(newQueue);
+                          }}
+                          disabled={i === queue.length - 1}
+                          aria-label="move down"
+                          title="move down"
+                          className={`p-1 rounded-md hover:bg-white/10 transition-colors ${
+                            i === queue.length - 1
+                              ? "opacity-30 cursor-not-allowed"
+                              : "text-neutral-400"
+                          }`}
+                        >
+                          <Icon.ChevronDown c="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isAdPlaying) return;
+                            const newQueue = queue.filter((_, j) => j !== i);
+                            reorderQueue(newQueue);
+                          }}
+                          aria-label="delete"
+                          title="حذف از صف"
+                          className="p-1 rounded-md hover:bg-red-600/10 text-red-400"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path d="M3 6h18M8 6v12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6M10 6V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </div>
                     </motion.div>
                   ))}
                 </div>
@@ -2213,6 +2402,29 @@ const DesktopExpandedPlayer = memo<{
         onClose={() => setIsAddToPlaylistOpen(false)}
         songId={addSongId ?? (displayTrack ? (displayTrack.id as any) : "")}
       />
+      <QualitySelectorSheet
+        isOpen={isQualitySheetOpen}
+        onClose={() => setIsQualitySheetOpen(false)}
+        currentQuality={quality}
+        isPremium={isPremium}
+        onSelect={async (q) => {
+          if (q === "high" && !isPremium) {
+            toast.error("کیفیت ۳۲۰ فقط برای کاربران ویژه فعال است.");
+            return;
+          }
+
+          const tid = toast.loading("در حال تغییر کیفیت پخش...");
+          try {
+            await updateStreamQuality(q);
+            toast.success("کیفیت پخش تغییر یافت", { id: tid });
+            setQuality(q);
+          } catch (err: any) {
+            toast.error(formatErrorMessage(err) || "خطا در تغییر کیفیت پخش", {
+              id: tid,
+            });
+          }
+        }}
+      />
       {/* Desktop fixed menus (positioned at mouse click) */}
       <AnimatePresence>
         {isMenuOpenDesktop && (
@@ -2281,6 +2493,30 @@ const DesktopExpandedPlayer = memo<{
               >
                 <Icon.Queue c="w-5 h-5" />
                 نمایش صف پخش
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsMenuOpenDesktop(false);
+                  shuffleQueue();
+                }}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3 font-medium"
+                dir="rtl"
+              >
+                <Icon.Shuffle c="w-5 h-5 text-emerald-400" />
+                مخلوط کردن صف پخش (shuffle)
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsMenuOpenDesktop(false);
+                  setIsQualitySheetOpen(true);
+                }}
+                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                dir="rtl"
+              >
+                <Icon.Volume c="w-5 h-5" />
+                تغییر کیفیت پخش
               </button>
 
               <button
@@ -2386,11 +2622,21 @@ const MobileExpandedPlayer = memo<{
     download,
     isAdPlaying,
     currentAd,
+    shuffleQueue,
+    quality,
+    setQuality,
   } = usePlayer();
+  const { updateStreamQuality, formatErrorMessage } = useAuth();
 
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isQualitySheetOpen, setIsQualitySheetOpen] = useState(false);
   const [showLyricsOverlay, setShowLyricsOverlay] = useState(false);
+  const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
+  const [addSongId, setAddSongId] = useState<string | number | null>(null);
+
+  const isPremium =
+    !!userPlan && String(userPlan).toLowerCase().includes("premium");
 
   const displayTrack = useMemo(() => {
     if (isAdPlaying && currentAd) {
@@ -2443,8 +2689,6 @@ const MobileExpandedPlayer = memo<{
   if (!displayTrack) return null;
 
   const isFree = userPlan === "free";
-  const isPremium =
-    !!userPlan && String(userPlan).toLowerCase().includes("premium");
 
   return (
     <motion.div
@@ -2724,6 +2968,18 @@ const MobileExpandedPlayer = memo<{
                 </button>
                 <button
                   onClick={() => {
+                    setIsMenuOpen(false);
+                    setAddSongId(displayTrack.id);
+                    setIsAddToPlaylistOpen(true);
+                  }}
+                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
+                  dir="rtl"
+                >
+                  <Icon.Add c="w-5 h-5" />
+                  افزودن به پلی‌لیست
+                </button>
+                <button
+                  onClick={() => {
                     if (!isPremium) return;
                     setIsMenuOpen(false);
                     if (currentTrack) download(currentTrack);
@@ -2788,7 +3044,18 @@ const MobileExpandedPlayer = memo<{
                 <button
                   onClick={() => {
                     setIsMenuOpen(false);
-                    cycleQuality();
+                    shuffleQueue();
+                  }}
+                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3 font-medium text-emerald-400"
+                  dir="rtl"
+                >
+                  <Icon.Shuffle c="w-5 h-5" />
+                  مخلوط کردن صف پخش (shuffle)
+                </button>
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsQualitySheetOpen(true);
                   }}
                   className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
                   dir="rtl"
@@ -2800,6 +3067,36 @@ const MobileExpandedPlayer = memo<{
             </motion.div>
           )}
         </AnimatePresence>
+
+        <QualitySelectorSheet
+          isOpen={isQualitySheetOpen}
+          onClose={() => setIsQualitySheetOpen(false)}
+          currentQuality={quality}
+          isPremium={isPremium}
+          onSelect={async (q) => {
+            if (q === "high" && !isPremium) {
+              toast.error("کیفیت ۳۲۰ فقط برای کاربران ویژه فعال است.");
+              return;
+            }
+
+            const tid = toast.loading("در حال تغییر کیفیت پخش...");
+            try {
+              await updateStreamQuality(q);
+              toast.success("کیفیت پخش تغییر یافت", { id: tid });
+              setQuality(q);
+            } catch (err: any) {
+              toast.error(formatErrorMessage(err) || "خطا در تغییر کیفیت پخش", {
+                id: tid,
+              });
+            }
+          }}
+        />
+
+        <AddToPlaylistModal
+          isOpen={isAddToPlaylistOpen}
+          onClose={() => setIsAddToPlaylistOpen(false)}
+          songId={addSongId ?? (displayTrack ? (displayTrack.id as any) : "")}
+        />
       </motion.div>
     </motion.div>
   );

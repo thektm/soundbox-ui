@@ -8,6 +8,7 @@ import React, {
   useLayoutEffect,
 } from "react";
 import { Drawer } from "vaul";
+import { motion, AnimatePresence } from "framer-motion";
 import { usePlayer, Track } from "./PlayerContext";
 
 // ============================================================================
@@ -59,13 +60,35 @@ const Icon = {
       <path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01" />
     </svg>
   ),
+  ChevronUp: ({ c = "w-4 h-4" }: { c?: string }) => (
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path d="M18 15l-6-6-6 6" />
+    </svg>
+  ),
+  ChevronDown: ({ c = "w-4 h-4" }: { c?: string }) => (
+    <svg
+      className={c}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  ),
 };
 
 // ============================================================================
 // PLAYING BARS ANIMATION
 // ============================================================================
 const PlayingBars = memo(() => (
-  <div className="flex items-end gap-[2px] h-3">
+  <div className="flex items-end gap-0.5 h-3">
     {[0, 1, 2].map((i) => (
       <div
         key={i}
@@ -83,27 +106,54 @@ PlayingBars.displayName = "PlayingBars";
 interface QueueTrackProps {
   track: Track;
   index: number;
+  totalTracks: number;
   isCurrentTrack: boolean;
   isPlaying: boolean;
   isAdPlaying: boolean;
   onPlay: (track: Track) => void;
+  onMoveUp: (index: number) => void;
+  onMoveDown: (index: number) => void;
+  onDelete: (index: number) => void;
 }
 
 const QueueTrack = memo<QueueTrackProps>(
-  ({ track, index, isCurrentTrack, isPlaying, isAdPlaying, onPlay }) => {
+  ({
+    track,
+    index,
+    totalTracks,
+    isCurrentTrack,
+    isPlaying,
+    isAdPlaying,
+    onPlay,
+    onMoveUp,
+    onMoveDown,
+    onDelete,
+  }) => {
     return (
-      <div
-        onClick={() => !isAdPlaying && onPlay(track)}
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{
+          duration: 0.2,
+          type: "spring",
+          stiffness: 300,
+          damping: 30,
+        }}
         className={`group flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${
           isCurrentTrack
             ? "bg-emerald-500/20 border border-emerald-500/30"
             : isAdPlaying
               ? "opacity-50 cursor-not-allowed"
-              : "hover:bg-white/5 active:bg-white/10 cursor-pointer"
+              : "hover:bg-white/5 active:bg-white/10"
         }`}
       >
         {/* Track Number / Playing Indicator */}
-        <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+        <div
+          className="w-8 h-8 flex items-center justify-center flex-shrink-0 cursor-pointer"
+          onClick={() => !isAdPlaying && onPlay(track)}
+        >
           {isCurrentTrack && isPlaying ? (
             <PlayingBars />
           ) : isCurrentTrack ? (
@@ -123,7 +173,10 @@ const QueueTrack = memo<QueueTrackProps>(
         </div>
 
         {/* Album Art */}
-        <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 shadow-lg">
+        <div
+          className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 shadow-lg cursor-pointer"
+          onClick={() => !isAdPlaying && onPlay(track)}
+        >
           <img
             src={track.image}
             alt={track.title}
@@ -136,7 +189,11 @@ const QueueTrack = memo<QueueTrackProps>(
         </div>
 
         {/* Track Info */}
-        <div className="flex-1 min-w-0" dir="rtl">
+        <div
+          className="flex-1 min-w-0 cursor-pointer"
+          dir="rtl"
+          onClick={() => !isAdPlaying && onPlay(track)}
+        >
           <h4
             className={`text-sm font-semibold truncate ${
               isCurrentTrack ? "text-emerald-400" : "text-white"
@@ -149,13 +206,63 @@ const QueueTrack = memo<QueueTrackProps>(
           </p>
         </div>
 
-        {/* Duration */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Duration & Movement Controls */}
+        <div className="flex items-center gap-3 flex-shrink-0">
           <span className="text-xs text-neutral-500 tabular-nums">
             {track.duration}
           </span>
+
+          <div className="flex flex-col gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveUp(index);
+              }}
+              disabled={index === 0}
+              className={`p-1 rounded-md hover:bg-white/10 transition-colors ${
+                index === 0
+                  ? "opacity-20 cursor-not-allowed"
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              <Icon.ChevronUp c="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveDown(index);
+              }}
+              disabled={index === totalTracks - 1}
+              className={`p-1 rounded-md hover:bg-white/10 transition-colors ${
+                index === totalTracks - 1
+                  ? "opacity-20 cursor-not-allowed"
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              <Icon.ChevronDown c="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isAdPlaying) onDelete(index);
+            }}
+            className=" -mx-1 rounded-md hover:bg-red-600/20 text-red-400 "
+            aria-label="حذف از صف"
+            title="حذف از صف"
+          >
+            <svg
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path d="M3 6h18M8 6v12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6M10 6V4a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v2" />
+            </svg>
+          </button>
         </div>
-      </div>
+      </motion.div>
     );
   },
 );
@@ -177,6 +284,8 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
     isPlaying,
     playTrack,
     isAdPlaying,
+    reorderQueue,
+    shuffleQueue,
   } = usePlayer();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -189,6 +298,28 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
   const previousTracks = useMemo(
     () => queue.slice(0, currentIndex),
     [queue, currentIndex],
+  );
+
+  const handleMoveUp = useCallback(
+    (index: number) => {
+      if (index <= 0) return;
+      const newQueue = [...queue];
+      const items = newQueue.splice(index, 1);
+      newQueue.splice(index - 1, 0, items[0]);
+      reorderQueue(newQueue);
+    },
+    [queue, reorderQueue],
+  );
+
+  const handleMoveDown = useCallback(
+    (index: number) => {
+      if (index >= queue.length - 1) return;
+      const newQueue = [...queue];
+      const items = newQueue.splice(index, 1);
+      newQueue.splice(index + 1, 0, items[0]);
+      reorderQueue(newQueue);
+    },
+    [queue, reorderQueue],
   );
 
   // Scroll to current track when sheet opens
@@ -233,11 +364,9 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
           <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-3 mb-2" />
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 flex-shrink-0">
+          <div className="flex flex-row-reverse items-center justify-between px-5 py-3 border-b border-white/5 flex-shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <Icon.MusicNote c="w-5 h-5 text-emerald-400" />
-              </div>
+              
               <div dir="rtl">
                 <Drawer.Title className="text-lg font-bold text-white">
                   صف پخش
@@ -245,6 +374,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
                 <Drawer.Description className="text-xs text-neutral-400">
                   {queue.length} آهنگ
                 </Drawer.Description>
+                
               </div>
             </div>
             <button
@@ -260,107 +390,46 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
             ref={scrollRef}
             className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 pb-24 space-y-6"
           >
-            {/* Now Playing Section */}
-            {nowPlaying && (
-              <div>
-                <div className="flex items-center gap-2 px-2 mb-3" dir="rtl">
-                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                  <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">
-                    {isAdPlaying ? "تبلیغات" : "در حال پخش"}
-                  </h3>
-                </div>
-                <div data-index={currentIndex}>
-                  <QueueTrack
-                    track={nowPlaying}
-                    index={currentIndex}
-                    isCurrentTrack={true}
-                    isPlaying={isPlaying}
-                    isAdPlaying={isAdPlaying}
-                    onPlay={handleTrackPlay}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Up Next Section */}
-            {upNext.length > 0 && (
-              <div>
+            <AnimatePresence initial={false} mode="popLayout">
+              {queue.length === 0 ? (
                 <div
-                  className="flex items-center gap-2 px-2 mb-3 mt-6"
-                  dir="rtl"
+                  key="empty-state"
+                  className="flex flex-col items-center justify-center py-16 text-center"
                 >
-                  <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">
-                    بعدی در صف
+                  <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center mb-4">
+                    <Icon.MusicNote c="w-10 h-10 text-neutral-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-neutral-400 mb-2">
+                    صف پخش خالی است
                   </h3>
-                  <span className="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full">
-                    {upNext.length}
-                  </span>
+                  <p className="text-sm text-neutral-500">
+                    آهنگی برای پخش انتخاب کنید
+                  </p>
                 </div>
+              ) : (
                 <div className="space-y-1">
-                  {upNext.map((track, idx) => {
-                    const actualIndex = currentIndex + 1 + idx;
-                    return (
-                      <div key={track.id} data-index={actualIndex}>
-                        <QueueTrack
-                          track={track}
-                          index={actualIndex}
-                          isCurrentTrack={false}
-                          isPlaying={false}
-                          isAdPlaying={isAdPlaying}
-                          onPlay={handleTrackPlay}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Previously Played Section */}
-            {previousTracks.length > 0 && (
-              <div>
-                <div
-                  className="flex items-center gap-2 px-2 mb-3 mt-6"
-                  dir="rtl"
-                >
-                  <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider">
-                    موارد قبلی لیست
-                  </h3>
-                  <span className="text-xs text-neutral-600 bg-neutral-800/50 px-2 py-0.5 rounded-full">
-                    {previousTracks.length}
-                  </span>
-                </div>
-                <div className="space-y-1 opacity-60">
-                  {previousTracks.map((track, idx) => (
+                  {queue.map((track, idx) => (
                     <div key={track.id} data-index={idx}>
                       <QueueTrack
                         track={track}
                         index={idx}
-                        isCurrentTrack={false}
-                        isPlaying={false}
+                        totalTracks={queue.length}
+                        isCurrentTrack={idx === currentIndex}
+                        isPlaying={idx === currentIndex ? isPlaying : false}
                         isAdPlaying={isAdPlaying}
                         onPlay={handleTrackPlay}
+                        onMoveUp={handleMoveUp}
+                        onMoveDown={handleMoveDown}
+                        onDelete={(i) => {
+                          const newQueue = queue.filter((_, j) => j !== i);
+                          reorderQueue(newQueue);
+                        }}
                       />
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Empty State */}
-            {queue.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center mb-4">
-                  <Icon.MusicNote c="w-10 h-10 text-neutral-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-neutral-400 mb-2">
-                  صف پخش خالی است
-                </h3>
-                <p className="text-sm text-neutral-500">
-                  آهنگی برای پخش انتخاب کنید
-                </p>
-              </div>
-            )}
+              )}
+            </AnimatePresence>
 
             {/* Bottom Safe Area */}
             <div className="h-safe-area-inset-bottom bg-neutral-950" />
