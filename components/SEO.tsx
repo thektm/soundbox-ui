@@ -29,6 +29,18 @@ export const SEO: React.FC<SEOProps> = ({
 }) => {
   const fullTitle = title ? `${title} | ${DEFAULT_TITLE}` : DEFAULT_TITLE;
 
+  // Ensure image URLs are absolute (required by many crawlers/social cards)
+  const resolvedImageUrl =
+    typeof window === "undefined"
+      ? // server: use canonical/default host
+        imageUrl && imageUrl.startsWith("http")
+        ? imageUrl
+        : `${DEFAULT_URL}${imageUrl.startsWith("/") ? imageUrl : "/" + imageUrl}`
+      : // client: can use origin when available
+        imageUrl && imageUrl.startsWith("http")
+        ? imageUrl
+        : `${window.location.origin}${imageUrl.startsWith("/") ? imageUrl : "/" + imageUrl}`;
+
   return (
     <Head>
       <title>{fullTitle}</title>
@@ -42,7 +54,7 @@ export const SEO: React.FC<SEOProps> = ({
       <meta property="og:type" content={type} />
       <meta property="og:title" content={fullTitle} />
       <meta property="og:description" content={description} />
-      <meta property="og:image" content={imageUrl} />
+      <meta property="og:image" content={resolvedImageUrl} />
       <meta property="og:url" content={canonicalUrl || DEFAULT_URL} />
       <meta property="og:site_name" content={DEFAULT_TITLE} />
 
@@ -50,7 +62,7 @@ export const SEO: React.FC<SEOProps> = ({
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />
-      <meta name="twitter:image" content={imageUrl} />
+      <meta name="twitter:image" content={resolvedImageUrl} />
 
       {/* Dynamic Canonical Link */}
       {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}

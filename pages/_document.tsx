@@ -12,11 +12,16 @@ export default function Document() {
         />
         <link rel="dns-prefetch" href="https://cdn.sedabox.com" />
 
-        {/* Icons and favicon */}
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        {/* Icons and favicon - prefer PNG logo first so modern browsers pick it up */}
+        <link rel="icon" href="/logo.png" type="image/png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/logo.png" />
-        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/logo.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
+        <link rel="mask-icon" href="/logo.png" color="#1db954" />
+        <meta name="msapplication-TileImage" content="/logo.png" />
         <link rel="manifest" href="/manifest.json" />
+        {/* Fallback legacy ICO last */}
+        <link rel="shortcut icon" href="/favicon.ico" />
 
         {/* Essential Viewport Meta Tag for Mobile devices */}
         <meta
