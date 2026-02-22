@@ -13,14 +13,18 @@ import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { usePlayer } from "./PlayerContext";
 import { toast } from "react-hot-toast";
+import { slugify } from "../utils/share";
 
 interface UserPlaylist {
   id: number;
+  unique_id?: string;
   title: string;
   songs_count: number;
   likes_count: number;
   is_liked: boolean;
   top_three_song_covers: string[];
+  generated_by?: "system" | "admin" | "audience";
+  creator_unique_id?: string | null;
 }
 
 interface UserProfile {
@@ -1018,11 +1022,28 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                   key={playlist.id}
                   playlist={playlist}
                   index={index}
-                  onClick={() =>
-                    navigateTo("user-playlist-detail", {
-                      id: String(playlist.id),
-                    })
-                  }
+                  onClick={() => {
+                    if (uniqueId === "sedabox") {
+                      // Official sedabox playlists navigate to public playlist detail
+                      const isSystemGenerated =
+                        playlist.generated_by === "system";
+                      const idToUse = isSystemGenerated
+                        ? playlist.unique_id || String(playlist.id)
+                        : String(playlist.id);
+
+                      navigateTo("playlist-detail", {
+                        id: idToUse,
+                        generatedBy: playlist.generated_by,
+                        creatorUniqueId: playlist.creator_unique_id,
+                        slug: slugify(playlist.title),
+                      });
+                    } else {
+                      // Standard user playlist navigation
+                      navigateTo("user-playlist-detail", {
+                        id: String(playlist.id),
+                      });
+                    }
+                  }}
                 />
               ),
             )}
