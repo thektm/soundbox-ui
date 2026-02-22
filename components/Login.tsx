@@ -173,10 +173,11 @@ const Login: React.FC = () => {
           <div className="mb-12 text-center lg:text-right" dir="rtl">
             <div className="flex items-center justify-center lg:justify-start gap-2 mb-4 group cursor-default"></div>
             <h2 className="text-4xl font-medium text-white mb-3 leading-tight">
-              خوش آمدید
+              خوش آمدید{" "}
+              <span className="text-sm text-emerald-400 mr-3">صداباکس</span>
             </h2>
             <p className="text-gray-400 text-sm leading-relaxed">
-              برای دسترسی به دنیای موسیقی، شماره همراه خود را وارد کنید.
+              برای دسترسی به صداباکس، شماره همراه خود را وارد کنید.
               <br />
               <span className="text-xs text-gray-600">
                 فقط یک بار ورود کافیست.

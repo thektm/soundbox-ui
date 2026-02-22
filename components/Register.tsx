@@ -29,6 +29,54 @@ const Register: React.FC = () => {
     setPhone(clean.slice(0, 9));
   };
 
+  // Translate server / raw error messages to Persian-friendly text
+  const translateError = (raw: string | null | undefined) => {
+    const msg = String(raw || "").trim();
+    if (!msg) return "خطایی رخ داد. لطفاً دوباره تلاش کنید.";
+    const lower = msg.toLowerCase();
+
+    // common phone already registered patterns
+    if (
+      lower.includes("phone") &&
+      (lower.includes("registered") ||
+        lower.includes("already") ||
+        lower.includes("exists"))
+    ) {
+      return "این شماره قبلاً ثبت شده است. اگر شماره‌ی شماست، لطفاً وارد شوید یا بازیابی رمز عبور را انجام دهید.";
+    }
+
+    // invalid phone
+    if (lower.includes("invalid") && lower.includes("phone")) {
+      return "شماره همراه نامعتبر است.";
+    }
+
+    // password related
+    if (
+      lower.includes("password") &&
+      (lower.includes("short") ||
+        lower.includes("weak") ||
+        lower.includes("too short"))
+    ) {
+      return "رمز عبور کوتاه یا ناامن است. یک رمز قوی‌تر انتخاب کنید.";
+    }
+
+    // network issues
+    if (
+      lower.includes("network") ||
+      lower.includes("failed to fetch") ||
+      lower.includes("timeout")
+    ) {
+      return "خطا در اتصال شبکه. اتصال اینترنت خود را بررسی کنید.";
+    }
+
+    // if the message already contains Persian, return it as-is
+    if (/[آ-ی]/.test(msg)) return msg;
+
+    // fallback generic Persian message
+    console.debug("Server error (raw):", msg);
+    return "خطایی رخ داد. لطفاً دوباره تلاش کنید.";
+  };
+
   const handleRegister = () => {
     if (!phone || !password) return;
     setError(null);
@@ -43,9 +91,10 @@ const Register: React.FC = () => {
         return "کد تایید برای شما ارسال شد";
       },
       error: (e) => {
-        const msg = formatErrorMessage(e);
-        setError(msg);
-        return msg;
+        const raw = formatErrorMessage(e);
+        const tr = translateError(raw);
+        setError(tr);
+        return tr;
       },
     });
 
@@ -89,11 +138,11 @@ const Register: React.FC = () => {
           <div className="mb-12 text-center lg:text-right" dir="rtl">
             <div className="flex items-center justify-center lg:justify-start gap-2 mb-4 group cursor-default"></div>
             <h2 className="text-4xl font-medium text-white mb-3 leading-tight">
-              ثبت نام
+              ثبت نام{" "}
+              <span className="text-sm text-emerald-400 mr-3">صداباکس</span>
             </h2>
             <p className="text-gray-400 text-sm leading-relaxed">
-              برای دسترسی به دنیای موسیقی، شماره همراه و رمز عبور خود را وارد
-              کنید.
+              برای دسترسی به صداباکس، شماره همراه و رمز عبور خود را وارد کنید.
             </p>
           </div>
 
@@ -158,7 +207,16 @@ const Register: React.FC = () => {
                   <input
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) =>
+                      setPassword(e.target.value.replace(/\s/g, ""))
+                    }
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const paste = (
+                        e.clipboardData?.getData("text") || ""
+                      ).replace(/\s/g, "");
+                      setPassword((prev) => (prev || "") + paste);
+                    }}
                     className="w-full h-14 bg-transparent text-white text-lg px-4 focus:outline-none placeholder-white/10"
                     placeholder="رمز عبور خود را وارد کنید"
                     required

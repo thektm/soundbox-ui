@@ -438,7 +438,7 @@ const ProgressBar = memo<ProgressProps>(
                   />
 
                   <div
-                    className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20"
                     style={knobStyle}
                   />
                 </>
@@ -1574,16 +1574,15 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                     transformOrigin: "left center",
                     width: `${duration > 0 ? (progress / duration) * 100 : 0}%`,
                   }}
-                >
-                  {!isAdPlaying && (
-                    <div
-                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      style={{
-                        left: `${duration > 0 ? (progress / duration) * 100 : 0}%`,
-                      }}
-                    />
-                  )}
-                </div>
+                />
+                {!isAdPlaying && (
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{
+                      left: `${duration > 0 ? (progress / duration) * 100 : 0}%`,
+                    }}
+                  />
+                )}
               </div>
               <span className="text-xs text-zinc-400 w-10 tabular-nums">
                 {formatTime(duration)}

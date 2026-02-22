@@ -17,6 +17,7 @@ import { toast } from "react-hot-toast";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getFullShareUrl } from "../utils/share";
 import { createSlug } from "./mockData";
+import { SEO } from "./SEO";
 
 // ============ TYPES & MOCKS ============
 interface Song {
@@ -88,6 +89,8 @@ interface EventPlaylist {
   title: string;
   description: string;
   cover_image: string;
+  generated_by?: "system" | "admin" | "audience";
+  creator_unique_id?: string | null;
 }
 
 interface EventPlaylistEntry {
@@ -519,7 +522,16 @@ const SongCard = memo(
 
     return (
       <div
-        className="group flex items-center gap-3 p-2 rounded-md hover:bg-[#ffffff14] transition-all duration-200 cursor-pointer"
+        role="button"
+        tabIndex={0}
+        aria-label={`پخش ${song.title} از ${song.artist}`}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onPlay();
+          }
+        }}
+        className="group flex items-center gap-3 p-2 rounded-md hover:bg-[#ffffff14] focus-visible:bg-[#ffffff14] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white transition-all duration-200 cursor-pointer"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={onPlay}
@@ -533,33 +545,37 @@ const SongCard = memo(
           />
           {isHovered && (
             <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">
-              <button className="w-8 h-8 bg-[#1db954] rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-xl">
+              <div
+                className="w-8 h-8 bg-[#1db954] rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-xl"
+                aria-hidden="true"
+              >
                 <ICONS.Play className="w-4 h-4 text-black ml-0.5" />
-              </button>
+              </div>
             </div>
           )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center">
-            <span className="text-white font-normal truncate hover:underline">
+            <span className="text-white font-normal truncate">
               {song.title}
             </span>
             {song.explicit && (
-              <span className="inline-flex items-center justify-center w-4 h-4 bg-[#9b9b9b] text-black text-[9px] font-bold rounded-sm ml-2">
+              <span
+                className="inline-flex items-center justify-center w-4 h-4 bg-[#9b9b9b] text-black text-[9px] font-bold rounded-sm ml-2"
+                aria-label="Explicit"
+              >
                 E
               </span>
             )}
           </div>
           <div className="flex items-center text-sm text-[#a7a7a7]">
-            <span className="truncate hover:underline hover:text-white">
-              {song.artist}
-            </span>
+            <span className="truncate">{song.artist}</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
           {song.plays !== undefined && song.plays > 0 && (
             <span className="text-sm text-[#a7a7a7]">
-              <ICONS.Play className="inline w-3 h-3 mr-1" />{" "}
+              <ICONS.Play className="inline w-3 h-3 mr-1" aria-hidden="true" />{" "}
               {song.plays.toLocaleString()}
             </span>
           )}
@@ -572,9 +588,10 @@ const SongCard = memo(
               e.stopPropagation();
               onMore(song);
             }}
-            className="p-1 text-[#a7a7a7] hover:text-white"
+            className="p-1 text-[#a7a7a7] hover:text-white focus-visible:text-white outline-none"
+            aria-label={`گزینه‌های بیشتر برای ${song.title}`}
           >
-            <ICONS.More />
+            <ICONS.More aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -597,12 +614,13 @@ const ArtistCard = memo(
     isFollowLoading: boolean;
   }) => {
     return (
-      <div
+      <button
         onClick={onClick}
-        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer h-full flex flex-col items-center text-center"
+        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] focus-visible:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300 cursor-pointer h-full flex flex-col items-center text-center w-full"
+        aria-label={`مشاهده هنرمند ${artist.name}`}
       >
         <div className="relative mb-4 w-full aspect-square px-2">
-          <div className="w-full h-full rounded-full overflow-hidden shadow-2xl bg-zinc-800">
+          <div className="w-full h-full rounded-full overflow-hidden shadow-2xl bg-zinc-800 relative">
             <ImageWithPlaceholder
               src={artist.image}
               alt={artist.name}
@@ -610,13 +628,21 @@ const ArtistCard = memo(
               type="artist"
             />
           </div>
+          {artist.verified && (
+            <div
+              aria-hidden
+              className="absolute left-1/2 bottom-2 -translate-x-1/2"
+              style={{ width: "30%", aspectRatio: "1 / 1" }}
+            >
+              <ICONS.Verified className="w-full h-full" />
+            </div>
+          )}
         </div>
         <div className="flex flex-col items-center gap-1 mb-3 w-full px-2">
           <div className="flex items-center gap-1 justify-center w-full">
             <span className="font-bold text-white truncate max-w-full">
               {artist.name}
             </span>
-            {artist.verified && <ICONS.Verified className="shrink-0" />}
           </div>
           <div className="text-sm text-[#a7a7a7]">
             هنرمند • {artist.followers} دنبال‌کننده
@@ -629,11 +655,12 @@ const ArtistCard = memo(
               e.stopPropagation();
               onFollow(artist.id, isFollowing);
             }}
-            className={`w-full py-2.5 rounded-full text-sm font-bold transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center min-h-[40px] ${
+            className={`w-full py-2.5 rounded-full text-sm font-bold transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center min-h-[40px] focus-visible:ring-2 focus-visible:ring-white outline-none ${
               isFollowing
                 ? "bg-[#1db954] text-black hover:bg-[#1ed760]"
                 : "bg-white text-black hover:bg-zinc-200"
             } ${isFollowLoading ? "opacity-75 cursor-not-allowed" : ""}`}
+            aria-label={isFollowing ? "لغو دنبال کردن" : "دنبال کردن"}
           >
             {isFollowLoading ? (
               <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
@@ -644,7 +671,7 @@ const ArtistCard = memo(
             )}
           </button>
         </div>
-      </div>
+      </button>
     );
   },
 );
@@ -652,9 +679,10 @@ const ArtistCard = memo(
 const UserCard = memo(
   ({ user, onClick }: { user: User; onClick: () => void }) => {
     return (
-      <div
+      <button
         onClick={onClick}
-        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer h-full flex flex-col items-center text-center"
+        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] focus-visible:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300 cursor-pointer h-full flex flex-col items-center text-center w-full"
+        aria-label={`مشاهده پروفایل ${user.username}`}
       >
         <div className="relative mb-4 w-full aspect-square px-2">
           <div className="w-full h-full rounded-full overflow-hidden shadow-2xl bg-zinc-800 relative">
@@ -698,7 +726,7 @@ const UserCard = memo(
             کاربر
           </div>
         </div>
-      </div>
+      </button>
     );
   },
 );
@@ -706,9 +734,10 @@ const UserCard = memo(
 const AlbumCard = memo(
   ({ album, onClick }: { album: Album; onClick: () => void }) => {
     return (
-      <div
+      <button
         onClick={onClick}
-        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer"
+        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] focus-visible:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300 cursor-pointer w-full text-right"
+        aria-label={`مشاهده آلبوم ${album.title} از ${album.artist}`}
       >
         <div className="relative mb-4 aspect-square">
           <ImageWithPlaceholder
@@ -722,7 +751,7 @@ const AlbumCard = memo(
         <div className="text-sm text-[#a7a7a7] truncate">
           {album.artist} • {album.year}
         </div>
-      </div>
+      </button>
     );
   },
 );
@@ -730,9 +759,10 @@ const AlbumCard = memo(
 const PlaylistCard = memo(
   ({ playlist, onClick }: { playlist: Playlist; onClick: () => void }) => {
     return (
-      <div
+      <button
         onClick={onClick}
-        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] transition-all duration-300 cursor-pointer"
+        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] focus-visible:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300 cursor-pointer w-full text-right"
+        aria-label={`مشاهده لیست پخش ${playlist.title}`}
       >
         <div className="relative mb-4 aspect-square">
           <ImageWithPlaceholder
@@ -741,9 +771,12 @@ const PlaylistCard = memo(
             className="w-full h-full object-cover rounded-md shadow-2xl"
             type="song"
           />
-          <button className="absolute bottom-2 right-2 w-10 h-10 bg-[#1db954] rounded-full flex items-center justify-center shadow-2xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-105">
+          <div
+            className="absolute bottom-2 right-2 w-10 h-10 bg-[#1db954] rounded-full flex items-center justify-center shadow-2xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-105"
+            aria-hidden="true"
+          >
             <ICONS.Play className="w-5 h-5 text-black ml-0.5" />
-          </button>
+          </div>
         </div>
         <div className="font-bold text-white truncate mb-1">
           {playlist.title}
@@ -751,7 +784,7 @@ const PlaylistCard = memo(
         <div className="text-sm text-[#a7a7a7] truncate">
           توسط SedaBox • {playlist.songsCount} آهنگ
         </div>
-      </div>
+      </button>
     );
   },
 );
@@ -962,7 +995,7 @@ const SectionHorizontalList = memo(
     onPlayTrack,
   }: {
     section: SearchSection;
-    onNavigate: (type: string, id: any) => void;
+    onNavigate: (type: string, id: any, extraData?: any) => void;
     onPlayTrack: (song: any) => void;
   }) => {
     const items =
@@ -990,7 +1023,10 @@ const SectionHorizontalList = memo(
                 if (section.type === "song") {
                   onPlayTrack(item);
                 } else {
-                  onNavigate(`${section.type}-detail`, item.id);
+                  onNavigate(`${section.type}-detail`, item.id, {
+                    generatedBy: item.generated_by,
+                    creatorUniqueId: item.creator_unique_id,
+                  });
                 }
               }}
               onPlay={(e) => {
@@ -998,7 +1034,10 @@ const SectionHorizontalList = memo(
                 if (section.type === "song") {
                   onPlayTrack(item);
                 } else {
-                  onNavigate(`${section.type}-detail`, item.id);
+                  onNavigate(`${section.type}-detail`, item.id, {
+                    generatedBy: item.generated_by,
+                    creatorUniqueId: item.creator_unique_id,
+                  });
                 }
               }}
             />
@@ -1261,9 +1300,13 @@ export default function Search() {
   );
 
   const handleEventPlaylistPress = useCallback(
-    (eventId: number, playlistId: number) => {
+    (eventId: number, playlist: any) => {
       // Immediately navigate to the playlist detail and let that screen fetch data.
-      navigateTo("playlist-detail", { id: String(playlistId) });
+      navigateTo("playlist-detail", {
+        id: String(playlist.id),
+        generatedBy: playlist.generated_by,
+        creatorUniqueId: playlist.creator_unique_id,
+      });
     },
     [navigateTo],
   );
@@ -1298,6 +1341,7 @@ export default function Search() {
       className="relative min-h-screen bg-transparent text-white pb-24 md:pb-4"
       dir="rtl"
     >
+      <SEO title={query.trim() ? `جستجو: ${query}` : "جستجو"} />
       {!query.trim() && <ModernBackground />}
 
       {/* Desktop Header with Navigation */}
@@ -1316,24 +1360,30 @@ export default function Search() {
             }`}
           >
             <div className="pl-4 pr-2">
-              <ICONS.Search className="w-5 h-5 text-zinc-400" />
+              <ICONS.Search
+                className="w-5 h-5 text-zinc-400"
+                aria-hidden="true"
+              />
             </div>
             <input
               type="text"
+              id="desktop-search-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setTimeout(() => setIsFocused(false), 200)}
               onKeyDown={handleKeyDown}
               placeholder="دنبال چه آهنگی هستید؟"
-              className="flex-1 bg-transparent py-2.5 pr-4 text-sm text-white placeholder-zinc-400 outline-none"
+              className="flex-1 bg-transparent py-2.5 pr-4 text-sm text-white placeholder-zinc-400 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white rounded-full"
+              aria-label="جستجوی آهنگ، هنرمند یا آلبوم"
             />
             {query && (
               <button
                 onClick={() => setQuery("")}
-                className="pr-4 pl-2 py-2 text-zinc-400 hover:text-white"
+                className="pr-4 pl-2 py-2 text-zinc-400 hover:text-white outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-full"
+                aria-label="پاک کردن جستجو"
               >
-                <ICONS.Close />
+                <ICONS.Close aria-hidden="true" />
               </button>
             )}
           </div>
@@ -1342,7 +1392,8 @@ export default function Search() {
         {/* Right side profile */}
         <button
           onClick={() => navigateTo("profile")}
-          className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-white hover:bg-zinc-700 hover:scale-105 transition-all"
+          className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-white hover:bg-zinc-700 hover:scale-105 transition-all outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          aria-label="پروفایل کاربر"
         >
           <svg
             className="w-5 h-5"
@@ -1350,6 +1401,7 @@ export default function Search() {
             fill="none"
             stroke="currentColor"
             strokeWidth={1.5}
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"
@@ -1377,18 +1429,23 @@ export default function Search() {
                 }`}
               >
                 <div className="pl-4 pr-2">
-                  <ICONS.Search className="w-6 h-6 text-[#a7a7a7]" />
+                  <ICONS.Search
+                    className="w-6 h-6 text-[#a7a7a7]"
+                    aria-hidden="true"
+                  />
                 </div>
                 <input
                   ref={inputRef}
                   type="text"
+                  id="mobile-search-input"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onFocus={() => setIsFocused(true)}
                   onBlur={() => setTimeout(() => setIsFocused(false), 200)}
                   onKeyDown={handleKeyDown}
                   placeholder="دنبال چه آهنگی هستید؟"
-                  className="flex-1 bg-transparent py-3 pr-4 text-sm text-white placeholder-[#a7a7a7] outline-none"
+                  className="flex-1 bg-transparent py-3 pr-4 text-sm text-white placeholder-[#a7a7a7] outline-none rounded-full focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white"
+                  aria-label="جستجوی آهنگ، هنرمند یا آلبوم"
                 />
                 {query && (
                   <button
@@ -1396,9 +1453,10 @@ export default function Search() {
                       setQuery("");
                       inputRef.current?.focus();
                     }}
-                    className="pr-4 pl-2 py-2 text-[#a7a7a7] hover:text-white"
+                    className="pr-4 pl-2 py-2 text-[#a7a7a7] hover:text-white outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-full"
+                    aria-label="پاک کردن جستجو"
                   >
-                    <ICONS.Close />
+                    <ICONS.Close aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -1410,7 +1468,11 @@ export default function Search() {
       {/* Filters - Shown on both but styled differently */}
       {debouncedQuery.trim() && (
         <div className="sticky top-16 md:top-16 z-40 bg-zinc-900/80 backdrop-blur-md px-4 md:px-6 py-3 border-b border-white/5">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div
+            className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
+            role="tablist"
+            aria-label="فیلترهای جستجو"
+          >
             {[
               { k: "all", l: "همه" },
               { k: "songs", l: "آهنگ‌ها" },
@@ -1421,8 +1483,10 @@ export default function Search() {
             ].map((f) => (
               <button
                 key={f.k}
+                role="tab"
                 onClick={() => setActiveFilter(f.k as any)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                aria-selected={activeFilter === f.k}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
                   activeFilter === f.k
                     ? "bg-white text-black"
                     : "bg-zinc-800 text-white hover:bg-zinc-700"
@@ -1436,7 +1500,10 @@ export default function Search() {
       )}
 
       {/* Main */}
-      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 md:pb-4">
+      <main
+        className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 md:pb-4"
+        aria-live="polite"
+      >
         {isLoading && <LoadingSkeleton />}
 
         {showResults && hasResults && (
@@ -1652,7 +1719,7 @@ export default function Search() {
                         key={playlist.id}
                         type="button"
                         onClick={() =>
-                          handleEventPlaylistPress(currentEvent.id, playlist.id)
+                          handleEventPlaylistPress(currentEvent.id, playlist)
                         }
                         className="w-full flex items-start gap-4 p-4 rounded-2xl bg-[#101010] hover:bg-[#1b1b1b] transition-all duration-200 shadow-[0_10px_30px_rgba(0,0,0,0.45)] border border-white/5"
                       >
@@ -1727,7 +1794,9 @@ export default function Search() {
                 <section key={section.id}>
                   <SectionHorizontalList
                     section={section}
-                    onNavigate={(type, id) => navigateTo(type as any, { id })}
+                    onNavigate={(type, id, extraData) =>
+                      navigateTo(type as any, { id: String(id), ...extraData })
+                    }
                     onPlayTrack={(song) =>
                       handlePlaySong({
                         ...song,
@@ -1755,13 +1824,12 @@ export default function Search() {
           .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         }
         @keyframes bg-float-1 {
-                                      <Image
+          0%, 100% { transform: translate(0, 0) scale(1.02); }
           50% { transform: translate(3%, 3%) scale(1.05); }
         }
-                                        fill
-                                        className="object-cover"
-                                      />
-          50% { transform: translate(-3%, -3%) scale(1); }
+        @keyframes bg-float-2 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-3%, -3%) scale(1.05); }
         }
         @keyframes bg-float-3 {
           0%, 100% { transform: translate(0, 0) scale(1); }

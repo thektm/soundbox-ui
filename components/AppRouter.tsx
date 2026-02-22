@@ -1,47 +1,123 @@
 import React, { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
-import Home from "./home";
-import Login from "./Login";
-import Register from "./Register";
-import Verify from "./Verify";
-import ForgotPassword from "./ForgotPassword";
-import Search from "./Search";
-import Playlists from "./Playlists";
-import Profile from "./Profile";
-import DesktopProfile from "./DesktopProfile";
-import PlaylistDetail from "./PlaylistDetail";
-import ArtistDetail from "./ArtistDetail";
-import AlbumDetail from "./AlbumDetail";
-import SongDetail from "./SongDetail";
-import FollowersFollowing from "./FollowersFollowing";
-import LikedSongs from "./LikedSongs";
-import LikedAlbums from "./LikedAlbums";
-import LikedPlaylists from "./LikedPlaylists";
-import MyPlaylists from "./MyPlaylists";
-import Settings from "./Settings";
-import UpgradePlans from "./UpgradePlans";
-import PaymentProcessing from "./PaymentProcessing";
-import PaymentSuccess from "./PaymentSuccess";
-import PopularArtistsPage from "./PopularArtistsPage";
-import LatestReleasesPage from "./LatestReleasesPage";
-import PopularAlbumsPage from "./PopularAlbumsPage";
-import NewDiscoveriesPage from "./NewDiscoveriesPage";
-import RecommendedPlaylistsPage from "./RecommendedPlaylistsPage";
-import ForYouPage from "./ForYouPage";
-import ChartPage from "./ChartPage";
-import LibraryScreen from "./LibraryScreen";
-import Premium from "./Premium";
-import FollowingArtistsPage from "./FollowingArtistsPage";
-import UserPlaylistDetail from "./UserPlaylistDetail";
-import UserDetail from "./UserDetail";
-import DownloadsHistory from "./DownloadsHistory";
+
+// ── Generic page skeleton for dynamic loading ─────────────────────────────
+const PageSkeleton = () => (
+  <div className="w-full min-h-screen bg-[#0a0a0a] animate-pulse p-4">
+    <div className="w-1/3 h-10 bg-zinc-800 rounded-lg mb-8" />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="h-64 bg-zinc-800/50 rounded-2xl" />
+      <div className="h-64 bg-zinc-800/50 rounded-2xl" />
+    </div>
+  </div>
+);
+
+// ── Auth pages (small, loaded only when logged-out) ─────────────────────────
+const Login = dynamic(() => import("./Login"), {
+  ssr: false,
+  loading: () => <div className="fixed inset-0 bg-[#0a0a0a]" />,
+});
+const Register = dynamic(() => import("./Register"), { ssr: false });
+const Verify = dynamic(() => import("./Verify"), { ssr: false });
+const ForgotPassword = dynamic(() => import("./ForgotPassword"), {
+  ssr: false,
+});
+
+// ── Core pages (most likely to be visited first) ────────────────────────────
+const Home = dynamic(() => import("./home"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const Search = dynamic(() => import("./Search"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const LibraryScreen = dynamic(() => import("./LibraryScreen"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+
+// ── Detail pages ────────────────────────────────────────────────────────────
+const SongDetail = dynamic(() => import("./SongDetail"), { ssr: false });
+const PlaylistDetail = dynamic(() => import("./PlaylistDetail"), {
+  ssr: false,
+});
+const UserPlaylistDetail = dynamic(() => import("./UserPlaylistDetail"), {
+  ssr: false,
+});
+const ArtistDetail = dynamic(() => import("./ArtistDetail"), { ssr: false });
+const AlbumDetail = dynamic(() => import("./AlbumDetail"), { ssr: false });
+const UserDetail = dynamic(() => import("./UserDetail"), { ssr: false });
+const ChartPage = dynamic(() => import("./ChartPage"), { ssr: false });
+
+// ── Profile & social ───────────────────────────────────────────────────────
+const Profile = dynamic(() => import("./Profile"), { ssr: false });
+const DesktopProfile = dynamic(() => import("./DesktopProfile"), {
+  ssr: false,
+});
+const FollowersFollowing = dynamic(() => import("./FollowersFollowing"), {
+  ssr: false,
+});
+const FollowingArtistsPage = dynamic(() => import("./FollowingArtistsPage"), {
+  ssr: false,
+});
+
+// ── Library sub-pages ───────────────────────────────────────────────────────
+const LikedSongs = dynamic(() => import("./LikedSongs"), { ssr: false });
+const LikedAlbums = dynamic(() => import("./LikedAlbums"), { ssr: false });
+const LikedPlaylists = dynamic(() => import("./LikedPlaylists"), {
+  ssr: false,
+});
+const MyPlaylists = dynamic(() => import("./MyPlaylists"), { ssr: false });
+const Playlists = dynamic(() => import("./Playlists"), { ssr: false });
+const DownloadsHistory = dynamic(() => import("./DownloadsHistory"), {
+  ssr: false,
+});
+
+// ── Discovery / browse pages ────────────────────────────────────────────────
+const PopularArtistsPage = dynamic(() => import("./PopularArtistsPage"), {
+  ssr: false,
+});
+const LatestReleasesPage = dynamic(() => import("./LatestReleasesPage"), {
+  ssr: false,
+});
+const PopularAlbumsPage = dynamic(() => import("./PopularAlbumsPage"), {
+  ssr: false,
+});
+const NewDiscoveriesPage = dynamic(() => import("./NewDiscoveriesPage"), {
+  ssr: false,
+});
+const RecommendedPlaylistsPage = dynamic(
+  () => import("./RecommendedPlaylistsPage"),
+  { ssr: false },
+);
+const ForYouPage = dynamic(() => import("./ForYouPage"), { ssr: false });
+
+// ── Settings & payments ─────────────────────────────────────────────────────
+const Settings = dynamic(() => import("./Settings"), { ssr: false });
+const Premium = dynamic(() => import("./Premium"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const UpgradePlans = dynamic(() => import("./UpgradePlans"), { ssr: false });
+const PaymentProcessing = dynamic(() => import("./PaymentProcessing"), {
+  ssr: false,
+});
+const PaymentSuccess = dynamic(() => import("./PaymentSuccess"), {
+  ssr: false,
+});
 
 export const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
   const { isLoggedIn } = useAuth();
 
-  const [isDesktop, setIsDesktop] = useState(false);
+  // Correctly initialize state for the first client-side render (prevent CLS)
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth >= 1024;
+  });
 
   useEffect(() => {
     const checkDesktop = () => {
@@ -85,7 +161,12 @@ export const AppRouter: React.FC = () => {
         return <Settings />;
       case "playlist-detail":
         return (
-          <PlaylistDetail id={currentParams?.id} slug={currentParams?.slug} />
+          <PlaylistDetail
+            id={currentParams?.id}
+            slug={currentParams?.slug}
+            generatedBy={currentParams?.generatedBy}
+            creatorUniqueId={currentParams?.creatorUniqueId}
+          />
         );
       case "user-playlist-detail":
         return (

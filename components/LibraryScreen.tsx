@@ -16,6 +16,7 @@ import {
   Heart,
 } from "lucide-react";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
+import { SEO } from "./SEO";
 
 function ensureHttps(u?: string | null): string | undefined {
   if (!u) return undefined;
@@ -44,6 +45,8 @@ const LibraryItem = ({
   onOptionsClick?: () => void;
   viewMode?: "list" | "grid";
 }) => {
+  const itemAriaLabel = `مشاهده ${title}${subtitle ? ` اثر ${subtitle}` : ""}`;
+
   if (viewMode === "grid") {
     return (
       <motion.button
@@ -51,8 +54,10 @@ const LibraryItem = ({
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         onClick={onClick}
-        className="flex flex-col items-start w-full gap-2 group"
+        className="flex flex-col items-start w-full gap-2 group focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg outline-none"
         dir="rtl"
+        aria-label={itemAriaLabel}
+        role="listitem"
       >
         <div
           className={`relative aspect-square w-full bg-[#181818] ${
@@ -62,11 +67,15 @@ const LibraryItem = ({
           {imageUrl ? (
             <img
               src={imageUrl}
-              alt={title}
+              alt=""
+              aria-hidden="true"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
+            <div
+              className="w-full h-full flex items-center justify-center"
+              aria-hidden="true"
+            >
               {icon || <User className="w-10 h-10 text-zinc-500" />}
             </div>
           )}
@@ -76,7 +85,7 @@ const LibraryItem = ({
             {title}
           </span>
           {subtitle && (
-            <span className="text-zinc-500 text-[10px] truncate w-full mt-0.5">
+            <span className="text-zinc-400 text-[10px] truncate w-full mt-0.5">
               {subtitle}
             </span>
           )}
@@ -86,23 +95,21 @@ const LibraryItem = ({
   }
 
   return (
-    <motion.div layout className="relative">
+    <motion.div layout className="relative" role="listitem">
       <button
         onClick={onClick}
-        className="flex items-center w-full py-2 gap-4 transition-colors rounded-lg group"
+        className="flex items-center w-full py-2 gap-4 transition-colors rounded-lg group focus-visible:bg-white/5 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 px-2"
         dir="rtl"
+        aria-label={itemAriaLabel}
       >
         <div
           className={`flex-shrink-0 flex items-center justify-center w-16 h-16 bg-[#181818] ${
             type === "artist" ? "rounded-full" : "rounded-md"
           } overflow-hidden group-hover:bg-[#282828] transition-colors`}
+          aria-hidden="true"
         >
           {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={title}
-              className="w-full h-full object-cover"
-            />
+            <img src={imageUrl} alt="" className="w-full h-full object-cover" />
           ) : (
             icon || <User className="w-6 h-6 text-zinc-400" />
           )}
@@ -124,7 +131,8 @@ const LibraryItem = ({
             e.stopPropagation();
             onOptionsClick();
           }}
-          className="absolute left-0 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-white/10 transition-colors"
+          className="absolute left-0 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+          aria-label={`گزینه‌های بیشتر برای ${title}`}
         >
           <MoreHorizontal className="w-5 h-5 text-white/70" />
         </button>
@@ -138,7 +146,12 @@ const LibrarySkeletonItem: React.FC<{ viewMode?: "list" | "grid" }> = ({
 }) => {
   if (viewMode === "grid") {
     return (
-      <div className="flex flex-col w-full gap-2 animate-pulse" dir="rtl">
+      <div
+        className="flex flex-col w-full gap-2 animate-pulse"
+        dir="rtl"
+        aria-hidden="true"
+        role="status"
+      >
         <div className="aspect-square w-full bg-zinc-900 rounded-md" />
         <div className="space-y-2">
           <div className="h-3 bg-zinc-900 rounded w-3/4" />
@@ -151,7 +164,8 @@ const LibrarySkeletonItem: React.FC<{ viewMode?: "list" | "grid" }> = ({
     <div
       className="flex items-center w-full py-2 gap-4 rounded-lg animate-pulse"
       dir="rtl"
-      aria-hidden
+      aria-hidden="true"
+      role="status"
     >
       <div className="flex-shrink-0 flex items-center justify-center w-16 h-16 bg-zinc-900 rounded-md" />
       <div className="flex flex-col items-start overflow-hidden text-right flex-1">
@@ -437,6 +451,7 @@ const LibraryScreen: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-black relative">
+      <SEO title="کتابخانه شما" />
       {/* Dynamic Background Cover with Fade */}
       <AnimatePresence>
         {latestLikedSongCover && (
@@ -472,9 +487,10 @@ const LibraryScreen: React.FC = () => {
                   dir="rtl"
                 >
                   <div className="flex items-center gap-3">
-                    <div
+                    <button
                       onClick={() => navigateTo("profile")}
-                      className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 cursor-pointer transition-transform active:scale-95"
+                      className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 cursor-pointer transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                      aria-label="مشاهده پروفایل"
                     >
                       {user?.first_name ? (
                         <span className="text-white font-bold">
@@ -483,7 +499,7 @@ const LibraryScreen: React.FC = () => {
                       ) : (
                         <User className="w-6 h-6 text-zinc-400" />
                       )}
-                    </div>
+                    </button>
                     <h1 className="text-xl font-bold text-white">
                       کتابخانه شما
                     </h1>
@@ -494,7 +510,12 @@ const LibraryScreen: React.FC = () => {
                       onClick={() =>
                         setViewMode(viewMode === "list" ? "grid" : "list")
                       }
-                      className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                      className="p-2 rounded-full hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                      aria-label={
+                        viewMode === "list"
+                          ? "تغییر به نمای شبکه‌ای"
+                          : "تغییر به نمای لیستی"
+                      }
                     >
                       {viewMode === "list" ? (
                         <LayoutGrid className="w-6 h-6 text-white" />
@@ -504,7 +525,8 @@ const LibraryScreen: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setIsSearchActive(true)}
-                      className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                      className="p-2 rounded-full hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                      aria-label="جستجو در کتابخانه"
                     >
                       <Search className="w-6 h-6 text-white" />
                     </button>
@@ -520,9 +542,16 @@ const LibraryScreen: React.FC = () => {
                   dir="rtl"
                 >
                   <div className="relative flex-1 h-10">
-                    <Search className="absolute right-3  top-1/2 -translate-y-1/2 w-5 h-5 text-white" />
+                    <Search
+                      className="absolute right-3  top-1/2 -translate-y-1/2 w-5 h-5 text-white"
+                      aria-hidden="true"
+                    />
+                    <label htmlFor="library-search-input" className="sr-only">
+                      جستجو در کتابخانه
+                    </label>
                     <input
                       autoFocus
+                      id="library-search-input"
                       type="text"
                       value={searchQuery}
                       onChange={(e) => {
@@ -536,14 +565,15 @@ const LibraryScreen: React.FC = () => {
                         }
                       }}
                       placeholder="جستجو در کتابخانه ..."
-                      className="w-full h-full bg-zinc-800 text-white pr-10 pl-10 rounded-lg text-sm focus:outline-none transition-all"
+                      className="w-full h-full bg-zinc-800 text-white pr-10 pl-10 rounded-lg text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all"
                     />
                     <button
                       onClick={() => {
                         setIsSearchActive(false);
                         setSearchQuery("");
                       }}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-zinc-700 transition-colors"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-zinc-700 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                      aria-label="بستن جستجو"
                     >
                       <X className="w-5 h-5 text-white" />
                     </button>
@@ -557,10 +587,13 @@ const LibraryScreen: React.FC = () => {
           <div
             className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 no-scrollbar"
             dir="rtl"
+            role="group"
+            aria-label="فیلترهای کتابخانه"
           >
             <button
               onClick={() => setActiveFilter(null)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+              aria-pressed={activeFilter === null}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none ${
                 activeFilter === null
                   ? "bg-emerald-500 text-black"
                   : "bg-zinc-800 text-white hover:bg-zinc-700"
@@ -572,7 +605,8 @@ const LibraryScreen: React.FC = () => {
               <button
                 key={filter.id}
                 onClick={() => setActiveFilter(filter.id)}
-                className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                aria-pressed={activeFilter === filter.id}
+                className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none ${
                   activeFilter === filter.id
                     ? "bg-emerald-500 text-black"
                     : "bg-zinc-800 text-white hover:bg-zinc-700"
@@ -586,8 +620,9 @@ const LibraryScreen: React.FC = () => {
       </header>
 
       {/* Content Area */}
-      <div className="overflow-y-auto pb-24">
+      <main className="overflow-y-auto pb-24" aria-live="polite">
         <div
+          role="list"
           className={`max-w-full mx-auto lg:max-w-6xl px-4 mt-6 ${
             viewMode === "grid"
               ? "grid grid-cols-3 gap-x-4 gap-y-8"
@@ -695,7 +730,7 @@ const LibraryScreen: React.FC = () => {
             </>
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 };

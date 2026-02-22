@@ -18,6 +18,7 @@ import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
 
 import { getFullShareUrl } from "../utils/share";
+import { SEO } from "./SEO";
 
 interface ApiSong {
   id: number;
@@ -940,6 +941,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-neutral-950 text-white pb-28" dir="rtl">
+        <SEO title="در حال بارگذاری..." />
         <header className="fixed top-0 left-0 right-0 z-40 h-16 flex flex-row-reverse items-center justify-between px-4 md:px-6">
           <Skeleton className="w-10 h-10 rounded-full" />
           <Skeleton className="w-32 h-6" />
@@ -982,6 +984,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         className="min-h-screen bg-gradient-to-b from-neutral-900 to-neutral-950 text-white flex items-center justify-center"
         dir="rtl"
       >
+        <SEO title="آهنگ پیدا نشد" />
         <div className="text-center px-6">
           <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-white/5 flex items-center justify-center">
             <Icon name="music" size={40} className="text-neutral-600" />
@@ -1007,275 +1010,290 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="relative min-h-screen bg-neutral-950 text-white pb-28"
-      dir="rtl"
-      onContextMenu={handleContextMenu}
-    >
+    <>
+      <SEO
+        title={song?.title}
+        description={`شنیدن آهنگ ${song?.title} از ${song?.artist} در وب اپلیکیشن صداباکس`}
+        imageUrl={song?.image}
+        type="music.song"
+      />
       <div
-        className="absolute inset-0 transition-colors duration-700 -z-10"
-        style={{
-          background: `linear-gradient(to bottom, rgb(${dominantColor}) 0%, rgb(18, 18, 18) 50%)`,
-        }}
-      />
-
-      {/* Desktop Header */}
-      <header className="hidden md:flex sticky top-0 z-50 h-16 items-center px-6 bg-zinc-900/80 backdrop-blur-xl">
-        <div className="flex-1 flex justify-center overflow-hidden px-4">
-          <h2 className="text-lg font-bold text-white truncate">
-            {song.title}
-          </h2>
-        </div>
-        <button
-          onClick={goBack}
-          className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors shrink-0"
-        >
-          <Icon name="arrowLeft" size={24} />
-        </button>
-        <div className="w-10 shrink-0" />{" "}
-        {/* Spacer to balance the back button */}
-      </header>
-
-      {/* Mobile Sticky Header */}
-      <header
-        ref={headerRef}
-        className="md:hidden fixed top-0 inset-x-0 h-16 bg-black/40 backdrop-blur-xl flex flex-row-reverse items-center px-4 z-50 transition-all duration-300"
-        style={{
-          transform: "translateY(0)",
-          opacity: 1,
-        }}
+        ref={containerRef}
+        className="relative min-h-screen bg-neutral-950 text-white pb-28"
+        dir="rtl"
+        onContextMenu={handleContextMenu}
       >
-        <button
-          onClick={goBack}
-          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition shrink-0"
-        >
-          <Icon name="arrowLeft" size={24} className="text-white" />
-        </button>
-        <div className="flex-1 flex justify-center overflow-hidden px-4">
-          <span className="text-base font-bold text-white truncate">
-            {song.title}
-          </span>
-        </div>
-        <div className="w-10 shrink-0" />
-      </header>
-
-      <section className="relative pt-20 pb-8 px-6 md:px-12">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10">
-          <div
-            className={cn(
-              "w-52 h-52 md:w-64 md:h-64 shrink-0",
-              "rounded-lg overflow-hidden shadow-2xl shadow-black/50",
-              "transition-transform duration-500",
-              isCurrentlyPlaying && "scale-[1.02]",
-            )}
-          >
-            <ImageWithPlaceholder
-              src={song.image}
-              alt={song.title}
-              className="w-full h-full object-cover"
-              type="song"
-            />
-          </div>
-
-          <div className="flex-1 text-center md:text-right">
-            <span className="text-xs font-medium text-white/80 uppercase tracking-widest">
-              آهنگ
-            </span>
-            <h1 className="mt-3 text-4xl md:text-6xl lg:text-7xl font-black text-white leading-tight">
-              {song.title}
-            </h1>
-            <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-2 text-sm text-neutral-300">
-              <button
-                onClick={() => {
-                  const artistId = song?.artistId || (song as any)?.artist_id;
-                  if (artistId) {
-                    navigateTo("artist-detail", {
-                      id: artistId,
-                      slug:
-                        fullSongData?.artist_unique_id ||
-                        createSlug(song.artist),
-                    });
-                  }
-                }}
-                className="font-semibold text-white hover:underline cursor-pointer"
-              >
-                {song.artist}
-              </button>
-              <span className="text-neutral-500">•</span>
-              <span className="flex items-center gap-1">
-                <Icon name="clock" size={14} className="text-neutral-500" />
-                {song.duration}
-              </span>
-              <span className="text-neutral-500">•</span>
-              <span>
-                {fullSongData
-                  ? formatNumber(fullSongData.plays)
-                  : formatNumber(1240000)}{" "}
-                پخش
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative px-6 md:px-12 py-6">
-        <div className="max-w-5xl mx-auto flex items-center gap-4">
-          <PlayButton
-            onClick={handlePlay}
-            isPlaying={isCurrentlyPlaying}
-            size="lg"
-          />
-
-          <IconButton
-            onClick={handleLike}
-            active={isLiked}
-            activeColor="text-emerald-400"
-            label={isLiked ? "حذف از لایک‌ها" : "افزودن به لایک‌ها"}
-          >
-            {isLiking ? (
-              <Spinner size="w-7 h-7" />
-            ) : (
-              <Icon name="heart" size={28} filled={isLiked} />
-            )}
-          </IconButton>
-
-          <IconButton onClick={handleShare} label="اشتراک‌گذاری">
-            <Icon name="shareNetwork" size={26} />
-          </IconButton>
-
-          <IconButton onClick={handleDownload} label="دانلود آهنگ">
-            <Icon name="downloadSimple" size={28} />
-          </IconButton>
-
-          <IconButton
-            onClick={() => setIsDrawerOpen(true)}
-            label="گزینه‌های بیشتر"
-          >
-            <Icon name="dotsThree" size={28} />
-          </IconButton>
-
-          {isCurrentlyPlaying && (
-            <div className="mr-auto flex items-center gap-2 text-emerald-400">
-              <Icon name="waveform" size={20} className="animate-pulse" />
-              <span className="text-sm font-medium">در حال پخش</span>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <main className="relative px-6 md:px-12 py-8 space-y-10">
-        <div className="max-w-5xl mx-auto space-y-10">
-          <LyricsSection lyrics={apiLyrics} currentTime={0} />
-          <CreditsSection credits={apiCredits} />
-
-          <section className="bg-neutral-900/50 rounded-2xl p-6 border border-white/5">
-            <SectionHeader
-              title="آهنگ‌های مشابه"
-              action={{ label: "نمایش همه", onClick: () => {} }}
-            />
-            <div className="space-y-1">
-              {similarTracks.map((t, idx) => (
-                <TrackRow key={t.id} track={t} index={idx} onPlay={playTrack} />
-              ))}
-            </div>
-          </section>
-
-          <section className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {[
-              {
-                label: "پخش‌ها",
-                value: fullSongData ? formatNumber(fullSongData.plays) : "۱.۲M",
-              },
-              {
-                label: "لایک‌ها",
-                value: formatNumber(likesCount),
-              },
-              {
-                label: "اضافه به پلی‌لیست",
-                value: fullSongData
-                  ? formatNumber(fullSongData.added_to_playlists_count)
-                  : "۴۵K",
-              },
-            ].map((stat, idx) => (
-              <div
-                key={idx}
-                className={cn(
-                  "bg-white/5 rounded-xl p-5 text-center hover:bg-white/10 transition-colors",
-                  idx === 2 ? "col-span-2 md:col-span-1" : "",
-                )}
-              >
-                <p className="text-2xl font-bold text-white">{stat.value}</p>
-                <p className="text-sm text-neutral-400 mt-1">{stat.label}</p>
-              </div>
-            ))}
-          </section>
-        </div>
-      </main>
-
-      <div className="fixed bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-neutral-950 via-neutral-950/90 to-transparent pointer-events-none z-10" />
-
-      <ContextMenu
-        isOpen={contextMenu.isOpen}
-        onClose={() => setContextMenu((prev) => ({ ...prev, isOpen: false }))}
-        position={{ x: contextMenu.x, y: contextMenu.y }}
-        onAddToPlaylist={() => setIsAddToPlaylistOpen(true)}
-        onArtistClick={
-          song?.artistId || (song as any)?.artist_id
-            ? () => {
-                setContextMenu((prev) => ({ ...prev, isOpen: false }));
-                navigateTo("artist-detail", {
-                  id: song.artistId || (song as any).artist_id,
-                  slug:
-                    fullSongData?.artist_unique_id || createSlug(song.artist),
-                });
-              }
-            : undefined
-        }
-      />
-
-      {song && (
-        <AddToPlaylistModal
-          isOpen={isAddToPlaylistOpen}
-          onClose={() => setIsAddToPlaylistOpen(false)}
-          songId={song.id}
+        <div
+          className="absolute inset-0 transition-colors duration-700 -z-10"
+          style={{
+            background: `linear-gradient(to bottom, rgb(${dominantColor}) 0%, rgb(18, 18, 18) 50%)`,
+          }}
         />
-      )}
 
-      <SongOptionsDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        song={
-          song
-            ? { ...song, cover_image: song.image, artist_name: song.artist }
-            : null
-        }
-        onAction={handleAction}
-      />
+        {/* Desktop Header */}
+        <header className="hidden md:flex sticky top-0 z-50 h-16 items-center px-6 bg-zinc-900/80 backdrop-blur-xl">
+          <div className="flex-1 flex justify-center overflow-hidden px-4">
+            <h2 className="text-lg font-bold text-white truncate">
+              {song.title}
+            </h2>
+          </div>
+          <button
+            onClick={goBack}
+            className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors shrink-0"
+          >
+            <Icon name="arrowLeft" size={24} />
+          </button>
+          <div className="w-10 shrink-0" />{" "}
+          {/* Spacer to balance the back button */}
+        </header>
 
-      <style jsx global>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
+        {/* Mobile Sticky Header */}
+        <header
+          ref={headerRef}
+          className="md:hidden fixed top-0 inset-x-0 h-16 bg-black/40 backdrop-blur-xl flex flex-row-reverse items-center px-4 z-50 transition-all duration-300"
+          style={{
+            transform: "translateY(0)",
+            opacity: 1,
+          }}
+        >
+          <button
+            onClick={goBack}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition shrink-0"
+          >
+            <Icon name="arrowLeft" size={24} className="text-white" />
+          </button>
+          <div className="flex-1 flex justify-center overflow-hidden px-4">
+            <span className="text-base font-bold text-white truncate">
+              {song.title}
+            </span>
+          </div>
+          <div className="w-10 shrink-0" />
+        </header>
+
+        <section className="relative pt-20 pb-8 px-6 md:px-12">
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10">
+            <div
+              className={cn(
+                "w-52 h-52 md:w-64 md:h-64 shrink-0",
+                "rounded-lg overflow-hidden shadow-2xl shadow-black/50",
+                "transition-transform duration-500",
+                isCurrentlyPlaying && "scale-[1.02]",
+              )}
+            >
+              <ImageWithPlaceholder
+                src={song.image}
+                alt={song.title}
+                className="w-full h-full object-cover"
+                type="song"
+              />
+            </div>
+
+            <div className="flex-1 text-center md:text-right">
+              <span className="text-xs font-medium text-white/80 uppercase tracking-widest">
+                آهنگ
+              </span>
+              <h1 className="mt-3 text-4xl md:text-6xl lg:text-7xl font-black text-white leading-tight">
+                {song.title}
+              </h1>
+              <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-2 text-sm text-neutral-300">
+                <button
+                  onClick={() => {
+                    const artistId = song?.artistId || (song as any)?.artist_id;
+                    if (artistId) {
+                      navigateTo("artist-detail", {
+                        id: artistId,
+                        slug:
+                          fullSongData?.artist_unique_id ||
+                          createSlug(song.artist),
+                      });
+                    }
+                  }}
+                  className="font-semibold text-white hover:underline cursor-pointer"
+                >
+                  {song.artist}
+                </button>
+                <span className="text-neutral-500">•</span>
+                <span className="flex items-center gap-1">
+                  <Icon name="clock" size={14} className="text-neutral-500" />
+                  {song.duration}
+                </span>
+                <span className="text-neutral-500">•</span>
+                <span>
+                  {fullSongData
+                    ? formatNumber(fullSongData.plays)
+                    : formatNumber(1240000)}{" "}
+                  پخش
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="relative px-6 md:px-12 py-6">
+          <div className="max-w-5xl mx-auto flex items-center gap-4">
+            <PlayButton
+              onClick={handlePlay}
+              isPlaying={isCurrentlyPlaying}
+              size="lg"
+            />
+
+            <IconButton
+              onClick={handleLike}
+              active={isLiked}
+              activeColor="text-emerald-400"
+              label={isLiked ? "حذف از لایک‌ها" : "افزودن به لایک‌ها"}
+            >
+              {isLiking ? (
+                <Spinner size="w-7 h-7" />
+              ) : (
+                <Icon name="heart" size={28} filled={isLiked} />
+              )}
+            </IconButton>
+
+            <IconButton onClick={handleShare} label="اشتراک‌گذاری">
+              <Icon name="shareNetwork" size={26} />
+            </IconButton>
+
+            <IconButton onClick={handleDownload} label="دانلود آهنگ">
+              <Icon name="downloadSimple" size={28} />
+            </IconButton>
+
+            <IconButton
+              onClick={() => setIsDrawerOpen(true)}
+              label="گزینه‌های بیشتر"
+            >
+              <Icon name="dotsThree" size={28} />
+            </IconButton>
+
+            {isCurrentlyPlaying && (
+              <div className="mr-auto flex items-center gap-2 text-emerald-400">
+                <Icon name="waveform" size={20} className="animate-pulse" />
+                <span className="text-sm font-medium">در حال پخش</span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <main className="relative px-6 md:px-12 py-8 space-y-10">
+          <div className="max-w-5xl mx-auto space-y-10">
+            <LyricsSection lyrics={apiLyrics} currentTime={0} />
+            <CreditsSection credits={apiCredits} />
+
+            <section className="bg-neutral-900/50 rounded-2xl p-6 border border-white/5">
+              <SectionHeader
+                title="آهنگ‌های مشابه"
+                action={{ label: "نمایش همه", onClick: () => {} }}
+              />
+              <div className="space-y-1">
+                {similarTracks.map((t, idx) => (
+                  <TrackRow
+                    key={t.id}
+                    track={t}
+                    index={idx}
+                    onPlay={playTrack}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {[
+                {
+                  label: "پخش‌ها",
+                  value: fullSongData
+                    ? formatNumber(fullSongData.plays)
+                    : "۱.۲M",
+                },
+                {
+                  label: "لایک‌ها",
+                  value: formatNumber(likesCount),
+                },
+                {
+                  label: "اضافه به پلی‌لیست",
+                  value: fullSongData
+                    ? formatNumber(fullSongData.added_to_playlists_count)
+                    : "۴۵K",
+                },
+              ].map((stat, idx) => (
+                <div
+                  key={idx}
+                  className={cn(
+                    "bg-white/5 rounded-xl p-5 text-center hover:bg-white/10 transition-colors",
+                    idx === 2 ? "col-span-2 md:col-span-1" : "",
+                  )}
+                >
+                  <p className="text-2xl font-bold text-white">{stat.value}</p>
+                  <p className="text-sm text-neutral-400 mt-1">{stat.label}</p>
+                </div>
+              ))}
+            </section>
+          </div>
+        </main>
+
+        <div className="fixed bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-neutral-950 via-neutral-950/90 to-transparent pointer-events-none z-10" />
+
+        <ContextMenu
+          isOpen={contextMenu.isOpen}
+          onClose={() => setContextMenu((prev) => ({ ...prev, isOpen: false }))}
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onAddToPlaylist={() => setIsAddToPlaylistOpen(true)}
+          onArtistClick={
+            song?.artistId || (song as any)?.artist_id
+              ? () => {
+                  setContextMenu((prev) => ({ ...prev, isOpen: false }));
+                  navigateTo("artist-detail", {
+                    id: song.artistId || (song as any).artist_id,
+                    slug:
+                      fullSongData?.artist_unique_id || createSlug(song.artist),
+                  });
+                }
+              : undefined
           }
-          to {
-            opacity: 1;
+        />
+
+        {song && (
+          <AddToPlaylistModal
+            isOpen={isAddToPlaylistOpen}
+            onClose={() => setIsAddToPlaylistOpen(false)}
+            songId={song.id}
+          />
+        )}
+
+        <SongOptionsDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          song={
+            song
+              ? { ...song, cover_image: song.image, artist_name: song.artist }
+              : null
           }
-        }
-        @keyframes zoom-in-95 {
-          from {
-            transform: scale(0.95);
+          onAction={handleAction}
+        />
+
+        <style jsx global>{`
+          @keyframes fade-in {
+            from {
+              opacity: 0;
+            }
+            to {
+              opacity: 1;
+            }
           }
-          to {
-            transform: scale(1);
+          @keyframes zoom-in-95 {
+            from {
+              transform: scale(0.95);
+            }
+            to {
+              transform: scale(1);
+            }
           }
-        }
-        .animate-in {
-          animation:
-            fade-in 150ms ease-out,
-            zoom-in-95 150ms ease-out;
-        }
-      `}</style>
-    </div>
+          .animate-in {
+            animation:
+              fade-in 150ms ease-out,
+              zoom-in-95 150ms ease-out;
+          }
+        `}</style>
+      </div>
+    </>
   );
 }

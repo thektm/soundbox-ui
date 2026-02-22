@@ -8,6 +8,7 @@ import { usePlayer, Track } from "./PlayerContext";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getFullShareUrl } from "../utils/share";
 import toast from "react-hot-toast";
+import { SEO } from "./SEO";
 
 // API Interfaces based on the provided format
 interface ApiSong {
@@ -418,7 +419,12 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   };
 
   if (loading) {
-    return <AlbumSkeleton />;
+    return (
+      <>
+        <SEO title="در حال بارگذاری..." />
+        <AlbumSkeleton />
+      </>
+    );
   }
 
   if (!albumData) {
@@ -427,6 +433,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
         className="min-h-screen bg-linear-to-b from-neutral-900 to-neutral-950 text-white"
         dir="rtl"
       >
+        <SEO title="آلبوم پیدا نشد" />
         <div className="max-w-7xl mx-auto px-4 py-20">
           <div className="text-center">
             <Icon
@@ -455,6 +462,12 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
       className="min-h-screen bg-linear-to-b from-neutral-900 via-neutral-950 to-black text-white pb-24"
       dir="rtl"
     >
+      <SEO
+        title={albumData.title}
+        description={`شنیدن آلبوم ${albumData.title} از ${albumData.artist_name} در وب اپلیکیشن صداباکس`}
+        imageUrl={albumData.cover_image}
+        type="music.album"
+      />
       <header
         className="relative w-full h-96 md:h-[500px] bg-cover bg-center bg-no-repeat"
         style={{

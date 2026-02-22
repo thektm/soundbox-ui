@@ -338,7 +338,8 @@ export const InitialModal: React.FC = () => {
           {canProceed && (
             <button
               onClick={handleCancel}
-              className="p-2 text-zinc-500 hover:text-white transition-colors"
+              className="p-2 text-zinc-400 hover:text-white transition-colors"
+              aria-label="بستن"
             >
               <X size={24} />
             </button>

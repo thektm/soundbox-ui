@@ -4,6 +4,8 @@ import React, {
   useState,
   ReactNode,
   useEffect,
+  Dispatch,
+  SetStateAction,
 } from "react";
 import { toast } from "react-hot-toast";
 
@@ -107,7 +109,7 @@ interface AuthContextType {
   setPhone: (phone: string) => void;
   phone: string;
   password: string;
-  setPassword: (password: string) => void;
+  setPassword: Dispatch<SetStateAction<string>>;
   otp: string;
   setOtp: (otp: string) => void;
   verifyOtp: (otpCode?: string) => Promise<boolean>;
@@ -137,7 +139,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const API_ROOT = "https://api.sedabox.com/api";
 
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    // Synchronous hint for the first client-side render to prevent layout shifts.
+    // If a refreshToken exists, assume we are logged in so the Shell renders the Sidebar immediately.
+    if (typeof window !== "undefined") {
+      return !!localStorage.getItem("refreshToken");
+    }
+    return false;
+  });
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [user, setUser] = useState<User | null>(null);
   const [phone, setPhone] = useState("");
@@ -400,10 +409,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
     const applyAuth = (token: string | null) => {
       const options = { ...init };
-      if (!token) return options;
       const headers = new Headers(options.headers || {});
-      if (!headers.has("Authorization")) {
+      if (token && !headers.has("Authorization")) {
         headers.set("Authorization", `Bearer ${token}`);
+      }
+      if (
+        options.body &&
+        typeof options.body === "string" &&
+        !headers.has("Content-Type")
+      ) {
+        headers.set("Content-Type", "application/json");
       }
       options.headers = headers;
       return options;
@@ -493,12 +508,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     let mounted = true;
     const init = async () => {
-      const start = Date.now();
       if (!mounted) return;
+      // Fetch fresh token and user data without artificial delays
+      // to reduce Cumulative Layout Shift (CLS) during hydration.
       await tryRefreshToken();
-      const elapsed = Date.now() - start;
-      const remaining = 2000 - elapsed;
-      if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
       if (mounted) setIsInitializing(false);
     };
     init();

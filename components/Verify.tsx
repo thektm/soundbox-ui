@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import toast from "react-hot-toast";
@@ -20,6 +20,23 @@ const Verify: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [resendLoading, setResendLoading] = useState(false);
   const [digits, setDigits] = useState<string[]>(["", "", "", ""]);
+  const TIMER_SECONDS = 60;
+  const [secondsRemaining, setSecondsRemaining] =
+    useState<number>(TIMER_SECONDS);
+
+  useEffect(() => {
+    if (secondsRemaining <= 0) return;
+    const id = setInterval(() => {
+      setSecondsRemaining((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [secondsRemaining]);
+
+  const formatTime = (s: number) => {
+    const mm = Math.floor(s / 60);
+    const ss = s % 60;
+    return `${mm}:${ss.toString().padStart(2, "0")}`;
+  };
 
   const handleResend = () => {
     setError(null);
@@ -37,6 +54,7 @@ const Verify: React.FC = () => {
     });
 
     promise.finally(() => setResendLoading(false));
+    promise.then(() => setSecondsRemaining(TIMER_SECONDS));
   };
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
@@ -175,7 +193,8 @@ const Verify: React.FC = () => {
           <div className="mb-2 text-center lg:text-right" dir="rtl">
             <div className="flex items-center justify-center lg:justify-start gap-2 mb-2 group cursor-default"></div>
             <h2 className="text-3xl font-medium text-white mb-3 leading-tight">
-              تایید شماره موبایل
+              تایید شماره موبایل{" "}
+              <span className="text-sm text-emerald-400 mr-3">صداباکس</span>
             </h2>
             <p className="text-gray-400 text-sm leading-relaxed">
               یک کد ۴ رقمی به شماره{" "}
@@ -248,13 +267,17 @@ const Verify: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleResend}
-                    disabled={resendLoading}
+                    disabled={resendLoading || secondsRemaining > 0}
                     className="px-3 py-3 rounded-xl bg-white/5 hover:bg-white/6 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
                   >
                     {resendLoading && (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     )}
-                    {resendLoading ? "در حال ارسال..." : "ارسال مجدد کد"}
+                    {resendLoading
+                      ? "در حال ارسال..."
+                      : secondsRemaining > 0
+                        ? `ارسال مجدد (${formatTime(secondsRemaining)})`
+                        : "ارسال مجدد کد"}
                   </button>
                   <button
                     type="button"

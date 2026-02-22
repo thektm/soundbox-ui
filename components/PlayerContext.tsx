@@ -10,8 +10,10 @@ import React, {
   useMemo,
 } from "react";
 import { useAuth } from "./AuthContext";
-import Hls from "hls.js";
+// hls.js is heavy (~200 KB) — import it lazily the first time HLS playback is needed.
+// import Hls from "hls.js";
 import { scrapeIpInfo } from "./ipScraper";
+import { toast } from "react-hot-toast";
 
 // Ensure any URL coming from the server uses HTTPS where possible.
 function ensureHttps(u?: string | null): string | undefined {
@@ -138,7 +140,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
+  const hlsRef = useRef<any>(null);
   const { accessToken } = useAuth();
   // mirror accessToken in a ref so long-lived handlers always see latest value
   const accessTokenRef = useRef<string | null>(accessToken || null);
@@ -171,6 +173,38 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     currentTrackRef.current = currentTrack;
   }, [currentTrack]);
+
+  // Keep ref mirrored to latest isPlaying state for long-lived handlers
+  useEffect(() => {
+    isActuallyPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  // Network connection listeners to notify user fast if something happens mid-play
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleOffline = () => {
+      // If something is playing or at least visible/selected, notify that network is gone
+      if (isActuallyPlayingRef.current || currentTrackRef.current) {
+        toast.error("اتصال اینترنت قطع شد. لطفاً شبکه خود را بررسی کنید.", {
+          id: "network-error",
+          duration: 4000,
+        });
+      }
+    };
+
+    const handleOnline = () => {
+      // toast.success("اتصال اینترنت مجدداً برقرار شد.", { id: "network-error", duration: 3000 });
+    };
+
+    window.addEventListener("offline", handleOffline, { passive: true });
+    window.addEventListener("online", handleOnline, { passive: true });
+
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, []);
 
   // Listen for external like-change events (from drawers or other UI)
   useEffect(() => {
@@ -385,6 +419,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               code: mediaErr.code,
               message: (mediaErr as any).message || null,
             });
+            // If it's a network error and we are actually offline, notify.
+            if (
+              !navigator.onLine &&
+              (isActuallyPlayingRef.current || currentTrackRef.current)
+            ) {
+              toast.error("خطا در شبکه: اتصال اینترنت قطع شده است.", {
+                id: "network-error-event",
+                duration: 4000,
+              });
+            }
           } else {
             console.error("Audio error event:", e);
           }
@@ -395,8 +439,30 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setIsPlaying(false);
       };
 
-      const handleStalled = () => console.warn("Audio stalled");
-      const handleWaiting = () => console.warn("Audio waiting");
+      const handleStalled = () => {
+        console.warn("Audio stalled");
+        if (
+          !navigator.onLine &&
+          (isActuallyPlayingRef.current || currentTrackRef.current)
+        ) {
+          toast.error("اتصال اینترنت قطع شد. پخش متوقف شد.", {
+            id: "network-error-stalled",
+            duration: 4000,
+          });
+        }
+      };
+
+      const handleWaiting = () => {
+        console.warn("Audio waiting");
+        // If navigator is offline and we're trying to play or waiting to load
+        if (!navigator.onLine && isActuallyPlayingRef.current) {
+          toast.error("در حال انتظار برای اتصال اینترنت...", {
+            id: "network-error-waiting",
+            duration: 3000,
+          });
+        }
+      };
+
       const handleSuspend = () => console.warn("Audio suspend");
 
       audio.addEventListener("timeupdate", handleTimeUpdate);
@@ -734,6 +800,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             }
           } catch (fetchErr) {
             console.warn("Fetch to stream API failed:", fetchErr);
+            if (!navigator.onLine) {
+              toast.error(
+                "خطا در برقراری ارتباط؛ لطفاً اتصال اینترنت خود را بررسی کنید.",
+                { id: "network-error" },
+              );
+            } else {
+              toast.error("خطا در بارگذاری موسیقی؛ دوباره تلاش کنید.", {
+                id: "network-error",
+              });
+            }
           }
         }
 
@@ -752,15 +828,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
 
         // If it's an HLS playlist, use hls.js with Authorization headers for subsequent requests
-        if (
-          Hls.isSupported() &&
-          (resolvedSrc.includes(".m3u8") || resolvedSrc.includes("hls"))
-        ) {
+        const isHlsSrc =
+          resolvedSrc.includes(".m3u8") || resolvedSrc.includes("hls");
+        const HlsMod = isHlsSrc ? (await import("hls.js")).default : null;
+        if (HlsMod && HlsMod.isSupported() && isHlsSrc) {
           if (hlsRef.current) {
             hlsRef.current.destroy();
             hlsRef.current = null;
           }
-          const hls = new Hls({
+          const hls = new HlsMod({
             xhrSetup: (xhr, url) => {
               if (accessTokenRef.current)
                 xhr.setRequestHeader(
@@ -770,14 +846,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             },
           });
           hlsRef.current = hls;
-          hls.on(Hls.Events.ERROR, (event, data) => {
+          hls.on(HlsMod.Events.ERROR, (event: any, data: any) => {
             console.error("HLS error:", event, data);
+            if (!navigator.onLine) {
+              toast.error("خطای پخش HLS: اتصال اینترنت قطع شده است.", {
+                id: "network-error",
+              });
+            }
             setIsLoading(false);
             setIsPlaying(false);
           });
           hls.loadSource(resolvedSrc);
           hls.attachMedia(audioRef.current);
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          hls.on(HlsMod.Events.MANIFEST_PARSED, () => {
             audioRef.current
               ?.play()
               .then(() => {
@@ -795,6 +876,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               })
               .catch((error) => {
                 console.error("Playback failed:", error);
+                if (!navigator.onLine) {
+                  toast.error("خطا در پخش: لطفاً اتصال شبکه را چک کنید.", {
+                    id: "network-error",
+                  });
+                }
                 setIsPlaying(false);
                 setIsLoading(false);
               });
@@ -841,6 +927,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                   name: (error && error.name) || null,
                   message: (error && error.message) || String(error),
                 });
+
+                if (!navigator.onLine) {
+                  toast.error(
+                    "خطا در برقراری اتصال؛ وضعیت اینترنت را چک کنید.",
+                    { id: "network-error" },
+                  );
+                }
+
                 try {
                   const mediaErr = audioRef.current?.error;
                   console.error("audio.error after play failure:", mediaErr);
@@ -857,6 +951,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error("Error setting up audio:", error);
+        if (!navigator.onLine) {
+          toast.error("خطا در راه‌اندازی پخش؛ لطفاً اینترنت خود را چک کنید.", {
+            id: "network-error",
+          });
+        }
         setIsLoading(false);
       }
     },

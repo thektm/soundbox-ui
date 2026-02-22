@@ -296,7 +296,7 @@ const QualitySheet = ({
                 {locked && (
                   <div className="absolute inset-0 flex items-center justify-end pr-4 pointer-events-none">
                     <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/30 font-medium">
-                     Premium
+                      Premium
                     </span>
                   </div>
                 )}
@@ -510,6 +510,9 @@ const SessionsSheet = ({
       const url = `https://api.sedabox.com/api/auth/sessions/revoke-others/`;
       const res = await authenticatedFetch(url, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ refreshToken }),
       });
       const text = await res.text();
@@ -703,9 +706,17 @@ const SecuritySheet = ({
                 onChange={(e) =>
                   setPasswords((prev) => ({
                     ...prev,
-                    [field.key]: e.target.value,
+                    [field.key]: (e.target.value || "").replace(/\s/g, ""),
                   }))
                 }
+                onPaste={(e) => {
+                  e.preventDefault();
+                  const paste = (e.clipboardData?.getData("text") || "").replace(/\s/g, "");
+                  setPasswords((prev) => ({
+                    ...prev,
+                    [field.key]: String((prev as any)[field.key] || "") + paste,
+                  }));
+                }}
                 className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.02] transition-colors"
                 dir="rtl"
               />
@@ -913,6 +924,9 @@ export default function Settings() {
       const url = `https://api.sedabox.com/api/auth/password/change/`;
       const res = await authenticatedFetch(url, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 

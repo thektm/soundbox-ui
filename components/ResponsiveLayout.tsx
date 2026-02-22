@@ -7,14 +7,17 @@ import { useRouter } from "next/router";
 // HOOKS
 // ============================================================================
 const useMediaQuery = (query: string) => {
-  const [matches, setMatches] = useState(false);
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(query).matches;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const media = window.matchMedia(query);
-    // Set initial value
-    setMatches(media.matches);
+    // Set initial value correctly on mount if it changed
+    if (media.matches !== matches) setMatches(media.matches);
 
     const listener = (event: MediaQueryListEvent) => {
       setMatches(event.matches);
@@ -22,17 +25,27 @@ const useMediaQuery = (query: string) => {
 
     media.addEventListener("change", listener);
     return () => media.removeEventListener("change", listener);
-  }, [query]);
+  }, [query, matches]);
 
   return matches;
 };
 
 // Consolidated responsive hook that handles all breakpoints in one hook
 const useResponsiveBreakpoints = () => {
-  const [breakpoints, setBreakpoints] = useState({
-    isMobile: true,
-    isTablet: false,
-    isDesktop: false,
+  const [breakpoints, setBreakpoints] = useState(() => {
+    // Correctly initialize state for the first client-side render
+    // to prevent layout shifts (CLS) on desktop/tablet.
+    if (typeof window === "undefined") {
+      return { isMobile: true, isTablet: false, isDesktop: false };
+    }
+    const width = window.innerWidth;
+    const isMd = width >= 768;
+    const isLg = width >= 1024;
+    return {
+      isMobile: !isMd,
+      isTablet: isMd && !isLg,
+      isDesktop: isLg,
+    };
   });
 
   useEffect(() => {
@@ -51,9 +64,6 @@ const useResponsiveBreakpoints = () => {
         isDesktop: isLg,
       });
     };
-
-    // Set initial values
-    updateBreakpoints();
 
     // Listen for changes
     mdQuery.addEventListener("change", updateBreakpoints);
@@ -200,7 +210,7 @@ const Header = memo(
         </div>
       </header>
     );
-  }
+  },
 );
 
 Header.displayName = "Header";
@@ -255,7 +265,7 @@ const MainContent = memo(
         </main>
       </div>
     );
-  }
+  },
 );
 
 MainContent.displayName = "MainContent";

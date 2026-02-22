@@ -270,7 +270,7 @@ export default function DesktopProfile() {
           <div className="p-8">
             <div className="transform scale-90 origin-top-right space-y-8">
               {/* Profile Header */}
-              <div className="flex items-center gap-8">
+              <header className="flex items-center gap-8">
                 <div className="relative">
                   <div
                     className={`w-32 h-32 rounded-full p-1 ${
@@ -292,59 +292,78 @@ export default function DesktopProfile() {
                         ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400"
                         : "bg-white/10 border-white/20 text-gray-300"
                     }`}
+                    role="status"
+                    aria-label={isPremium ? "کاربر ویژه" : "کاربر رایگان"}
                   >
                     {isPremium ? "VIP" : "FREE"}
                   </div>
                   <button
                     onClick={() => setIsSheetOpen(true)}
-                    className="absolute -bottom-3 -right-3 p-3 bg-emerald-500 rounded-full hover:bg-emerald-600 transition-all duration-300 hover:scale-110 will-change-transform"
+                    aria-label="ویرایش مشخصات"
+                    className="absolute -bottom-3 -right-3 p-3 bg-emerald-500 rounded-full hover:bg-emerald-600 transition-all duration-300 hover:scale-110 will-change-transform focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500 outline-none"
                   >
                     <Icon d={ICONS.edit} className="w-6 h-6" />
                   </button>
                 </div>
                 <div className="flex-1">
-                  <h1 className="text-4xl font-bold text-white mb-2">
+                  <h2 className="text-4xl font-bold text-white mb-2">
                     {user.name}
-                  </h1>
-                  <p className="text-gray-400 text-lg mb-1">{user.phone}</p>
-                  <p className="text-gray-400 text-lg mb-1">{user.email}</p>
+                  </h2>
+                  <p
+                    className="text-gray-400 text-lg mb-1"
+                    aria-label={`شماره همراه: ${user.phone}`}
+                  >
+                    {user.phone}
+                  </p>
+                  <p
+                    className="text-gray-400 text-lg mb-1"
+                    aria-label={`ایمیل: ${user.email}`}
+                  >
+                    {user.email}
+                  </p>
                   <p className="text-gray-400 text-lg">
                     عضو از {user.joinDate}
                   </p>
                 </div>
-              </div>
+              </header>
 
-              {/* Downloads History Card (match mobile Profile styles & navigation) */}
-              <button
-                onClick={() => navigateTo("downloads-history")}
-                className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98]"
-              >
-                <div className="relative z-10 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors">
-                      <Icon
-                        d={ICONS.playlists}
-                        className="w-6 h-6 text-emerald-400"
-                      />
+              {/* Downloads History Card */}
+              <section aria-label="تاریخچه دانلودها">
+                <button
+                  onClick={() => navigateTo("downloads-history")}
+                  aria-label="مشاهده تاریخچه دانلودها"
+                  className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] text-right focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                >
+                  <div className="relative z-10 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors">
+                        <Icon
+                          d={ICONS.playlists}
+                          className="w-6 h-6 text-emerald-400"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white leading-tight">
+                          تاریخچه دانلودها
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          مشاهده تمام آهنگ‌های دریافت شده
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <h3 className="text-lg font-bold text-white leading-tight">
-                        تاریخچه دانلودها
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-1">
-                        مشاهده تمام آهنگ‌های دریافت شده
-                      </p>
+                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
+                      <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
                     </div>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
-                    <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
-                  </div>
-                </div>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
-              </button>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
+                </button>
+              </section>
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-6">
+              <section
+                className="grid grid-cols-3 gap-6"
+                aria-label="آمار فعالیتی"
+              >
                 {[
                   {
                     label: "پلی لیست‌ها",
@@ -375,7 +394,8 @@ export default function DesktopProfile() {
                         stat.tab ? { tab: stat.tab } : undefined,
                       )
                     }
-                    className="text-center py-6 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/30 hover:bg-white/8 active:scale-95 transition-all duration-300 will-change-transform"
+                    aria-label={`${stat.label}: ${stat.value.toLocaleString("fa-IR")}`}
+                    className="text-center py-6 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/30 hover:bg-white/8 active:scale-95 transition-all duration-300 will-change-transform focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                   >
                     <div className="flex items-center justify-center mb-3">
                       <Icon
@@ -389,10 +409,11 @@ export default function DesktopProfile() {
                     <div className="text-sm text-gray-400">{stat.label}</div>
                   </button>
                 ))}
-              </div>
+              </section>
 
               {/* Plan Section */}
-              <div
+              <section
+                aria-label="وضعیت اشتراک"
                 className={`relative w-full rounded-3xl overflow-hidden border shadow-2xl ${
                   isPremium
                     ? "bg-gradient-to-br from-[#0d1f17] via-[#0a1a12] to-[#061210] border-emerald-500/30"
@@ -494,9 +515,10 @@ export default function DesktopProfile() {
                       </div>
                     </div>
                     <div className="hidden md:block w-px bg-gradient-to-b from-transparent via-white/10 to-transparent"></div>
-                    <div
-                      className="relative flex-1 p-8 overflow-hidden group cursor-pointer"
+                    <button
+                      className="relative flex-1 p-8 overflow-hidden group cursor-pointer text-right transition-all hover:bg-white/[0.02] focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                       onClick={() => navigateTo("upgrade-plans")}
+                      aria-label="ارتقا به نسخه پرو"
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/25 to-[#020202] group-hover:from-emerald-800/25 transition-all duration-500"></div>
                       <div className="absolute -right-8 -top-8 w-32 h-32 bg-emerald-900/8 rounded-full blur-3xl group-hover:bg-emerald-800/8 transition-all"></div>
@@ -528,7 +550,7 @@ export default function DesktopProfile() {
                             بدون تبلیغات
                           </li>
                         </ul>
-                        <button className="w-full py-4 relative overflow-hidden rounded-2xl group/btn">
+                        <div className="w-full py-4 relative overflow-hidden rounded-2xl group/btn">
                           <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all group-hover/btn:scale-105 will-change-transform"></div>
                           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
                           <div className="absolute inset-0 -translate-x-full group-hover/btn:animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent z-10"></div>
@@ -541,19 +563,19 @@ export default function DesktopProfile() {
                               className="w-6 h-6 text-yellow-200"
                             />
                           </div>
-                        </button>
+                        </div>
                       </div>
-                    </div>
+                    </button>
                   </div>
                 )}
-              </div>
+              </section>
 
               {/* Recent Plays */}
-              <div>
+              <section aria-label="آهنگ‌های اخیراً پخش شده">
                 <h2 className="text-2xl font-semibold text-white mb-6">
                   اخیراً پخش شده
                 </h2>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4" role="list">
                   {isFetching ? (
                     Array.from({ length: 4 }).map((_, idx) => (
                       <div
@@ -573,6 +595,7 @@ export default function DesktopProfile() {
                       .map((track: any) => (
                         <button
                           key={track.id}
+                          role="listitem"
                           onClick={() =>
                             navigateTo("song-detail", {
                               id: track.id,
@@ -582,7 +605,8 @@ export default function DesktopProfile() {
                               songSlug: createSlug(track.title),
                             })
                           }
-                          className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 transition-all duration-300 will-change-transform"
+                          aria-label={`پخش ${track.title} اثر ${track.artist_name}`}
+                          className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 transition-all duration-300 will-change-transform text-right focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                         >
                           <div className="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-800">
                             <Image
@@ -591,7 +615,7 @@ export default function DesktopProfile() {
                                 track.cover_image ||
                                 "/music-listen.webp"
                               }
-                              alt={track.title}
+                              alt=""
                               fill
                               className="object-cover"
                             />
@@ -621,7 +645,7 @@ export default function DesktopProfile() {
                     </div>
                   )}
                 </div>
-              </div>
+              </section>
             </div>
           </div>
         );
@@ -660,7 +684,7 @@ export default function DesktopProfile() {
       <div className="absolute bottom-[-15%] right-[15%] w-[500px] h-[500px] bg-blue-900/5 rounded-full blur-[150px] pointer-events-none" />
 
       {/* Header */}
-      <div className="relative z-10 p-8 border-b border-white/5">
+      <header className="relative z-10 p-8 border-b border-white/5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="h-12 w-12">
@@ -679,25 +703,29 @@ export default function DesktopProfile() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigateTo("settings")}
-              className="w-14 h-14 rounded-2xl bg-black/50 hover:bg-black/70 flex items-center justify-center transition-all duration-300 hover:scale-105 will-change-transform"
+              aria-label="تنظیمات"
+              className="w-14 h-14 rounded-2xl bg-black/50 hover:bg-black/70 flex items-center justify-center transition-all duration-300 hover:scale-105 will-change-transform focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
             >
               <Icon d={ICONS.settings} className="w-7 h-7 text-white" />
             </button>
-            
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       <div className="relative z-10 flex min-h-[calc(100vh-120px)]">
-        {/* Left Side - Menu */}
-        <div className="flex-[0_0_30%] border-r border-white/5 p-6">
+        {/* Left Side - Navigation Menu */}
+        <nav
+          className="flex-[0_0_30%] border-r border-white/5 p-6"
+          aria-label="منوی حساب کاربری"
+        >
           <div className="space-y-2">
             {menuItems.map((item) => (
               <button
                 key={item.key}
                 onClick={() => setActiveSection(item.key)}
-                className={`relative w-full flex items-center gap-3 py-4 px-5 rounded-xl overflow-hidden transition-all duration-300 will-change-transform ${
+                aria-current={activeSection === item.key ? "page" : undefined}
+                className={`relative w-full flex items-center gap-3 py-4 px-5 rounded-xl overflow-hidden transition-all duration-300 will-change-transform focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none ${
                   activeSection === item.key
                     ? "bg-emerald-500/10 border border-emerald-500/30 shadow-lg shadow-emerald-500/10"
                     : "bg-white/5 border border-white/10 hover:bg-white/8 hover:border-emerald-500/20"
@@ -718,8 +746,9 @@ export default function DesktopProfile() {
             ))}
             {/* Logout Button */}
             <button
-              className="relative w-full flex items-center gap-3 py-4 px-5 bg-gradient-to-r from-red-500/10 to-black/20 border border-red-500/30 rounded-xl overflow-hidden hover:from-red-500/20 transition-all duration-300 group will-change-transform"
+              className="relative w-full flex items-center gap-3 py-4 px-5 bg-gradient-to-r from-red-500/10 to-black/20 border border-red-500/30 rounded-xl overflow-hidden hover:from-red-500/20 transition-all duration-300 group will-change-transform focus-visible:ring-2 focus-visible:ring-red-500 outline-none"
               onClick={handleLogout}
+              aria-label="خروج از حساب کاربری"
             >
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-red-400"></div>
               <div className="w-full flex items-center justify-end relative">
@@ -732,12 +761,15 @@ export default function DesktopProfile() {
               </div>
             </button>
           </div>
-        </div>
+        </nav>
 
         {/* Right Side - Content */}
-        <div className="flex-[0_0_70%] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+        <main
+          className="flex-[0_0_70%] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+          aria-label="محتوای انتخاب شده"
+        >
           {renderLeftContent()}
-        </div>
+        </main>
       </div>
 
       {/* Edit Sheet */}
@@ -782,15 +814,19 @@ export default function DesktopProfile() {
               },
             ].map((field) => (
               <div key={field.key}>
-                <label className="block text-lg font-medium text-gray-400 mb-3">
+                <label
+                  htmlFor={`desktop-profile-${field.key}`}
+                  className="block text-lg font-medium text-gray-400 mb-3"
+                >
                   {field.label}
                 </label>
                 <input
+                  id={`desktop-profile-${field.key}`}
                   type={field.type || "text"}
                   value={formData[field.key as keyof typeof formData]}
                   onChange={(e) => handleChange(field.key, e.target.value)}
                   placeholder={field.placeholder}
-                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition-colors text-lg"
+                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus-visible:ring-2 focus-visible:ring-emerald-500 transition-colors text-lg"
                   dir="rtl"
                 />
               </div>

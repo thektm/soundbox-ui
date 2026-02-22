@@ -212,9 +212,9 @@ function MobileContent({
           {/* Notification List */}
           <div className="flex flex-col gap-2 max-h-[70vh] overflow-y-auto p-3 no-scrollbar">
             {notifications.length === 0 ? (
-              <div className="text-zinc-500 text-sm py-12 flex flex-col items-center gap-3">
+              <div className="text-zinc-400 text-sm py-12 flex flex-col items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-zinc-800/50 flex items-center justify-center">
-                  <Bell className="w-6 h-6 text-zinc-600" />
+                  <Bell className="w-6 h-6 text-zinc-500" />
                 </div>
                 اعلان جدیدی وجود ندارد
               </div>
@@ -251,7 +251,7 @@ function MobileContent({
                       <div className="text-sm text-zinc-200 leading-relaxed font-medium line-clamp-2">
                         {n.text}
                       </div>
-                      <div className="text-xs text-zinc-500 font-medium">
+                      <div className="text-xs text-zinc-400 font-medium">
                         {getTimeAgo(n.created_at)}
                       </div>
                     </div>
@@ -346,9 +346,9 @@ function DesktopContent({
         {/* Notification List */}
         <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto p-3 no-scrollbar">
           {notifications.length === 0 ? (
-            <div className="text-zinc-500 text-xs py-10 flex flex-col items-center gap-2">
+            <div className="text-zinc-400 text-xs py-10 flex flex-col items-center gap-2">
               <div className="w-10 h-10 rounded-full bg-zinc-800/50 flex items-center justify-center">
-                <Bell className="w-5 h-5 text-zinc-600" />
+                <Bell className="w-5 h-5 text-zinc-500" />
               </div>
               اعلان جدیدی وجود ندارد
             </div>
@@ -383,7 +383,7 @@ function DesktopContent({
                     <div className="text-xs text-zinc-200 leading-relaxed font-medium line-clamp-2">
                       {n.text}
                     </div>
-                    <div className="text-[10px] text-zinc-500 font-medium">
+                    <div className="text-[10px] text-zinc-400 font-medium">
                       {getTimeAgo(n.created_at)}
                     </div>
                   </div>

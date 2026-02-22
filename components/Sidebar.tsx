@@ -18,9 +18,10 @@ const Icons = {
       fill={active ? "currentColor" : "none"}
       stroke="currentColor"
       strokeWidth={active ? 0 : 1.5}
+      aria-hidden="true"
     >
       {active ? (
-        <path d="M12.71 2.29a1 1 0 00-1.42 0l-9 9a1 1 0 000 1.42A1 1 0 003 13h1v7a2 2 0 002 2h12a2 2 0 002-2v-7h1a1 1 0 00.71-1.71l-9-9zM9 20v-5a1 1 0 011-1h4a1 1 0 011 1v5H9z" />
+        <path d="M12.71 2.29a1 1 0 00-1.42 0l-9 9a1 1 0 000 1.42A1 1 0 003 13h1v7a2 2 0 002 2h12a2 2 0 002-2v-7h1a1 1 0 00.71-1.71l-9-9zM9 20v-5a1 1 0 011-1h4a1 1 0 011-1v5H9z" />
       ) : (
         <path
           strokeLinecap="round"
@@ -37,6 +38,7 @@ const Icons = {
       fill="none"
       stroke="currentColor"
       strokeWidth={active ? 2.5 : 1.5}
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -52,6 +54,7 @@ const Icons = {
       fill={active ? "currentColor" : "none"}
       stroke={active ? "none" : "currentColor"}
       strokeWidth={1.5}
+      aria-hidden="true"
     >
       {active ? (
         <path d="M3 22V2h6v20H3zm7 0V7h6v15h-6zm7 0V11h4v11h-4z" />
@@ -71,6 +74,7 @@ const Icons = {
       fill={active ? "currentColor" : "none"}
       stroke={active ? "none" : "currentColor"}
       strokeWidth={1.5}
+      aria-hidden="true"
     >
       {active ? (
         <path d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.403-4.909l2.311-.66a1.5 1.5 0 001.088-1.442V6.994l-9 2.572v9.737a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.402-4.909l2.31-.66a1.5 1.5 0 001.088-1.442V5.25a.75.75 0 01.544-.721l10.5-3a.75.75 0 01.458.122z" />
@@ -90,6 +94,7 @@ const Icons = {
       fill={active ? "currentColor" : "none"}
       stroke={active ? "none" : "currentColor"}
       strokeWidth={1.5}
+      aria-hidden="true"
     >
       {active ? (
         <path
@@ -113,6 +118,7 @@ const Icons = {
       fill="none"
       stroke="currentColor"
       strokeWidth={2}
+      aria-hidden="true"
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
     </svg>
@@ -124,6 +130,7 @@ const Icons = {
       fill={filled ? "currentColor" : "none"}
       stroke="currentColor"
       strokeWidth={filled ? 0 : 1.5}
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -139,6 +146,7 @@ const Icons = {
       fill="none"
       stroke="currentColor"
       strokeWidth={2}
+      aria-hidden="true"
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
     </svg>
@@ -150,6 +158,7 @@ const Icons = {
       fill="none"
       stroke="currentColor"
       strokeWidth={2}
+      aria-hidden="true"
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
     </svg>
@@ -161,6 +170,7 @@ const Icons = {
       fill="none"
       stroke="currentColor"
       strokeWidth={1.5}
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -176,6 +186,7 @@ const Icons = {
       fill="none"
       stroke="currentColor"
       strokeWidth={1.5}
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -191,6 +202,7 @@ const Icons = {
       fill="none"
       stroke="currentColor"
       strokeWidth={1.5}
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -206,6 +218,7 @@ const Icons = {
       fill="none"
       stroke="currentColor"
       strokeWidth={1.5}
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -221,6 +234,7 @@ const Icons = {
       fill="none"
       stroke="currentColor"
       strokeWidth={1.5}
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -230,10 +244,10 @@ const Icons = {
     </svg>
   ),
   Premium: ({ active }: { active: boolean }) => (
-    <div className="relative w-6 h-6">
+    <div className="relative w-6 h-6" aria-hidden="true">
       <img
         src="/premium.svg"
-        alt="premium"
+        alt=""
         className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
           active ? "opacity-0" : "opacity-100"
         }`}
@@ -241,7 +255,7 @@ const Icons = {
       />
       <img
         src="/premium-selected.svg"
-        alt="premium-selected"
+        alt=""
         className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${
           active ? "opacity-100" : "opacity-0"
         }`}
@@ -332,9 +346,11 @@ const NavItemComponent = memo(
   }) => (
     <button
       onClick={onClick}
+      aria-label={item.labelFa}
+      aria-current={isActive ? "page" : undefined}
       className={`
         w-full flex items-center gap-4 px-3 py-2.5 rounded-md
-        transition-all duration-200 group
+        transition-all duration-200 group focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none
         ${
           isActive
             ? "bg-white/10 text-white"
@@ -388,15 +404,17 @@ const LibraryItemComponent = memo(
       return (
         <button
           onClick={onClick}
-          className="w-full aspect-square relative group"
+          className="w-full aspect-square relative group focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-md outline-none"
           title={item.name}
+          aria-label={`${typeLabels[item.type]}: ${item.name}`}
         >
           <div className="w-full h-full rounded-md overflow-hidden bg-zinc-800">
             {item.image ? (
               Array.isArray(item.image) ? (
                 <img
                   src={(item.image as string[])[0]}
-                  alt={item.name}
+                  alt=""
+                  aria-hidden="true"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   style={{
                     willChange: "transform",
@@ -407,7 +425,8 @@ const LibraryItemComponent = memo(
               ) : (
                 <img
                   src={String(item.image)}
-                  alt={item.name}
+                  alt=""
+                  aria-hidden="true"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   style={{
                     willChange: "transform",
@@ -417,7 +436,10 @@ const LibraryItemComponent = memo(
                 />
               )
             ) : (
-              <div className="w-full h-full bg-linear-to-br from-zinc-700 to-zinc-800 flex items-center justify-center">
+              <div
+                className="w-full h-full bg-linear-to-br from-zinc-700 to-zinc-800 flex items-center justify-center"
+                aria-hidden="true"
+              >
                 <Icons.Playlists active={false} />
               </div>
             )}
@@ -432,9 +454,10 @@ const LibraryItemComponent = memo(
     return (
       <button
         onClick={onClick}
+        aria-label={`${typeLabels[item.type]}: ${item.name}${item.owner ? ` اثر ${item.owner}` : ""}`}
         className={`
           w-full flex items-center gap-3 p-2 rounded-md
-          transition-all duration-200 group hover:bg-white/5
+          transition-all duration-200 group hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none
           ${viewMode === "grid" ? "flex-col text-center" : ""}
         `}
         style={{
@@ -453,6 +476,7 @@ const LibraryItemComponent = memo(
           }
           ${item.type === "artist" ? "rounded-full" : ""}
         `}
+          aria-hidden="true"
         >
           {item.image ? (
             Array.isArray(item.image) ? (
@@ -469,7 +493,7 @@ const LibraryItemComponent = memo(
                     <img
                       key={idx}
                       src={src}
-                      alt={`${item.name} cover ${idx}`}
+                      alt=""
                       className={`object-cover rounded-md border border-black bg-zinc-900 absolute shadow-md`}
                       style={{
                         right: `${offset}px`,
@@ -486,7 +510,7 @@ const LibraryItemComponent = memo(
             ) : (
               <img
                 src={String(item.image)}
-                alt={item.name}
+                alt=""
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 style={{
                   willChange: "transform",
@@ -528,10 +552,38 @@ LibraryItemComponent.displayName = "LibraryItemComponent";
 function Sidebar() {
   const { currentPage, navigateTo, homeCache } = useNavigation();
 
-  // State
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  // Synchronous state initialization to prevent layout shift during hydration.
+  // This ensures the sidebar doesn't snap between collapsed/expanded or grid/list modes.
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sb-sidebar-collapsed") === "true";
+    }
+    return false;
+  });
+  const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
+    if (typeof window !== "undefined") {
+      return (
+        (localStorage.getItem("sb-sidebar-mode") as "list" | "grid") || "list"
+      );
+    }
+    return "list";
+  });
+
   const { accessToken, authenticatedFetch } = useAuth();
+
+  // Save changes to localStorage to maintain target state on next refresh
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sb-sidebar-collapsed", String(isCollapsed));
+    }
+  }, [isCollapsed]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sb-sidebar-mode", viewMode);
+    }
+  }, [viewMode]);
+
   const [libraryTab, setLibraryTab] = useState<"playlists" | "library">(
     "playlists",
   );
@@ -699,6 +751,8 @@ function Sidebar() {
                   <img
                     src="/logo.png"
                     alt="صدا باکس"
+                    width={24}
+                    height={24}
                     className="w-6 h-6 object-cover"
                   />
                 </div>
@@ -707,15 +761,17 @@ function Sidebar() {
             )}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-1.5 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+              className="p-1.5 rounded-md hover:bg-white/10 text-zinc-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
               title={isCollapsed ? "باز کردن" : "بستن"}
+              aria-label={isCollapsed ? "باز کردن سایدبار" : "بستن سایدبار"}
+              aria-expanded={!isCollapsed}
             >
               {isCollapsed ? <Icons.ChevronLeft /> : <Icons.ChevronRight />}
             </button>
           </div>
 
           {/* Main Navigation */}
-          <nav className="flex flex-col gap-1">
+          <nav className="flex flex-col gap-1" aria-label="منوی اصلی">
             {mainNavItems.map((item) => (
               <NavItemComponent
                 key={item.id}
@@ -734,15 +790,23 @@ function Sidebar() {
         <div className="bg-zinc-900 rounded-lg flex-1 flex flex-col overflow-hidden">
           {/* Library Header */}
           <div className="p-3 pb-2 flex items-center justify-between sticky top-0 bg-zinc-900 z-10 transition-colors duration-200">
-            <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
+            <div
+              className="flex items-center gap-1.5 flex-1 overflow-hidden"
+              role="tablist"
+              aria-label="بخش‌های کتابخانه"
+            >
               <button
+                role="tab"
+                aria-selected={libraryTab === "playlists"}
+                aria-controls="library-content-area"
+                id="tab-playlists"
                 onClick={() => {
                   setLibraryTab("playlists");
                   // No re-fetch needed if we have them, usually
                 }}
                 onDoubleClick={() => navigateTo("recommended-playlists")}
                 className={`
-                  flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300
+                  flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none
                   ${
                     libraryTab === "playlists"
                       ? "bg-white/15 text-white shadow-xl shadow-black/20"
@@ -750,6 +814,7 @@ function Sidebar() {
                   }
                   ${isCollapsed ? "hidden" : "block shrink-0"}
                 `}
+                aria-label="پلی‌لیست‌ها"
               >
                 <Icons.Library active={libraryTab === "playlists"} />
                 <span className="font-bold text-xs whitespace-nowrap">
@@ -758,6 +823,10 @@ function Sidebar() {
               </button>
               {!isCollapsed && (
                 <button
+                  role="tab"
+                  aria-selected={libraryTab === "library"}
+                  aria-controls="library-content-area"
+                  id="tab-library"
                   onClick={() => {
                     setLibraryTab("library");
                     // Always fetch library items when switching to the Library tab
@@ -765,7 +834,7 @@ function Sidebar() {
                   }}
                   onDoubleClick={() => navigateTo("library")}
                   className={`
-                    flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300
+                    flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none
                     ${
                       libraryTab === "library"
                         ? "bg-white/15 text-white shadow-xl shadow-black/20"
@@ -773,6 +842,7 @@ function Sidebar() {
                     }
                     ${isCollapsed ? "hidden" : "block shrink-0"}
                   `}
+                  aria-label="کتابخانه شما"
                 >
                   <Icons.Search active={libraryTab === "library"} />
                   <span className="font-bold text-xs whitespace-nowrap">
@@ -783,6 +853,8 @@ function Sidebar() {
 
               {isCollapsed && (
                 <button
+                  role="tab"
+                  aria-selected={true} // in collapsed mode, we cycle them so it's always the active one conceptually
                   onClick={() => {
                     const next =
                       libraryTab === "playlists" ? "library" : "playlists";
@@ -797,7 +869,12 @@ function Sidebar() {
                         : "library",
                     )
                   }
-                  className="p-1 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center justify-center w-full"
+                  className="p-1 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center justify-center w-full focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                  aria-label={
+                    libraryTab === "playlists"
+                      ? "مشاهده پلی‌لیست‌ها"
+                      : "مشاهده کتابخانه"
+                  }
                 >
                   {libraryTab === "playlists" ? (
                     <Icons.Library active={true} />
@@ -813,16 +890,18 @@ function Sidebar() {
                 {libraryTab === "playlists" ? (
                   <button
                     onClick={() => setShowCreateModal(true)}
-                    className="p-2 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-all transform active:scale-95 duration-200"
+                    className="p-2 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-all transform active:scale-95 duration-200 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                     title="ایجاد پلی‌لیست جدید"
+                    aria-label="ایجاد پلی‌لیست جدید"
                   >
                     <Icons.Plus />
                   </button>
                 ) : (
                   <button
                     onClick={() => navigateTo("liked-songs")}
-                    className="p-2 rounded-full hover:bg-white/10 text-emerald-500 hover:text-emerald-400 transition-all transform active:scale-95 animate-in fade-in zoom-in duration-300"
+                    className="p-2 rounded-full hover:bg-white/10 text-emerald-500 hover:text-emerald-400 transition-all transform active:scale-95 animate-in fade-in zoom-in duration-300 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                     title="آهنگ‌های لایک شده"
+                    aria-label="مشاهده آهنگ‌های لایک شده"
                   >
                     <Icons.Heart filled={true} />
                   </button>
@@ -833,6 +912,11 @@ function Sidebar() {
 
           {/* Library Items */}
           <div
+            id="library-content-area"
+            role="tabpanel"
+            aria-labelledby={
+              libraryTab === "playlists" ? "tab-playlists" : "tab-library"
+            }
             className={`
             flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 scroll-smooth
             ${
@@ -844,13 +928,13 @@ function Sidebar() {
           `}
           >
             {(libraryTab === "playlists" ? loadingRecommended : loadingLibrary)
-              ? Array.from({ length: 6 }).map((_, i) => (
+              ? Array.from({ length: 12 }).map((_, i) => (
                   <div
                     key={"skeleton-" + i}
                     className={
                       viewMode === "grid" && !isCollapsed
-                        ? "w-full h-24 bg-zinc-800/50 rounded-md animate-pulse"
-                        : "w-full h-12 bg-zinc-800/50 rounded-md animate-pulse mb-2"
+                        ? "w-full aspect-square bg-zinc-800/50 rounded-md animate-pulse p-2 mb-2"
+                        : "w-full h-[64px] bg-zinc-800/40 rounded-md animate-pulse mb-0.5"
                     }
                   />
                 ))

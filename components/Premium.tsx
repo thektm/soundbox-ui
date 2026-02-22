@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useCallback, useState } from "react";
 import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
 import toast from "react-hot-toast";
+import { SEO } from "./SEO";
 
 const Premium: React.FC = () => {
   const { navigateTo } = useNavigation();
@@ -115,6 +116,10 @@ const Premium: React.FC = () => {
       ref={containerRef}
       className="flex flex-col h-screen bg-[#121212] text-white overflow-y-auto overflow-x-hidden scroll-smooth"
     >
+      <SEO
+        title="خرید اشتراک پریمیوم"
+        description="با خرید اشتراک پریمیوم صداباکس، از پخش آهنگ‌ها با بالاترین کیفیت، بدون تبلیغات و با امکانات ویژه لذت ببرید."
+      />
       {/* Premium Header Image - GPU-accelerated */}
       <div
         ref={headerRef}
@@ -156,7 +161,7 @@ const Premium: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           {/* Free Plan */}
-          <div
+          <article
             className="bg-zinc-900/90 rounded-3xl p-8 border border-white/5 flex flex-col shadow-xl"
             dir="rtl"
           >
@@ -165,9 +170,15 @@ const Premium: React.FC = () => {
               <p className="text-zinc-400 text-sm">مناسب برای شروع</p>
             </div>
 
-            <div className="flex-1 space-y-5 mb-10">
-              <div className="flex items-center gap-3 text-zinc-300">
-                <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
+            <ul
+              className="flex-1 space-y-5 mb-10"
+              aria-label="ویژگی‌های پلن رایگان"
+            >
+              <li className="flex items-center gap-3 text-zinc-300">
+                <div
+                  className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0"
+                  aria-hidden="true"
+                >
                   <svg
                     className="w-3 h-3 text-zinc-400"
                     viewBox="0 0 24 24"
@@ -185,10 +196,13 @@ const Premium: React.FC = () => {
                 <span className="text-sm">
                   پخش آنلاین موسیقی با تبلیغ صوتی / بنری
                 </span>
-              </div>
+              </li>
 
-              <div className="flex items-center gap-3 text-zinc-300">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+              <li className="flex items-center gap-3 text-zinc-300">
+                <div
+                  className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0"
+                  aria-hidden="true"
+                >
                   <svg
                     className="w-3 h-3 text-black"
                     viewBox="0 0 24 24"
@@ -204,10 +218,13 @@ const Premium: React.FC = () => {
                   </svg>
                 </div>
                 <span className="text-sm">کیفیت پخش متوسط (128kbps)</span>
-              </div>
+              </li>
 
-              <div className="flex items-center gap-3 text-zinc-300">
-                <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
+              <li className="flex items-center gap-3 text-zinc-300">
+                <div
+                  className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0"
+                  aria-hidden="true"
+                >
                   <svg
                     className="w-3 h-3 text-zinc-400"
                     viewBox="0 0 24 24"
@@ -223,10 +240,13 @@ const Premium: React.FC = () => {
                   </svg>
                 </div>
                 <span className="text-sm">محدودیت در رد کردن آهنگ (Skip)</span>
-              </div>
+              </li>
 
-              <div className="flex items-center gap-3 text-zinc-300">
-                <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
+              <li className="flex items-center gap-3 text-zinc-300">
+                <div
+                  className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0"
+                  aria-hidden="true"
+                >
                   <svg
                     className="w-3 h-3 text-zinc-400"
                     viewBox="0 0 24 24"
@@ -242,10 +262,13 @@ const Premium: React.FC = () => {
                   </svg>
                 </div>
                 <span className="text-sm">پلی‌لیست محدود</span>
-              </div>
+              </li>
 
-              <div className="flex items-center gap-3 text-zinc-300">
-                <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0">
+              <li className="flex items-center gap-3 text-zinc-300">
+                <div
+                  className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center flex-shrink-0"
+                  aria-hidden="true"
+                >
                   <svg
                     className="w-3 h-3 text-zinc-400"
                     viewBox="0 0 24 24"
@@ -261,10 +284,13 @@ const Premium: React.FC = () => {
                   </svg>
                 </div>
                 <span className="text-sm">الگوریتم محدود</span>
-              </div>
+              </li>
 
-              <div className="flex items-center gap-3 text-zinc-500">
-                <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center flex-shrink-0">
+              <li className="flex items-center gap-3 text-zinc-500">
+                <div
+                  className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center flex-shrink-0"
+                  aria-hidden="true"
+                >
                   <svg
                     className="w-3 h-3 text-zinc-600"
                     viewBox="0 0 24 24"
@@ -282,33 +308,48 @@ const Premium: React.FC = () => {
                 <span className="text-sm line-through">
                   عدم دسترسی به دانلود
                 </span>
-              </div>
-            </div>
+              </li>
+            </ul>
 
-            <button className="w-full py-4 rounded-full bg-zinc-800 text-zinc-400 font-bold cursor-default transition-all">
+            <button
+              disabled
+              className="w-full py-4 rounded-full bg-zinc-800 text-zinc-400 font-bold cursor-default transition-all"
+              aria-label="پلن فعلی شما پلن رایگان است"
+            >
               پلن فعلی
             </button>
-          </div>
+          </article>
 
           {/* Premium Plan */}
-          <div
+          <article
             className="relative bg-zinc-900/90  rounded-3xl p-8 border border-emerald-500/30 flex flex-col shadow-2xl scale-105 z-10 ring-1 ring-emerald-500/20"
             dir="rtl"
           >
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[10px] font-black px-4 py-1 rounded-full uppercase tracking-widest shadow-lg">
+            <div
+              className="absolute -top-4 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[10px] font-black px-4 py-1 rounded-full uppercase tracking-widest shadow-lg"
+              aria-hidden="true"
+            >
               پیشنهادی
             </div>
 
             <div className="mb-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-0">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-0">
                   پلن پریمیوم
-                </h3>
-                <div className="inline-flex items-baseline gap-2 bg-gradient-to-r from-emerald-600 to-emerald-400 text-black font-extrabold px-3 py-1 rounded-full shadow-lg">
+                </h2>
+                <div
+                  className="inline-flex items-baseline gap-2 bg-gradient-to-r from-emerald-600 to-emerald-400 text-black font-extrabold px-3 py-1 rounded-full shadow-lg min-w-[124px] justify-center transition-all duration-300"
+                  aria-label={`قیمت: ${price !== null ? price : ""} تومان`}
+                >
                   {priceLoading ? (
-                    <span className="text-xl md:text-2xl">...</span>
+                    <span
+                      className="text-xl md:text-2xl animate-pulse"
+                      aria-hidden="true"
+                    >
+                      ...
+                    </span>
                   ) : priceError ? (
-                    <span className="text-sm text-red-400">{priceError}</span>
+                    <span className="text-sm text-red-500">{priceError}</span>
                   ) : (
                     <span className="text-xl md:text-2xl">
                       {price !== null
@@ -318,7 +359,10 @@ const Premium: React.FC = () => {
                         : "—"}
                     </span>
                   )}
-                  <span className="text-sm md:text-base font-semibold">
+                  <span
+                    className="text-sm md:text-base font-semibold"
+                    aria-hidden="true"
+                  >
                     تومان
                   </span>
                 </div>
@@ -326,197 +370,55 @@ const Premium: React.FC = () => {
               <p className="text-zinc-400 text-sm mt-2">تجربه حرفه‌ای موسیقی</p>
             </div>
 
-            <div className="flex-1 space-y-5 mb-10">
-              <div className="flex items-center gap-3 text-white">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-3 h-3 text-black"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
+            <ul
+              className="flex-1 space-y-5 mb-10"
+              aria-label="ویژگی‌های پلن پریمیوم"
+            >
+              {[
+                "پخش آنلاین موسیقی بدون محدودیت",
+                "بدون تبلیغ",
+                "کیفیت بالا (320kbps)",
+                "نشان تایید ⭐️ یا Badge کنار نام کاربر",
+                "Skip نامحدود",
+                "دانلود آثار موسیقی",
+                "الگوریتم کامل",
+                "پلی‌لیست نامحدود",
+                "دسترسی زودتر به ویژگی‌های جدید",
+              ].map((text, idx) => (
+                <li key={idx} className="flex items-center gap-3 text-white">
+                  <div
+                    className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0"
+                    aria-hidden="true"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">
-                  پخش آنلاین موسیقی بدون محدودیت
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3 text-white">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-3 h-3 text-black"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">بدون تبلیغ</span>
-              </div>
-
-              <div className="flex items-center gap-3 text-white">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-3 h-3 text-black"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">
-                  کیفیت بالا (320kbps)
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3 text-white">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-3 h-3 text-black"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M12 2l2.09 6.26L20 9.27l-5 3.64L16.18 20 12 16.77 7.82 20 9 12.91 4 9.27l5.91-.01L12 2z"
-                    />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">
-                  نشان تایید ⭐️ یا Badge کنار نام کاربر
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3 text-white">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-3 h-3 text-black"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">Skip نامحدود</span>
-              </div>
-
-              <div className="flex items-center gap-3 text-white">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-3 h-3 text-black"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">دانلود آثار موسیقی</span>
-              </div>
-
-              <div className="flex items-center gap-3 text-white">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-3 h-3 text-black"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">الگوریتم کامل</span>
-              </div>
-
-              <div className="flex items-center gap-3 text-white">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-3 h-3 text-black"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">پلی‌لیست نامحدود</span>
-              </div>
-
-              <div className="flex items-center gap-3 text-white">
-                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-3 h-3 text-black"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={3}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">
-                  دسترسی زودتر به ویژگی‌های جدید
-                </span>
-              </div>
-            </div>
+                    <svg
+                      className="w-3 h-3 text-black"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={3}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-medium">{text}</span>
+                </li>
+              ))}
+            </ul>
 
             <button
               onClick={() => {
                 // Show a hot toast informing that payment API is required (Farsi, no emoji)
                 toast.error("Payment Api key is needed");
               }}
-              className="w-full py-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-emerald-500/20"
+              className="w-full py-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-emerald-500/20 focus-visible:ring-4 focus-visible:ring-emerald-500/50 outline-none"
             >
               ارتقا به این پلن
             </button>
-          </div>
+          </article>
         </div>
       </div>
     </div>

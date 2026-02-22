@@ -47,6 +47,8 @@ interface UserPlaylistResponse {
   top_three_song_covers: string[];
   created_at: string;
   updated_at: string;
+  generated_by?: "system" | "admin" | "audience";
+  creator_unique_id?: string | null;
 }
 
 // ============== HELPERS ==============
@@ -267,7 +269,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   id,
   isOwner,
 }) => {
-  const { goBack, scrollY } = useNavigation();
+  const { goBack, scrollY, navigateTo } = useNavigation();
   const { accessToken, authenticatedFetch } = useAuth();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
@@ -560,6 +562,35 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
                 {totalDuration}
               </span>
             </div>
+            {(playlist.generated_by === "system" ||
+              playlist.generated_by === "admin") && (
+              <button
+                type="button"
+                onClick={() => navigateTo("user-detail", { id: "sedabox" })}
+                className="mt-3 text-sm text-green-400 hover:text-green-300 hover:underline transition-colors text-right w-full"
+              >
+                ایجاد شده توسط سیستم صدا باکس
+              </button>
+            )}
+            {playlist.generated_by === "audience" &&
+              playlist.creator_unique_id &&
+              (!isOwner ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigateTo("user-detail", {
+                      id: playlist.creator_unique_id!,
+                    })
+                  }
+                  className="mt-3 text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors text-right w-full"
+                >
+                  ایجاد شده توسط {playlist.creator_unique_id}
+                </button>
+              ) : (
+                <div className="mt-3 text-sm text-neutral-500 text-right w-full">
+                  ایجاد شده توسط شما
+                </div>
+              ))}
           </div>
         </div>
       </header>

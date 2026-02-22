@@ -231,13 +231,13 @@ export default function Profile() {
       <div className="absolute bottom-[-10%] right-[20%] w-[400px] h-[400px] bg-blue-900/6 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Header */}
-      <div className="relative z-10 lg:p-12 ">
+      <header className="relative z-10 lg:p-12 ">
         <div className="flex fixed top-0 z-60 w-full bg-black/90  items-center px-4 pt-4 pb-2 justify-between">
           <div className="flex items-center gap-3 mb-4">
-            <div className="h-10 w-10">
+            <div className="h-10 w-10" aria-hidden="true">
               <Image
                 src="/logo.png"
-                alt="SedaBox Logo"
+                alt=""
                 className="w-full h-full object-contain drop-shadow-lg"
                 width={40}
                 height={40}
@@ -250,530 +250,592 @@ export default function Profile() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigateTo("settings")}
-              className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70  flex items-center justify-center transition-all duration-300 hover:scale-105"
+              className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70  flex items-center justify-center transition-all duration-300 hover:scale-105 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+              aria-label="تنظیمات"
             >
               <Icon d={ICONS.settings} className="w-6 h-6 text-white" />
             </button>
             <button
               onClick={() => navigateTo("home")}
-              className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70  flex items-center justify-center transition-all duration-300 hover:scale-105"
+              className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70  flex items-center justify-center transition-all duration-300 hover:scale-105 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+              aria-label="بازگشت به خانه"
             >
               <Icon d={ICONS.back} className="w-6 h-6 text-white" />
             </button>
           </div>
         </div>
+      </header>
 
+      {/* Main Content Area */}
+      <main className="max-w-2xl mx-auto mt-14" aria-label="مدیریت حساب کاربری">
         {/* Profile Card */}
-        <div className="max-w-2xl mx-auto mt-14">
-          <div className="relative group rounded-2xl p-1  transition-all duration-500 bg-[#050505]/30">
-            <div className="p-6 lg:p-8">
-              {/* Avatar Section */}
-              <div className="flex items-center gap-6 mb-8">
-                <div className="relative">
-                  <div
-                    className={`w-24 h-24 rounded-full p-1 ${
-                      isPremium
-                        ? "bg-linear-to-br from-yellow-400 via-orange-500 to-red-500"
-                        : "bg-linear-to-br from-emerald-400 to-blue-500"
-                    }`}
-                  >
-                    <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden px-2 text-center">
-                      {/* Always show profile UserIcon (unique_id is displayed elsewhere) */}
-                      <div className="flex items-center justify-center">
-                        <UserIcon className="w-10 h-10 text-white/60" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Status Badge */}
-                  <div
-                    className={`absolute -top-2 -left-2 px-2 py-1 rounded-lg border text-[10px] font-bold shadow-lg  ${
-                      isPremium
-                        ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400"
-                        : "bg-white/10 border-white/20 text-gray-300"
-                    }`}
-                  >
-                    {isPremium ? "Premium" : "FREE"}
-                  </div>
-
-                  <button
-                    onClick={() => setIsSheetOpen(true)}
-                    className="absolute -bottom-2 -right-2 p-2 bg-emerald-500 rounded-full hover:bg-emerald-600 transition-colors z-20"
-                  >
-                    <Icon d={ICONS.edit} />
-                  </button>
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-white mb-2">
-                    {user.name}
-                  </h2>
-                  <p className="text-gray-400 text-sm mb-1">{user.phone}</p>
-                  {user.uniqueId && user.uniqueId !== "شناسه ثبت نشده" && (
-                    <p className="text-gray-400 text-sm mb-1">
-                      {user.uniqueId}
-                    </p>
-                  )}
-
-                  <p className="text-gray-400 text-sm">
-                    عضو از {user.joinDate}
-                  </p>
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 mb-8" dir="ltr">
-                {[
-                  {
-                    label: "پلی لیست‌ها",
-                    value: authUser?.user_playlists_count || 0,
-                    type: "playlists",
-                    action: "my-playlists",
-                  },
-                  {
-                    label: "دنبال کنندگان",
-                    value: authUser?.followers_count || 0,
-                    type: "followers",
-                    action: "followers-following",
-                    tab: "followers",
-                  },
-                  {
-                    label: "دنبال شده",
-                    value: authUser?.following_count || 0,
-                    type: "following",
-                    action: "followers-following",
-                    tab: "following",
-                  },
-                ].map((stat) => (
-                  <button
-                    key={stat.type}
-                    onClick={() =>
-                      navigateTo(
-                        stat.action as any,
-                        (stat as any).tab
-                          ? { tab: (stat as any).tab }
-                          : undefined,
-                      )
-                    }
-                    className="text-center py-2 rounded-xl bg-white/4 border border-white/8 hover:border-emerald-500/30 hover:bg-white/6 active:scale-[0.98] transition-all duration-200 min-h-[72px]"
-                  >
-                    {isFetching ? (
-                      <div className="animate-pulse flex flex-col items-center gap-2">
-                        <div className="h-7 w-12 bg-white/10 rounded" />
-                        <div className="h-3 w-16 bg-white/5 rounded" />
-                      </div>
-                    ) : (
-                      <>
-                        <div
-                          dir="rtl"
-                          className="flex items-center justify-center mb-1"
-                        >
-                          <Icon
-                            d={ICONS[stat.type as keyof typeof ICONS]}
-                            className="w-5 h-5 text-emerald-400"
-                          />
-                          <div className="text-2xl p-1 font-bold text-white ml-2">
-                            {stat.value.toLocaleString("fa-IR")}
-                          </div>
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          {stat.label}
-                        </div>
-                      </>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* Downloads History Card */}
-              <button
-                onClick={() => navigateTo("downloads-history")}
-                className="w-full mb-8 relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98]"
-              >
-                <div className="relative z-10 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors">
-                      <Icon
-                        d={ICONS.playlists}
-                        className="w-6 h-6 text-emerald-400"
-                      />
-                    </div>
-                    <div className="text-right">
-                      <h3 className="text-lg font-bold text-white leading-tight">
-                        تاریخچه دانلودها
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-1">
-                        مشاهده تمام آهنگ‌های دریافت شده
-                      </p>
-                    </div>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
-                    <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
-                  </div>
-                </div>
-                {/* Decorative background glow */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
-              </button>
-
-              {/* ---------------------------------------------------------- */}
-              {/* User Plan Section */}
-              {/* ---------------------------------------------------------- */}
-              <div className="mb-8">
+        <div className="relative group rounded-2xl p-1  transition-all duration-500 bg-[#050505]/30">
+          <div className="p-6 lg:p-8">
+            {/* Avatar Section */}
+            <div className="flex items-center gap-6 mb-8">
+              <div className="relative">
                 <div
-                  className={`relative w-full rounded-3xl overflow-hidden border shadow-2xl ${
+                  className={`w-24 h-24 rounded-full p-1 ${
                     isPremium
-                      ? "bg-gradient-to-br from-[#0d1f17] via-[#0a1a12] to-[#061210] border-emerald-500/30"
-                      : "bg-[#070707] border-white/8"
+                      ? "bg-linear-to-br from-yellow-400 via-orange-500 to-red-500"
+                      : "bg-linear-to-br from-emerald-400 to-blue-500"
+                  }`}
+                  aria-hidden="true"
+                >
+                  <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden px-2 text-center">
+                    {/* Always show profile UserIcon (unique_id is displayed elsewhere) */}
+                    <div className="flex items-center justify-center">
+                      <UserIcon className="w-10 h-10 text-white/60" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Badge */}
+                <div
+                  className={`absolute -top-2 -left-2 px-2 py-1 rounded-lg border text-[10px] font-bold shadow-lg  ${
+                    isPremium
+                      ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400"
+                      : "bg-white/10 border-white/20 text-gray-300"
                   }`}
                 >
-                  {/* Decorate Glows inside Plan Section */}
-                  <div
-                    className={`absolute top-0 left-0 w-full h-1 bg-linear-to-r from-transparent ${
-                      isPremium ? "via-yellow-500/50" : "via-emerald-500/50"
-                    } to-transparent opacity-50`}
-                  ></div>
+                  <span className="sr-only">نوع حساب:</span>
+                  {isPremium ? "Premium" : "FREE"}
+                </div>
 
-                  {isPremium ? (
-                    /* PREMIUM USER VIEW */
-                    <div className="relative p-6">
-                      {/* Background Effects */}
-                      <div className="absolute top-[-30%] right-[-20%] w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
-                      <div className="absolute bottom-[-30%] left-[-20%] w-[250px] h-[250px] bg-yellow-500/5 rounded-full blur-[80px] pointer-events-none" />
+                <button
+                  onClick={() => setIsSheetOpen(true)}
+                  className="absolute -bottom-2 -right-2 p-2 bg-emerald-500 rounded-full hover:bg-emerald-600 transition-colors z-20 focus-visible:ring-2 focus-visible:ring-white outline-none"
+                  aria-label="ویرایش اطلاعات پروفایل"
+                >
+                  <Icon d={ICONS.edit} />
+                </button>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  {user.name}
+                </h2>
+                <p className="text-gray-400 text-sm mb-1">{user.phone}</p>
+                {user.uniqueId && user.uniqueId !== "شناسه ثبت نشده" && (
+                  <p className="text-gray-400 text-sm mb-1">{user.uniqueId}</p>
+                )}
 
-                      <div className="relative z-10">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 flex items-center justify-center shadow-lg shadow-yellow-500/20">
-                              <svg
-                                className="w-6 h-6 text-white"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path d={ICONS.crownReal} />
-                              </svg>
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-bold text-white">
-                                کاربر پریمیوم
-                              </h3>
-                              <p className="text-xs text-emerald-400">
-                                دسترسی کامل به همه امکانات
-                              </p>
-                            </div>
-                          </div>
-                          <div className="px-3 py-1.5 rounded-lg bg-yellow-500/20 border border-yellow-500/30">
-                            <span className="text-xs font-bold text-yellow-400">
-                              VIP
-                            </span>
-                          </div>
-                        </div>
+                <p className="text-gray-400 text-sm">عضو از {user.joinDate}</p>
+              </div>
+            </div>
 
-                        <div className="grid grid-cols-2 gap-3 mb-4">
-                          {[
-                            { label: "کیفیت پخش", value: "۳۲۰ kbps" },
-                            { label: "تبلیغات", value: "بدون تبلیغات" },
-                          ].map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="p-3 rounded-xl bg-white/5 border border-white/10"
-                            >
-                              <p className="text-xs text-gray-500 mb-1">
-                                {item.label}
-                              </p>
-                              <p className="text-sm font-medium text-emerald-400">
-                                {item.value}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-300">
-                              اعتبار تا
-                            </span>
-                            <span className="text-sm font-medium text-white">
-                              {new Date(
-                                Date.now() + 30 * 24 * 60 * 60 * 1000,
-                              ).toLocaleDateString("fa-IR")}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+            {/* Stats */}
+            <div
+              className="grid grid-cols-3 gap-4 mb-8"
+              dir="ltr"
+              role="group"
+              aria-label="آمار و فعالیت‌ها"
+            >
+              {[
+                {
+                  label: "پلی لیست‌ها",
+                  value: authUser?.user_playlists_count || 0,
+                  type: "playlists",
+                  action: "my-playlists",
+                },
+                {
+                  label: "دنبال کنندگان",
+                  value: authUser?.followers_count || 0,
+                  type: "followers",
+                  action: "followers-following",
+                  tab: "followers",
+                },
+                {
+                  label: "دنبال شده",
+                  value: authUser?.following_count || 0,
+                  type: "following",
+                  action: "followers-following",
+                  tab: "following",
+                },
+              ].map((stat) => (
+                <button
+                  key={stat.type}
+                  onClick={() =>
+                    navigateTo(
+                      stat.action as any,
+                      (stat as any).tab
+                        ? { tab: (stat as any).tab }
+                        : undefined,
+                    )
+                  }
+                  aria-label={`مشاهده ${stat.label}: ${stat.value}`}
+                  className="text-center py-2 rounded-xl bg-white/4 border border-white/8 hover:border-emerald-500/30 hover:bg-white/6 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-200 outline-none min-h-[72px]"
+                >
+                  {isFetching ? (
+                    <div
+                      className="animate-pulse flex flex-col items-center gap-2"
+                      aria-hidden="true"
+                    >
+                      <div className="h-7 w-12 bg-white/10 rounded" />
+                      <div className="h-3 w-16 bg-white/5 rounded" />
                     </div>
                   ) : (
-                    /* FREE USER VIEW */
-                    <div className="flex flex-col md:flex-row relative">
-                      {/* LEFT SIDE: CURRENT PLAN (FREE) */}
-                      <div className="relative flex-1 p-6 z-10">
-                        {/* Background Pattern */}
-                        <div className="absolute inset-0 opacity-5 pattern-grid-lg pointer-events-none"></div>
-
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center gap-2">
-                            <div className="p-1.5 rounded-lg bg-white/5 border border-white/10">
-                              <Icon
-                                d={ICONS.users}
-                                className="w-4 h-4 text-gray-400"
-                              />
-                            </div>
-                            <span className="text-sm font-semibold text-gray-300">
-                              پلن فعلی
-                            </span>
-                          </div>
-                          <span className="text-xs px-2 py-1 rounded-md bg-white/10 text-gray-400 border border-white/5">
-                            رایگان
-                          </span>
+                    <>
+                      <div
+                        dir="rtl"
+                        className="flex items-center justify-center mb-1"
+                        aria-hidden="true"
+                      >
+                        <Icon
+                          d={ICONS[stat.type as keyof typeof ICONS]}
+                          className="w-5 h-5 text-emerald-400"
+                        />
+                        <div className="text-2xl p-1 font-bold text-white ml-2">
+                          {stat.value.toLocaleString("fa-IR")}
                         </div>
+                      </div>
+                      <div className="text-xs text-gray-400">{stat.label}</div>
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
 
-                        <div className="space-y-4">
+            {/* Downloads History Card */}
+            <button
+              onClick={() => navigateTo("downloads-history")}
+              aria-label="مشاهده تاریخچه دانلودها"
+              className="w-full mb-8 relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+            >
+              <div className="relative z-10 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div
+                    className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors"
+                    aria-hidden="true"
+                  >
+                    <Icon
+                      d={ICONS.playlists}
+                      className="w-6 h-6 text-emerald-400"
+                    />
+                  </div>
+                  <div className="text-right">
+                    <h3 className="text-lg font-bold text-white leading-tight">
+                      تاریخچه دانلودها
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      مشاهده تمام آهنگ‌های دریافت شده
+                    </p>
+                  </div>
+                </div>
+                <div
+                  className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all"
+                  aria-hidden="true"
+                >
+                  <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
+                </div>
+              </div>
+              {/* Decorative background glow */}
+              <div
+                className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors"
+                aria-hidden="true"
+              />
+            </button>
+
+            {/* ---------------------------------------------------------- */}
+            {/* User Plan Section */}
+            {/* ---------------------------------------------------------- */}
+            <article className="mb-8" aria-label="وضعیت اشتراک">
+              <div
+                className={`relative w-full rounded-3xl overflow-hidden border shadow-2xl ${
+                  isPremium
+                    ? "bg-gradient-to-br from-[#0d1f17] via-[#0a1a12] to-[#061210] border-emerald-500/30"
+                    : "bg-[#070707] border-white/8"
+                }`}
+              >
+                {/* Decorate Glows inside Plan Section */}
+                <div
+                  className={`absolute top-0 left-0 w-full h-1 bg-linear-to-r from-transparent ${
+                    isPremium ? "via-yellow-500/50" : "via-emerald-500/50"
+                  } to-transparent opacity-50`}
+                  aria-hidden="true"
+                ></div>
+
+                {isPremium ? (
+                  /* PREMIUM USER VIEW */
+                  <div className="relative p-6">
+                    {/* Background Effects */}
+                    <div
+                      className="absolute top-[-30%] right-[-20%] w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none"
+                      aria-hidden="true"
+                    />
+                    <div
+                      className="absolute bottom-[-30%] left-[-20%] w-[250px] h-[250px] bg-yellow-500/5 rounded-full blur-[80px] pointer-events-none"
+                      aria-hidden="true"
+                    />
+
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 flex items-center justify-center shadow-lg shadow-yellow-500/20"
+                            aria-hidden="true"
+                          >
+                            <svg
+                              className="w-6 h-6 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d={ICONS.crownReal} />
+                            </svg>
+                          </div>
                           <div>
-                            <h3 className="text-xl font-bold text-white mb-1">
-                              کاربر عادی
+                            <h3 className="text-lg font-bold text-white">
+                              کاربر پریمیوم
                             </h3>
-                            <p className="text-xs text-gray-500">
-                              دسترسی محدود به امکانات
+                            <p className="text-xs text-emerald-400">
+                              دسترسی کامل به همه امکانات
                             </p>
                           </div>
                         </div>
+                        <div
+                          className="px-3 py-1.5 rounded-lg bg-yellow-500/20 border border-yellow-500/30"
+                          aria-hidden="true"
+                        >
+                          <span className="text-xs font-bold text-yellow-400">
+                            VIP
+                          </span>
+                        </div>
                       </div>
 
-                      {/* DIVIDER (Visible on Desktop) */}
-                      <div className="hidden md:block w-px bg-linear-to-b from-transparent via-white/10 to-transparent"></div>
-
-                      {/* RIGHT SIDE: UPGRADE PROMO (PREMIUM) */}
                       <div
-                        className="relative flex-1 p-6 overflow-hidden group cursor-pointer"
-                        onClick={() => navigateTo("premium")}
+                        className="grid grid-cols-2 gap-3 mb-4"
+                        aria-label="جزئیات اشتراک"
                       >
-                        {/* Gradient Background */}
-                        <div className="absolute inset-0 bg-linear-to-br from-emerald-900/25 to-[#020202] group-hover:from-emerald-800/25 transition-all duration-500"></div>
-
-                        {/* Decorative Shapes */}
-                        <div className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-900/8 rounded-full blur-2xl group-hover:bg-emerald-800/8 transition-all"></div>
-                        <div className="absolute -left-4 bottom-0 w-32 h-32 bg-blue-900/6 rounded-full blur-3xl"></div>
-
-                        <div className="relative z-10 h-full flex flex-col justify-between">
-                          <div className="flex items-start justify-between mb-4">
-                            <div>
-                              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                <span className="bg-clip-text text-transparent bg-linear-to-r from-yellow-200 to-yellow-500">
-                                  اشتراک ویژه
-                                </span>
-                                <Icon
-                                  d={ICONS.crownReal}
-                                  className="w-4 h-4 text-yellow-400 animate-pulse"
-                                />
-                              </h3>
-                              <p className="text-xs text-gray-400 mt-1">
-                                بدون محدودیت گوش کنید
-                              </p>
-                            </div>
-                          </div>
-
-                          <ul className="space-y-2 mb-4">
-                            <li className="flex items-center gap-2 text-xs text-gray-300">
-                              <div className="w-1 h-1 rounded-full bg-emerald-400"></div>
-                              کیفیت پخش بالاتر
-                            </li>
-                            <li className="flex items-center gap-2 text-xs text-gray-300">
-                              <div className="w-1 h-1 rounded-full bg-emerald-400"></div>
-                              بدون تبلیغات
-                            </li>
-                          </ul>
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigateTo("premium");
-                            }}
-                            className="w-full py-2.5 relative overflow-hidden rounded-xl group/btn"
+                        {[
+                          { label: "کیفیت پخش", value: "۳۲۰ kbps" },
+                          { label: "تبلیغات", value: "بدون تبلیغات" },
+                        ].map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3 rounded-xl bg-white/5 border border-white/10"
                           >
-                            <div className="absolute inset-0 bg-linear-to-r from-emerald-500 to-emerald-600 transition-all group-hover/btn:scale-[1.02]"></div>
-                            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
+                            <p className="text-xs text-gray-500 mb-1">
+                              {item.label}
+                            </p>
+                            <p className="text-sm font-medium text-emerald-400">
+                              {item.value}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
 
-                            {/* Shimmer Effect */}
-                            <div className="absolute inset-0 -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite] bg-linear-to-r from-transparent via-white/20 to-transparent z-10"></div>
+                      <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">
+                            اعتبار تا
+                          </span>
+                          <span className="text-sm font-medium text-white">
+                            {new Date(
+                              Date.now() + 30 * 24 * 60 * 60 * 1000,
+                            ).toLocaleDateString("fa-IR")}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* FREE USER VIEW */
+                  <div className="flex flex-col md:flex-row relative">
+                    {/* LEFT SIDE: CURRENT PLAN (FREE) */}
+                    <div className="relative flex-1 p-6 z-10">
+                      {/* Background Pattern */}
+                      <div
+                        className="absolute inset-0 opacity-5 pattern-grid-lg pointer-events-none"
+                        aria-hidden="true"
+                      ></div>
 
-                            <div className="relative z-20 flex items-center justify-center gap-2">
-                              <span className="text-white font-bold text-sm">
-                                ارتقا به نسخه پرو
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="p-1.5 rounded-lg bg-white/5 border border-white/10"
+                            aria-hidden="true"
+                          >
+                            <Icon
+                              d={ICONS.users}
+                              className="w-4 h-4 text-gray-400"
+                            />
+                          </div>
+                          <span className="text-sm font-semibold text-gray-300">
+                            پلن فعلی
+                          </span>
+                        </div>
+                        <span className="text-xs px-2 py-1 rounded-md bg-white/10 text-gray-400 border border-white/5">
+                          رایگان
+                        </span>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-xl font-bold text-white mb-1">
+                            کاربر عادی
+                          </h3>
+                          <p className="text-xs text-gray-500">
+                            دسترسی محدود به امکانات
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* DIVIDER (Visible on Desktop) */}
+                    <div
+                      className="hidden md:block w-px bg-linear-to-b from-transparent via-white/10 to-transparent"
+                      aria-hidden="true"
+                    ></div>
+
+                    {/* RIGHT SIDE: UPGRADE PROMO (PREMIUM) */}
+                    <button
+                      className="relative flex-1 p-6 overflow-hidden group cursor-pointer text-right outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      onClick={() => navigateTo("premium")}
+                      aria-label="ارتقا به اشتراک ویژه"
+                    >
+                      {/* Gradient Background */}
+                      <div className="absolute inset-0 bg-linear-to-br from-emerald-900/25 to-[#020202] group-hover:from-emerald-800/25 transition-all duration-500"></div>
+
+                      {/* Decorative Shapes */}
+                      <div
+                        className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-900/8 rounded-full blur-2xl group-hover:bg-emerald-800/8 transition-all"
+                        aria-hidden="true"
+                      ></div>
+                      <div
+                        className="absolute -left-4 bottom-0 w-32 h-32 bg-blue-900/6 rounded-full blur-3xl"
+                        aria-hidden="true"
+                      ></div>
+
+                      <div className="relative z-10 h-full flex flex-col justify-between">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                              <span className="bg-clip-text text-transparent bg-linear-to-r from-yellow-200 to-yellow-500">
+                                اشتراک ویژه
                               </span>
                               <Icon
-                                d={ICONS.lightning}
-                                className="w-4 h-4 text-yellow-200"
+                                d={ICONS.crownReal}
+                                className="w-4 h-4 text-yellow-400 animate-pulse"
                               />
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              {/* ---------------------------------------------------------- */}
-              {/* END OF PLANS SECTION */}
-              {/* ---------------------------------------------------------- */}
-
-              {/* Recent Plays (compact Spotify-like cards) */}
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-white mb-3">
-                  اخیراً پخش شده
-                </h3>
-
-                <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 hide-scrollbar">
-                  {isFetching ? (
-                    // Recently Played Skeletons
-                    Array.from({ length: 3 }).map((_, idx) => (
-                      <div
-                        key={idx}
-                        className="min-w-[260px] max-w-xs shrink-0 flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/7 animate-pulse"
-                      >
-                        <div className="w-16 h-16 rounded-lg bg-white/10 shrink-0" />
-                        <div className="flex-1 space-y-2">
-                          <div className="h-4 bg-white/10 rounded w-3/4" />
-                          <div className="h-3 bg-white/5 rounded w-1/2" />
-                        </div>
-                      </div>
-                    ))
-                  ) : authUser?.recently_played?.items?.length ? (
-                    authUser.recently_played.items.slice(0, 10).map((track) => (
-                      <button
-                        key={track.id}
-                        onClick={() =>
-                          navigateTo("song-detail", {
-                            id: track.id,
-                            artistSlug:
-                              track.artist_unique_id ||
-                              createSlug(track.artist_name || "artist"),
-                            songSlug: createSlug(track.title),
-                          })
-                        }
-                        className="min-w-[260px] max-w-xs shrink-0 flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/7 hover:shadow-lg hover:scale-[1.01] transition-all duration-200 overflow-hidden"
-                        aria-label={track.title}
-                      >
-                        <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-800">
-                          <Image
-                            src={track.cover_image || "/music-listen.webp"}
-                            alt={track.title}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
-
-                        <div className="flex-1 text-right overflow-hidden">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-semibold text-sm text-white truncate">
-                              {track.title}
-                            </h4>
-                            <span className="text-xs text-gray-400"> • </span>
-                            <span className="text-xs text-gray-400 truncate">
-                              {track.artist_name}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {track.duration_display}
+                            </h3>
+                            <p className="text-xs text-gray-400 mt-1">
+                              بدون محدودیت گوش کنید
+                            </p>
                           </div>
                         </div>
 
-                        <div className="w-10 h-10 flex items-center justify-center rounded-md bg-white/6">
+                        <ul className="space-y-2 mb-4">
+                          <li className="flex items-center gap-2 text-xs text-gray-300">
+                            <div
+                              className="w-1 h-1 rounded-full bg-emerald-400"
+                              aria-hidden="true"
+                            ></div>
+                            کیفیت پخش بالاتر
+                          </li>
+                          <li className="flex items-center gap-2 text-xs text-gray-300">
+                            <div
+                              className="w-1 h-1 rounded-full bg-emerald-400"
+                              aria-hidden="true"
+                            ></div>
+                            بدون تبلیغات
+                          </li>
+                        </ul>
+
+                        <div className="w-full py-2.5 relative overflow-hidden rounded-xl group/btn bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2">
+                          <span>ارتقا به نسخه پرو</span>
                           <Icon
-                            d={ICONS.music}
-                            className="w-5 h-5 text-emerald-400"
+                            d={ICONS.lightning}
+                            className="w-4 h-4 text-yellow-200"
                           />
                         </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="w-full text-center py-8 text-gray-500 text-sm">
-                      هنوز آهنگی پخش نکرده‌اید
-                    </div>
-                  )}
-
-                  {/* Removed 'مشاهده همه' (See more) card per UI change request */}
-                </div>
-              </div>
-
-              {/* Quick Links */}
-              <div className="space-y-3 mb-8">
-                {[
-                  {
-                    key: "settings",
-                    label: "تنظیمات",
-                    icon: ICONS.settings,
-                    page: "settings",
-                  },
-                  {
-                    key: "liked-songs",
-                    label: "آهنگ‌های لایک‌شده",
-                    icon: ICONS.heart,
-                    page: "liked-songs",
-                  },
-                  {
-                    key: "liked-albums",
-                    label: "آلبوم‌های لایک‌شده",
-                    icon: ICONS.music,
-                    page: "liked-albums",
-                  },
-                  {
-                    key: "liked-playlists",
-                    label: "پلی‌لیست‌های لایک‌شده",
-                    icon: ICONS.playlist,
-                    page: "liked-playlists",
-                  },
-                  {
-                    key: "followed-artists",
-                    label: "هنرمندان دنبال‌شده",
-                    icon: ICONS.users,
-                    page: "followed-artists",
-                  },
-                  {
-                    key: "my-playlists",
-                    label: "پلی‌لیست‌های من",
-                    icon: ICONS.folder,
-                    page: "my-playlists",
-                  },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={() => navigateTo(item.page)}
-                    className="relative w-full flex py-5 items-center gap-4 bg-linear-to-b from-white/1 to-black/20 border border-white/7 rounded-xl p-4 overflow-hidden hover:from-white/2 hover:border-emerald-500/20 active:scale-[0.99] transition-all duration-200"
-                  >
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                      <Icon d={ICONS.arrow} className="w-4 h-4 rotate-180" />
-                    </div>
-                    <div className="w-full flex items-center justify-end relative">
-                      <div className="text-sm pr-10 w-fit font-medium text-white text-right flex-1 z-10">
-                        {item.label}
                       </div>
-                      <div className="absolute right-0 p-2 bg-white/3 rounded-md z-0">
+                    </button>
+                  </div>
+                )}
+              </div>
+            </article>
+            {/* ---------------------------------------------------------- */}
+            {/* END OF PLANS SECTION */}
+            {/* ---------------------------------------------------------- */}
+
+            {/* Recent Plays (compact Spotify-like cards) */}
+            <section className="mb-8" aria-label="تاریخچه پخش‌های اخیر">
+              <h3 className="text-lg font-semibold text-white mb-3">
+                اخیراً پخش شده
+              </h3>
+
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 hide-scrollbar">
+                {isFetching ? (
+                  // Recently Played Skeletons
+                  Array.from({ length: 3 }).map((_, idx) => (
+                    <div
+                      key={idx}
+                      className="min-w-[260px] max-w-xs shrink-0 flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/7 animate-pulse"
+                      aria-hidden="true"
+                      role="status"
+                    >
+                      <div className="w-16 h-16 rounded-lg bg-white/10 shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-white/10 rounded w-3/4" />
+                        <div className="h-3 bg-white/5 rounded w-1/2" />
+                      </div>
+                    </div>
+                  ))
+                ) : authUser?.recently_played?.items?.length ? (
+                  authUser.recently_played.items.slice(0, 10).map((track) => (
+                    <button
+                      key={track.id}
+                      onClick={() =>
+                        navigateTo("song-detail", {
+                          id: track.id,
+                          artistSlug:
+                            track.artist_unique_id ||
+                            createSlug(track.artist_name || "artist"),
+                          songSlug: createSlug(track.title),
+                        })
+                      }
+                      className="min-w-[260px] max-w-xs shrink-0 flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/7 hover:shadow-lg hover:scale-[1.01] transition-all duration-200 overflow-hidden focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                      aria-label={`پخش مجدد ${track.title} اثر ${track.artist_name}`}
+                    >
+                      <div
+                        className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-800"
+                        aria-hidden="true"
+                      >
+                        <Image
+                          src={track.cover_image || "/music-listen.webp"}
+                          alt=""
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+
+                      <div className="flex-1 text-right overflow-hidden">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-sm text-white truncate">
+                            {track.title}
+                          </h4>
+                          <span className="text-xs text-gray-400"> • </span>
+                          <span className="text-xs text-gray-400 truncate">
+                            {track.artist_name}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {track.duration_display}
+                        </div>
+                      </div>
+
+                      <div
+                        className="w-10 h-10 flex items-center justify-center rounded-md bg-white/6"
+                        aria-hidden="true"
+                      >
                         <Icon
-                          d={item.icon}
+                          d={ICONS.music}
                           className="w-5 h-5 text-emerald-400"
                         />
                       </div>
-                    </div>
-                  </button>
-                ))}
-                {/* Logout Button */}
+                    </button>
+                  ))
+                ) : (
+                  <div className="w-full text-center py-8 text-gray-500 text-sm">
+                    هنوز آهنگی پخش نکرده‌اید
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Quick Links */}
+            <nav className="space-y-3 mb-8" aria-label="لینک‌های سریع پروفایل">
+              {[
+                {
+                  key: "settings",
+                  label: "تنظیمات",
+                  icon: ICONS.settings,
+                  page: "settings",
+                },
+                {
+                  key: "liked-songs",
+                  label: "آهنگ‌های لایک‌شده",
+                  icon: ICONS.heart,
+                  page: "liked-songs",
+                },
+                {
+                  key: "liked-albums",
+                  label: "آلبوم‌های لایک‌شده",
+                  icon: ICONS.music,
+                  page: "liked-albums",
+                },
+                {
+                  key: "liked-playlists",
+                  label: "پلی‌لیست‌های لایک‌شده",
+                  icon: ICONS.playlist,
+                  page: "liked-playlists",
+                },
+                {
+                  key: "followed-artists",
+                  label: "هنرمندان دنبال‌شده",
+                  icon: ICONS.users,
+                  page: "followed-artists",
+                },
+                {
+                  key: "my-playlists",
+                  label: "پلی‌لیست‌های من",
+                  icon: ICONS.folder,
+                  page: "my-playlists",
+                },
+              ].map((item) => (
                 <button
-                  className="relative w-full flex py-5 items-center gap-4 bg-gradient-to-b from-red-500/10 to-black/20 border border-red-500/30 rounded-xl p-4 overflow-hidden hover:from-red-500/20 transition-colors group"
-                  onClick={handleLogout}
+                  key={item.key}
+                  onClick={() => navigateTo(item.page)}
+                  className="relative w-full flex py-5 items-center gap-4 bg-linear-to-b from-white/1 to-black/20 border border-white/7 rounded-xl p-4 overflow-hidden hover:from-white/2 hover:border-emerald-500/20 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none transition-all duration-200"
+                  aria-label={item.label}
                 >
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-red-400"></div>
+                  <div
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                    aria-hidden="true"
+                  >
+                    <Icon d={ICONS.arrow} className="w-4 h-4 rotate-180" />
+                  </div>
                   <div className="w-full flex items-center justify-end relative">
-                    <div className="text-sm pr-10 w-fit font-medium text-red-400 text-right flex-1 z-10 group-hover:text-red-500 transition-colors">
-                      خروج از حساب کاربری
+                    <div className="text-sm pr-10 w-fit font-medium text-white text-right flex-1 z-10">
+                      {item.label}
                     </div>
-                    <div className="absolute right-0 p-2 bg-red-500/10 rounded-md z-0">
-                      <Icon d={ICONS.logout} className="w-5 h-5 text-red-400" />
+                    <div
+                      className="absolute right-0 p-2 bg-white/3 rounded-md z-0"
+                      aria-hidden="true"
+                    >
+                      <Icon
+                        d={item.icon}
+                        className="w-5 h-5 text-emerald-400"
+                      />
                     </div>
                   </div>
                 </button>
-              </div>
-            </div>
+              ))}
+              {/* Logout Button */}
+              <button
+                className="relative w-full flex py-5 items-center gap-4 bg-gradient-to-b from-red-500/10 to-black/20 border border-red-500/30 rounded-xl p-4 overflow-hidden hover:from-red-500/20 focus-visible:ring-2 focus-visible:ring-red-500 outline-none transition-colors group"
+                onClick={handleLogout}
+                aria-label="خروج از حساب کاربری"
+              >
+                <div
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-red-400"
+                  aria-hidden="true"
+                ></div>
+                <div className="w-full flex items-center justify-end relative">
+                  <div className="text-sm pr-10 w-fit font-medium text-red-400 text-right flex-1 z-10 group-hover:text-red-500 transition-colors">
+                    خروج از حساب کاربری
+                  </div>
+                  <div
+                    className="absolute right-0 p-2 bg-red-500/10 rounded-md z-0"
+                    aria-hidden="true"
+                  >
+                    <Icon d={ICONS.logout} className="w-5 h-5 text-red-400" />
+                  </div>
+                </div>
+              </button>
+            </nav>
           </div>
         </div>
-      </div>
+      </main>
 
       {/* Bottom Sheet */}
       <Drawer.Root
@@ -828,20 +890,24 @@ export default function Profile() {
                   },
                 ].map((field) => (
                   <div key={field.key} className="relative">
-                    <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-1">
+                    <label
+                      htmlFor={`profile-${field.key}`}
+                      className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-1"
+                    >
                       {field.label}
                       {field.info && (
                         <span className="relative group">
-                          <span
-                            tabIndex={0}
-                            className="ml-1 w-4 h-4 flex items-center justify-center rounded-full border border-emerald-400 bg-[#101c1a] text-emerald-400 text-xs font-bold cursor-pointer transition hover:bg-emerald-500 hover:text-white focus:bg-emerald-500 focus:text-white"
+                          <button
+                            type="button"
+                            className="ml-1 w-4 h-4 flex items-center justify-center rounded-full border border-emerald-400 bg-[#101c1a] text-emerald-400 text-xs font-bold cursor-help transition hover:bg-emerald-500 hover:text-white focus:bg-emerald-500 focus:text-white outline-none"
                             aria-label="اطلاعات بیشتر"
                           >
                             i
-                          </span>
+                          </button>
                           <span
                             className="absolute z-50 right-0 top-7 w-56 text-xs text-right bg-[#181f1c] text-white rounded-xl shadow-lg border border-emerald-400 px-4 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-200"
                             style={{ fontFamily: "inherit" }}
+                            role="tooltip"
                           >
                             برای پیدا کردن پروفایل شما در جستجو استفاده می‌شود
                           </span>
@@ -849,11 +915,12 @@ export default function Profile() {
                       )}
                     </label>
                     <input
+                      id={`profile-${field.key}`}
                       type={field.type || "text"}
                       value={formData[field.key as keyof typeof formData]}
                       onChange={(e) => handleChange(field.key, e.target.value)}
                       placeholder={field.placeholder}
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus-visible:ring-2 focus-visible:ring-emerald-500/50 transition-colors"
                       dir="rtl"
                     />
                   </div>

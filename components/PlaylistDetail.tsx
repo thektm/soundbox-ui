@@ -17,6 +17,7 @@ import { usePlayer, Track } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
+import { SEO } from "./SEO";
 
 // ============== API INTERFACES ==============
 
@@ -50,6 +51,8 @@ interface PlaylistResponse {
   song_ids?: number[];
   is_liked?: boolean;
   likes_count?: number;
+  generated_by?: "system" | "admin" | "audience";
+  creator_unique_id?: string | null;
 }
 
 // ============== HELPERS ==============
@@ -255,10 +258,17 @@ SongRow.displayName = "SongRow";
 interface PlaylistDetailProps {
   id?: number | string;
   slug?: string;
+  generatedBy?: "system" | "admin" | "audience";
+  creatorUniqueId?: string | null;
 }
 
-const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
-  const { goBack, scrollY } = useNavigation();
+const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
+  id,
+  slug,
+  generatedBy,
+  creatorUniqueId,
+}) => {
+  const { goBack, scrollY, navigateTo } = useNavigation();
   const { accessToken } = useAuth();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
@@ -291,6 +301,13 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
       });
       if (resp.ok) {
         const data = await resp.json();
+        // Fallback to props if generated_by is missing from API response
+        if (generatedBy && !data.generated_by) {
+          data.generated_by = generatedBy;
+        }
+        if (creatorUniqueId && !data.creator_unique_id) {
+          data.creator_unique_id = creatorUniqueId;
+        }
         setPlaylist(data);
         setIsLiked(!!data.is_liked);
       } else {
@@ -302,7 +319,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
     } finally {
       setLoading(false);
     }
-  }, [id, accessToken]);
+  }, [id, accessToken, generatedBy, creatorUniqueId]);
 
   useEffect(() => {
     fetchPlaylist();
@@ -483,6 +500,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
   if (!playlist) {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
+        <SEO title="پلی‌لیست یافت نشد" />
         <Icon name="music" size={64} className="text-neutral-700 mb-4" />
         <h2 className="text-2xl font-bold mb-2">پلی‌لیست یافت نشد</h2>
         <button
@@ -501,6 +519,12 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
       className="min-h-screen bg-linear-to-b from-neutral-900 via-neutral-950 to-black text-white pb-24"
       dir="rtl"
     >
+      <SEO
+        title={playlist.title}
+        description={`گوش دادن به پلی‌لیست ${playlist.title} در وب اپلیکیشن صداباکس - شامل ${playlist.songs.length} آهنگ`}
+        imageUrl={playlist.cover_image}
+        type="music.playlist"
+      />
       {/* Desktop glass header (appears on scroll) */}
       <header
         className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl"
@@ -606,6 +630,39 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({ id, slug }) => {
                 {totalDuration}
               </span>
             </div>
+            {playlist.generated_by === "system" && (
+              <button
+                type="button"
+                onClick={() => navigateTo("user-detail", { id: "sedabox" })}
+                className="mt-3 text-sm text-green-400 hover:text-green-300 hover:underline transition-colors text-right"
+              >
+                ایجاد شده توسط سیستم صدا باکس
+              </button>
+            )}
+
+            {playlist.generated_by === "admin" && (
+              <button
+                type="button"
+                onClick={() => navigateTo("user-detail", { id: "sedabox" })}
+                className="mt-3 text-sm text-green-400 hover:text-green-300 hover:underline transition-colors text-right"
+              >
+                ایجاد شده توسط ادمین صدا باکس
+              </button>
+            )}
+            {playlist.generated_by === "audience" &&
+              playlist.creator_unique_id && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigateTo("user-detail", {
+                      id: playlist.creator_unique_id!,
+                    })
+                  }
+                  className="mt-3 text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors text-right"
+                >
+                  ایجاد شده توسط {playlist.creator_unique_id}
+                </button>
+              )}
           </div>
         </div>
       </header>

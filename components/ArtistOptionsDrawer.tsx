@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Drawer } from "vaul";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   Share2,
   UserPlus,
@@ -10,6 +11,7 @@ import {
   Play,
   AlertCircle,
   ChevronLeft,
+  X,
 } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
@@ -32,6 +34,20 @@ interface ArtistOptionsDrawerProps {
   onPlayArtist: () => void;
 }
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const listener = () => setMatches(media.matches);
+    setMatches(media.matches);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, [query]);
+
+  return matches;
+}
+
 export const ArtistOptionsDrawer = ({
   isOpen,
   onClose,
@@ -39,11 +55,12 @@ export const ArtistOptionsDrawer = ({
   onFollowToggle,
   onPlayArtist,
 }: ArtistOptionsDrawerProps) => {
-  if (!artist) return null;
-
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const { accessToken } = useAuth();
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState<string | null>(null);
+
+  if (!artist) return null;
 
   const handleShare = async () => {
     try {
@@ -114,63 +131,94 @@ export const ArtistOptionsDrawer = ({
     },
   ];
 
+  const content = (
+    <div
+      className={`bg-[#121212] flex flex-col outline-none ${isDesktop ? "rounded-[32px] overflow-hidden" : "rounded-t-[32px]"}`}
+      dir="rtl"
+    >
+      {!isDesktop && (
+        <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/10 mt-3 mb-2" />
+      )}
+      {isDesktop && <div className="mt-4" />}
+
+      {/* Artist Header */}
+      <div className="px-6 py-4 flex items-center gap-4 border-b border-white/5 relative">
+        <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 shadow-xl border-2 border-white/5 relative">
+          <Image
+            src={artist.profile_image}
+            alt={artist.name}
+            fill
+            className="object-cover"
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-xl font-black text-white truncate leading-tight">
+            {artist.name}
+          </h3>
+          <p className="text-[14px] text-white/50 truncate mt-1">
+            هنرمند انتخابی شما
+          </p>
+        </div>
+        {isDesktop && (
+          <button
+            onClick={onClose}
+            className="absolute left-4 top-4 text-white/40 hover:text-white transition-all transform hover:scale-110 active:scale-95 bg-white/5 hover:bg-white/10 p-2 rounded-full"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Options List */}
+      <div className="flex-1 overflow-y-auto px-2 py-4 mb-safe">
+        {options.map((option) => (
+          <button
+            key={option.id}
+            onClick={option.onClick}
+            disabled={!!isActionLoading}
+            className="w-full flex items-center gap-5 px-5 py-4 rounded-3xl hover:bg-white/[0.04] active:bg-white/[0.08] transition-all group text-right disabled:opacity-50"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-white/[0.03] flex items-center justify-center text-white/70 group-hover:bg-emerald-500/10 group-hover:text-emerald-500 transition-all duration-300">
+              {isActionLoading === option.id ? (
+                <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                option.icon
+              )}
+            </div>
+            <span className="flex-1 text-[17px] font-bold text-white/90 group-hover:text-white">
+              {option.label}
+            </span>
+            <ChevronLeft className="w-5 h-5 text-white/10 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <>
-      <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
-          <Drawer.Content
-            className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none border-t border-white/5"
-            dir="rtl"
-          >
-            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/10 mt-3 mb-2" />
-
-            {/* Artist Header */}
-            <div className="px-6 py-4 flex items-center gap-4 border-b border-white/5">
-              <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 shadow-xl border-2 border-white/5 relative">
-                <Image
-                  src={artist.profile_image}
-                  alt={artist.name}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-xl font-black text-white truncate leading-tight">
-                  {artist.name}
-                </h3>
-                <p className="text-[14px] text-white/50 truncate mt-1">
-                  هنرمند انتخابی شما
-                </p>
-              </div>
-            </div>
-
-            {/* Options List */}
-            <div className="flex-1 overflow-y-auto px-2 py-4 mb-safe">
-              {options.map((option) => (
-                <button
-                  key={option.id}
-                  onClick={option.onClick}
-                  disabled={!!isActionLoading}
-                  className="w-full flex items-center gap-5 px-5 py-4 rounded-3xl hover:bg-white/[0.04] active:bg-white/[0.08] transition-all group text-right disabled:opacity-50"
-                >
-                  <div className="w-11 h-11 rounded-2xl bg-white/[0.03] flex items-center justify-center text-white/70 group-hover:bg-emerald-500/10 group-hover:text-emerald-500 transition-all duration-300">
-                    {isActionLoading === option.id ? (
-                      <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      option.icon
-                    )}
-                  </div>
-                  <span className="flex-1 text-[17px] font-bold text-white/90 group-hover:text-white">
-                    {option.label}
-                  </span>
-                  <ChevronLeft className="w-5 h-5 text-white/10 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0" />
-                </button>
-              ))}
-            </div>
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
+      {isDesktop ? (
+        <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
+            <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-[110] outline-none shadow-2xl border border-white/5 rounded-[32px]">
+              {content}
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      ) : (
+        <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+          <Drawer.Portal>
+            <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
+            <Drawer.Content
+              className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none border-t border-white/5"
+              dir="rtl"
+            >
+              {content}
+            </Drawer.Content>
+          </Drawer.Portal>
+        </Drawer.Root>
+      )}
 
       <ReportModal
         isOpen={isReportModalOpen}

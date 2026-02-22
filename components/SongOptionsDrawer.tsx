@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from "react";
 import { Drawer } from "vaul";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   Share2,
   Heart,
@@ -12,6 +13,7 @@ import {
   Download,
   Loader2,
   AlertCircle,
+  X,
 } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "./AuthContext";
@@ -36,14 +38,27 @@ interface SongOptionsDrawerProps {
   onAction?: (action: string, song: any) => Promise<any> | void;
 }
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const listener = () => setMatches(media.matches);
+    setMatches(media.matches);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, [query]);
+
+  return matches;
+}
+
 export const SongOptionsDrawer = ({
   isOpen,
   onClose,
   song,
   onAction,
 }: SongOptionsDrawerProps) => {
-  if (!song) return null;
-
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const { accessToken, user, authenticatedFetch } = useAuth();
   const { download, playTrack, queue, setQueue, isVisible, currentIndex } =
     usePlayer();
@@ -55,7 +70,7 @@ export const SongOptionsDrawer = ({
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [localIsLiked, setLocalIsLiked] = useState<boolean | undefined>(
-    song.is_liked,
+    song?.is_liked,
   );
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
@@ -84,11 +99,9 @@ export const SongOptionsDrawer = ({
     }
   }, [isOpen, song?.id, authenticatedFetch]);
 
-  const isLiked = localIsLiked ?? song.is_liked;
-
   const handleActionClick = useCallback(
     async (actionId: string) => {
-      if (processing) return;
+      if (!song || processing) return;
 
       if (actionId === "share") {
         try {
@@ -363,6 +376,11 @@ export const SongOptionsDrawer = ({
     ],
   );
 
+  // Return early after all hooks have been initialized for the component
+  if (!song) return null;
+
+  const isLiked = localIsLiked ?? song.is_liked;
+
   const options = [
     {
       id: "share",
@@ -415,85 +433,113 @@ export const SongOptionsDrawer = ({
     },
   ];
 
+  const content = (
+    <div
+      className={`bg-[#121212] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)] ${isDesktop ? "rounded-[32px] overflow-hidden" : "rounded-t-[32px]"}`}
+      dir="rtl"
+    >
+      {/* Handle */}
+      {!isDesktop && (
+        <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-3 mb-2" />
+      )}
+      {isDesktop && <div className="mt-4" />}
+
+      {/* Song Header */}
+      <div className="px-6 py-4 flex items-center gap-4 border-b border-white/5 relative">
+        <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 shadow-lg relative">
+          <Image
+            src={song.cover_image}
+            alt={song.title}
+            fill
+            className="object-cover"
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-[17px] font-bold text-white truncate leading-tight">
+            {song.title}
+          </h3>
+          <p className="text-[14px] text-white/50 truncate mt-1">
+            {song.artist_name}
+          </p>
+        </div>
+        {isDesktop && (
+          <button
+            onClick={onClose}
+            className="absolute left-4 top-4 text-white/40 hover:text-white transition-all transform hover:scale-110 active:scale-95 bg-white/5 hover:bg-white/10 p-2 rounded-full"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Options List */}
+      <div className="flex-1 overflow-y-auto px-2 py-2 mb-safe">
+        {options.map((option) => {
+          const optionDisabled = !!processing || !!(option as any).disabled;
+          return (
+            <button
+              key={option.id}
+              onClick={
+                optionDisabled ? undefined : () => handleActionClick(option.id)
+              }
+              disabled={optionDisabled}
+              className={`relative w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors group text-right ${
+                optionDisabled
+                  ? "opacity-60 cursor-not-allowed"
+                  : "hover:bg-white/5 active:bg-white/10"
+              }`}
+            >
+              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-white/10 group-hover:text-white transition-all">
+                {processing === option.id ? (
+                  <div className="w-4 h-4 border-2 border-neutral-800 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  option.icon
+                )}
+              </div>
+
+              <span
+                className={`flex-1 text-[16px] font-medium ${optionDisabled ? "text-white/60" : "text-white/90 group-hover:text-white"}`}
+              >
+                {option.label}
+              </span>
+
+              {/* Premium badge placed far left inside the button */}
+              {option.id === "download" && (option as any).disabled && (
+                <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
+                  پریمیوم
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
     <>
-      <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
-          <Drawer.Content
-            className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
-            dir="rtl"
-          >
-            {/* Handle */}
-            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-3 mb-2" />
-
-            {/* Song Header */}
-            <div className="px-6 py-4 flex items-center gap-4 border-b border-white/5">
-              <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 shadow-lg relative">
-                <Image
-                  src={song.cover_image}
-                  alt={song.title}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-[17px] font-bold text-white truncate leading-tight">
-                  {song.title}
-                </h3>
-                <p className="text-[14px] text-white/50 truncate mt-1">
-                  {song.artist_name}
-                </p>
-              </div>
-            </div>
-
-            {/* Options List */}
-            <div className="flex-1 overflow-y-auto px-2 py-2 mb-safe">
-              {options.map((option) => {
-                const optionDisabled =
-                  !!processing || !!(option as any).disabled;
-                return (
-                  <button
-                    key={option.id}
-                    onClick={
-                      optionDisabled
-                        ? undefined
-                        : () => handleActionClick(option.id)
-                    }
-                    disabled={optionDisabled}
-                    className={`relative w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors group text-right ${
-                      optionDisabled
-                        ? "opacity-60 cursor-not-allowed"
-                        : "hover:bg-white/5 active:bg-white/10"
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-white/10 group-hover:text-white transition-all">
-                      {processing === option.id ? (
-                        <div className="w-4 h-4 border-2 border-neutral-800 border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        option.icon
-                      )}
-                    </div>
-
-                    <span
-                      className={`flex-1 text-[16px] font-medium ${optionDisabled ? "text-white/60" : "text-white/90 group-hover:text-white"}`}
-                    >
-                      {option.label}
-                    </span>
-
-                    {/* Premium badge placed far left inside the button */}
-                    {option.id === "download" && (option as any).disabled && (
-                      <span className="absolute left-6 top-1/2 -translate-y-1/2 bg-gradient-to-r from-amber-400 to-yellow-300 text-black text-[10px] px-3 py-0.5 rounded-full font-semibold shadow-md">
-                        پریمیوم
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
+      {isDesktop ? (
+        <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
+            <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-[110] outline-none shadow-2xl border border-white/5 rounded-[32px]">
+              {content}
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      ) : (
+        <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+          <Drawer.Portal>
+            <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
+            <Drawer.Content
+              className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
+              dir="rtl"
+            >
+              {content}
+            </Drawer.Content>
+          </Drawer.Portal>
+        </Drawer.Root>
+      )}
 
       <AddToPlaylistModal
         isOpen={isAddToPlaylistOpen}

@@ -20,6 +20,7 @@ import { ArtistOptionsDrawer } from "./ArtistOptionsDrawer";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
+import { SEO } from "./SEO";
 
 const FALLBACK_SRC = "https://cdn.sedabox.com/music.mp3";
 
@@ -779,16 +780,29 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     return;
   };
 
-  if (loading) return <ArtistSkeleton />;
+  if (loading)
+    return (
+      <>
+        <SEO title="در حال بارگذاری..." />
+        <ArtistSkeleton />
+      </>
+    );
   if (!artist)
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center text-white">
+        <SEO title="هنرمند یافت نشد" />
         هنرمند یافت نشد
       </div>
     );
 
   return (
     <>
+      <SEO
+        title={artist.artistic_name || artist.name}
+        description={`گوش دادن به آثار ${artist.artistic_name || artist.name} در وب اپلیکیشن صداباکس - ${artist.bio || ""}`}
+        imageUrl={artist.profile_image}
+        type="profile"
+      />
       <div
         ref={containerRef}
         className="min-h-screen bg-transparent text-white overflow-x-hidden pb-24 md:pb-4"

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { SEO } from "./SEO";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import UserIcon from "./UserIcon";
@@ -195,6 +196,7 @@ const Bell = ({ className }: { className?: string }) => (
     fill="none"
     stroke="white"
     strokeWidth={2}
+    aria-hidden="true"
   >
     <path
       d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"
@@ -211,6 +213,7 @@ const Play = ({ className, fill }: { className?: string; fill?: string }) => (
     fill={fill || "white"}
     stroke="white"
     strokeWidth={2}
+    aria-hidden="true"
   >
     <polygon
       points="5 3 19 12 5 21 5 3"
@@ -227,6 +230,7 @@ const MoreHorizontal = ({ className }: { className?: string }) => (
     fill="white"
     stroke="white"
     strokeWidth={2}
+    aria-hidden="true"
   >
     <circle cx="12" cy="12" r="1" />
     <circle cx="19" cy="12" r="1" />
@@ -241,6 +245,10 @@ type ItemType = {
   img: string | string[];
   duration?: string;
   isNew: boolean;
+  type?: "song" | "album" | "artist" | "playlist";
+  artistId?: number | string;
+  artistSlug?: string;
+  slug?: string;
 };
 
 type HeroHighlight = {
@@ -611,6 +619,9 @@ export default function Home() {
           img: song.cover_image,
           duration: formatDuration(song.duration_seconds),
           isNew: false,
+          type: "song" as const,
+          artistId: (song as any).artist_id || (song as any).artist,
+          artistSlug: (song as any).artist_slug,
         })),
         hottestDrops: homeData.latest_releases.results
           .slice(0, 5)
@@ -621,6 +632,9 @@ export default function Home() {
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
             isNew: true,
+            type: "song" as const,
+            artistId: (song as any).artist_id || (song as any).artist,
+            artistSlug: (song as any).artist_slug,
           })),
         popularArtists: homeData.popular_artists.results.map((artist) => ({
           id: artist.id,
@@ -628,6 +642,7 @@ export default function Home() {
           subtitle: "Artist",
           img: artist.profile_image || "",
           isNew: false,
+          type: "artist" as const,
           slug: (artist as any).unique_id || createSlug(artist.name),
         })),
         popularAlbums: homeData.popular_albums.results.map((album) => ({
@@ -636,6 +651,10 @@ export default function Home() {
           subtitle: album.artist_name,
           img: album.cover_image || "",
           isNew: false,
+          type: "album" as const,
+          artistId: (album as any).artist_id || (album as any).artist,
+          artistSlug: (album as any).artist_slug,
+          slug: createSlug(album.title),
         })),
         top10Week: homeData.latest_releases.results
           .slice(0, 10)
@@ -646,6 +665,9 @@ export default function Home() {
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
             isNew: index < 3,
+            type: "song" as const,
+            artistId: (song as any).artist_id || (song as any).artist,
+            artistSlug: (song as any).artist_slug,
           })),
         newDiscoveries: homeData.discoveries.results
           .slice(0, 6)
@@ -656,6 +678,9 @@ export default function Home() {
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
             isNew: false,
+            type: "song" as const,
+            artistId: (song as any).artist_id || (song as any).artist,
+            artistSlug: (song as any).artist_slug,
           })),
         top10HipHop: homeData.latest_releases.results
           .slice(10, 20)
@@ -666,6 +691,9 @@ export default function Home() {
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
             isNew: index < 3,
+            type: "song" as const,
+            artistId: (song as any).artist_id || (song as any).artist,
+            artistSlug: (song as any).artist_slug,
           })),
         newPlaylists: (playlistRecommendations || []).map((playlist: any) => ({
           id: playlist.unique_id,
@@ -673,6 +701,8 @@ export default function Home() {
           subtitle: playlist.description,
           img: playlist.top_three_song_covers || playlist.covers || [],
           isNew: false,
+          type: "playlist" as const,
+          slug: createSlug(playlist.title),
         })),
       }
     : null;
@@ -728,6 +758,8 @@ export default function Home() {
 
   if (isLoading || !sectionData || !homeData) {
     return (
+      <>
+      <SEO />
       <div
         dir="rtl"
         className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
@@ -813,6 +845,7 @@ export default function Home() {
           </div>
         </div>
       </div>
+      </>
     );
   }
 
@@ -863,12 +896,13 @@ export default function Home() {
           style={{ direction: "rtl" }}
         >
           {sectionData.hottestDrops.map((item) => (
-            <div
+            <button
               key={item.id}
               onClick={() =>
                 handlePlaySong(item.id, homeData.latest_releases.results)
               }
-              className="snap-center shrink-0 w-[85vw] sm:w-80 relative group cursor-pointer"
+              aria-label={`پخش ${item.title} از ${item.subtitle}`}
+              className="snap-center shrink-0 w-[85vw] sm:w-80 relative group cursor-pointer text-right focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl outline-none"
             >
               <div className="relative aspect-video bg-zinc-800 rounded-lg overflow-hidden shadow-lg">
                 <ImageWithPlaceholder
@@ -881,9 +915,30 @@ export default function Home() {
                   انتشار جدید
                 </div>
               </div>
-              <h3 className="mt-2 font-bold text-lg truncate">{item.title}</h3>
-              <p className="text-zinc-400 text-sm truncate">{item.subtitle}</p>
-            </div>
+              <h3
+                className="mt-2 font-bold text-lg truncate hover:underline decoration-zinc-500"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigateTo("song-detail", { id: item.id });
+                }}
+              >
+                {item.title}
+              </h3>
+              <p
+                className="text-zinc-400 text-sm truncate hover:text-white transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (item.artistId) {
+                    navigateTo("artist-detail", {
+                      id: item.artistId,
+                      slug: item.artistSlug,
+                    });
+                  }
+                }}
+              >
+                {item.subtitle}
+              </p>
+            </button>
           ))}
         </div>
       ),
@@ -979,6 +1034,8 @@ export default function Home() {
             subtitle: p.description,
             img: p.covers || p.top_three_song_covers || p.cover_image,
             isNew: false,
+            type: "playlist",
+            slug: createSlug(p.title),
           }))}
           variant="layered"
           onItemClick={(item) =>
@@ -1016,6 +1073,9 @@ export default function Home() {
             subtitle: s.artist_name,
             img: s.cover_image,
             isNew: false,
+            type: "song",
+            artistId: (s as any).artist_id || (s as any).artist,
+            artistSlug: (s as any).artist_slug,
           }))}
           onPlay={(item) =>
             handlePlaySong(item.id, dailyTopSongs.results as any)
@@ -1052,6 +1112,10 @@ export default function Home() {
             subtitle: a.artist_name,
             img: a.cover_image,
             isNew: false,
+            type: "album",
+            artistId: (a as any).artist_id || (a as any).artist,
+            artistSlug: (a as any).artist_slug,
+            slug: createSlug(a.title),
           }))}
           onItemClick={(item) =>
             navigateTo("album-detail", {
@@ -1101,6 +1165,7 @@ export default function Home() {
             subtitle: "Artist",
             img: a.profile_image,
             isNew: false,
+            type: "artist",
             slug: (a as any).unique_id || createSlug(a.name),
           }))}
           onItemClick={(item) =>
@@ -1143,6 +1208,9 @@ export default function Home() {
             subtitle: s.artist_name,
             img: s.cover_image,
             isNew: false,
+            type: "song",
+            artistId: (s as any).artist_id || (s as any).artist,
+            artistSlug: (s as any).artist_slug,
           }))}
           onPlay={(item) =>
             handlePlaySong(item.id, weeklyTopSongs.results as any)
@@ -1179,6 +1247,10 @@ export default function Home() {
             subtitle: a.artist_name,
             img: a.cover_image,
             isNew: false,
+            type: "album",
+            artistId: (a as any).artist_id || (a as any).artist,
+            artistSlug: (a as any).artist_slug,
+            slug: createSlug(a.title),
           }))}
           onItemClick={(item) =>
             navigateTo("album-detail", {
@@ -1404,6 +1476,8 @@ export default function Home() {
   };
 
   return (
+    <>
+    <SEO />
     <div
       dir="rtl"
       className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
@@ -1457,7 +1531,7 @@ export default function Home() {
             {!isPremium && (
               <button
                 onClick={() => navigateTo("premium")}
-                className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold shadow-md hover:brightness-95 transition-transform transform hover:scale-105"
+                className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold shadow-md hover:brightness-95 transition-transform transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
               >
                 ارتقا پلن +
               </button>
@@ -1482,7 +1556,8 @@ export default function Home() {
                   setActiveIndex(i);
                 }
               }}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
+              aria-pressed={i === activeIndex}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none ${
                 i === activeIndex
                   ? "bg-green-500 text-black"
                   : "bg-zinc-800 text-white hover:bg-zinc-700"
@@ -1501,7 +1576,7 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => window.history.back()}
-              className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+              className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
               aria-label="برگشت"
             >
               <svg
@@ -1510,6 +1585,7 @@ export default function Home() {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={2}
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -1520,7 +1596,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => window.history.forward()}
-              className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+              className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
               aria-label="جلو"
             >
               <svg
@@ -1529,6 +1605,7 @@ export default function Home() {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={2}
+                aria-hidden="true"
               >
                 <path
                   strokeLinecap="round"
@@ -1552,7 +1629,8 @@ export default function Home() {
                       setActiveIndex(i);
                     }
                   }}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
+                  aria-pressed={i === activeIndex}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none ${
                     i === activeIndex
                       ? "bg-white text-black"
                       : "bg-zinc-800 text-white hover:bg-zinc-700"
@@ -1569,7 +1647,7 @@ export default function Home() {
             {!isPremium && (
               <button
                 onClick={() => navigateTo("premium")}
-                className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold text-sm hover:text-emerald-400 transition-colors"
+                className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold text-sm hover:text-emerald-400 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
               >
                 ارتقا پلن +
               </button>
@@ -1584,12 +1662,13 @@ export default function Home() {
               getTimeAgo={getTimeAgo}
               isMobile={false}
             />
-            <div
+            <button
               onClick={() => navigateTo("profile")}
-              className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 cursor-pointer transition-transform active:scale-95"
+              className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+              aria-label="مشاهده پروفایل"
             >
               <UserIcon className="w-6 h-6 text-zinc-400" />
-            </div>
+            </button>
           </div>
         </div>
       </header>
@@ -1775,6 +1854,7 @@ export default function Home() {
         }
       `}</style>
     </div>
+    </>
   );
 }
 
@@ -1815,7 +1895,7 @@ const Section = ({
             onShowMore?.();
           }}
           aria-label="نمایش بیشتر"
-          className="absolute left-4 top-1/2 -translate-y-1/2 inline-flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-medium bg-transparent px-2 py-1 rounded transition"
+          className="absolute left-4 top-1/2 -translate-y-1/2 inline-flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-medium bg-transparent px-2 py-1 rounded transition focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
         >
           <span className="flex items-center gap-2">
             <span className="leading-none">نمایش بیشتر</span>
@@ -1825,7 +1905,7 @@ const Section = ({
               stroke="currentColor"
               strokeWidth={2}
               className="w-4 h-4 text-zinc-400 transition-transform duration-150"
-              aria-hidden
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -1844,7 +1924,7 @@ const Section = ({
                 e.stopPropagation();
                 onTitleClick();
               }}
-              className="text-2xl font-bold tracking-tight leading-none text-right w-full text-left md:text-right"
+              className="text-2xl font-bold tracking-tight leading-none text-right w-full text-left md:text-right focus-visible:ring-2 focus-visible:ring-emerald-500 rounded outline-none"
             >
               {title}
             </button>
@@ -1877,6 +1957,7 @@ const HorizontalList = ({
   onItemClick,
   onPlay,
 }: HorizontalListProps) => {
+  const { navigateTo } = useNavigation();
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const isDown = useRef(false);
   const startX = useRef(0);
@@ -1922,10 +2003,11 @@ const HorizontalList = ({
       style={{ direction: "rtl" }}
     >
       {items.map((item, index) => (
-        <div
+        <button
           key={item.id}
           onClick={() => (onPlay ? onPlay(item) : onItemClick?.(item))}
-          className={`snap-start shrink-0 flex flex-col gap-2 group cursor-pointer ${
+          aria-label={`${item.title} از ${item.subtitle}`}
+          className={`snap-start shrink-0 flex flex-col gap-2 group cursor-pointer text-right focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl outline-none ${
             variant === "circle"
               ? "w-28"
               : variant === "layered"
@@ -2069,17 +2151,46 @@ const HorizontalList = ({
             }`}
           >
             <h3
-              className={`font-semibold text-white truncate w-full ${
+              className={`font-semibold text-white truncate w-full hover:underline decoration-zinc-500 ${
                 variant === "circle" ? "text-sm" : "text-sm"
               }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (item.type === "artist") {
+                  navigateTo("artist-detail", { id: item.id, slug: item.slug });
+                } else if (item.type === "song") {
+                  navigateTo("song-detail", { id: item.id });
+                } else if (item.type === "album") {
+                  navigateTo("album-detail", { id: item.id, slug: item.slug });
+                } else if (item.type === "playlist") {
+                  navigateTo("playlist-detail", {
+                    id: item.id,
+                    slug: item.slug,
+                  });
+                }
+              }}
             >
               {item.title}
             </h3>
-            <p className="text-zinc-400 text-xs truncate w-full">
+            <p
+              className="text-zinc-400 text-xs truncate w-full hover:text-white transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (
+                  (item.type === "song" || item.type === "album") &&
+                  item.artistId
+                ) {
+                  navigateTo("artist-detail", {
+                    id: item.artistId,
+                    slug: item.artistSlug,
+                  });
+                }
+              }}
+            >
               {item.subtitle}
             </p>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -2139,9 +2250,10 @@ const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
           key={item.id}
           className="snap-start shrink-0 w-[85vw] sm:w-96 flex flex-col gap-2"
         >
-          <div
+          <button
             onClick={() => onPlay?.(item)}
-            className="flex flex-row-reverse items-center gap-4 bg-zinc-900/50 p-2 pr-4 rounded-md group active:bg-zinc-800 transition-colors relative cursor-pointer hover:bg-zinc-800/70"
+            className="flex flex-row-reverse items-center gap-4 bg-zinc-900/50 p-2 pr-4 rounded-md group active:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-white transition-colors relative cursor-pointer hover:bg-zinc-800/70 text-right w-full"
+            aria-label={`پخش ${item.title} از ${item.subtitle}`}
           >
             <span
               className={`text-4xl font-bold w-12 text-center ${
@@ -2162,7 +2274,7 @@ const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
               <span className="font-bold truncate text-white flex items-center gap-2">
                 {item.title}
                 {item.isNew && (
-                  <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow-lg z-20 ml-2">
+                  <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg z-20 ml-2">
                     جدید
                   </span>
                 )}
@@ -2171,8 +2283,8 @@ const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
                 {item.subtitle}
               </span>
             </div>
-            <MoreHorizontal className="w-5 h-5 text-zinc-500 shrink-0" />
-          </div>
+            <MoreHorizontal className="w-5 h-5 text-zinc-400 shrink-0" />
+          </button>
         </div>
       ))}
     </div>
@@ -2186,6 +2298,7 @@ const PremiumChartList = ({
   items: ItemType[];
   onPlay?: (item: ItemType) => void;
 }) => {
+  const { navigateTo } = useNavigation();
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const isDown = useRef(false);
   const startX = useRef(0);
@@ -2231,13 +2344,14 @@ const PremiumChartList = ({
       style={{ direction: "rtl" }}
     >
       {items.map((item, index) => (
-        <div
+        <button
           key={item.id}
           onClick={() => onPlay?.(item)}
-          className="snap-start shrink-0 w-[75vw] sm:w-80 group cursor-pointer relative"
+          className="snap-start shrink-0 w-[75vw] sm:w-80 group cursor-pointer relative text-right"
+          aria-label={`پخش ${item.title} از ${item.subtitle}`}
         >
           <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur opacity-0 group-hover:opacity-20 transition duration-500" />
-          <div className="relative flex items-center gap-4 bg-zinc-900/40 backdrop-blur-md border border-white/5 p-3 rounded-2xl hover:bg-zinc-800/60 transition-all duration-300">
+          <div className="relative flex items-center gap-4 bg-zinc-900/40 backdrop-blur-md border border-white/5 p-3 rounded-2xl hover:bg-zinc-800/60 focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300">
             <div className="relative shrink-0">
               <div className="w-20 h-20 rounded-xl overflow-hidden shadow-2xl">
                 <ImageWithPlaceholder
@@ -2247,15 +2361,45 @@ const PremiumChartList = ({
                   type="song"
                 />
               </div>
-              <div className="absolute -top-2 -right-2 w-8 h-8 bg-emerald-500 text-black rounded-full flex items-center justify-center font-black text-sm shadow-lg border-2 border-zinc-900">
+              <div
+                className="absolute -top-2 -right-2 w-8 h-8 bg-emerald-500 text-black rounded-full flex items-center justify-center font-black text-sm shadow-lg border-2 border-zinc-900"
+                aria-hidden="true"
+              >
                 {index + 1}
               </div>
             </div>
-            <div className="flex-1 min-w-0 text-right">
-              <h4 className="text-white font-bold truncate text-base">
+            <div className="flex-1 min-w-0">
+              <h4
+                className="text-white font-bold truncate text-base hover:underline decoration-zinc-500"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (item.type === "song") {
+                    navigateTo("song-detail", { id: item.id });
+                  } else if (item.type === "album") {
+                    navigateTo("album-detail", {
+                      id: item.id,
+                      slug: item.slug,
+                    });
+                  }
+                }}
+              >
                 {item.title}
               </h4>
-              <p className="text-zinc-400 text-xs truncate mt-0.5">
+              <p
+                className="text-zinc-400 text-xs truncate mt-0.5 hover:text-white transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (
+                    (item.type === "song" || item.type === "album") &&
+                    item.artistId
+                  ) {
+                    navigateTo("artist-detail", {
+                      id: item.artistId,
+                      slug: item.artistSlug,
+                    });
+                  }
+                }}
+              >
                 {item.subtitle}
               </p>
               <div className="flex items-center justify-end gap-2 mt-2">
@@ -2264,14 +2408,17 @@ const PremiumChartList = ({
                 </span>
               </div>
             </div>
-            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500 transition-colors duration-300">
+            <div
+              className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500 transition-colors duration-300"
+              aria-hidden="true"
+            >
               <Play
                 fill="currentColor"
                 className="w-4 h-4 text-emerald-500 group-hover:text-black translate-x-0.5"
               />
             </div>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -2290,56 +2437,79 @@ const GlassAlbumGrid = ({
   showMore?: boolean;
   onShowMore?: () => void;
   overlayHeight?: string;
-}) => (
-  <div className="relative">
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 px-4">
-      {items.slice(0, maxItems).map((item) => (
-        <div
-          key={item.id}
-          onClick={() => onItemClick?.(item)}
-          className="group cursor-pointer"
-        >
-          <div className="relative aspect-square rounded-2xl overflow-hidden mb-3 shadow-xl">
-            <ImageWithPlaceholder
-              src={item.img}
-              alt={item.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-              type="song"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
-            <div className="absolute bottom-3 right-3 left-3">
-              <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-xl p-2 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                <p className="text-white text-[10px] font-bold truncate text-center ">
-                  مشاهده آلبوم
-                </p>
+}) => {
+  const { navigateTo } = useNavigation();
+  return (
+    <div className="relative">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 px-4">
+        {items.slice(0, maxItems).map((item) => (
+          <button
+            key={item.id}
+            onClick={() => onItemClick?.(item)}
+            className="group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-2xl p-1 text-right"
+            aria-label={`آلبوم ${item.title} از ${item.subtitle}`}
+          >
+            <div className="relative aspect-square rounded-2xl overflow-hidden mb-3 shadow-xl">
+              <ImageWithPlaceholder
+                src={item.img}
+                alt={item.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                type="song"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
+              <div className="absolute bottom-3 right-3 left-3">
+                <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-xl p-2 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                  <p className="text-white text-[10px] font-bold truncate text-center ">
+                    مشاهده آلبوم
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-          <h4 className="text-white font-bold text-sm truncate text-right px-1">
-            {item.title}
-          </h4>
-          <p className="text-zinc-500 text-[11px] truncate text-right px-1 mt-0.5">
-            {item.subtitle}
-          </p>
-        </div>
-      ))}
+            <h4
+              className="text-white font-bold text-sm truncate px-1 hover:underline decoration-zinc-500"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (item.type === "album") {
+                  navigateTo("album-detail", { id: item.id, slug: item.slug });
+                }
+              }}
+            >
+              {item.title}
+            </h4>
+            <p
+              className="text-zinc-400 text-[11px] truncate px-1 mt-0.5 hover:text-white transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (item.artistId) {
+                  navigateTo("artist-detail", {
+                    id: item.artistId,
+                    slug: item.artistSlug,
+                  });
+                }
+              }}
+            >
+              {item.subtitle}
+            </p>
+          </button>
+        ))}
+      </div>
+      {showMore && (
+        <>
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none"
+            style={{ height: overlayHeight }}
+          />
+          <button
+            onClick={onShowMore}
+            className="absolute bottom-[20%] left-1/2 transform -translate-x-1/2 bg-emerald-500 text-black px-4 py-2 rounded-full font-semibold hover:bg-emerald-400 transition-colors z-10"
+          >
+            مشاهده بیشتر
+          </button>
+        </>
+      )}
     </div>
-    {showMore && (
-      <>
-        <div
-          className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none"
-          style={{ height: overlayHeight }}
-        />
-        <button
-          onClick={onShowMore}
-          className="absolute bottom-[20%] left-1/2 transform -translate-x-1/2 bg-emerald-500 text-black px-4 py-2 rounded-full font-semibold hover:bg-emerald-400 transition-colors z-10"
-        >
-          مشاهده بیشتر
-        </button>
-      </>
-    )}
-  </div>
-);
+  );
+};
 
 const SpotlightArtistList = ({
   items,
@@ -2348,6 +2518,7 @@ const SpotlightArtistList = ({
   items: ItemType[];
   onItemClick?: (item: ItemType) => void;
 }) => {
+  const { navigateTo } = useNavigation();
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const isDown = useRef(false);
   const startX = useRef(0);
@@ -2393,10 +2564,11 @@ const SpotlightArtistList = ({
       style={{ direction: "rtl" }}
     >
       {items.map((item) => (
-        <div
+        <button
           key={item.id}
           onClick={() => onItemClick?.(item)}
-          className="shrink-0 group cursor-pointer flex flex-col items-center"
+          className="shrink-0 group cursor-pointer flex flex-col items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl px-2 py-1"
+          aria-label={`هنرمند ${item.title}`}
         >
           <div className="relative w-32 h-32 sm:w-40 sm:h-40 mb-4">
             <div className="absolute inset-0 bg-emerald-500 rounded-full blur-2xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
@@ -2408,17 +2580,26 @@ const SpotlightArtistList = ({
                 type="artist"
               />
             </div>
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[10px] font-black px-3 py-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+            <div
+              className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[10px] font-black px-3 py-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap"
+              aria-hidden="true"
+            >
               VERIFIED
             </div>
           </div>
-          <h4 className="text-white font-bold text-sm group-hover:text-emerald-400 transition-colors">
+          <h4
+            className="text-white font-bold text-sm group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigateTo("artist-detail", { id: item.id, slug: item.slug });
+            }}
+          >
             {item.title}
           </h4>
-          <p className="text-zinc-500 text-[10px] mt-1 uppercase tracking-widest font-medium">
+          <p className="text-zinc-400 text-[10px] mt-1 uppercase tracking-widest font-medium">
             Artist
           </p>
-        </div>
+        </button>
       ))}
     </div>
   );

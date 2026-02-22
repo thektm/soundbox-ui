@@ -6,13 +6,16 @@ import NextImage from "next/image";
 
 // Custom hook for media queries
 const useMediaQuery = (query: string) => {
-  const [matches, setMatches] = useState(false);
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(query).matches;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const media = window.matchMedia(query);
-    setMatches(media.matches);
+    if (media.matches !== matches) setMatches(media.matches);
 
     const listener = (event: MediaQueryListEvent) => {
       setMatches(event.matches);
@@ -20,7 +23,7 @@ const useMediaQuery = (query: string) => {
 
     media.addEventListener("change", listener);
     return () => media.removeEventListener("change", listener);
-  }, [query]);
+  }, [query, matches]);
 
   return matches;
 };
@@ -47,6 +50,7 @@ const Icons = {
       fill={active ? "currentColor" : "none"}
       stroke="currentColor"
       strokeWidth={active ? 0 : 2}
+      aria-hidden="true"
     >
       {active ? (
         <path d="M12.71 2.29a1 1 0 00-1.42 0l-9 9a1 1 0 000 1.42A1 1 0 003 13h1v7a2 2 0 002 2h12a2 2 0 002-2v-7h1a1 1 0 00.71-1.71l-9-9zM9 20v-5a1 1 0 011-1h4a1 1 0 011 1v5H9z" />
@@ -66,6 +70,7 @@ const Icons = {
       fill="none"
       stroke="currentColor"
       strokeWidth={active ? 2.5 : 2}
+      aria-hidden="true"
     >
       <path
         strokeLinecap="round"
@@ -75,17 +80,17 @@ const Icons = {
     </svg>
   ),
   Library: ({ active }: { active: boolean }) => (
-    <div className="relative w-6 h-6">
+    <div className="relative w-6 h-6" aria-hidden="true">
       <NextImage
         src="/library.svg"
-        alt="library"
+        alt=""
         fill
         className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-0" : "opacity-70"}`}
         style={{ filter: "invert(1)" }}
       />
       <NextImage
         src="/library-selected.svg"
-        alt="library-selected"
+        alt=""
         fill
         className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-100" : "opacity-0"}`}
         style={{ filter: "invert(1)" }}
@@ -93,17 +98,17 @@ const Icons = {
     </div>
   ),
   Premium: ({ active }: { active: boolean }) => (
-    <div className="relative w-6 h-6">
+    <div className="relative w-6 h-6" aria-hidden="true">
       <NextImage
         src="/premium.svg"
-        alt="premium"
+        alt=""
         fill
         className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-0" : "opacity-100"}`}
         style={{ filter: "invert(1)" }}
       />
       <NextImage
         src="/premium-selected.svg"
-        alt="premium-selected"
+        alt=""
         fill
         className={`absolute inset-0 w-6 h-6 transition-opacity duration-150 ${active ? "opacity-100" : "opacity-0"}`}
         style={{ filter: "invert(1)" }}
@@ -117,6 +122,7 @@ const Icons = {
       fill={active ? "currentColor" : "none"}
       stroke={active ? "none" : "currentColor"}
       strokeWidth={2}
+      aria-hidden="true"
     >
       {active ? (
         <path
@@ -192,7 +198,11 @@ export default function BottomNavbar() {
         dir="ltr"
       >
         {/* Safe area spacer for iOS */}
-        <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
+        <div
+          className="flex items-center justify-around h-16 max-w-lg mx-auto px-2"
+          role="tablist"
+          aria-label="منوی اصلی ناوبری"
+        >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             const Icon = tab.icon;
@@ -200,6 +210,8 @@ export default function BottomNavbar() {
             return (
               <button
                 key={tab.id}
+                role="tab"
+                aria-selected={isActive}
                 onClick={() => handleNav(tab.id, tab.path)}
                 onMouseDown={() => setIsPressed(tab.id)}
                 onMouseUp={() => setIsPressed(null)}
@@ -210,7 +222,7 @@ export default function BottomNavbar() {
                   relative flex flex-col items-center justify-center
                   flex-1 h-full py-2 
                   transition-all duration-150 ease-out
-                  outline-none select-none
+                  select-none outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg
                   ${
                     isPressed === tab.id
                       ? "scale-95 opacity-70"
@@ -218,7 +230,6 @@ export default function BottomNavbar() {
                   }
                 `}
                 aria-label={tab.label}
-                aria-current={isActive ? "page" : undefined}
               >
                 {/* Icon Container */}
                 <div

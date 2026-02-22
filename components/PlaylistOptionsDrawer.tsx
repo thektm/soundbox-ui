@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Drawer } from "vaul";
-import { Share2, Heart, Loader2 } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { Share2, Heart, Loader2, X } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
@@ -22,18 +23,32 @@ interface PlaylistOptionsDrawerProps {
   onAction?: (action: string, payload: any) => Promise<any> | void;
 }
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const listener = () => setMatches(media.matches);
+    setMatches(media.matches);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, [query]);
+
+  return matches;
+}
+
 export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
   isOpen,
   onClose,
   playlist,
   onAction,
 }) => {
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const { accessToken, authenticatedFetch } = useAuth();
   const [processing, setProcessing] = useState<string | null>(null);
 
-  if (!playlist) return null;
-
   const handleShare = async () => {
+    if (!playlist) return;
     try {
       const url = getFullShareUrl("playlist", playlist.id, playlist.title);
       if (typeof navigator !== "undefined" && navigator.share) {
@@ -54,7 +69,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
   };
 
   const handleToggleLike = useCallback(async () => {
-    if (processing) return;
+    if (!playlist || processing) return;
     setProcessing("toggle-like");
     try {
       if (onAction) {
@@ -98,7 +113,9 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
       setProcessing(null);
       onClose();
     }
-  }, [onAction, playlist, accessToken, processing, onClose]);
+  }, [onAction, playlist, authenticatedFetch, processing, onClose]);
+
+  if (!playlist) return null;
 
   const options = [
     {
@@ -124,44 +141,77 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
     },
   ];
 
-  return (
-    <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
-        <Drawer.Content
-          className="fixed bottom-0 left-0 right-0 max-h-[88%] bg-[#121212] rounded-t-[28px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
-          dir="rtl"
-        >
-          <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-3 mb-2" />
+  const content = (
+    <div
+      className={`bg-[#121212] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)] ${isDesktop ? "rounded-[32px] overflow-hidden" : "rounded-t-[28px]"}`}
+      dir="rtl"
+    >
+      {!isDesktop && (
+        <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-3 mb-2" />
+      )}
+      {isDesktop && <div className="mt-4" />}
 
-          <div className="px-6 py-4 flex items-center gap-4 border-b border-white/5">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-[17px] font-bold text-white truncate leading-tight">
-                {playlist.title}
-              </h3>
+      <div className="px-6 py-4 flex items-center gap-4 border-b border-white/5 relative">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-[17px] font-bold text-white truncate leading-tight">
+            {playlist.title}
+          </h3>
+        </div>
+        {isDesktop && (
+          <button
+            onClick={onClose}
+            className="absolute left-4 top-4 text-white/40 hover:text-white transition-all transform hover:scale-110 active:scale-95 bg-white/5 hover:bg-white/10 p-2 rounded-full"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-2 py-2 mb-safe">
+        {options.map((option) => (
+          <button
+            key={option.id}
+            onClick={option.onClick}
+            className="relative w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors group text-right hover:bg-white/5 active:bg-white/10"
+          >
+            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-white/10 group-hover:text-white transition-all">
+              {option.icon}
             </div>
-          </div>
 
-          <div className="flex-1 overflow-y-auto px-2 py-2 mb-safe">
-            {options.map((option) => (
-              <button
-                key={option.id}
-                onClick={option.onClick}
-                className="relative w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors group text-right hover:bg-white/5 active:bg-white/10"
-              >
-                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-white/10 group-hover:text-white transition-all">
-                  {option.icon}
-                </div>
+            <span className="flex-1 text-[16px] font-medium text-white/90 group-hover:text-white">
+              {option.label}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
-                <span className="flex-1 text-[16px] font-medium text-white/90 group-hover:text-white">
-                  {option.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+  return (
+    <>
+      {isDesktop ? (
+        <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
+            <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-[110] outline-none shadow-2xl border border-white/5 rounded-[32px]">
+              {content}
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      ) : (
+        <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+          <Drawer.Portal>
+            <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
+            <Drawer.Content
+              className="fixed bottom-0 left-0 right-0 max-h-[88%] bg-[#121212] rounded-t-[28px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
+              dir="rtl"
+            >
+              {content}
+            </Drawer.Content>
+          </Drawer.Portal>
+        </Drawer.Root>
+      )}
+    </>
   );
 };
 

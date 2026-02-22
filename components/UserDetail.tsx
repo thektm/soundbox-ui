@@ -32,8 +32,31 @@ interface UserProfile {
   following_count: number;
   is_following: boolean;
   plan?: string;
-  user_playlists: UserPlaylist[];
+  user_playlists:
+    | UserPlaylist[]
+    | { count?: number; total?: number; next?: any; results?: UserPlaylist[] };
 }
+
+// Helpers: normalize user_playlists which may be an array or a paginated object
+const getPlaylistsArray = (
+  up: UserProfile["user_playlists"],
+): UserPlaylist[] => {
+  if (!up) return [];
+  if (Array.isArray(up)) return up as UserPlaylist[];
+  if ((up as any).results && Array.isArray((up as any).results))
+    return (up as any).results as UserPlaylist[];
+  return [];
+};
+
+const getPlaylistsCount = (up: UserProfile["user_playlists"]): number => {
+  if (!up) return 0;
+  if (Array.isArray(up)) return up.length;
+  if (typeof (up as any).total === "number") return (up as any).total;
+  if (typeof (up as any).count === "number") return (up as any).count;
+  if ((up as any).results && Array.isArray((up as any).results))
+    return (up as any).results.length;
+  return 0;
+};
 
 /* ───────────────────────────────────────────
    CSS Keyframes injected once
@@ -227,19 +250,21 @@ const UserPlaylistCard = memo(
               {playlist.title}
             </div>
             <div className="flex items-center gap-2 text-xs text-zinc-400">
-              <div className="flex items-center gap-1">
-                <svg
-                  className="w-3.5 h-3.5"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  style={{
-                    color: playlist.is_liked ? "#1db954" : "currentColor",
-                  }}
-                >
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                </svg>
-                <span>{playlist.likes_count.toLocaleString("fa-IR")}</span>
-              </div>
+              {typeof playlist.likes_count === "number" && (
+                <div className="flex items-center gap-1">
+                  <svg
+                    className="w-3.5 h-3.5"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    style={{
+                      color: playlist.is_liked ? "#1db954" : "currentColor",
+                    }}
+                  >
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                  </svg>
+                  <span>{playlist.likes_count.toLocaleString("fa-IR")}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -271,34 +296,23 @@ const StatBox = memo(
     value: string;
     delay: number;
   }) => {
-    const [hovered, setHovered] = useState(false);
     return (
       <div
         className="ud-stat-enter flex flex-col items-center justify-center py-4 px-6 rounded-2xl cursor-default select-none"
         style={{
           animationDelay: `${delay}ms`,
-          background: hovered
-            ? "linear-gradient(145deg, rgba(29,185,84,0.15), rgba(29,185,84,0.05))"
-            : "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
-          border: hovered
-            ? "1px solid rgba(29,185,84,0.3)"
-            : "1px solid rgba(255,255,255,0.06)",
-          transition: "all 0.3s ease",
-          transform: hovered ? "scale3d(1.05,1.05,1)" : "scale3d(1,1,1)",
+          background:
+            "linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+          border: "1px solid rgba(255,255,255,0.06)",
           willChange: "transform",
         }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
       >
         <span
           className="text-2xl md:text-3xl font-black tabular-nums"
           style={{
-            background: hovered
-              ? "linear-gradient(135deg, #1db954, #1ed760)"
-              : "linear-gradient(135deg, #fff, #b3b3b3)",
+            background: "linear-gradient(135deg, #fff, #b3b3b3)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
-            transition: "all 0.3s ease",
           }}
         >
           {value}
@@ -505,9 +519,11 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
     const fetchProfile = async () => {
       setIsLoading(true);
       try {
-        const response = await authenticatedFetch(
-          `https://api.sedabox.com/api/profile/u/${uniqueId}/`,
-        );
+        const profileUrl =
+          uniqueId === "sedabox"
+            ? `https://api.sedabox.com/api/profile/sedabox`
+            : `https://api.sedabox.com/api/profile/u/${uniqueId}/`;
+        const response = await authenticatedFetch(profileUrl);
         if (response.ok) {
           const data = await response.json();
           setProfile(data);
@@ -593,40 +609,33 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
       dir="rtl"
     >
       {/* Desktop Header */}
-      <header className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={goBack}
-            className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
-          >
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </button>
-          <span className="text-lg font-bold text-white mr-4">{fullName}</span>
-        </div>
+      <header className="hidden md:flex sticky relative top-0 z-50 h-16 items-center justify-center px-6 bg-zinc-900/80 backdrop-blur-xl">
+        <span className="absolute left-1/2 transform -translate-x-1/2 text-lg font-bold text-white pointer-events-none">
+          {fullName}
+        </span>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleFollow}
-            className="px-6 py-2 bg-emerald-500 rounded-full flex items-center gap-2 text-black font-semibold hover:scale-105 hover:bg-emerald-400 transition-all"
+        {/* Back button positioned absolutely to ensure it's at the far left */}
+        <button
+          onClick={goBack}
+          className="absolute left-4 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+        >
+          <svg
+            className="w-5 h-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zM6 10v-3H4v3H1v2h3v3h2v-3h3v-2H6z" />
-            </svg>
-            دنبال کردن
-          </button>
-        </div>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 5l-7 7 7 7"
+            />
+          </svg>
+        </button>
+
+        {/* placeholder to keep header balanced */}
+        <div className="w-8" aria-hidden />
       </header>
 
       {/* Mobile Sticky Header */}
@@ -824,7 +833,9 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
             />
             <StatBox
               label="پلی‌لیست"
-              value={profile.user_playlists.length.toLocaleString("fa-IR")}
+              value={getPlaylistsCount(profile.user_playlists).toLocaleString(
+                "fa-IR",
+              )}
               delay={700}
             />
           </div>
@@ -965,7 +976,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
       </div>
 
       {/* ──── Playlists Section ──── */}
-      {profile.user_playlists.length > 0 && (
+      {getPlaylistsArray(profile.user_playlists).length > 0 && (
         <section className="px-6 md:px-10 pt-10 pb-32 md:pb-12">
           {/* Section header */}
           <div className="flex items-center gap-3 mb-8">
@@ -993,30 +1004,34 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                 border: "1px solid rgba(29,185,84,0.2)",
               }}
             >
-              {profile.user_playlists.length.toLocaleString("fa-IR")}
+              {getPlaylistsCount(profile.user_playlists).toLocaleString(
+                "fa-IR",
+              )}
             </span>
           </div>
 
           {/* Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
-            {profile.user_playlists.map((playlist, index) => (
-              <UserPlaylistCard
-                key={playlist.id}
-                playlist={playlist}
-                index={index}
-                onClick={() =>
-                  navigateTo("user-playlist-detail", {
-                    id: String(playlist.id),
-                  })
-                }
-              />
-            ))}
+            {getPlaylistsArray(profile.user_playlists).map(
+              (playlist, index) => (
+                <UserPlaylistCard
+                  key={playlist.id}
+                  playlist={playlist}
+                  index={index}
+                  onClick={() =>
+                    navigateTo("user-playlist-detail", {
+                      id: String(playlist.id),
+                    })
+                  }
+                />
+              ),
+            )}
           </div>
         </section>
       )}
 
       {/* Empty state */}
-      {profile.user_playlists.length === 0 && (
+      {getPlaylistsArray(profile.user_playlists).length === 0 && (
         <div className="flex flex-col items-center justify-center py-24 px-6">
           <div
             className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
@@ -1026,14 +1041,14 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
             }}
           >
             <svg
-              className="w-10 h-10 text-zinc-600"
+              className="w-10 h-10 text-zinc-500"
               viewBox="0 0 24 24"
               fill="currentColor"
             >
               <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
             </svg>
           </div>
-          <p className="text-zinc-500 text-base font-medium">
+          <p className="text-zinc-400 text-base font-medium">
             هنوز پلی‌لیستی ایجاد نشده
           </p>
         </div>
