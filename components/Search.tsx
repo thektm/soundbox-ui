@@ -1077,6 +1077,13 @@ export default function Search() {
   const { accessToken, authenticatedFetch } = useAuth();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
+  // Remove Persian/Arabic diacritics and special mark characters from input
+  const FORBIDDEN_PERSIAN_REGEX =
+    /[\u064B-\u065F\u0670\u06D6-\u06ED\u0640\u200C]/g;
+  const handleInputChange = (value: string) => {
+    const sanitized = value.replace(FORBIDDEN_PERSIAN_REGEX, "");
+    setQuery(sanitized);
+  };
   const [isFocused, setIsFocused] = useState(false);
 
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
@@ -1369,7 +1376,7 @@ export default function Search() {
               type="text"
               id="desktop-search-input"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => handleInputChange(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setTimeout(() => setIsFocused(false), 200)}
               onKeyDown={handleKeyDown}
@@ -1439,7 +1446,7 @@ export default function Search() {
                   type="text"
                   id="mobile-search-input"
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   onFocus={() => setIsFocused(true)}
                   onBlur={() => setTimeout(() => setIsFocused(false), 200)}
                   onKeyDown={handleKeyDown}
