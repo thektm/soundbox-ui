@@ -159,7 +159,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [needsInitialCheck, setNeedsInitialCheck] = useState<boolean>(false);
 
   const formatErrorMessage = (errorArg: any): string => {
-    const error = errorArg?.error || errorArg;
+    const error = errorArg?.error ?? errorArg;
     if (!error) return "خطای نامشخصی رخ داده است";
 
     const errorMap: Record<string, string> = {
@@ -171,8 +171,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       "Passwords do not match": "رمز عبور با تکرار آن مطابقت ندارد",
       "Phone number already exists": "این شماره همراه قبلاً در سیستم وجود دارد",
       "Account is not active": "حساب کاربری فعال نیست",
-      "Token is invalid or expired":
-        "زمان نشست شما به پایان رسیده است، مجدداً وارد شوید",
+      "Token is invalid or expired": "زمان نشست شما به پایان رسیده است، مجدداً وارد شوید",
       "User not found": "کاربر مورد نظر پیدا نشد",
       "Password reset failed": "تغییر رمز عبور با شکست مواجه شد",
       "Registration failed": "ثبت‌نام انجام نشد",
@@ -192,19 +191,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       return `لطفا ${seconds} ثانیه صبر کنید و سپس دوباره امتحان کنید`;
     }
 
+    // Helper for substring-based mapping (covers many server wording variants)
+    const mapBySubstring = (s: string) => {
+      const lc = (s || "").toLowerCase();
+      if (lc.includes("current password") || lc.includes("incorrect password") || lc.includes("invalid password") || lc.includes("current password is incorrect"))
+        return "رمز فعلی اشتباه است";
+      if (lc.includes("unique id") || lc.includes("unique_id") || lc.includes("user with this unique id"))
+        return "شناسه منحصر به فرد قبلا استفاده شده است";
+      if (lc.includes("refresh token") || lc.includes("refresh")) return "توکن رفرش نامعتبر است";
+      if (lc.includes("not found") && lc.includes("session")) return "نشست پیدا نشد";
+      if (lc.includes("too many requests") || lc.includes("rate limit")) return "تعداد درخواست‌ها بیش از حد مجاز است";
+      return null;
+    };
+
     if (error.fields) {
       const msgs = Object.values(error.fields)
         .flat()
-        .map((m: any) => errorMap[m] || m);
+        .map((m: any) => {
+          const s = String(m || "");
+          return errorMap[s] || mapBySubstring(s) || "خطایی رخ داده است. لطفا دوباره تلاش کنید";
+        });
       return msgs.join(" - ");
     }
 
-    const detail =
-      error.detail ||
-      error.message ||
-      (typeof error === "string" ? error : null);
+    const detail = error.detail || error.message || (typeof error === "string" ? error : null);
     if (detail) {
-      return errorMap[detail] || detail;
+      const s = String(detail);
+      // Exact map
+      if (errorMap[s]) return errorMap[s];
+      // Substring map
+      const bySub = mapBySubstring(s);
+      if (bySub) return bySub;
+      // If the detail contains English letters, avoid returning raw English.
+      if (/[a-zA-Z]/.test(s)) return "خطایی رخ داده است. لطفا دوباره تلاش کنید";
+      return s;
     }
 
     return "خطایی رخ داده است. لطفا دوباره تلاش کنید";

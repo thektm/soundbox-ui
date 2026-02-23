@@ -29,17 +29,20 @@ export const SEO: React.FC<SEOProps> = ({
 }) => {
   const fullTitle = title ? `${title} | ${DEFAULT_TITLE}` : DEFAULT_TITLE;
 
+  // Use default image if imageUrl is null or empty
+  const imgUrl = imageUrl || DEFAULT_IMAGE;
+
   // Ensure image URLs are absolute (required by many crawlers/social cards)
   const resolvedImageUrl =
     typeof window === "undefined"
       ? // server: use canonical/default host
-        imageUrl && imageUrl.startsWith("http")
-        ? imageUrl
-        : `${DEFAULT_URL}${imageUrl.startsWith("/") ? imageUrl : "/" + imageUrl}`
+        imgUrl.startsWith("http")
+        ? imgUrl
+        : `${DEFAULT_URL}${imgUrl.startsWith("/") ? imgUrl : "/" + imgUrl}`
       : // client: can use origin when available
-        imageUrl && imageUrl.startsWith("http")
-        ? imageUrl
-        : `${window.location.origin}${imageUrl.startsWith("/") ? imageUrl : "/" + imageUrl}`;
+        imgUrl.startsWith("http")
+        ? imgUrl
+        : `${window.location.origin}${imgUrl.startsWith("/") ? imgUrl : "/" + imgUrl}`;
 
   return (
     <Head>

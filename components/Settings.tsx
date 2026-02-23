@@ -45,6 +45,54 @@ const ICONS = {
   check: "M5 13l4 4L19 7",
 };
 
+// Convert/sanitize server errors to user-facing Persian messages.
+// Avoid showing raw server text to users; log raw errors to console for debugging.
+const toPersianError = (input: any, fallback = "خطایی رخ داد") => {
+  try {
+    const raw = input?.body ?? input ?? null;
+    console.debug("Remote error (sanitized):", raw);
+
+    const code = raw?.error?.code ?? raw?.code ?? null;
+    const message =
+      (
+        raw?.error?.message ??
+        raw?.message ??
+        (typeof raw === "string" ? raw : "")
+      )?.toString?.() ?? "";
+    const lc = message.toLowerCase();
+
+    if (
+      code === "INVALID_PASSWORD" ||
+      lc.includes("current password") ||
+      lc.includes("invalid password") ||
+      lc.includes("incorrect password")
+    ) {
+      return "رمز فعلی اشتباه است";
+    }
+
+    if (
+      lc.includes("unique id") ||
+      lc.includes("unique_id") ||
+      lc.includes("user with this unique id")
+    ) {
+      return "شناسه منحصر به فرد قبلا استفاده شده است";
+    }
+
+    if (lc.includes("refresh token") || lc.includes("refresh")) {
+      return "توکن رفرش نامعتبر است";
+    }
+
+    if (lc.includes("not found") && lc.includes("session")) {
+      return "نشست پیدا نشد";
+    }
+
+    // Fallback: don't show raw server message; return provided fallback.
+    return fallback;
+  } catch (e) {
+    return fallback;
+  }
+};
+
 // --- MODAL COMPONENTS ---
 
 // Profile Edit Modal
@@ -442,12 +490,12 @@ const SessionsSheet = ({
         const text = await res.text();
         const body = text ? JSON.parse(text) : null;
         if (!res.ok) {
-          toast.error(formatErrorMessage(body) || "خطا در دریافت نشست‌ها");
+          toast.error(toPersianError(body, "خطا در دریافت نشست‌ها"));
           return;
         }
         if (mounted) setSessions(body || []);
       } catch (err: any) {
-        toast.error(formatErrorMessage(err) || "خطا در دریافت نشست‌ها");
+        toast.error(toPersianError(err, "خطا در دریافت نشست‌ها"));
       } finally {
         if (mounted) setLoading(false);
       }
@@ -475,13 +523,13 @@ const SessionsSheet = ({
       const text = await res.text();
       const body = text ? JSON.parse(text) : null;
       if (!res.ok) {
-        toast.error(formatErrorMessage(body) || "خطا در لغو نشست");
+        toast.error(toPersianError(body, "خطا در لغو نشست"));
         return;
       }
       toast.success("نشست با موفقیت لغو شد");
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     } catch (err: any) {
-      toast.error(formatErrorMessage(err) || "خطا در لغو نشست");
+      toast.error(toPersianError(err, "خطا در لغو نشست"));
     } finally {
       setRevokingId(null);
     }
@@ -519,7 +567,7 @@ const SessionsSheet = ({
       }
 
       if (!res.ok) {
-        toast.error(formatErrorMessage(body) || "خطا در لغو سایر نشست‌ها");
+        toast.error(toPersianError(body, "خطا در لغو سایر نشست‌ها"));
         return;
       }
 
@@ -528,7 +576,7 @@ const SessionsSheet = ({
       // Keep only current session(s)
       setSessions((prev) => prev.filter((s) => s.is_current));
     } catch (err: any) {
-      toast.error(formatErrorMessage(err) || "خطا در لغو سایر نشست‌ها");
+      toast.error(toPersianError(err, "خطا در لغو سایر نشست‌ها"));
     } finally {
       setRevokingOthers(false);
     }
@@ -666,7 +714,9 @@ const SecuritySheet = ({
       setPasswords({ current: "", new: "", confirm: "" });
       onClose();
     } catch (err: any) {
-      toast.error(err?.message || "خطایی رخ داد");
+      // Error already shown by caller; log for debugging.
+      // eslint-disable-next-line no-console
+      console.debug("Password change failed (sheet):", err);
     } finally {
       setIsSubmitting(false);
     }
@@ -879,10 +929,14 @@ export default function Settings() {
         ) {
           toast.error("شناسه منحصر به فرد قبلا استفاده شده است", { id: tid });
         } else {
-          toast.error(formatErrorMessage(err), { id: tid });
+          toast.error(toPersianError(err, "خطا در بروزرسانی پروفایل"), {
+            id: tid,
+          });
         }
       } else {
-        toast.error(formatErrorMessage(err), { id: tid });
+        toast.error(toPersianError(err, "خطا در بروزرسانی پروفایل"), {
+          id: tid,
+        });
       }
     } finally {
       setIsSaving(false);
@@ -902,7 +956,7 @@ export default function Settings() {
       toast.success("کیفیت پخش تغییر یافت", { id: tid });
       setAudioQuality(quality);
     } catch (err: any) {
-      toast.error(formatErrorMessage(err), { id: tid });
+      toast.error(toPersianError(err, "خطا در تغییر کیفیت پخش"), { id: tid });
     }
   };
 
@@ -941,21 +995,25 @@ export default function Settings() {
         return;
       }
 
-      // Prefer server-provided error codes, then use formatErrorMessage to
-      // generate a Persian-friendly message.
+      // Prefer server-provided error codes, then map/sanitize to Persian.
       let errMsg = "خطا در تغییر رمز";
       if (body?.error?.code === "INVALID_PASSWORD") {
         errMsg = "رمز فعلی اشتباه است";
       } else if (body?.error || body) {
-        try {
-          errMsg = formatErrorMessage(body.error || body) || errMsg;
-        } catch (e) {
-          errMsg = body?.error?.message || body?.message || errMsg;
-        }
+        errMsg = toPersianError(body, errMsg);
       }
-      toast.error(errMsg, { id: tid });
+      // Do not show toast here to avoid duplicates; caller will surface the error once.
       throw new Error(errMsg);
     } catch (err) {
+      // Dismiss the loading toast created earlier and rethrow.
+      // Let `authenticatedFetch` surface a single, specific error toast.
+      try {
+        toast.dismiss(tid);
+      } catch (e) {
+        // ignore
+      }
+      // eslint-disable-next-line no-console
+      console.debug("Password change failed (delegated):", err);
       throw err;
     }
   };
@@ -975,7 +1033,7 @@ export default function Settings() {
       toast.success("تنظیمات با موفقیت ذخیره شد", { id: tid });
       setNotificationPreferences(newPrefs);
     } catch (err: any) {
-      toast.error(formatErrorMessage(err), { id: tid });
+      toast.error(toPersianError(err, "خطا در ذخیره تنظیمات"), { id: tid });
     }
   };
 

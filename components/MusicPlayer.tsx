@@ -525,6 +525,7 @@ const TrackSlide = memo<{
   onNext: () => void;
   onClose?: () => void;
   isAdPlaying?: boolean;
+  flipNext?: boolean;
 }>(
   ({
     track,
@@ -535,6 +536,7 @@ const TrackSlide = memo<{
     onNext,
     onClose,
     isAdPlaying,
+    flipNext,
   }) => {
     if (!track) {
       return (
@@ -608,7 +610,13 @@ const TrackSlide = memo<{
               className="w-9 h-9 rounded-full transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               aria-disabled={isAdPlaying}
             >
-              <Icon.Next c="w-5 h-5 text-neutral-400" />
+              {flipNext ? (
+                <span style={{ display: "inline-block", transform: "scaleX(-1)" }}>
+                  <Icon.Next c="w-5 h-5 text-neutral-400" />
+                </span>
+              ) : (
+                <Icon.Next c="w-5 h-5 text-neutral-400" />
+              )}
             </button>
           </div>
         )}
@@ -1302,7 +1310,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
         style={{ bottom: 70, willChange: "transform, opacity" }}
       >
         <div className="mx-2 sm:mx-4">
-          <div
+          <div dir="ltr"
             ref={containerRef}
             className="relative bg-neutral-900/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl overflow-hidden"
           >
@@ -2683,6 +2691,7 @@ const MobileExpandedPlayer = memo<{
 
   return (
     <motion.div
+    
       initial="initial"
       animate="animate"
       exit="exit"
@@ -2705,7 +2714,7 @@ const MobileExpandedPlayer = memo<{
             className="w-full border-b border-white/10 flex items-center justify-center shrink-0 overflow-hidden"
             style={{ willChange: "height, opacity" }}
           >
-            <div className="w-full aspect-25/8 p-2.5">
+            <div  className="w-full aspect-25/8 p-2.5">
               <a
                 href={banner.navigate_link || "#"}
                 target="_blank"
@@ -2735,7 +2744,7 @@ const MobileExpandedPlayer = memo<{
         className="relative flex-1 flex flex-col bg-linear-to-b from-neutral-900 via-neutral-950 to-black overflow-y-auto overflow-x-hidden shadow-[0_-20px_50px_rgba(0,0,0,0.5)]"
         style={{ willChange: "transform, opacity" }}
       >
-        <div className="relative flex flex-col min-h-0 h-full px-3 py-4 sm:px-6 sm:py-8 overflow-hidden">
+        <div dir="ltr"  className="relative flex flex-col min-h-0 h-full px-3 py-4 sm:px-6 sm:py-8 overflow-hidden">
           <div className="flex items-start justify-between mb-4">
             <button
               onClick={onCollapse}

@@ -49,6 +49,7 @@ interface UserPlaylistResponse {
   updated_at: string;
   generated_by?: "system" | "admin" | "audience";
   creator_unique_id?: string | null;
+  order?: any[];
 }
 
 // ============== HELPERS ==============
@@ -85,7 +86,12 @@ type IconName =
   | "music"
   | "shareNetwork"
   | "lock"
-  | "globe";
+  | "globe"
+  | "arrowUp"
+  | "arrowDown"
+  | "order"
+  | "check"
+  | "close";
 
 const ICON_PATHS: Record<
   IconName,
@@ -128,6 +134,26 @@ const ICON_PATHS: Record<
   globe: {
     d: "M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9",
     stroke: true,
+  },
+  arrowUp: {
+    d: "M12 4l-8 8h16l-8-8z",
+    fill: true,
+  },
+  arrowDown: {
+    d: "M12 20l8-8H4l8 8z",
+    fill: true,
+  },
+  order: {
+    d: "M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z",
+    fill: true,
+  },
+  check: {
+    d: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z",
+    fill: true,
+  },
+  close: {
+    d: "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z",
+    fill: true,
   },
 };
 
@@ -189,6 +215,13 @@ const SongRow = memo(
     playing,
     onPlay,
     onMore,
+    onTitleClick,
+    onArtistClick,
+    isEditingOrder,
+    onMoveUp,
+    onMoveDown,
+    isFirst,
+    isLast,
   }: {
     song: ApiSong;
     idx: number;
@@ -196,18 +229,34 @@ const SongRow = memo(
     playing: boolean;
     onPlay: () => void;
     onMore: (song: ApiSong) => void;
+    onTitleClick?: () => void;
+    onArtistClick?: () => void;
+    isEditingOrder?: boolean;
+    onMoveUp?: () => void;
+    onMoveDown?: () => void;
+    isFirst?: boolean;
+    isLast?: boolean;
   }) => {
     const [hover, setHover] = useState(false);
 
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(min-width: 768px)").matches;
+
     return (
       <div
-        onClick={onPlay}
+        onClick={isEditingOrder ? undefined : onPlay}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-        className="flex items-center gap-4 py-2 pl-6 pr-2 sm:px-0 -mx-6 sm:mx-0 rounded-md cursor-pointer transition-all duration-300 hover:bg-white/[0.08] active:bg-white/[0.12] bg-black/5"
+        className={`flex items-center gap-4 py-2 pl-6 pr-2 sm:px-0 -mx-6 sm:mx-0 rounded-md transition-all duration-300 ${
+          isEditingOrder
+            ? "cursor-default"
+            : "cursor-pointer hover:bg-white/[0.08] active:bg-white/[0.12]"
+        } bg-black/5`}
       >
         <div className="w-5 text-center text-sm text-neutral-400 tabular-nums">
-          {hover ? (
+          {hover && !isEditingOrder ? (
             <Icon name={current && playing ? "pause" : "play"} size={14} />
           ) : current && playing ? (
             <Equalizer />
@@ -225,32 +274,114 @@ const SongRow = memo(
         </div>
 
         <div className="flex-1 min-w-0">
-          <div
-            className={`text-[15px] font-medium truncate ${
-              current ? "text-green-500" : "text-white"
-            }`}
-          >
-            {song.title}
-          </div>
-          <div className="text-[13px] text-white/60 truncate mt-0.5">
-            {song.artist_name}
-          </div>
+          {isDesktop && (onTitleClick || onArtistClick) ? (
+            <>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTitleClick && onTitleClick();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    onTitleClick && onTitleClick();
+                  }
+                }}
+                role={onTitleClick ? "link" : undefined}
+                tabIndex={onTitleClick ? 0 : undefined}
+                className={`text-[15px] font-medium truncate ${
+                  current ? "text-green-500" : "text-white"
+                } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
+              >
+                {song.title}
+              </div>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onArtistClick && onArtistClick();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    onArtistClick && onArtistClick();
+                  }
+                }}
+                role={onArtistClick ? "link" : undefined}
+                tabIndex={onArtistClick ? 0 : undefined}
+                className="text-[13px] text-white/60 truncate mt-0.5 cursor-pointer hover:underline"
+              >
+                {song.artist_name}
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                className={`text-[15px] font-medium truncate ${
+                  current ? "text-green-500" : "text-white"
+                }`}
+              >
+                {song.title}
+              </div>
+              <div className="text-[13px] text-white/60 truncate mt-0.5">
+                {song.artist_name}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden sm:block text-[13px] text-neutral-400">
-            {formatDuration(song.duration_seconds)}
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onMore(song);
-            }}
-            className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white"
-          >
-            <Icon name="more" size={18} />
-          </button>
+          {isEditingOrder ? (
+            <div className="flex items-center gap-1.5 px-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveUp?.();
+                }}
+                disabled={isFirst}
+                className={`w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-all ${
+                  isFirst
+                    ? "opacity-10 cursor-not-allowed"
+                    : "text-white/60 hover:text-green-500 hover:scale-110"
+                }`}
+                title="حرکت به بالا"
+              >
+                <Icon name="arrowUp" size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveDown?.();
+                }}
+                disabled={isLast}
+                className={`w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-all ${
+                  isLast
+                    ? "opacity-10 cursor-not-allowed"
+                    : "text-white/60 hover:text-green-500 hover:scale-110"
+                }`}
+                title="حرکت به پایین"
+              >
+                <Icon name="arrowDown" size={20} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="hidden sm:block text-[13px] text-neutral-400">
+                {formatDuration(song.duration_seconds)}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMore(song);
+                }}
+                className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white"
+              >
+                <Icon name="more" size={18} />
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -278,6 +409,11 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   const [isLiked, setIsLiked] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
 
+  // Reordering states
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
+  const [displaySongs, setDisplaySongs] = useState<ApiSong[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isPlaylistDrawerOpen, setIsPlaylistDrawerOpen] = useState(false);
@@ -294,7 +430,44 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
       );
       if (resp.ok) {
         const data = await resp.json();
-        setPlaylist(data);
+
+        // Handle custom sorting based on 'order' JSON field
+        let sortedSongs = [...data.songs];
+        let orderData = data.order;
+
+        if (typeof orderData === "string") {
+          try {
+            orderData = JSON.parse(orderData);
+          } catch (e) {
+            orderData = undefined;
+          }
+        }
+
+        if (orderData && Array.isArray(orderData) && orderData.length > 0) {
+          const orderList = orderData;
+          // Helper to get ID from ordered item (item might be {id: number} or just number)
+          const getId = (item: any) =>
+            typeof item === "object" && item !== null ? item.id : item;
+
+          const orderIds = orderList.map(getId);
+
+          sortedSongs.sort((a, b) => {
+            const indexA = orderIds.findIndex(
+              (id) => String(id) === String(a.id),
+            );
+            const indexB = orderIds.findIndex(
+              (id) => String(id) === String(b.id),
+            );
+            // If ID not in order, put it at the end
+            if (indexA === -1 && indexB === -1) return 0;
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+          });
+        }
+
+        setPlaylist({ ...data, songs: sortedSongs, order: orderData });
+        setDisplaySongs(sortedSongs);
         setIsLiked(!!data.is_liked);
       } else {
         toast.error("خطا در بارگذاری پلی‌لیست");
@@ -310,6 +483,69 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   useEffect(() => {
     fetchPlaylist();
   }, [fetchPlaylist]);
+
+  const handleMoveUp = useCallback((index: number) => {
+    if (index === 0) return;
+    setDisplaySongs((prev) => {
+      const next = [...prev];
+      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      return next;
+    });
+  }, []);
+
+  const handleMoveDown = useCallback((index: number) => {
+    setDisplaySongs((prev) => {
+      if (index === prev.length - 1) return prev;
+      const next = [...prev];
+      [next[index + 1], next[index]] = [next[index], next[index + 1]];
+      return next;
+    });
+  }, []);
+
+  const handleSaveOrder = useCallback(async () => {
+    if (!playlist) return;
+    setIsSaving(true);
+    try {
+      // Create new order as array of objects [{id: 123, cover: 'url'}, ...]
+      const newOrder = displaySongs.map((s) => ({
+        id: s.id,
+        cover: s.cover_image,
+      }));
+
+      const resp = await authenticatedFetch(
+        `https://api.sedabox.com/api/profile/user-playlists/${id}/`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: playlist.title,
+            public: playlist.public,
+            order: newOrder,
+          }),
+        },
+      );
+
+      if (resp.ok) {
+        setPlaylist({ ...playlist, songs: [...displaySongs], order: newOrder });
+        setIsEditingOrder(false);
+        toast.success("ترتیب آهنگ‌ها ذخیره شد");
+      } else {
+        toast.error("خطا در ذخیره‌سازی ترتیب");
+      }
+    } catch (err) {
+      console.error("Save order error:", err);
+      toast.error("خطای شبکه");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [id, displaySongs, playlist, authenticatedFetch]);
+
+  const handleCancelOrder = useCallback(() => {
+    if (playlist) {
+      setDisplaySongs([...playlist.songs]);
+      setIsEditingOrder(false);
+    }
+  }, [playlist]);
 
   const handleToggleLike = async () => {
     if (!playlist || !accessToken) {
@@ -388,20 +624,20 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   }, []);
 
   const handlePlaySong = (idx: number) => {
-    if (!playlist) return;
-    const tracks = playlist.songs.map(apiSongToTrack);
+    if (displaySongs.length === 0) return;
+    const tracks = displaySongs.map(apiSongToTrack);
     setQueue(tracks, idx);
   };
 
   const handlePlayAll = () => {
-    if (!playlist || playlist.songs.length === 0) return;
-    const tracks = playlist.songs.map(apiSongToTrack);
+    if (displaySongs.length === 0) return;
+    const tracks = displaySongs.map(apiSongToTrack);
     setQueue(tracks, 0);
   };
 
   const totalDuration = useMemo(() => {
-    if (!playlist) return "0:00";
-    const totalSecs = playlist.songs.reduce(
+    if (displaySongs.length === 0) return "0:00";
+    const totalSecs = displaySongs.reduce(
       (sum, s) => sum + (s.duration_seconds || 0),
       0,
     );
@@ -409,7 +645,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
     const mins = Math.floor((totalSecs % 3600) / 60);
     if (hours > 0) return `${hours} ساعت و ${mins} دقیقه`;
     return `${mins} دقیقه`;
-  }, [playlist]);
+  }, [displaySongs]);
 
   if (loading)
     return (
@@ -516,7 +752,9 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
         className="relative w-full h-96 md:h-[500px] bg-cover bg-center bg-no-repeat transition-all duration-700"
         style={{
           backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 70%, rgba(0,0,0,1) 100%), url(${
-            playlist.top_three_song_covers?.[0] || "/default-cover.jpg"
+            displaySongs?.[0]?.cover_image ||
+            playlist.top_three_song_covers?.[0] ||
+            "/default-cover.jpg"
           })`,
         }}
       >
@@ -555,7 +793,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
                   <span>•</span>
                 </>
               )}
-              <span>{playlist.songs.length} آهنگ</span>
+              <span>{displaySongs.length} آهنگ</span>
               <span>•</span>
               <span className="flex items-center gap-1">
                 <Icon name="clock" className="w-4 h-4" />
@@ -596,56 +834,97 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
       </header>
 
       <div className="sticky top-0 z-30 bg-neutral-950/95 px-6 md:px-12 py-6 border-b border-white/10 backdrop-blur-md">
-        <div className="flex items-center gap-6">
-          <button
-            type="button"
-            onClick={handlePlayAll}
-            className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-400 hover:scale-110 flex items-center justify-center shadow-2xl transition-all duration-300 active:scale-95"
-          >
-            <Icon name="play" className="w-7 h-7 text-black ml-1" />
-          </button>
+        <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
+          {isEditingOrder ? (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSaveOrder}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-6 py-3 bg-green-500 text-black rounded-full font-bold hover:bg-green-400 hover:scale-105 transition-all shadow-lg shadow-green-500/20 active:scale-95 disabled:bg-neutral-600 disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin text-black" />
+                ) : (
+                  <Icon name="check" size={20} />
+                )}
+                <span>ذخیره تغییرات</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelOrder}
+                className="flex items-center gap-2 px-6 py-3 bg-neutral-800 text-white rounded-full font-bold hover:bg-neutral-700 hover:scale-105 transition-all active:scale-95"
+              >
+                <Icon name="close" size={20} />
+                <span>لغو</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handlePlayAll}
+                className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-400 hover:scale-110 flex items-center justify-center shadow-2xl transition-all duration-300 active:scale-95"
+              >
+                <Icon name="play" className="w-7 h-7 text-black ml-1" />
+              </button>
 
-          <button
-            type="button"
-            onClick={handleToggleLike}
-            disabled={isLiking}
-            className={`w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center transition-all duration-200 ${
-              isLiked ? "text-green-500" : "text-neutral-400 hover:text-white"
-            }`}
-          >
-            {isLiking ? (
-              <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Icon name="heart" className="w-7 h-7" filled={isLiked} />
-            )}
-          </button>
+              <button
+                type="button"
+                onClick={handleToggleLike}
+                disabled={isLiking}
+                className={`w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center transition-all duration-200 ${
+                  isLiked
+                    ? "text-green-500"
+                    : "text-neutral-400 hover:text-white"
+                }`}
+              >
+                {isLiking ? (
+                  <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Icon name="heart" className="w-7 h-7" filled={isLiked} />
+                )}
+              </button>
 
-          <button
-            type="button"
-            onClick={handleShare}
-            className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200"
-          >
-            <Icon name="shareNetwork" className="w-7 h-7" />
-          </button>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200"
+              >
+                <Icon name="shareNetwork" className="w-7 h-7" />
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setIsPlaylistDrawerOpen(true)}
-            className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200"
-          >
-            <Icon name="more" className="w-7 h-7" />
-          </button>
+              <button
+                type="button"
+                onClick={() => setIsPlaylistDrawerOpen(true)}
+                className="w-12 h-12 rounded-full hover:bg-white/10 flex items-center justify-center text-neutral-400 hover:text-white transition-colors duration-200"
+              >
+                <Icon name="more" className="w-7 h-7" />
+              </button>
+
+              {isOwner && displaySongs.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingOrder(true)}
+                  className="mr-auto text-sm bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-4 py-2 rounded-full flex items-center gap-2 transition-all"
+                >
+                  <Icon name="order" size={18} />
+                  <span>تغییر ترتیب</span>
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
 
       <main className="px-6 md:px-12 mt-6 space-y-2">
-        {playlist.songs.length === 0 ? (
+        {displaySongs.length === 0 ? (
           <div className="py-20 flex flex-col items-center justify-center text-neutral-500">
             <Icon name="music" size={48} className="mb-4 opacity-20" />
             <p>این پلی‌لیست هنوز خالی است</p>
           </div>
         ) : (
-          playlist.songs.map((song, index) => (
+          displaySongs.map((song, index) => (
             <SongRow
               key={song.id}
               song={song}
@@ -654,6 +933,18 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
               playing={isPlaying}
               onPlay={() => handlePlaySong(index)}
               onMore={handleMore}
+              onTitleClick={() =>
+                navigateTo("song-detail", { id: song.id, title: song.title })
+              }
+              onArtistClick={() =>
+                song.artist_id &&
+                navigateTo("artist-detail", { id: song.artist_id })
+              }
+              isEditingOrder={isEditingOrder}
+              onMoveUp={() => handleMoveUp(index)}
+              onMoveDown={() => handleMoveDown(index)}
+              isFirst={index === 0}
+              isLast={index === displaySongs.length - 1}
             />
           ))
         )}

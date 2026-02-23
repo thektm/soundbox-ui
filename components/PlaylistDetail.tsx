@@ -16,7 +16,7 @@ import { useAuth } from "./AuthContext";
 import { usePlayer, Track } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { toast } from "react-hot-toast";
-import { getFullShareUrl } from "../utils/share";
+import { getFullShareUrl, slugify } from "../utils/share";
 import { SEO } from "./SEO";
 
 // ============== API INTERFACES ==============
@@ -86,7 +86,8 @@ type IconName =
   | "arrowLeft"
   | "clock"
   | "music"
-  | "shareNetwork";
+  | "shareNetwork"
+  | "verified";
 
 const ICON_PATHS: Record<
   IconName,
@@ -120,6 +121,10 @@ const ICON_PATHS: Record<
   },
   shareNetwork: {
     d: "M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z",
+    fill: true,
+  },
+  verified: {
+    d: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 14l-4-4 1.41-1.41L11 13.17l5.59-5.59L18 9l-7 7z",
     fill: true,
   },
 };
@@ -184,6 +189,8 @@ const SongRow = memo(
     playing,
     onPlay,
     onMore,
+    onTitleClick,
+    onArtistClick,
   }: {
     song: ApiSong;
     idx: number;
@@ -191,8 +198,15 @@ const SongRow = memo(
     playing: boolean;
     onPlay: () => void;
     onMore: (song: ApiSong) => void;
+    onTitleClick?: () => void;
+    onArtistClick?: () => void;
   }) => {
     const [hover, setHover] = useState(false);
+
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(min-width: 768px)").matches;
 
     return (
       <div
@@ -220,16 +234,59 @@ const SongRow = memo(
         </div>
 
         <div className="flex-1 min-w-0">
-          <div
-            className={`text-[15px] font-medium truncate ${
-              current ? "text-green-500" : "text-white"
-            }`}
-          >
-            {song.title}
-          </div>
-          <div className="text-[13px] text-white/60 truncate mt-0.5">
-            {song.artist_name}
-          </div>
+          {isDesktop && (onTitleClick || onArtistClick) ? (
+            <>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTitleClick && onTitleClick();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    onTitleClick && onTitleClick();
+                  }
+                }}
+                role={onTitleClick ? "link" : undefined}
+                tabIndex={onTitleClick ? 0 : undefined}
+                className={`text-[15px] font-medium truncate ${
+                  current ? "text-green-500" : "text-white"
+                } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
+              >
+                {song.title}
+              </div>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onArtistClick && onArtistClick();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    onArtistClick && onArtistClick();
+                  }
+                }}
+                role={onArtistClick ? "link" : undefined}
+                tabIndex={onArtistClick ? 0 : undefined}
+                className="text-[13px] text-white/60 truncate mt-0.5 cursor-pointer hover:underline"
+              >
+                {song.artist_name}
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                className={`text-[15px] font-medium truncate ${
+                  current ? "text-green-500" : "text-white"
+                }`}
+              >
+                {song.title}
+              </div>
+              <div className="text-[13px] text-white/60 truncate mt-0.5">
+                {song.artist_name}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -268,7 +325,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
   generatedBy,
   creatorUniqueId,
 }) => {
-  const { goBack, scrollY, navigateTo } = useNavigation();
+  const { goBack, scrollY, navigateTo, currentParams } = useNavigation();
   const { accessToken } = useAuth();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
@@ -286,12 +343,20 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
 
   const fetchPlaylist = useCallback(async () => {
     if (!id) return;
+
+    // Use the recommendation endpoint if the ID is not purely numeric (like smart_rec_ or liked_rec_)
+    const isRecommended = typeof id === "string" && !/^\d+$/.test(id);
+
+    // Recommendation playlists require an access token. If we don't have one yet,
+    // skip the fetch and wait for `accessToken` to be available to avoid triggering
+    // an unnecessary failed network request and an unwanted toast message.
+    if (isRecommended && !accessToken) {
+      setLoading(true);
+      return;
+    }
+
     setLoading(true);
     try {
-      // Use the recommendation endpoint if the ID is a unique mixed-string ID (smart_rec_ or liked_rec_)
-      const isRecommended =
-        typeof id === "string" &&
-        (id.startsWith("smart_rec_") || id.startsWith("liked_rec_"));
       const url = isRecommended
         ? `https://api.sedabox.com/api/home/playlist-recommendations/${id}/`
         : `https://api.sedabox.com/api/playlists/${id}/`;
@@ -310,6 +375,29 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         }
         setPlaylist(data);
         setIsLiked(!!data.is_liked);
+
+        // Fix URL if slug is missing or does not match
+        // Only if not a recommendation
+        if (!isRecommended && data && data.title) {
+          const hasSlug =
+            currentParams?.title ||
+            slug ||
+            (typeof window !== "undefined" &&
+              window.location.pathname.includes(`-${slugify(data.title)}`));
+
+          if (!hasSlug) {
+            navigateTo(
+              "playlist-detail",
+              {
+                ...currentParams,
+                id: data.id,
+                title: data.title,
+                slug: slugify(data.title),
+              },
+              "replace",
+            );
+          }
+        }
       } else {
         toast.error("خطا در بارگذاری پلی‌لیست");
       }
@@ -319,7 +407,15 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [id, accessToken, generatedBy, creatorUniqueId]);
+  }, [
+    id,
+    accessToken,
+    generatedBy,
+    creatorUniqueId,
+    slug,
+    currentParams,
+    navigateTo,
+  ]);
 
   useEffect(() => {
     fetchPlaylist();
@@ -333,12 +429,12 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
     setIsLiking(true);
     try {
       // Use the recommendation like endpoint when this is a recommended playlist
-      const isRecommended =
-        playlist.unique_id &&
-        (String(playlist.unique_id).startsWith("smart_rec_") ||
-          String(playlist.unique_id).startsWith("liked_rec_"));
+      // Check if unique_id is mixed (has letters)
+      const uniqueIdStr = String(playlist.unique_id || playlist.id);
+      const isRecommended = !/^\d+$/.test(uniqueIdStr);
+
       const likeUrl = isRecommended
-        ? `https://api.sedabox.com/api/home/playlist-recommendations/${playlist.unique_id}/like/`
+        ? `https://api.sedabox.com/api/home/playlist-recommendations/${uniqueIdStr}/like/`
         : `https://api.sedabox.com/api/playlists/${playlist.id}/like/`;
 
       const resp = await fetch(likeUrl, {
@@ -530,15 +626,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl"
         style={{ backgroundColor: `rgba(17,17,17,${headerOpacity})` }}
       >
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={goBack}
-            className="w-10 h-10 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center transition-all"
-          >
-            <Icon name="arrowLeft" className="w-5 h-5 text-white" />
-          </button>
-        </div>
+        <div className="flex items-center gap-3"></div>
         <div className="flex-1 text-center">
           <div className="text-sm text-white font-semibold truncate max-w-lg mx-auto">
             {playlist.title}
@@ -602,8 +690,8 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
           </button>
         </div>
 
-        <div className="absolute inset-0 flex items-end justify-end px-6 md:px-12 pb-8">
-          <div className="text-right max-w-lg w-full">
+        <div className="absolute inset-y-0 right-0 flex items-end pr-6 md:pr-12 pl-6 pb-8">
+          <div className="text-right max-w-lg">
             <p className="text-sm font-semibold text-green-400 mb-2 uppercase tracking-wide">
               پلی‌لیست
             </p>
@@ -630,23 +718,15 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
                 {totalDuration}
               </span>
             </div>
-            {playlist.generated_by === "system" && (
+            {(playlist.generated_by === "system" ||
+              playlist.generated_by === "admin") && (
               <button
                 type="button"
                 onClick={() => navigateTo("user-detail", { id: "sedabox" })}
-                className="mt-3 text-sm text-green-400 hover:text-green-300 hover:underline transition-colors text-right"
+                className="mt-3 text-sm text-green-400 transition-colors text-right flex items-center gap-2"
               >
-                ایجاد شده توسط سیستم صدا باکس
-              </button>
-            )}
-
-            {playlist.generated_by === "admin" && (
-              <button
-                type="button"
-                onClick={() => navigateTo("user-detail", { id: "sedabox" })}
-                className="mt-3 text-sm text-green-400 hover:text-green-300 hover:underline transition-colors text-right"
-              >
-                ایجاد شده توسط ادمین صدا باکس
+                <span className="hover:underline cursor-pointer">صداباکس</span>
+                <Icon name="verified" className="w-4 h-4 text-green-400" />
               </button>
             )}
             {playlist.generated_by === "audience" &&
@@ -658,9 +738,11 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
                       id: playlist.creator_unique_id!,
                     })
                   }
-                  className="mt-3 text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors text-right"
+                  className="mt-3 text-sm text-blue-400 hover:underline transition-colors text-right"
                 >
-                  ایجاد شده توسط {playlist.creator_unique_id}
+                  <span className="cursor-pointer">
+                    {playlist.creator_unique_id}
+                  </span>
                 </button>
               )}
           </div>
@@ -720,6 +802,16 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
             playing={isPlaying}
             onPlay={() => handlePlaySong(index)}
             onMore={handleMore}
+            onTitleClick={() =>
+              navigateTo("song-detail", {
+                id: song.id,
+                title: slugify(song.title),
+              })
+            }
+            onArtistClick={() =>
+              song.artist_id &&
+              navigateTo("artist-detail", { id: song.artist_id })
+            }
           />
         ))}
       </main>

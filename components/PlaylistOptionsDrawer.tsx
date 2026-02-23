@@ -79,12 +79,12 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
         }
       } else {
         // Fallback: call API directly
-        const isRecommended =
-          playlist.unique_id &&
-          (String(playlist.unique_id).startsWith("smart_rec_") ||
-            String(playlist.unique_id).startsWith("liked_rec_"));
+        // Use the recommendation like endpoint when this is a recommended playlist
+        // Check if unique_id or id is mixed (has letters)
+        const uniqueIdStr = String(playlist.unique_id || playlist.id);
+        const isRecommended = !/^\d+$/.test(uniqueIdStr);
         const url = isRecommended
-          ? `https://api.sedabox.com/api/home/playlist-recommendations/${playlist.unique_id}/like/`
+          ? `https://api.sedabox.com/api/home/playlist-recommendations/${uniqueIdStr}/like/`
           : `https://api.sedabox.com/api/playlists/${playlist.id}/like/`;
 
         const resp = await authenticatedFetch(url, { method: "POST" });

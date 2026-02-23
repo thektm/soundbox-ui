@@ -32,22 +32,63 @@ interface APIUserPlaylist {
   type: string;
   created_at: string;
   updated_at: string;
+  order?: { id: number; cover?: string }[];
 }
 
 // ============================================================================
 // API Mapping Function
 // ============================================================================
-const mapAPIToUserPlaylist = (apiPl: APIUserPlaylist): UserPlaylist => ({
-  id: apiPl.id.toString(),
-  title: apiPl.title,
-  description: "",
-  image: apiPl.top_three_song_covers?.[0] || "",
-  gradient: "from-emerald-600 to-teal-700",
-  songsCount: apiPl.songs_count,
-  duration: "0 دقیقه",
-  isPublic: apiPl.public,
-  createdAt: apiPl.created_at,
-});
+const mapAPIToUserPlaylist = (apiPl: APIUserPlaylist): UserPlaylist => {
+  // Determine cover image based on custom order first
+  let cover = apiPl.top_three_song_covers?.[0] || "";
+
+  // Parse order if stringified (often happens with JSONFields)
+  let orderData = apiPl.order;
+  if (typeof orderData === "string") {
+    try {
+      orderData = JSON.parse(orderData);
+    } catch (e) {
+      orderData = undefined;
+    }
+  }
+
+  if (orderData && Array.isArray(orderData) && orderData.length > 0) {
+    const firstItem = orderData[0];
+    const firstId =
+      typeof firstItem === "object" && firstItem !== null
+        ? firstItem.id
+        : firstItem;
+
+    if (
+      typeof firstItem === "object" &&
+      firstItem !== null &&
+      firstItem.cover
+    ) {
+      // Use the cover saved directly in the order JSON
+      cover = firstItem.cover;
+    } else if (apiPl.song_ids && apiPl.top_three_song_covers) {
+      // Fallback: search for the cover that matches the first ID in order
+      const idx = apiPl.song_ids.findIndex(
+        (id) => String(id) === String(firstId),
+      );
+      if (idx !== -1 && apiPl.top_three_song_covers[idx]) {
+        cover = apiPl.top_three_song_covers[idx];
+      }
+    }
+  }
+
+  return {
+    id: apiPl.id.toString(),
+    title: apiPl.title,
+    description: "",
+    image: cover,
+    gradient: "from-emerald-600 to-teal-700",
+    songsCount: apiPl.songs_count,
+    duration: "0 دقیقه",
+    isPublic: apiPl.public,
+    createdAt: apiPl.created_at,
+  };
+};
 
 // ============================================================================
 // Icon Component - Optimized with memo

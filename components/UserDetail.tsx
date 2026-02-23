@@ -131,10 +131,12 @@ const UserPlaylistCard = memo(
     playlist,
     onClick,
     index,
+    layout = "grid",
   }: {
     playlist: UserPlaylist;
     onClick: () => void;
     index: number;
+    layout?: "grid" | "list";
   }) => {
     const cardRef = useRef<HTMLDivElement>(null);
     const [isVisible, setIsVisible] = useState(false);
@@ -155,6 +157,84 @@ const UserPlaylistCard = memo(
       observer.observe(el);
       return () => observer.disconnect();
     }, []);
+
+    if (layout === "list") {
+      return (
+        <div
+          ref={cardRef}
+          onClick={onClick}
+          onPointerDown={() => setIsPressed(true)}
+          onPointerUp={() => setIsPressed(false)}
+          onPointerLeave={() => setIsPressed(false)}
+          className="ud-card-enter"
+          style={{
+            animationDelay: `${index * 70}ms`,
+            opacity: isVisible ? undefined : 0,
+            animationPlayState: isVisible ? "running" : "paused",
+            willChange: "transform, opacity",
+            contain: "layout style paint",
+          }}
+        >
+          <div
+            className="relative rounded-2xl overflow-hidden cursor-pointer select-none flex items-center"
+            style={{
+              background:
+                "linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 50%, rgba(0,0,0,0.12) 100%)",
+              backdropFilter: "blur(10px)",
+              WebkitBackdropFilter: "blur(10px)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              transform: isPressed ? "scale3d(0.98,0.98,1)" : "scale3d(1,1,1)",
+              transition:
+                "transform 0.18s cubic-bezier(0.22,1,0.36,1), box-shadow 0.25s ease",
+              boxShadow: isPressed
+                ? "0 3px 14px rgba(0,0,0,0.3)"
+                : "0 6px 20px rgba(0,0,0,0.2)",
+              padding: "10px",
+              gap: "12px",
+            }}
+          >
+            <div
+              className="flex-shrink-0 rounded-lg overflow-hidden"
+              style={{ width: 84, height: 84 }}
+            >
+              <ImageWithPlaceholder
+                src={playlist.top_three_song_covers}
+                alt={playlist.title}
+                className="w-full h-full object-cover"
+                type="song"
+              />
+            </div>
+
+            <div className="flex-1">
+              <div
+                className="font-bold text-white truncate text-base leading-tight"
+                style={{ textShadow: "0 1px 2px rgba(0,0,0,0.25)" }}
+              >
+                {playlist.title}
+              </div>
+              <div className="flex items-center gap-3 text-xs text-zinc-400 mt-1">
+                <div>{playlist.songs_count} آهنگ</div>
+                {typeof playlist.likes_count === "number" && (
+                  <div className="flex items-center gap-1">
+                    <svg
+                      className="w-3.5 h-3.5"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      style={{
+                        color: playlist.is_liked ? "#1db954" : "currentColor",
+                      }}
+                    >
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                    </svg>
+                    <span>{playlist.likes_count.toLocaleString("fa-IR")}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div
@@ -722,42 +802,48 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
 
       {/* ──── Hero Section ──── */}
       <div
-        className="relative pt-12 md:pt-20 pb-8 px-6 md:px-10"
+        className="relative pt-12 md:pt-28 pb-8 px-6 md:px-10"
         style={{
           background:
-            "linear-gradient(180deg, rgba(29,185,84,0.06) 0%, rgba(29,185,84,0.02) 30%, transparent 60%)",
+            uniqueId === "sedabox"
+              ? "linear-gradient(180deg, #1db95444 0%, #1db95422 40%, transparent 100%)"
+              : "linear-gradient(180deg, rgba(29,185,84,0.06) 0%, rgba(29,185,84,0.02) 30%, transparent 60%)",
+          minHeight: uniqueId === "sedabox" ? "360px" : "auto",
         }}
       >
-        {/* Floating particles */}
-        {particles.map((p) => (
-          <FloatingParticle key={p.id} {...p} />
-        ))}
+        {/* Floating particles (hidden on sedabox desktop to look more official) */}
+        {uniqueId !== "sedabox" &&
+          particles.map((p) => <FloatingParticle key={p.id} {...p} />)}
 
-        {/* Center layout */}
-        <div className="relative flex flex-col items-center text-center">
-          {/* Avatar */}
-          <div className="relative mb-6">
-            {/* Glow ring */}
-            <div
-              className="absolute -inset-2 rounded-full"
-              style={{
-                background:
-                  "conic-gradient(from 0deg, #1db954, #1ed760, #17a34a, #1db954)",
-                opacity: 0.4,
-                filter: "blur(8px)",
-                animation: "ud-glow 3s ease-in-out infinite",
-                willChange: "opacity",
-              }}
-            />
+        {/* Layout: centered on mobile, Spotify style on desktop */}
+        <div className="relative flex flex-col items-center text-center md:grid md:grid-cols-[auto_1fr] md:items-end md:text-right md:gap-8">
+          {/* Avatar Section */}
+          <div className="relative mb-6 md:mb-0 shrink-0 md:justify-self-end md:mr-8">
+            {/* Glow ring (mobile & non-sedabox) */}
+            {uniqueId !== "sedabox" && (
+              <div
+                className="absolute -inset-2 rounded-full"
+                style={{
+                  background:
+                    "conic-gradient(from 0deg, #1db954, #1ed760, #17a34a, #1db954)",
+                  opacity: 0.4,
+                  filter: "blur(8px)",
+                  animation: "ud-glow 3s ease-in-out infinite",
+                  willChange: "opacity",
+                }}
+              />
+            )}
             {/* Avatar ring */}
             <div
-              className="relative w-36 h-36 md:w-48 md:h-48 rounded-full p-[3px]"
+              className="relative w-36 h-36 md:w-56 md:h-56 rounded-full p-[3px] shadow-2xl"
               style={{
                 background:
-                  "conic-gradient(from 0deg, #1db954, #1ed760, #17a34a, #1db954)",
+                  uniqueId === "sedabox"
+                    ? "rgba(255,255,255,0.1)"
+                    : "conic-gradient(from 0deg, #1db954, #1ed760, #17a34a, #1db954)",
               }}
             >
-              <div className="w-full h-full rounded-full overflow-hidden bg-zinc-900">
+              <div className="w-full h-full rounded-full overflow-hidden bg-zinc-900 shadow-inner">
                 <ImageWithPlaceholder
                   src=""
                   alt={fullName}
@@ -766,13 +852,12 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                 />
               </div>
             </div>
-            {/* (verified badge removed) */}
 
             {/* Premium star badge (only for premium plan users) */}
             {profile.plan === "premium" && (
               <div
                 aria-hidden
-                className="absolute -top-2 -right-2 w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center"
+                className="absolute -top-1 -right-1 md:top-2 md:right-2 w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center border-2 border-[#0d0d0d] z-10"
                 style={{
                   background: "linear-gradient(135deg, #ffd54a, #ffb347)",
                   boxShadow: "0 6px 18px rgba(255,165,0,0.18)",
@@ -780,7 +865,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                 }}
               >
                 <svg
-                  className="w-4 h-4 text-black"
+                  className="w-4 h-4 md:w-5 md:h-5 text-black"
                   viewBox="0 0 24 24"
                   fill="currentColor"
                 >
@@ -790,185 +875,260 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
             )}
           </div>
 
-          {/* Profile badge */}
-          <div
-            className="ud-info-enter inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-3"
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-            }}
-          >
-            <span className="text-[11px] md:text-xs font-bold tracking-widest uppercase text-zinc-300">
-              پروفایل
-            </span>
-            <span className="w-1 h-1 rounded-full bg-[#1db954]" />
-            <span
-              className="text-[11px] md:text-xs text-zinc-400 font-medium"
-              dir="ltr"
+          {/* Info Section */}
+          <div className="flex flex-col items-center md:items-start flex-1 overflow-hidden">
+            {/* Profile label: visible on desktop, or mobile badge */}
+            <div
+              className="ud-info-enter hidden md:flex items-center gap-2 mb-1"
+              style={{ animationDelay: "0.2s" }}
             >
-              @{profile.unique_id}
-            </span>
-          </div>
-
-          {/* Name */}
-          <h1
-            className="ud-info-enter text-4xl md:text-6xl lg:text-7xl font-black mb-5 leading-tight"
-            style={{
-              background: "linear-gradient(180deg, #ffffff 0%, #b3b3b3 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              animationDelay: "0.35s",
-            }}
-          >
-            {fullName}
-          </h1>
-
-          {/* Stats row */}
-          <div className="flex items-center gap-3 md:gap-4 mb-8">
-            <StatBox
-              label="دنبال‌کننده"
-              value={profile.followers_count.toLocaleString("fa-IR")}
-              delay={500}
-            />
-            <StatBox
-              label="دنبال‌شونده"
-              value={profile.following_count.toLocaleString("fa-IR")}
-              delay={600}
-            />
-            <StatBox
-              label="پلی‌لیست"
-              value={getPlaylistsCount(profile.user_playlists).toLocaleString(
-                "fa-IR",
-              )}
-              delay={700}
-            />
-          </div>
-
-          {/* Action buttons */}
-          <div
-            className="flex items-center gap-4"
-            style={{ animationDelay: "800ms" }}
-          >
-            {/* Follow button */}
-            <button
-              onClick={handleFollow}
-              disabled={isFollowLoading}
-              className="relative overflow-hidden px-10 py-3.5 rounded-full text-sm font-bold tracking-wide transition-all select-none"
-              style={{
-                background: profile.is_following
-                  ? "linear-gradient(135deg, #1db954 0%, #1ed760 100%)"
-                  : "transparent",
-                color: profile.is_following ? "#000" : "#fff",
-                border: profile.is_following
-                  ? "2px solid transparent"
-                  : "2px solid rgba(255,255,255,0.3)",
-                boxShadow: profile.is_following
-                  ? "0 4px 24px rgba(29,185,84,0.4), 0 2px 8px rgba(29,185,84,0.2)"
-                  : "none",
-                transition:
-                  "background 0.3s, border 0.3s, box-shadow 0.3s, opacity 0.2s",
-                opacity: isFollowLoading ? 0.6 : 1,
-              }}
-            >
-              {/* Shine effect on hover */}
-              <span
-                className="absolute top-0 h-full w-3/4 pointer-events-none"
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)",
-                  left: "-75%",
-                  animation: profile.is_following
-                    ? "none"
-                    : "ud-btn-shine 3s ease-in-out infinite",
-                }}
-              />
-              <span className="relative z-10 flex items-center gap-2">
-                {profile.is_following ? (
-                  <>
-                    <svg
-                      className="w-4 h-4"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                    </svg>
-                    دنبال شده
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      className="w-4 h-4"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                    </svg>
-                    دنبال کردن
-                  </>
-                )}
+              <span className="text-[11px] md:text-sm font-bold tracking-widest uppercase text-zinc-300">
+                پروفایل
               </span>
-            </button>
+            </div>
 
-            {/* Share button */}
-            <button
-              className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+            {/* Mobile Badge (current design) */}
+            <div
+              className="ud-info-enter flex md:hidden items-center gap-2 px-4 py-1.5 rounded-full mb-3"
               style={{
                 background: "rgba(255,255,255,0.06)",
                 border: "1px solid rgba(255,255,255,0.08)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.12)";
-                e.currentTarget.style.transform = "scale3d(1.1,1.1,1)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-                e.currentTarget.style.transform = "scale3d(1,1,1)";
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
               }}
             >
-              <svg
-                className="w-5 h-5 text-zinc-300"
-                viewBox="0 0 24 24"
-                fill="currentColor"
+              <span className="text-[11px] md:text-xs font-bold tracking-widest uppercase text-zinc-300">
+                پروفایل
+              </span>
+              <span className="w-1 h-1 rounded-full bg-[#1db954]" />
+              <span
+                className="text-[11px] md:text-xs text-zinc-400 font-medium"
+                dir="ltr"
               >
-                <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z" />
-              </svg>
-            </button>
+                @{profile.unique_id}
+              </span>
+            </div>
 
-            {/* More button */}
-            <button
-              onClick={() => setOptionsOpen(true)}
-              aria-haspopup="dialog"
-              aria-expanded={optionsOpen}
-              className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+            {/* Name */}
+            <h1
+              className="ud-info-enter text-2xl md:text-3xl lg:text-4xl font-black mb-5 md:mb-6 leading-tight truncate w-full"
               style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.12)";
-                e.currentTarget.style.transform = "scale3d(1.1,1.1,1)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-                e.currentTarget.style.transform = "scale3d(1,1,1)";
+                background: "linear-gradient(180deg, #ffffff 0%, #b3b3b3 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                animationDelay: "0.35s",
               }}
             >
-              <svg
-                className="w-5 h-5 text-zinc-300"
-                viewBox="0 0 24 24"
-                fill="currentColor"
+              {fullName}
+            </h1>
+
+            {/* Desktop Stats & Actions row */}
+            <div className="flex flex-col md:flex-row items-center md:items-center gap-6 md:gap-4 w-full">
+              {/* Stats group */}
+              <div className="hidden md:flex items-center gap-3 md:gap-2 text-zinc-400 text-sm md:text-base font-medium">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-white font-bold">
+                    {profile.followers_count.toLocaleString("fa-IR")}
+                  </span>
+                  <span>دنبال‌کننده</span>
+                </div>
+                <span className="hidden md:inline text-zinc-600">•</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-white font-bold">
+                    {profile.following_count.toLocaleString("fa-IR")}
+                  </span>
+                  <span>دنبال‌شونده</span>
+                </div>
+                <span className="hidden md:inline text-zinc-600">•</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-white font-bold">
+                    {getPlaylistsCount(profile.user_playlists).toLocaleString(
+                      "fa-IR",
+                    )}
+                  </span>
+                  <span>پلی‌لیست</span>
+                </div>
+              </div>
+
+              {/* Action buttons (inline on desktop) */}
+              <div className="hidden md:flex items-center gap-4 mr-auto">
+                {/* Follow button */}
+                <button
+                  onClick={handleFollow}
+                  disabled={isFollowLoading}
+                  className="px-8 py-2.5 rounded-full text-sm font-bold tracking-wide transition-all select-none"
+                  style={{
+                    background: profile.is_following
+                      ? "transparent"
+                      : "linear-gradient(135deg, #1db954 0%, #1ed760 100%)",
+                    color: profile.is_following ? "#fff" : "#000",
+                    border: profile.is_following
+                      ? "1px solid rgba(255,255,255,0.3)"
+                      : "1px solid transparent",
+                    opacity: isFollowLoading ? 0.6 : 1,
+                  }}
+                >
+                  {profile.is_following ? "دنبال شده" : "دنبال کردن"}
+                </button>
+
+                {/* More button */}
+                <button
+                  onClick={() => setOptionsOpen(true)}
+                  className="w-10 h-10 rounded-full flex items-center justify-center transition-all bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-700/50"
+                >
+                  <svg
+                    className="w-5 h-5 text-zinc-300"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <circle cx="12" cy="5" r="2" />
+                    <circle cx="12" cy="12" r="2" />
+                    <circle cx="12" cy="19" r="2" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile-only Stats Boxes & Actions - we remove them from main flow but keep them for mobile */}
+            <div className="flex md:hidden flex-col items-center">
+              {/* Stats row */}
+              <div className="flex items-center gap-3 md:gap-4 mb-8">
+                <StatBox
+                  label="دنبال‌کننده"
+                  value={profile.followers_count.toLocaleString("fa-IR")}
+                  delay={500}
+                />
+                <StatBox
+                  label="دنبال‌شونده"
+                  value={profile.following_count.toLocaleString("fa-IR")}
+                  delay={600}
+                />
+                <StatBox
+                  label="پلی‌لیست"
+                  value={getPlaylistsCount(
+                    profile.user_playlists,
+                  ).toLocaleString("fa-IR")}
+                  delay={700}
+                />
+              </div>
+
+              {/* Mobile Action buttons */}
+              <div
+                className="flex items-center gap-4"
+                style={{ animationDelay: "800ms" }}
               >
-                <circle cx="12" cy="5" r="2" />
-                <circle cx="12" cy="12" r="2" />
-                <circle cx="12" cy="19" r="2" />
-              </svg>
-            </button>
+                {/* Follow button */}
+                <button
+                  onClick={handleFollow}
+                  disabled={isFollowLoading}
+                  className="relative overflow-hidden px-10 py-3.5 rounded-full text-sm font-bold tracking-wide transition-all select-none"
+                  style={{
+                    background: profile.is_following
+                      ? "linear-gradient(135deg, #1db954 0%, #1ed760 100%)"
+                      : "transparent",
+                    color: profile.is_following ? "#000" : "#fff",
+                    border: profile.is_following
+                      ? "2px solid transparent"
+                      : "2px solid rgba(255,255,255,0.3)",
+                    boxShadow: profile.is_following
+                      ? "0 4px 24px rgba(29,185,84,0.4), 0 2px 8px rgba(29,185,84,0.2)"
+                      : "none",
+                    transition:
+                      "background 0.3s, border 0.3s, box-shadow 0.3s, opacity 0.2s",
+                    opacity: isFollowLoading ? 0.6 : 1,
+                  }}
+                >
+                  {/* Shine effect on hover */}
+                  <span
+                    className="absolute top-0 h-full w-3/4 pointer-events-none"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)",
+                      left: "-75%",
+                      animation: profile.is_following
+                        ? "none"
+                        : "ud-btn-shine 3s ease-in-out infinite",
+                    }}
+                  />
+                  <span className="relative z-10 flex items-center gap-2">
+                    {profile.is_following ? (
+                      <>
+                        <svg
+                          className="w-4 h-4"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                        </svg>
+                        دنبال شده
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                        </svg>
+                        دنبال کردن
+                      </>
+                    )}
+                  </span>
+                </button>
+
+                {/* Share button */}
+                <button
+                  className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    backdropFilter: "blur(8px)",
+                    WebkitBackdropFilter: "blur(8px)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.12)";
+                    e.currentTarget.style.transform = "scale3d(1.1,1.1,1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                    e.currentTarget.style.transform = "scale3d(1,1,1)";
+                  }}
+                >
+                  <svg
+                    className="w-5 h-5 text-zinc-300"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z" />
+                  </svg>
+                </button>
+
+                {/* More button */}
+                <button
+                  onClick={() => setOptionsOpen(true)}
+                  aria-haspopup="dialog"
+                  aria-expanded={optionsOpen}
+                  className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    backdropFilter: "blur(8px)",
+                    WebkitBackdropFilter: "blur(8px)",
+                  }}
+                >
+                  <svg
+                    className="w-5 h-5 text-zinc-300"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <circle cx="12" cy="5" r="2" />
+                    <circle cx="12" cy="12" r="2" />
+                    <circle cx="12" cy="19" r="2" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1019,17 +1179,17 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
             </span>
           </div>
 
-          {/* Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+          {/* Mobile: vertical list (wide, low-height product-style cards) */}
+          <div className="flex flex-col md:hidden gap-4">
             {getPlaylistsArray(profile.user_playlists).map(
               (playlist, index) => (
                 <UserPlaylistCard
                   key={playlist.id}
                   playlist={playlist}
                   index={index}
+                  layout="list"
                   onClick={() => {
                     if (uniqueId === "sedabox") {
-                      // Official sedabox playlists navigate to public playlist detail
                       const isSystemGenerated =
                         playlist.generated_by === "system";
                       const idToUse = isSystemGenerated
@@ -1043,7 +1203,39 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                         slug: slugify(playlist.title),
                       });
                     } else {
-                      // Standard user playlist navigation
+                      navigateTo("user-playlist-detail", {
+                        id: String(playlist.id),
+                      });
+                    }
+                  }}
+                />
+              ),
+            )}
+          </div>
+
+          {/* Desktop & tablet: keep existing grid */}
+          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-6 gap-5 sm:md:grid-cols-3 md:gap-5">
+            {getPlaylistsArray(profile.user_playlists).map(
+              (playlist, index) => (
+                <UserPlaylistCard
+                  key={playlist.id}
+                  playlist={playlist}
+                  index={index}
+                  onClick={() => {
+                    if (uniqueId === "sedabox") {
+                      const isSystemGenerated =
+                        playlist.generated_by === "system";
+                      const idToUse = isSystemGenerated
+                        ? playlist.unique_id || String(playlist.id)
+                        : String(playlist.id);
+
+                      navigateTo("playlist-detail", {
+                        id: idToUse,
+                        generatedBy: playlist.generated_by,
+                        creatorUniqueId: playlist.creator_unique_id,
+                        slug: slugify(playlist.title),
+                      });
+                    } else {
                       navigateTo("user-playlist-detail", {
                         id: String(playlist.id),
                       });

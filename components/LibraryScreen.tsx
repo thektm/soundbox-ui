@@ -34,6 +34,8 @@ const LibraryItem = ({
   type,
   onClick,
   onOptionsClick,
+  onTitleClick,
+  onSubtitleClick,
   viewMode = "list",
 }: {
   title: string;
@@ -43,6 +45,8 @@ const LibraryItem = ({
   type?: string;
   onClick: () => void;
   onOptionsClick?: () => void;
+  onTitleClick?: () => void;
+  onSubtitleClick?: () => void;
   viewMode?: "list" | "grid";
 }) => {
   const itemAriaLabel = `مشاهده ${title}${subtitle ? ` اثر ${subtitle}` : ""}`;
@@ -81,13 +85,58 @@ const LibraryItem = ({
           )}
         </div>
         <div className="flex flex-col items-start overflow-hidden text-right w-full px-0.5">
-          <span className="text-white text-xs font-semibold truncate w-full">
-            {title}
-          </span>
-          {subtitle && (
-            <span className="text-zinc-400 text-[10px] truncate w-full mt-0.5">
-              {subtitle}
-            </span>
+          {typeof window !== "undefined" &&
+          window.matchMedia &&
+          window.matchMedia("(min-width: 768px)").matches ? (
+            <>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTitleClick && onTitleClick();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    onTitleClick && onTitleClick();
+                  }
+                }}
+                role={onTitleClick ? "link" : undefined}
+                tabIndex={onTitleClick ? 0 : undefined}
+                className="text-white text-xs font-semibold truncate w-full cursor-pointer hover:underline"
+              >
+                {title}
+              </span>
+              {subtitle && (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSubtitleClick && onSubtitleClick();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.stopPropagation();
+                      onSubtitleClick && onSubtitleClick();
+                    }
+                  }}
+                  role={onSubtitleClick ? "link" : undefined}
+                  tabIndex={onSubtitleClick ? 0 : undefined}
+                  className="text-zinc-400 text-[10px] truncate w-full mt-0.5 cursor-pointer hover:underline"
+                >
+                  {subtitle}
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="text-white text-xs font-semibold truncate w-full">
+                {title}
+              </span>
+              {subtitle && (
+                <span className="text-zinc-400 text-[10px] truncate w-full mt-0.5">
+                  {subtitle}
+                </span>
+              )}
+            </>
           )}
         </div>
       </motion.button>
@@ -115,13 +164,58 @@ const LibraryItem = ({
           )}
         </div>
         <div className="flex flex-col items-start overflow-hidden text-right flex-1">
-          <span className="text-white text-lg font-medium truncate w-full">
-            {title}
-          </span>
-          {subtitle && (
-            <span className="text-zinc-400 text-sm truncate w-full">
-              {subtitle}
-            </span>
+          {typeof window !== "undefined" &&
+          window.matchMedia &&
+          window.matchMedia("(min-width: 768px)").matches ? (
+            <>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTitleClick && onTitleClick();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    onTitleClick && onTitleClick();
+                  }
+                }}
+                role={onTitleClick ? "link" : undefined}
+                tabIndex={onTitleClick ? 0 : undefined}
+                className="text-white text-lg font-medium truncate w-full cursor-pointer hover:underline"
+              >
+                {title}
+              </span>
+              {subtitle && (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSubtitleClick && onSubtitleClick();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.stopPropagation();
+                      onSubtitleClick && onSubtitleClick();
+                    }
+                  }}
+                  role={onSubtitleClick ? "link" : undefined}
+                  tabIndex={onSubtitleClick ? 0 : undefined}
+                  className="text-zinc-400 text-sm truncate w-full cursor-pointer"
+                >
+                  {subtitle}
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="text-white text-lg font-medium truncate w-full">
+                {title}
+              </span>
+              {subtitle && (
+                <span className="text-zinc-400 text-sm truncate w-full">
+                  {subtitle}
+                </span>
+              )}
+            </>
           )}
         </div>
       </button>
@@ -684,6 +778,26 @@ const LibraryScreen: React.FC = () => {
                           id: item.id,
                           slug: item.id, // Fallback slug to ID
                         });
+                      }}
+                      onTitleClick={() => {
+                        const pageMap: Record<string, string> = {
+                          artist: "artist-detail",
+                          song: "song-detail",
+                          playlist: "playlist-detail",
+                          album: "album-detail",
+                        };
+                        navigateTo(pageMap[type], {
+                          id: item.id,
+                          slug: item.id,
+                        });
+                      }}
+                      onSubtitleClick={() => {
+                        // for songs/albums, subtitle is artist name -> go to artist detail
+                        if (type === "song" || type === "album") {
+                          if (item.artist_id) {
+                            navigateTo("artist-detail", { id: item.artist_id });
+                          }
+                        }
                       }}
                     />
                   );
