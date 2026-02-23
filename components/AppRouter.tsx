@@ -176,7 +176,10 @@ export const AppRouter: React.FC = () => {
         );
       case "followers-following":
         return (
-          <FollowersFollowing initialTab={currentParams?.tab || "followers"} />
+          <FollowersFollowing
+            initialTab={currentParams?.tab || "followers"}
+            uniqueId={currentParams?.uniqueId || currentParams?.id}
+          />
         );
       case "liked-songs":
         return <LikedSongs />;

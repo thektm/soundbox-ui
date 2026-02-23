@@ -38,6 +38,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <SEO />
       <AppContainer>
         <Toaster
+       
           position="bottom-center"
           containerStyle={containerStyle}
           toastOptions={toastOptions}

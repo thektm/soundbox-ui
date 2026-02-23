@@ -13,6 +13,7 @@ import MyPlaylists from "./MyPlaylists";
 import Settings from "./Settings";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import FollowingArtistsPage from "./FollowingArtistsPage";
+import UserIcon from "./UserIcon";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -64,6 +65,10 @@ const ICONS = {
     "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h4a2 2 0 012 2v1",
   settings:
     "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
+  camera:
+    "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z",
+  trash:
+    "M14.74 9l-.34 9m-4.72 0l-.34-9M4.5 7h15M10 3h4a1 1 0 011 1v1h-6V4a1 1 0 011-1zM18.37 7l-.64 12.42A2 2 0 0115.75 21H8.25a2 2 0 01-1.98-1.58L5.63 7h12.74z",
   home: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
   profile:
     "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
@@ -85,6 +90,8 @@ export default function DesktopProfile() {
     user: authUser,
     fetchUserProfile,
     updateProfile,
+    updateProfileImage,
+    deleteProfileImage,
     formatErrorMessage,
   } = useAuth();
   const { navigateTo, currentParams } = useNavigation();
@@ -94,6 +101,47 @@ export default function DesktopProfile() {
 
   const [isFetching, setIsFetching] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isDeletingImage, setIsDeletingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (512 KB)
+    if (file.size > 512 * 1024) {
+      toast.error("حجم فایل نباید بیشتر از ۵۱۲ کلوبایت باشد");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    const toastId = toast.loading("در حال آپلود تصویر...");
+    try {
+      await updateProfileImage(file);
+      toast.success("تصویر پروفایل با موفقیت آپلود شد", { id: toastId });
+    } catch (err: any) {
+      toast.error(formatErrorMessage(err), { id: toastId });
+    } finally {
+      setIsUploadingImage(false);
+      // Reset input
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteImage = async () => {
+    if (!confirm("آیا از حذف تصویر پروفایل خود مطمئن هستید؟")) return;
+
+    setIsDeletingImage(true);
+    const toastId = toast.loading("در حال حذف تصویر...");
+    try {
+      await deleteProfileImage();
+      toast.success("تصویر پروفایل با موفقیت حذف شد", { id: toastId });
+    } catch (err: any) {
+      toast.error(formatErrorMessage(err), { id: toastId });
+    } finally {
+      setIsDeletingImage(false);
+    }
+  };
 
   // --- USER PLAN LOGIC ---
   const [planStatus, setPlanStatus] = useState<"free" | "premium">(() => {
@@ -273,17 +321,24 @@ export default function DesktopProfile() {
               <header className="flex items-center gap-8">
                 <div className="relative">
                   <div
-                    className={`w-32 h-32 rounded-full p-1 ${
+                    className={`w-36 h-36 rounded-full p-1 ${
                       isPremium
                         ? "bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500"
                         : "bg-gradient-to-br from-emerald-400 to-blue-500"
                     }`}
                   >
                     <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
-                      <span className="text-4xl font-bold text-white">
-                        {formData.firstName[0]}
-                        {formData.lastName[0]}
-                      </span>
+                      {authUser?.image_profile?.image ? (
+                        <Image
+                          src={authUser.image_profile.image}
+                          alt={user.name}
+                          width={144}
+                          height={144}
+                          className="w-full h-full object-cover rounded-full"
+                        />
+                      ) : (
+                        <UserIcon className="w-16 h-16 text-white/40" />
+                      )}
                     </div>
                   </div>
                   <div
@@ -778,8 +833,8 @@ export default function DesktopProfile() {
         onClose={() => setIsSheetOpen(false)}
         desktopWidth="w-[500px]"
       >
-        <div className="p-8 h-full flex flex-col" dir="rtl">
-          <div className="flex items-center justify-between mb-8 flex-shrink-0">
+        <div className="p-8 h-full flex flex-col min-h-0" dir="rtl">
+          <div className="flex items-center justify-between mb-2 flex-shrink-0">
             <h2 className="text-2xl font-bold text-white">ویرایش پروفایل</h2>
             <button
               onClick={() => setIsSheetOpen(false)}
@@ -788,51 +843,118 @@ export default function DesktopProfile() {
               <Icon d={ICONS.close} className="w-6 h-6 text-gray-400" />
             </button>
           </div>
-          <div className="space-y-6 mb-8 flex-1 overflow-y-auto">
-            {[
-              {
-                key: "firstName",
-                label: "نام",
-                placeholder: "نام خود را وارد کنید",
-              },
-              {
-                key: "lastName",
-                label: "نام خانوادگی",
-                placeholder: "نام خانوادگی خود را وارد کنید",
-              },
-              {
-                key: "email",
-                label: "ایمیل",
-                placeholder: "ایمیل خود را وارد کنید",
-                type: "email",
-              },
-              {
-                key: "uniqueId",
-                label: "شناسه منحصر به فرد",
-                placeholder: "شناسه منحصر به فرد خود را وارد کنید",
-                info: true,
-              },
-            ].map((field) => (
-              <div key={field.key}>
-                <label
-                  htmlFor={`desktop-profile-${field.key}`}
-                  className="block text-lg font-medium text-gray-400 mb-3"
+
+          {/* Scrollable content area - always shows scrollbar */}
+          <div className="flex-1 min-h-0 overflow-y-scroll scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent pr-2">
+            {/* Image Management */}
+            <div className="flex flex-col items-center gap-4 mb-2">
+              <div className="relative group">
+                <div
+                  className={`w-32 h-32 rounded-full p-1 ${
+                    isPremium
+                      ? "bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500"
+                      : "bg-gradient-to-br from-emerald-400 to-blue-500"
+                  }`}
                 >
-                  {field.label}
+                  <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
+                    {authUser?.image_profile?.image ? (
+                      <Image
+                        src={authUser.image_profile.image}
+                        alt={user.name}
+                        width={128}
+                        height={128}
+                        className="w-full h-full object-cover rounded-full"
+                      />
+                    ) : (
+                      <UserIcon className="w-12 h-12 text-white/40" />
+                    )}
+                    {(isUploadingImage || isDeletingImage) && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-full">
+                        <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <label
+                  htmlFor="desktop-profile-image-upload"
+                  className="absolute -bottom-1 -right-1 p-2.5 bg-emerald-500 hover:bg-emerald-600 rounded-full cursor-pointer transition-colors shadow-lg z-10"
+                >
+                  <Icon d={ICONS.camera} className="w-5 h-5 text-white" />
+                  <input
+                    type="file"
+                    id="desktop-profile-image-upload"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={isUploadingImage || isDeletingImage}
+                  />
                 </label>
-                <input
-                  id={`desktop-profile-${field.key}`}
-                  type={field.type || "text"}
-                  value={formData[field.key as keyof typeof formData]}
-                  onChange={(e) => handleChange(field.key, e.target.value)}
-                  placeholder={field.placeholder}
-                  className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus-visible:ring-2 focus-visible:ring-emerald-500 transition-colors text-lg"
-                  dir="rtl"
-                />
+                {authUser?.image_profile?.image && (
+                  <button
+                    onClick={handleDeleteImage}
+                    disabled={isUploadingImage || isDeletingImage}
+                    className="absolute -bottom-1 -left-1 p-2.5 bg-red-500/80 hover:bg-red-600 rounded-full transition-colors shadow-lg z-10"
+                    aria-label="حذف تصویر پروفایل"
+                  >
+                    <Icon d={ICONS.trash} className="w-5 h-5 text-white" />
+                  </button>
+                )}
               </div>
-            ))}
+              <div className="text-center">
+                <p className="text-sm text-gray-500 mt-1">
+                  حداکثر حجم مجاز: ۵۱۲ کیلوبایت
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-6 mb-8">
+              {[
+                {
+                  key: "firstName",
+                  label: "نام",
+                  placeholder: "نام خود را وارد کنید",
+                },
+                {
+                  key: "lastName",
+                  label: "نام خانوادگی",
+                  placeholder: "نام خانوادگی خود را وارد کنید",
+                },
+                {
+                  key: "email",
+                  label: "ایمیل",
+                  placeholder: "ایمیل خود را وارد کنید",
+                  type: "email",
+                },
+                {
+                  key: "uniqueId",
+                  label: "شناسه منحصر به فرد",
+                  placeholder: "شناسه منحصر به فرد خود را وارد کنید",
+                  info: true,
+                },
+              ].map((field) => (
+                <div key={field.key}>
+                  <label
+                    htmlFor={`desktop-profile-${field.key}`}
+                    className="block text-lg font-medium text-gray-400 mb-3"
+                  >
+                    {field.label}
+                  </label>
+                  <input
+                    id={`desktop-profile-${field.key}`}
+                    type={field.type || "text"}
+                    value={formData[field.key as keyof typeof formData]}
+                    onChange={(e) => handleChange(field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                    className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus-visible:ring-2 focus-visible:ring-emerald-500 transition-colors text-lg"
+                    dir="rtl"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-4 flex-shrink-0">
+
+          {/* Footer - always visible */}
+          <div className="flex gap-4 flex-shrink-0 sticky bottom-0 bg-[#030303] bg-opacity-95 py-4 -mx-8 px-8 border-t border-white/6">
             <button
               onClick={saveProfile}
               disabled={isSaving}

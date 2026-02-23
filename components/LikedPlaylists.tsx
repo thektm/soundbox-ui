@@ -28,7 +28,7 @@ interface ApiPlaylist {
   is_liked: boolean;
   genre_names: string[];
   mood_names: string[];
-  type: "normal-playlist" | "recommended";
+  type: "normal-playlist" | "recommended" | "user-playlist";
   liked_at: string;
   unique_id?: string;
 }
@@ -569,9 +569,19 @@ export default function LikedPlaylists() {
 
   const handlePlaylistPress = useCallback(
     (playlist: ApiPlaylist) => {
-      // Use unique_id for recommended, id for normal-playlist
+      // Route based on playlist type:
+      // - recommended: go to `playlist-detail` using `unique_id` when present
+      // - normal-playlist: go to `playlist-detail` using numeric id
+      // - user-playlist: go to `user-playlist-detail` (user-created playlists)
+      if (playlist.type === "user-playlist") {
+        navigateTo("user-playlist-detail", { id: playlist.id });
+        return;
+      }
+
       const identifier =
-        playlist.type === "recommended" ? playlist.unique_id : playlist.id;
+        playlist.type === "recommended" && playlist.unique_id
+          ? playlist.unique_id
+          : playlist.id;
       navigateTo("playlist-detail", { id: identifier });
     },
     [navigateTo],

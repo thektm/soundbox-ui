@@ -15,6 +15,7 @@ import { usePlayer } from "./PlayerContext";
 import { toast } from "react-hot-toast";
 import { slugify } from "../utils/share";
 import { ResponsiveSheet } from "./ResponsiveSheet";
+import { ReportModal } from "./ReportModal";
 
 interface UserPlaylist {
   id: number;
@@ -36,6 +37,7 @@ interface UserProfile {
   followers_count: number;
   following_count: number;
   is_following: boolean;
+  is_yours?: boolean;
   plan?: string;
   user_playlists:
     | UserPlaylist[]
@@ -376,14 +378,22 @@ const StatBox = memo(
     label,
     value,
     delay,
+    onClick,
   }: {
     label: string;
     value: string;
     delay: number;
+    onClick?: () => void;
   }) => {
+    const Wrapper: any = onClick ? "button" : "div";
     return (
-      <div
-        className="ud-stat-enter flex flex-col items-center justify-center py-4 px-6 rounded-2xl cursor-default select-none"
+      <Wrapper
+        onClick={onClick}
+        type={onClick ? "button" : undefined}
+        className={
+          "ud-stat-enter flex flex-col items-center justify-center py-4 px-6 rounded-2xl select-none" +
+          (onClick ? " cursor-pointer" : " cursor-default")
+        }
         style={{
           animationDelay: `${delay}ms`,
           background:
@@ -405,7 +415,7 @@ const StatBox = memo(
         <span className="text-xs md:text-sm text-zinc-400 mt-1 font-medium">
           {label}
         </span>
-      </div>
+      </Wrapper>
     );
   },
 );
@@ -631,7 +641,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
       toast.error("ابتدا وارد شوید");
       return;
     }
-    if (!profile) return;
+    if (!profile || profile.is_yours) return;
 
     setIsFollowLoading(true);
     setFollowAnimating(true);
@@ -667,6 +677,8 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
       setTimeout(() => setFollowAnimating(false), 400);
     }
   }, [accessToken, profile]);
+
+  const [reportOpen, setReportOpen] = useState(false);
 
   if (isLoading) return <ProfileSkeleton />;
   if (!profile)
@@ -758,7 +770,9 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
         </span>
         <button
           onClick={handleFollow}
-          className="w-9 h-9 bg-green-500 rounded-full flex items-center justify-center text-black transition hover:scale-105 hover:bg-green-400 active:scale-95"
+          disabled={profile.is_yours}
+          className="w-9 h-9 bg-green-500 rounded-full flex items-center justify-center text-black transition hover:scale-105 hover:bg-green-400 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ filter: profile.is_yours ? "grayscale(1)" : "none" }}
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
             <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zM6 10v-3H4v3H1v2h3v3h2v-3h3v-2H6z" />
@@ -845,7 +859,12 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
             >
               <div className="w-full h-full rounded-full overflow-hidden bg-zinc-900 shadow-inner">
                 <ImageWithPlaceholder
-                  src=""
+                  src={
+                    (profile &&
+                      (profile as any).image_profile &&
+                      (profile as any).image_profile.image) ||
+                    ""
+                  }
                   alt={fullName}
                   type="user"
                   className="w-full h-full object-cover"
@@ -926,19 +945,35 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
             <div className="flex flex-col md:flex-row items-center md:items-center gap-6 md:gap-4 w-full">
               {/* Stats group */}
               <div className="hidden md:flex items-center gap-3 md:gap-2 text-zinc-400 text-sm md:text-base font-medium">
-                <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() =>
+                    navigateTo("followers-following", {
+                      tab: "followers",
+                      uniqueId: profile.unique_id,
+                    })
+                  }
+                  className="flex items-center gap-1.5 bg-transparent border-0 p-0"
+                >
                   <span className="text-white font-bold">
                     {profile.followers_count.toLocaleString("fa-IR")}
                   </span>
                   <span>دنبال‌کننده</span>
-                </div>
+                </button>
                 <span className="hidden md:inline text-zinc-600">•</span>
-                <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() =>
+                    navigateTo("followers-following", {
+                      tab: "following",
+                      uniqueId: profile.unique_id,
+                    })
+                  }
+                  className="flex items-center gap-1.5 bg-transparent border-0 p-0"
+                >
                   <span className="text-white font-bold">
                     {profile.following_count.toLocaleString("fa-IR")}
                   </span>
                   <span>دنبال‌شونده</span>
-                </div>
+                </button>
                 <span className="hidden md:inline text-zinc-600">•</span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-white font-bold">
@@ -955,20 +990,56 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                 {/* Follow button */}
                 <button
                   onClick={handleFollow}
-                  disabled={isFollowLoading}
-                  className="px-8 py-2.5 rounded-full text-sm font-bold tracking-wide transition-all select-none"
+                  disabled={isFollowLoading || profile.is_yours}
+                  className="px-8 py-2.5 rounded-full text-sm font-bold tracking-wide transition-all select-none whitespace-nowrap"
                   style={{
-                    background: profile.is_following
-                      ? "transparent"
-                      : "linear-gradient(135deg, #1db954 0%, #1ed760 100%)",
-                    color: profile.is_following ? "#fff" : "#000",
-                    border: profile.is_following
-                      ? "1px solid rgba(255,255,255,0.3)"
-                      : "1px solid transparent",
+                    background: profile.is_yours
+                      ? "rgba(255,255,255,0.1)"
+                      : profile.is_following
+                        ? "transparent"
+                        : "linear-gradient(135deg, #1db954 0%, #1ed760 100%)",
+                    color: profile.is_yours
+                      ? "rgba(255,255,255,0.4)"
+                      : profile.is_following
+                        ? "#fff"
+                        : "#000",
+                    border: profile.is_yours
+                      ? "1px solid rgba(255,255,255,0.1)"
+                      : profile.is_following
+                        ? "1px solid rgba(255,255,255,0.3)"
+                        : "1px solid transparent",
                     opacity: isFollowLoading ? 0.6 : 1,
+                    cursor: profile.is_yours ? "not-allowed" : "pointer",
                   }}
                 >
-                  {profile.is_following ? "دنبال شده" : "دنبال کردن"}
+                  {profile.is_yours
+                    ? "پروفایل شما"
+                    : profile.is_following
+                      ? "دنبال شده"
+                      : "دنبال کردن"}
+                </button>
+
+                {/* Report button (red) */}
+                <button
+                  onClick={() => setReportOpen(true)}
+                  disabled={profile.is_yours}
+                  aria-label="گزارش کاربر"
+                  className="w-10 h-10 rounded-full flex items-center justify-center transition-all"
+                  style={{
+                    background: profile.is_yours
+                      ? "rgba(255,255,255,0.04)"
+                      : "#ff4d4f",
+                    opacity: profile.is_yours ? 0.6 : 1,
+                    cursor: profile.is_yours ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <svg
+                    className="w-4 h-4 text-white"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M3 3v18l9-4 9 4V3H3zm13 9h-6V8h6v4z" />
+                  </svg>
                 </button>
 
                 {/* More button */}
@@ -997,11 +1068,23 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                   label="دنبال‌کننده"
                   value={profile.followers_count.toLocaleString("fa-IR")}
                   delay={500}
+                  onClick={() =>
+                    navigateTo("followers-following", {
+                      tab: "followers",
+                      uniqueId: profile.unique_id,
+                    })
+                  }
                 />
                 <StatBox
                   label="دنبال‌شونده"
                   value={profile.following_count.toLocaleString("fa-IR")}
                   delay={600}
+                  onClick={() =>
+                    navigateTo("followers-following", {
+                      tab: "following",
+                      uniqueId: profile.unique_id,
+                    })
+                  }
                 />
                 <StatBox
                   label="پلی‌لیست"
@@ -1020,22 +1103,33 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                 {/* Follow button */}
                 <button
                   onClick={handleFollow}
-                  disabled={isFollowLoading}
-                  className="relative overflow-hidden px-10 py-3.5 rounded-full text-sm font-bold tracking-wide transition-all select-none"
+                  disabled={isFollowLoading || profile.is_yours}
+                  className="relative overflow-hidden px-10 py-3.5 rounded-full text-sm font-bold tracking-wide transition-all select-none whitespace-nowrap"
                   style={{
-                    background: profile.is_following
-                      ? "linear-gradient(135deg, #1db954 0%, #1ed760 100%)"
-                      : "transparent",
-                    color: profile.is_following ? "#000" : "#fff",
-                    border: profile.is_following
-                      ? "2px solid transparent"
-                      : "2px solid rgba(255,255,255,0.3)",
-                    boxShadow: profile.is_following
-                      ? "0 4px 24px rgba(29,185,84,0.4), 0 2px 8px rgba(29,185,84,0.2)"
-                      : "none",
+                    background: profile.is_yours
+                      ? "rgba(255,255,255,0.06)"
+                      : profile.is_following
+                        ? "linear-gradient(135deg, #1db954 0%, #1ed760 100%)"
+                        : "transparent",
+                    color: profile.is_yours
+                      ? "rgba(255,255,255,0.4)"
+                      : profile.is_following
+                        ? "#000"
+                        : "#fff",
+                    border: profile.is_yours
+                      ? "2px solid rgba(255,255,255,0.08)"
+                      : profile.is_following
+                        ? "2px solid transparent"
+                        : "2px solid rgba(255,255,255,0.3)",
+                    boxShadow: profile.is_yours
+                      ? "none"
+                      : profile.is_following
+                        ? "0 4px 24px rgba(29,185,84,0.4), 0 2px 8px rgba(29,185,84,0.2)"
+                        : "none",
                     transition:
                       "background 0.3s, border 0.3s, box-shadow 0.3s, opacity 0.2s",
                     opacity: isFollowLoading ? 0.6 : 1,
+                    cursor: profile.is_yours ? "not-allowed" : "pointer",
                   }}
                 >
                   {/* Shine effect on hover */}
@@ -1045,13 +1139,25 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                       background:
                         "linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)",
                       left: "-75%",
-                      animation: profile.is_following
-                        ? "none"
-                        : "ud-btn-shine 3s ease-in-out infinite",
+                      animation:
+                        profile.is_following || profile.is_yours
+                          ? "none"
+                          : "ud-btn-shine 3s ease-in-out infinite",
                     }}
                   />
-                  <span className="relative z-10 flex items-center gap-2">
-                    {profile.is_following ? (
+                  <span className="relative z-10 flex items-center gap-2 whitespace-nowrap">
+                    {profile.is_yours ? (
+                      <>
+                        <svg
+                          className="w-4 h-4"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08s5.97 1.09 6 3.08c-1.29 1.94-3.5 3.22-6 3.22z" />
+                        </svg>
+                        پروفایل شما
+                      </>
+                    ) : profile.is_following ? (
                       <>
                         <svg
                           className="w-4 h-4"
@@ -1101,6 +1207,29 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     fill="currentColor"
                   >
                     <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z" />
+                  </svg>
+                </button>
+                {/* Report button (mobile) */}
+                <button
+                  onClick={() => setReportOpen(true)}
+                  disabled={profile.is_yours}
+                  aria-label="گزارش کاربر"
+                  className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
+                  style={{
+                    background: profile.is_yours
+                      ? "rgba(255,255,255,0.06)"
+                      : "#ff4d4f",
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    opacity: profile.is_yours ? 0.6 : 1,
+                    cursor: profile.is_yours ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <svg
+                    className="w-5 h-5 text-white"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M3 3v18l9-4 9 4V3H3zm13 9h-6V8h6v4z" />
                   </svg>
                 </button>
 
@@ -1265,13 +1394,18 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
               <div className="flex flex-col gap-3">
                 <button
                   onClick={async () => {
+                    if (profile.is_yours) return;
                     await handleFollow();
                     setOptionsOpen(false);
                   }}
-                  disabled={isFollowLoading}
-                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-white/5 transition"
+                  disabled={isFollowLoading || profile.is_yours}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-white/5 transition disabled:opacity-50 disabled:cursor-not-allowed truncate"
                 >
-                  {profile.is_following ? "لغو دنبال کردن" : "دنبال کردن"}
+                  {profile.is_yours
+                    ? "این پروفایل خودتان است"
+                    : profile.is_following
+                      ? "لغو دنبال کردن"
+                      : "دنبال کردن"}
                 </button>
 
                 <button
@@ -1302,9 +1436,20 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     }
                     setOptionsOpen(false);
                   }}
-                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-white/5 transition"
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-white/5 transition truncate"
                 >
                   اشتراک گذاری پروفایل
+                </button>
+                <button
+                  onClick={async () => {
+                    if (profile.is_yours) return;
+                    setReportOpen(true);
+                    setOptionsOpen(false);
+                  }}
+                  disabled={profile.is_yours}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-white/5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  گزارش کاربر
                 </button>
               </div>
             </div>
@@ -1319,13 +1464,18 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
               <div className="flex flex-col gap-2">
                 <button
                   onClick={async () => {
+                    if (profile.is_yours) return;
                     await handleFollow();
                     setOptionsOpen(false);
                   }}
-                  disabled={isFollowLoading}
-                  className="w-full text-right px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800"
+                  disabled={isFollowLoading || profile.is_yours}
+                  className="w-full text-right px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed truncate"
                 >
-                  {profile.is_following ? "لغو دنبال کردن" : "دنبال کردن"}
+                  {profile.is_yours
+                    ? "این پروفایل خودتان است"
+                    : profile.is_following
+                      ? "لغو دنبال کردن"
+                      : "دنبال کردن"}
                 </button>
 
                 <button
@@ -1356,15 +1506,34 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     }
                     setOptionsOpen(false);
                   }}
-                  className="w-full text-right px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800"
+                  className="w-full text-right px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 truncate"
                 >
                   اشتراک گذاری پروفایل
+                </button>
+                <button
+                  onClick={async () => {
+                    if (profile.is_yours) return;
+                    setReportOpen(true);
+                    setOptionsOpen(false);
+                  }}
+                  disabled={profile.is_yours}
+                  className="w-full text-right px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  گزارش کاربر
                 </button>
               </div>
             </div>
           </ResponsiveSheet>
         </>
       )}
+
+      <ReportModal
+        isOpen={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetId={profile.id}
+        targetType="user"
+        targetTitle={fullName}
+      />
 
       {/* Empty state */}
       {getPlaylistsArray(profile.user_playlists).length === 0 && (
@@ -1387,6 +1556,30 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
           <p className="text-zinc-400 text-base font-medium">
             هنوز پلی‌لیستی ایجاد نشده
           </p>
+        </div>
+      )}
+
+      {/* Bottom info for own profile */}
+      {profile.is_yours && (
+        <div
+          className="fixed bottom-24 inset-x-6 z-[60] animate-ud-fade-up"
+          style={{ animationDuration: "0.8s" }}
+        >
+          <div
+            className="mx-auto max-w-sm px-6 py-3 rounded-2xl flex items-center justify-center gap-3 shadow-2xl"
+            style={{
+              background: "rgba(24, 24, 27, 0.85)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div className="w-1.5 h-1.5 rounded-full bg-[#1db954]" />
+            <span className="text-sm font-bold text-zinc-100">
+              این ظاهر پروفایل شما برای دیگران است
+            </span>
+          </div>
         </div>
       )}
     </div>

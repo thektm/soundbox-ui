@@ -250,6 +250,7 @@ type ItemType = {
   artistId?: number | string;
   artistSlug?: string;
   slug?: string;
+  songsCount?: number;
 };
 
 type HeroHighlight = {
@@ -705,6 +706,7 @@ export default function Home() {
           isNew: false,
           type: "playlist" as const,
           slug: createSlug(playlist.title),
+          songsCount: playlist.songs_count ?? playlist.songsCount ?? 0,
         })),
       }
     : null;
@@ -1028,6 +1030,7 @@ export default function Home() {
             isNew: false,
             type: "playlist",
             slug: createSlug(p.title),
+            songsCount: p.songs_count ?? p.songsCount ?? 0,
           }))}
           variant="layered"
           onItemClick={(item) =>
@@ -1487,7 +1490,16 @@ export default function Home() {
                 onClick={() => navigateTo("profile")}
                 className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 cursor-pointer transition-transform active:scale-95"
               >
-                <UserIcon className="w-6 h-6 text-zinc-400" />
+                {user?.image_profile && user.image_profile.image ? (
+                  <ImageWithPlaceholder
+                    src={user.image_profile.image}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                    type="artist"
+                  />
+                ) : (
+                  <UserIcon className="w-6 h-6 text-zinc-400" />
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -1659,7 +1671,16 @@ export default function Home() {
                 className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                 aria-label="مشاهده پروفایل"
               >
-                <UserIcon className="w-6 h-6 text-zinc-400" />
+                {user?.image_profile && user.image_profile.image ? (
+                  <ImageWithPlaceholder
+                    src={user.image_profile.image}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                    type="artist"
+                  />
+                ) : (
+                  <UserIcon className="w-6 h-6 text-zinc-400" />
+                )}
               </button>
             </div>
           </div>
@@ -2109,33 +2130,60 @@ const HorizontalList = ({
               )}
 
               {/* Item count indicator for layered variant */}
-              {variant === "layered" && (
-                <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <svg
-                    className="w-3 h-3"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <rect
-                      x="9"
-                      y="9"
-                      width="13"
-                      height="13"
-                      rx="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span>{Math.floor(Math.random() * 15) + 8}</span>
-                </div>
-              )}
+              {variant === "layered" &&
+                (item.songsCount != null ? (
+                  <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <svg
+                      className="w-3 h-3"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <span>{item.songsCount} ترک</span>
+                  </div>
+                ) : (
+                  <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded-full flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <svg
+                      className="w-3 h-3"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <span>—</span>
+                  </div>
+                ))}
             </div>
           </div>
 

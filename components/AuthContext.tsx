@@ -72,6 +72,14 @@ export interface UserFollows {
   next: string | null;
 }
 
+export interface UserProfileImage {
+  id: number;
+  image: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface User {
   id: number;
   phone_number: string;
@@ -88,6 +96,7 @@ export interface User {
   user_playlists_count: number;
   recently_played: UserRecentlyPlayed;
   notification_setting: UserNotificationSetting;
+  image_profile: UserProfileImage | null;
   plan: string;
   // Optional fields used by various API versions to indicate premium status
   is_premium?: boolean | string | number;
@@ -119,6 +128,8 @@ interface AuthContextType {
   requestPasswordReset: (phone: string) => Promise<boolean>;
   fetchUserProfile: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
+  updateProfileImage: (file: File) => Promise<UserProfileImage>;
+  deleteProfileImage: () => Promise<void>;
   updateStreamQuality: (quality: "medium" | "high") => Promise<void>;
   authenticatedFetch: (
     input: RequestInfo | URL,
@@ -171,7 +182,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       "Passwords do not match": "رمز عبور با تکرار آن مطابقت ندارد",
       "Phone number already exists": "این شماره همراه قبلاً در سیستم وجود دارد",
       "Account is not active": "حساب کاربری فعال نیست",
-      "Token is invalid or expired": "زمان نشست شما به پایان رسیده است، مجدداً وارد شوید",
+      "Token is invalid or expired":
+        "زمان نشست شما به پایان رسیده است، مجدداً وارد شوید",
       "User not found": "کاربر مورد نظر پیدا نشد",
       "Password reset failed": "تغییر رمز عبور با شکست مواجه شد",
       "Registration failed": "ثبت‌نام انجام نشد",
@@ -194,13 +206,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     // Helper for substring-based mapping (covers many server wording variants)
     const mapBySubstring = (s: string) => {
       const lc = (s || "").toLowerCase();
-      if (lc.includes("current password") || lc.includes("incorrect password") || lc.includes("invalid password") || lc.includes("current password is incorrect"))
+      if (
+        lc.includes("current password") ||
+        lc.includes("incorrect password") ||
+        lc.includes("invalid password") ||
+        lc.includes("current password is incorrect")
+      )
         return "رمز فعلی اشتباه است";
-      if (lc.includes("unique id") || lc.includes("unique_id") || lc.includes("user with this unique id"))
+      if (
+        lc.includes("unique id") ||
+        lc.includes("unique_id") ||
+        lc.includes("user with this unique id")
+      )
         return "شناسه منحصر به فرد قبلا استفاده شده است";
-      if (lc.includes("refresh token") || lc.includes("refresh")) return "توکن رفرش نامعتبر است";
-      if (lc.includes("not found") && lc.includes("session")) return "نشست پیدا نشد";
-      if (lc.includes("too many requests") || lc.includes("rate limit")) return "تعداد درخواست‌ها بیش از حد مجاز است";
+      if (lc.includes("refresh token") || lc.includes("refresh"))
+        return "توکن رفرش نامعتبر است";
+      if (lc.includes("not found") && lc.includes("session"))
+        return "نشست پیدا نشد";
+      if (lc.includes("too many requests") || lc.includes("rate limit"))
+        return "تعداد درخواست‌ها بیش از حد مجاز است";
       return null;
     };
 
@@ -209,12 +233,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         .flat()
         .map((m: any) => {
           const s = String(m || "");
-          return errorMap[s] || mapBySubstring(s) || "خطایی رخ داده است. لطفا دوباره تلاش کنید";
+          return (
+            errorMap[s] ||
+            mapBySubstring(s) ||
+            "خطایی رخ داده است. لطفا دوباره تلاش کنید"
+          );
         });
       return msgs.join(" - ");
     }
 
-    const detail = error.detail || error.message || (typeof error === "string" ? error : null);
+    const detail =
+      error.detail ||
+      error.message ||
+      (typeof error === "string" ? error : null);
     if (detail) {
       const s = String(detail);
       // Exact map
@@ -323,6 +354,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const updateProfileImage = async (file: File): Promise<UserProfileImage> => {
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const res = await authenticatedFetch(`${API_ROOT}/profile/image/`, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw data || new Error("Failed to upload profile image");
+
+    // Re-fetch profile to update UI
+    await fetchUserProfile();
+    return data;
+  };
+
+  const deleteProfileImage = async (): Promise<void> => {
+    const res = await authenticatedFetch(`${API_ROOT}/profile/image/delete/`, {
+      method: "DELETE",
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      let err;
+      try {
+        err = JSON.parse(text);
+      } catch {
+        err = new Error("Failed to delete profile image");
+      }
+      throw err;
+    }
+
+    // Re-fetch profile to update UI
+    await fetchUserProfile();
+  };
+
   const updateStreamQuality = async (quality: "medium" | "high") => {
     const r = await patch("/profile/settings/stream-quality/", {
       stream_quality: quality,
@@ -401,13 +469,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       if (typeof window !== "undefined")
         localStorage.setItem("refreshToken", data.refreshToken);
 
-      if (
-        data.user &&
-        (data.user.followers_count !== undefined || data.user.plan)
-      ) {
+      // If server returned full user object in refresh response, use it
+      if (data.user) {
         setUser(data.user as User);
       } else {
-        // Fallback: if user info is incomplete, fetch it
+        // Fallback: if user info not provided, fetch it
         await fetchUserProfile(data.accessToken);
       }
       setIsLoggedIn(true);
@@ -426,6 +492,50 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     init?: RequestInit,
   ): Promise<Response> => {
     let currentToken = accessToken;
+
+    // If the auth layer is still initializing (refresh in progress), wait
+    // briefly for it to complete to avoid racing other components that
+    // immediately call protected endpoints (e.g. opening /profile directly).
+    if (isInitializing) {
+      await new Promise((resolve) => {
+        const interval = setInterval(() => {
+          if (!isInitializing) {
+            clearInterval(interval);
+            resolve(null);
+          }
+        }, 50);
+        // safety timeout to avoid hanging forever
+        setTimeout(() => {
+          clearInterval(interval);
+          resolve(null);
+        }, 5000);
+      });
+      // Refresh currentToken after init completes
+      currentToken = accessToken;
+    }
+
+    // If we have neither an in-memory access token nor a stored refresh token,
+    // avoid calling the API for protected endpoints — return a synthetic 401
+    // response so callers can handle missing auth without triggering refresh/logout.
+    if (
+      !currentToken &&
+      typeof window !== "undefined" &&
+      !localStorage.getItem("refreshToken")
+    ) {
+      if (typeof Response !== "undefined") {
+        return new Response(null, { status: 401, statusText: "Unauthorized" });
+      }
+      // Fallback for environments without Response constructor
+      const fake: any = {
+        ok: false,
+        status: 401,
+        text: async () => "",
+        clone() {
+          return this;
+        },
+      };
+      return fake as Response;
+    }
 
     const applyAuth = (token: string | null) => {
       const options = { ...init };
@@ -455,10 +565,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       }
 
       if (!response.ok) {
-        // Try to parse server error body to produce a nicer message
+        // Try to parse server error body to produce a nicer message.
+        // Use a cloned response so we don't consume the original body stream
+        // — callers may still want to read it (e.g. `get`/`post` helpers).
         let parsedBody: any = null;
         try {
-          const text = await response.text();
+          const text = await response.clone().text();
           parsedBody = text ? JSON.parse(text) : null;
         } catch (e) {
           parsedBody = null;
@@ -473,18 +585,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           ? formatErrorMessage(parsedBody)
           : defaultMsg;
 
-        // Show Farsi toast without emojis
-        try {
-          toast.error(message || defaultMsg);
-        } catch (e) {
-          // swallow toast errors
-          console.error("Toast error", e);
+        // Avoid showing toasts for 401 (unauthorized) responses — these are
+        // handled elsewhere (refresh/logout logic) and often occur during
+        // initialization or navigation races. Show toasts for other statuses.
+        if (response.status !== 401) {
+          try {
+            toast.error(message || defaultMsg);
+          } catch (e) {
+            console.error("Toast error", e);
+          }
         }
       }
 
       return response;
-    } catch (err) {
+    } catch (err: any) {
       // Network or other unexpected error
+      // If the request was explicitly aborted (e.g. navigation/unmount),
+      // don't show a network toast — it's an expected cancellation.
+      if (
+        err &&
+        (err.name === "AbortError" || String(err).includes("aborted"))
+      ) {
+        throw err;
+      }
+
       const netMsg =
         "در ارتباط با سرور خطایی رخ داد. لطفاً اتصال اینترنت خود را بررسی کنید و دوباره تلاش کنید";
       try {
@@ -675,6 +799,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         resetPassword,
         fetchUserProfile,
         updateProfile,
+        updateProfileImage,
+        deleteProfileImage,
         updateStreamQuality,
         authenticatedFetch,
         verificationContext,

@@ -124,9 +124,12 @@ const FollowerCard = memo(
         </div>
 
         <div className="flex-1 min-w-0" dir="rtl">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 min-w-0">
             <span className="text-sm font-bold text-white truncate">
               {user.name}
+            </span>
+            <span className="text-[11px] bg-white/[0.03] text-gray-400 px-2 py-0.5 rounded-full shrink-0">
+              {user.type === "artist" ? "هنرمند" : "کاربر"}
             </span>
           </div>
           <p className="text-[11px] text-gray-500 truncate mt-0.5">
@@ -205,9 +208,14 @@ const FollowingCard = memo(
         </div>
 
         <div className="flex-1 min-w-0" dir="rtl">
-          <span className="text-sm font-bold text-white truncate block">
-            {artist.name}
-          </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-bold text-white truncate block">
+              {artist.name}
+            </span>
+            <span className="text-[11px] bg-white/[0.03] text-gray-400 px-2 py-0.5 rounded-full shrink-0">
+              {artist.type === "artist" ? "هنرمند" : "کاربر"}
+            </span>
+          </div>
           <p className="text-[11px] text-gray-500 mt-0.5">
             {artist.followers_count.toLocaleString("fa-IR")} دنبال‌کننده
           </p>
@@ -235,8 +243,10 @@ FollowingCard.displayName = "FollowingCard";
 // ============================================================================
 export default function FollowersFollowing({
   initialTab = "followers",
+  uniqueId,
 }: {
   initialTab?: TabType;
+  uniqueId?: string;
 }) {
   const { navigateTo } = useNavigation();
   const { user, accessToken, authenticatedFetch } = useAuth();
@@ -244,24 +254,63 @@ export default function FollowersFollowing({
   // State
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(!!uniqueId);
 
   // Data State
   const [followers, setFollowers] = useState<UserFollowItem[]>(
-    user?.followers?.items || [],
+    !uniqueId ? user?.followers?.items || [] : [],
   );
   const [following, setFollowing] = useState<UserFollowItem[]>(
-    user?.following?.items || [],
+    !uniqueId ? user?.following?.items || [] : [],
   );
   const [followersMeta, setFollowersMeta] = useState({
-    hasNext: user?.followers?.has_next || false,
-    next: user?.followers?.next || null,
-    total: user?.followers?.total || 0,
+    hasNext: !uniqueId ? user?.followers?.has_next || false : false,
+    next: !uniqueId ? user?.followers?.next || null : null,
+    total: !uniqueId ? user?.followers?.total || 0 : 0,
   });
   const [followingMeta, setFollowingMeta] = useState({
-    hasNext: user?.following?.has_next || false,
-    next: user?.following?.next || null,
-    total: user?.following?.total || 0,
+    hasNext: !uniqueId ? user?.following?.has_next || false : false,
+    next: !uniqueId ? user?.following?.next || null : null,
+    total: !uniqueId ? user?.following?.total || 0 : 0,
   });
+
+  // --- Initial Fetch for Guest Profile ---
+  useEffect(() => {
+    if (!uniqueId) return;
+
+    const fetchInitialData = async () => {
+      setIsInitialLoading(true);
+      try {
+        const res = await authenticatedFetch(
+          `https://api.sedabox.com/api/profile/u/${uniqueId}/?followers=1&following=1`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.followers) {
+            setFollowers(data.followers.items || []);
+            setFollowersMeta({
+              hasNext: data.followers.has_next,
+              next: data.followers.next,
+              total: data.followers.total,
+            });
+          }
+          if (data.following) {
+            setFollowing(data.following.items || []);
+            setFollowingMeta({
+              hasNext: data.following.has_next,
+              next: data.following.next,
+              total: data.following.total,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Initial fetch for guest profile failed", err);
+      } finally {
+        setIsInitialLoading(false);
+      }
+    };
+    fetchInitialData();
+  }, [uniqueId, authenticatedFetch]);
 
   // --- Follow / Unfollow Handler ---
   const handleToggleFollow = useCallback(
@@ -395,6 +444,7 @@ export default function FollowersFollowing({
 
   // --- Sync Data from Context ---
   useEffect(() => {
+    if (uniqueId) return;
     if (user) {
       if (followers.length === 0 && user.followers?.items?.length) {
         setFollowers(user.followers.items);
@@ -413,7 +463,7 @@ export default function FollowersFollowing({
         });
       }
     }
-  }, [user]);
+  }, [user, uniqueId, followers.length, following.length]);
 
   // --- Scroll & Swipe Handlers ---
 

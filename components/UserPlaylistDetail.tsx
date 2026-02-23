@@ -811,8 +811,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
               </button>
             )}
             {playlist.generated_by === "audience" &&
-              playlist.creator_unique_id &&
-              (!isOwner ? (
+              playlist.creator_unique_id && (
                 <button
                   type="button"
                   onClick={() =>
@@ -824,11 +823,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
                 >
                   ایجاد شده توسط {playlist.creator_unique_id}
                 </button>
-              ) : (
-                <div className="mt-3 text-sm text-neutral-500 text-right">
-                  ایجاد شده توسط شما
-                </div>
-              ))}
+              )}
           </div>
         </div>
       </header>

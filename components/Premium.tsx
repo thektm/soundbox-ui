@@ -410,9 +410,10 @@ const Premium: React.FC = () => {
             </ul>
 
             <button
+              dir="rtl"
               onClick={() => {
                 // Show a hot toast informing that payment API is required (Farsi, no emoji)
-                toast.error("Payment Api key is needed");
+                toast.error("نیازمند تهیه API پرداخت ");
               }}
               className="w-full py-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-black transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-emerald-500/20 focus-visible:ring-4 focus-visible:ring-emerald-500/50 outline-none"
             >

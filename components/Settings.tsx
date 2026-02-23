@@ -43,6 +43,10 @@ const ICONS = {
   close: "M6 18L18 6M6 6l12 12",
   edit: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
   check: "M5 13l4 4L19 7",
+  camera:
+    "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z",
+  trash:
+    "M14.74 9l-.34 9m-4.72 0l-.34-9M4.5 7h15M10 3h4a1 1 0 011 1v1h-6V4a1 1 0 011-1zM18.37 7l-.64 12.42A2 2 0 0115.75 21H8.25a2 2 0 01-1.98-1.58L5.63 7h12.74z",
 };
 
 // Convert/sanitize server errors to user-facing Persian messages.
@@ -104,6 +108,11 @@ const ProfileEditSheet = ({
   onSave,
   isSaving = false,
   disableSave = false,
+  authUser,
+  onImageUpload,
+  onImageDelete,
+  isUploadingImage = false,
+  isDeletingImage = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -117,142 +126,173 @@ const ProfileEditSheet = ({
   onSave: () => void;
   isSaving?: boolean;
   disableSave?: boolean;
+  authUser: User | null;
+  onImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onImageDelete: () => void;
+  isUploadingImage?: boolean;
+  isDeletingImage?: boolean;
 }) => {
-  const { isDesktop } = useResponsiveLayout();
-
-  const content = (
-    <div className="p-6 h-full flex flex-col" dir="rtl">
-      {!isDesktop && (
-        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6 flex-shrink-0 cursor-grab active:cursor-grabbing" />
-      )}
-
-      <div className="flex items-center justify-between mb-6 flex-shrink-0">
-        <h3 className="text-xl font-bold text-white">ویرایش پروفایل</h3>
-        <button
-          onClick={onClose}
-          className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-colors"
-        >
-          <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
-        </button>
-      </div>
-      <div className="space-y-4 mb-8 flex-1 overflow-visible hide-scrollbar">
-        {[
-          {
-            key: "firstName",
-            label: "نام",
-            placeholder: "نام خود را وارد کنید",
-          },
-          {
-            key: "lastName",
-            label: "نام خانوادگی",
-            placeholder: "نام خانوادگی خود را وارد کنید",
-          },
-          {
-            key: "email",
-            label: "ایمیل",
-            placeholder: "ایمیل خود را وارد کنید",
-            type: "email",
-          },
-          {
-            key: "uniqueId",
-            label: "شناسه منحصر به فرد",
-            placeholder: "شناسه منحصر به فرد خود را وارد کنید",
-            info: true,
-          },
-        ].map((field) => (
-          <div key={field.key}>
-            <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-1">
-              {field.label}
-              {field.info && (
-                <span className="relative group">
-                  <span
-                    tabIndex={0}
-                    className="ml-1 w-4 h-4 flex items-center justify-center rounded-full border border-emerald-400 bg-[#101c1a] text-emerald-400 text-xs font-bold cursor-pointer transition hover:bg-emerald-500 hover:text-white focus:bg-emerald-500 focus:text-white"
-                    aria-label="اطلاعات بیشتر"
-                  >
-                    i
-                  </span>
-                  <span
-                    className="absolute z-50 right-0 top-7 w-56 text-xs text-right bg-[#181f1c] text-white rounded-xl shadow-lg border border-emerald-400 px-4 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-200"
-                    style={{ fontFamily: "inherit" }}
-                  >
-                    برای پیدا کردن پروفایل شما در جستجو استفاده می‌شود
-                  </span>
-                </span>
-              )}
-            </label>
-            <input
-              type={field.type || "text"}
-              value={formData[field.key as keyof typeof formData]}
-              onChange={(e) => onChange(field.key, e.target.value)}
-              placeholder={field.placeholder}
-              className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.02] transition-colors"
-              dir="rtl"
-            />
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-3 flex-shrink-0">
-        <button
-          onClick={onSave}
-          disabled={isSaving || disableSave}
-          className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          {isSaving && (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          )}
-          {isSaving ? "در حال ذخیره..." : "ذخیره تغییرات"}
-        </button>
-        <button
-          onClick={onClose}
-          disabled={isSaving}
-          className="px-6 py-3 bg-white/5 border border-white/10 text-gray-300 font-medium rounded-xl hover:bg-white/10 transition-colors disabled:opacity-50"
-        >
-          انصراف
-        </button>
-      </div>
-    </div>
-  );
-
-  if (isDesktop) {
-    return (
-      <>
-        <div
-          className={`fixed inset-0 bg-black/70 backdrop-blur-sm z-50 transition-all duration-300 ${
-            isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-          onClick={onClose}
-        />
-        <div
-          className={`fixed z-[60] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] border border-white/10 transition-all duration-300 ease-out
-          top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[480px] rounded-2xl shadow-2xl shadow-black/60
-          ${
-            isOpen
-              ? "opacity-100 scale-100"
-              : "opacity-0 scale-95 pointer-events-none"
-          }
-          `}
-        >
-          {content}
-        </div>
-      </>
-    );
-  }
+  const isPremium = authUser?.plan === "premium";
 
   return (
-    <Drawer.Root
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      shouldScaleBackground
-    >
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 bg-black/60 z-[70] backdrop-blur-[2px]" />
-        <Drawer.Content className="fixed inset-x-0 bottom-0 z-[70] flex flex-col bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 outline-none max-h-[96%] overflow-visible">
-          {content}
-          <div className="h-safe-area-inset-bottom" />
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+    <ResponsiveSheet isOpen={isOpen} onClose={onClose} desktopWidth="w-[480px]">
+      <div
+        className="flex flex-col h-full overflow-hidden bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a]"
+        dir="rtl"
+      >
+        {/* Header - Sticky */}
+        <div className="flex items-center justify-between p-6 border-b border-white/5 flex-shrink-0 bg-black/40 backdrop-blur-md z-10 transition-colors">
+          <h3 className="text-xl font-bold text-white">ویرایش پروفایل</h3>
+          <button
+            onClick={onClose}
+            className="p-2 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-colors"
+          >
+            <Icon d={ICONS.close} className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Form Body - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+          {/* Image Management */}
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative group">
+              <div
+                className={`w-28 h-28 rounded-full p-1 ${
+                  isPremium
+                    ? "bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500"
+                    : "bg-gradient-to-br from-emerald-400 to-blue-500"
+                }`}
+              >
+                <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
+                  {authUser?.image_profile?.image ? (
+                    <img
+                      src={authUser.image_profile.image}
+                      alt={formData.firstName}
+                      className="w-full h-full object-cover rounded-full"
+                    />
+                  ) : (
+                    <UserIcon className="w-10 h-10 text-white/40" />
+                  )}
+                  {(isUploadingImage || isDeletingImage) && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-full">
+                      <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+              </div>
+              <label
+                htmlFor="settings-profile-image-upload"
+                className="absolute -bottom-1 -right-1 p-2 bg-emerald-500 hover:bg-emerald-600 rounded-full cursor-pointer transition-colors shadow-lg z-10"
+              >
+                <Icon d={ICONS.camera} className="w-4 h-4 text-white" />
+                <input
+                  type="file"
+                  id="settings-profile-image-upload"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={onImageUpload}
+                  disabled={isUploadingImage || isDeletingImage}
+                />
+              </label>
+              {authUser?.image_profile?.image && (
+                <button
+                  onClick={onImageDelete}
+                  disabled={isUploadingImage || isDeletingImage}
+                  className="absolute -bottom-1 -left-1 p-2 bg-red-500/80 hover:bg-red-600 rounded-full transition-colors shadow-lg z-10"
+                  aria-label="حذف تصویر پروفایل"
+                >
+                  <Icon d={ICONS.trash} className="w-4 h-4 text-white" />
+                </button>
+              )}
+            </div>
+            <div className="text-center">
+              <p className="text-[10px] text-gray-500 mt-1">
+                حداکثر حجم مجاز: ۵۱۲ کیلوبایت
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              {
+                key: "firstName",
+                label: "نام",
+                placeholder: "نام خود را وارد کنید",
+              },
+              {
+                key: "lastName",
+                label: "نام خانوادگی",
+                placeholder: "نام خانوادگی خود را وارد کنید",
+              },
+              {
+                key: "email",
+                label: "ایمیل",
+                placeholder: "ایمیل خود را وارد کنید",
+                type: "email",
+              },
+              {
+                key: "uniqueId",
+                label: "شناسه منحصر به فرد",
+                placeholder: "شناسه منحصر به فرد خود را وارد کنید",
+                info: true,
+              },
+            ].map((field) => (
+              <div key={field.key}>
+                <label className="block text-sm font-medium text-gray-400 mb-2 flex items-center gap-1">
+                  {field.label}
+                  {field.info && (
+                    <span className="relative group">
+                      <span
+                        tabIndex={0}
+                        className="ml-1 w-4 h-4 flex items-center justify-center rounded-full border border-emerald-400 bg-[#101c1a] text-emerald-400 text-xs font-bold cursor-pointer transition hover:bg-emerald-500 hover:text-white focus:bg-emerald-500 focus:text-white"
+                        aria-label="اطلاعات بیشتر"
+                      >
+                        i
+                      </span>
+                      <span
+                        className="absolute z-50 right-0 top-7 w-56 text-xs text-right bg-[#181f1c] text-white rounded-xl shadow-lg border border-emerald-400 px-4 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-200"
+                        style={{ fontFamily: "inherit" }}
+                      >
+                        برای پیدا کردن پروفایل شما در جستجو استفاده می‌شود
+                      </span>
+                    </span>
+                  )}
+                </label>
+                <input
+                  type={field.type || "text"}
+                  value={formData[field.key as keyof typeof formData]}
+                  onChange={(e) => onChange(field.key, e.target.value)}
+                  placeholder={field.placeholder}
+                  className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.02] transition-colors"
+                  dir="rtl"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Buttons - Sticky */}
+        <div className="flex gap-3 p-6 border-t border-white/5 flex-shrink-0 bg-black/40 backdrop-blur-md z-10">
+          <button
+            onClick={onSave}
+            disabled={isSaving || disableSave}
+            className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isSaving && (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            )}
+            {isSaving ? "در حال ذخیره..." : "ذخیره تغییرات"}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="px-6 py-3 bg-white/5 border border-white/10 text-gray-300 font-medium rounded-xl hover:bg-white/10 transition-colors disabled:opacity-50"
+          >
+            انصراف
+          </button>
+        </div>
+      </div>
+    </ResponsiveSheet>
   );
 };
 
@@ -297,7 +337,7 @@ const QualitySheet = ({
           </button>
         </div>
 
-        <div className="space-y-2 mb-6 flex-1 overflow-y-auto">
+        <div className="space-y-2 mb-6 flex-1 overflow-y-auto custom-scrollbar">
           {qualities.map((q) => {
             const locked = q.value === "high" && !isPremium;
             return (
@@ -347,12 +387,14 @@ const QualitySheet = ({
             );
           })}
         </div>
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors md:hidden"
-        >
-          بستن
-        </button>
+        <div className="pt-4 border-t border-white/5 bg-black/20 backdrop-blur-sm -mx-6 px-6 flex-shrink-0 md:hidden">
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors"
+          >
+            بستن
+          </button>
+        </div>
       </div>
     </ResponsiveSheet>
   );
@@ -393,10 +435,10 @@ const NotificationSheet = ({
           </button>
         </div>
 
-        <p className="text-sm text-gray-400 mb-6 flex-shrink-0">
+        <p className="text-sm text-gray-400 mb-6 flex-shrink-0 px-2">
           انتخاب کنید از چه رویدادهایی مطلع شوید
         </p>
-        <div className="space-y-3 mb-6 flex-1 overflow-y-auto">
+        <div className="space-y-3 mb-6 flex-1 overflow-y-auto px-2 custom-scrollbar">
           {notifTypes.map((item) => (
             <div
               key={item.key}
@@ -420,12 +462,14 @@ const NotificationSheet = ({
             </div>
           ))}
         </div>
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-emerald-500 text-white font-medium rounded-xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-900/20 flex-shrink-0"
-        >
-          تایید
-        </button>
+        <div className="pt-4 border-t border-white/5 bg-black/20 backdrop-blur-sm -mx-6 px-6 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-emerald-500 text-white font-medium rounded-xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-900/20"
+          >
+            تایید
+          </button>
+        </div>
       </div>
     </ResponsiveSheet>
   );
@@ -606,7 +650,7 @@ const SessionsSheet = ({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-3 mb-4">
+        <div className="flex-1 overflow-y-auto space-y-3 mb-4 custom-scrollbar">
           {loading && (
             <div className="text-sm text-gray-400">در حال بارگذاری...</div>
           )}
@@ -665,12 +709,14 @@ const SessionsSheet = ({
           ))}
         </div>
 
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors md:hidden flex-shrink-0"
-        >
-          بستن
-        </button>
+        <div className="pt-4 border-t border-white/5 bg-black/20 backdrop-blur-sm -mx-6 px-6 flex-shrink-0 md:hidden">
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-white/5 border border-white/10 text-gray-400 font-medium rounded-xl hover:bg-white/10 transition-colors"
+          >
+            بستن
+          </button>
+        </div>
       </div>
     </ResponsiveSheet>
   );
@@ -735,7 +781,7 @@ const SecuritySheet = ({
           </button>
         </div>
 
-        <div className="space-y-4 mb-8 flex-1 overflow-y-auto">
+        <div className="space-y-4 mb-4 flex-1 overflow-y-auto custom-scrollbar px-2">
           {[
             { key: "current", label: "رمز عبور فعلی" },
             { key: "new", label: "رمز عبور جدید" },
@@ -771,7 +817,7 @@ const SecuritySheet = ({
           ))}
         </div>
         {/* artist password option removed */}
-        <div className="flex gap-3 flex-shrink-0">
+        <div className="flex gap-3 pt-4 border-t border-white/5 bg-black/20 backdrop-blur-sm -mx-6 px-6 flex-shrink-0">
           <button
             onClick={handleSave}
             disabled={isSubmitting}
@@ -804,9 +850,50 @@ export default function Settings() {
     formatErrorMessage,
     accessToken,
     authenticatedFetch,
+    updateProfileImage,
+    deleteProfileImage,
   } = useAuth();
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isDeletingImage, setIsDeletingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 512 * 1024) {
+      toast.error("حجم فایل نباید بیشتر از ۵۱۲ کلوبایت باشد");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    const toastId = toast.loading("در حال آپلود تصویر...");
+    try {
+      await updateProfileImage(file);
+      toast.success("تصویر پروفایل با موفقیت آپلود شد", { id: toastId });
+    } catch (err: any) {
+      toast.error(formatErrorMessage(err), { id: toastId });
+    } finally {
+      setIsUploadingImage(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleImageDelete = async () => {
+    if (!confirm("آیا از حذف تصویر پروفایل خود مطمئن هستید؟")) return;
+
+    setIsDeletingImage(true);
+    const toastId = toast.loading("در حال حذف تصویر...");
+    try {
+      await deleteProfileImage();
+      toast.success("تصویر پروفایل با موفقیت حذف شد", { id: toastId });
+    } catch (err: any) {
+      toast.error(formatErrorMessage(err), { id: toastId });
+    } finally {
+      setIsDeletingImage(false);
+    }
+  };
 
   // User profile data
   const [profileData, setProfileData] = useState({
@@ -1113,7 +1200,15 @@ export default function Settings() {
           <div className="relative z-10 flex items-center gap-4">
             <div className="flex-shrink-0 w-16 h-16 min-w-[64px] min-h-[64px] rounded-full bg-gradient-to-br from-emerald-400 to-blue-500 p-[2px] shadow-lg shadow-emerald-900/20">
               <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center overflow-hidden">
-                <UserIcon className="w-8 h-8 text-white/90" />
+                {authUser?.image_profile?.image ? (
+                  <img
+                    src={authUser.image_profile.image}
+                    alt={displayName}
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  <UserIcon className="w-8 h-8 text-white/90" />
+                )}
               </div>
             </div>
             <div className="flex-1 min-w-0">
@@ -1209,6 +1304,11 @@ export default function Settings() {
         onSave={handleProfileSave}
         isSaving={isSaving}
         disableSave={disableSave}
+        authUser={authUser}
+        onImageUpload={handleImageUpload}
+        onImageDelete={handleImageDelete}
+        isUploadingImage={isUploadingImage}
+        isDeletingImage={isDeletingImage}
       />
       <QualitySheet
         isOpen={activeSheet === "quality"}

@@ -59,11 +59,9 @@ export const ResponsiveSheet = ({
     <Drawer.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70]" />
-        <Drawer.Content className="fixed bottom-0 left-0 right-0 max-h-[90vh] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 z-[80] flex flex-col outline-none">
-          <div className="flex-1 overflow-y-auto rounded-t-3xl">
-            <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-4 mb-4 flex-shrink-0" />
-            {children}
-          </div>
+        <Drawer.Content className="fixed bottom-0 left-0 right-0 max-h-[95vh] bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a] rounded-t-3xl border-t border-white/10 z-[80] flex flex-col outline-none">
+          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-4 mb-2 flex-shrink-0" />
+          <div className="flex-1 flex flex-col overflow-hidden">{children}</div>
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

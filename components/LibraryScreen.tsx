@@ -586,7 +586,13 @@ const LibraryScreen: React.FC = () => {
                       className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 cursor-pointer transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                       aria-label="مشاهده پروفایل"
                     >
-                      {user?.first_name ? (
+                      {user?.image_profile && user.image_profile.image ? (
+                        <img
+                          src={ensureHttps(user.image_profile.image)}
+                          alt="Profile"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : user?.first_name ? (
                         <span className="text-white font-bold">
                           {user.first_name[0]}
                         </span>

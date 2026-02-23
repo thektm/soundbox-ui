@@ -17,7 +17,7 @@ interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   targetId: number | string;
-  targetType: "song" | "artist";
+  targetType: "song" | "artist" | "user";
   targetTitle: string;
 }
 
@@ -50,6 +50,16 @@ export const ReportModal = ({
     setStep(1);
   }, []);
 
+  // When reporting a user we only show a subset of reasons:
+  // keep 1st, 3rd, 4th and last entries from REPORT_REASONS
+  const reasons = React.useMemo(() => {
+    if (targetType === "user") {
+      const idx = [0, 2, 3, REPORT_REASONS.length - 1];
+      return REPORT_REASONS.filter((_, i) => idx.includes(i));
+    }
+    return REPORT_REASONS;
+  }, [targetType]);
+
   const handleClose = useCallback(() => {
     resetForm();
     onClose();
@@ -74,8 +84,10 @@ export const ReportModal = ({
 
       if (targetType === "song") {
         body.song = targetId;
-      } else {
+      } else if (targetType === "artist") {
         body.artist_id = targetId;
+      } else if (targetType === "user") {
+        body.reported_user = targetId;
       }
 
       const response = await authenticatedFetch(
@@ -134,7 +146,12 @@ export const ReportModal = ({
                   گزارش محتوا
                 </h3>
                 <p className="text-sm text-white/40 mt-1 truncate max-w-[200px]">
-                  {targetType === "song" ? "آهنگ" : "هنرمند"}: {targetTitle}
+                  {targetType === "song"
+                    ? "آهنگ"
+                    : targetType === "artist"
+                      ? "هنرمند"
+                      : "کاربر"}
+                  : {targetTitle}
                 </p>
               </div>
             </div>
@@ -153,7 +170,7 @@ export const ReportModal = ({
                   دلیل گزارش شما چیست؟
                 </p>
                 <div className="grid grid-cols-1 gap-2">
-                  {REPORT_REASONS.map((reason) => (
+                  {reasons.map((reason) => (
                     <button
                       key={reason.id}
                       onClick={() => {
