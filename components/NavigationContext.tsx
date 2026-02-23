@@ -333,6 +333,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     return parsePathname(window.location.pathname).params;
   });
   const [previousPage, setPreviousPage] = useState<string | null>(null);
+  const [previousParams, setPreviousParams] = useState<any>(null);
   const [visibilityMap, setVisibilityMap] = useState<Record<string, boolean>>({
     "bottom-navbar": true,
     sidebar: true,
@@ -431,6 +432,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
       }
 
       setPreviousPage(currentPage);
+      setPreviousParams(currentParams || null);
       setCurrentPage(page);
       setCurrentParams(params || null);
     },
@@ -519,12 +521,17 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   const goBack = useCallback(() => {
+    if (previousPage) {
+      // Prefer internal navigation using stored params so we reliably
+      // restore pages like `user-detail` with their identifiers.
+      navigateTo(previousPage, previousParams, false);
+      return;
+    }
+
     if (typeof window !== "undefined" && window.history.length > 1) {
       window.history.back();
-    } else if (previousPage) {
-      navigateTo(previousPage, null, false);
     }
-  }, [previousPage, navigateTo]);
+  }, [previousPage, previousParams, navigateTo]);
 
   const handleSetCurrentPage = useCallback(
     (page: string) => navigateTo(page, currentParams),

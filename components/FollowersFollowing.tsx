@@ -248,7 +248,7 @@ export default function FollowersFollowing({
   initialTab?: TabType;
   uniqueId?: string;
 }) {
-  const { navigateTo } = useNavigation();
+  const { navigateTo, goBack } = useNavigation();
   const { user, accessToken, authenticatedFetch } = useAuth();
 
   // State
@@ -594,7 +594,7 @@ export default function FollowersFollowing({
         <div className="flex flex-row-reverse items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigateTo("profile")}
+              onClick={() => goBack()}
               className="active:scale-90 transition-transform"
             >
               <div className="w-10 h-10 rounded-full bg-white/[0.04] flex items-center justify-center">
