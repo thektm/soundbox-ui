@@ -768,9 +768,9 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
           </button>
         </div>
 
-        <div className="absolute inset-0 flex items-end justify-end px-6 md:px-12 pb-8">
-          <div className="text-right max-w-lg w-full">
-            <div className="flex items-center justify-end gap-2 mb-2">
+        <div className="absolute inset-y-0 right-0 flex items-end pr-6 md:pr-12 pl-6 pb-8">
+          <div className="text-right max-w-lg">
+            <div className="flex items-center justify-end gap-2 mb-2 flex-row-reverse">
               <Icon
                 name={playlist.public ? "globe" : "lock"}
                 size={14}
@@ -805,9 +805,9 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
               <button
                 type="button"
                 onClick={() => navigateTo("user-detail", { id: "sedabox" })}
-                className="mt-3 text-sm text-green-400 hover:text-green-300 hover:underline transition-colors text-right w-full"
+                className="mt-3 text-sm text-green-400 transition-colors text-right flex items-center gap-2"
               >
-                ایجاد شده توسط سیستم صدا باکس
+                ایجاد شده توسط صداباکس
               </button>
             )}
             {playlist.generated_by === "audience" &&
@@ -820,12 +820,12 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
                       id: playlist.creator_unique_id!,
                     })
                   }
-                  className="mt-3 text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors text-right w-full"
+                  className="mt-3 text-sm text-blue-400 hover:underline transition-colors text-right"
                 >
                   ایجاد شده توسط {playlist.creator_unique_id}
                 </button>
               ) : (
-                <div className="mt-3 text-sm text-neutral-500 text-right w-full">
+                <div className="mt-3 text-sm text-neutral-500 text-right">
                   ایجاد شده توسط شما
                 </div>
               ))}
