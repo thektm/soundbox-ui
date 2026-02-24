@@ -683,7 +683,9 @@ export default function FollowersFollowing({
                       onFollow={() => handleToggleFollow(user.id)}
                     />
                   ))
-                : !isLoadingMore && <EmptyState type="followers" />}
+                : !isLoadingMore && (
+                    <EmptyState type="followers" isGuest={!!uniqueId} />
+                  )}
             </AnimatePresence>
 
             {/* Observer Target for Infinite Scroll (Only if this tab is active) */}
@@ -710,7 +712,9 @@ export default function FollowersFollowing({
                       onUnfollow={() => handleToggleFollow(artist.id)}
                     />
                   ))
-                : !isLoadingMore && <EmptyState type="following" />}
+                : !isLoadingMore && (
+                    <EmptyState type="following" isGuest={!!uniqueId} />
+                  )}
             </AnimatePresence>
 
             {/* Observer Target for Infinite Scroll (Only if this tab is active) */}
@@ -753,7 +757,13 @@ const LoadingSpinner = () => (
   </div>
 );
 
-const EmptyState = ({ type }: { type: "followers" | "following" }) => (
+const EmptyState = ({
+  type,
+  isGuest,
+}: {
+  type: "followers" | "following";
+  isGuest?: boolean;
+}) => (
   <motion.div
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
@@ -766,7 +776,11 @@ const EmptyState = ({ type }: { type: "followers" | "following" }) => (
       />
     </div>
     <p className="text-sm font-medium">
-      {type === "followers"
+      {isGuest
+        ? type === "followers"
+          ? "این کاربر هنوز دنبال‌کننده‌ای ندارد"
+          : "این کاربر هنوز کسی را دنبال نکرده است"
+        : type === "followers"
         ? "هنوز کسی شما را دنبال نمی‌کند"
         : "هنوز کسی را دنبال نکرده‌اید"}
     </p>

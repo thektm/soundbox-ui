@@ -576,7 +576,6 @@ export default function DesktopProfile() {
                           </div>
                         ))}
                       </div>
-                     
                     </div>
                   </div>
                 ) : (
@@ -670,14 +669,17 @@ export default function DesktopProfile() {
                 <h2 className="text-2xl font-semibold text-white mb-6">
                   اخیراً پخش شده
                 </h2>
-                <div className="grid grid-cols-2 gap-4" role="list">
+                <div
+                  className="flex overflow-x-auto gap-5 pb-5 custom-scrollbar -mx-1 px-1"
+                  role="list"
+                >
                   {isFetching ? (
                     Array.from({ length: 4 }).map((_, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 animate-pulse"
+                        className="min-w-[300px] flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 animate-pulse shrink-0"
                       >
-                        <div className="w-16 h-16 rounded-lg bg-white/10" />
+                        <div className="w-16 h-16 rounded-lg bg-white/10 shrink-0" />
                         <div className="flex-1 space-y-2">
                           <div className="h-4 bg-white/10 rounded w-3/4" />
                           <div className="h-3 bg-white/5 rounded w-1/2" />
@@ -686,24 +688,25 @@ export default function DesktopProfile() {
                     ))
                   ) : authUser?.recently_played?.items?.length ? (
                     authUser.recently_played.items
-                      .slice(0, 6)
+                      .slice(0, 12)
                       .map((track: any) => (
-                        <button
+                        <div
                           key={track.id}
                           role="listitem"
-                          onClick={() =>
-                            navigateTo("song-detail", {
-                              id: track.id,
-                              artistSlug:
-                                track.artist_unique_id ||
-                                createSlug(track.artist_name || "artist"),
-                              songSlug: createSlug(track.title),
-                            })
-                          }
-                          aria-label={`پخش ${track.title} اثر ${track.artist_name}`}
-                          className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 transition-all duration-300 will-change-transform text-right focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                          className="min-w-[300px] flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/8 transition-all duration-300 shrink-0 group"
                         >
-                          <div className="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-800">
+                          <div
+                            className="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-800 cursor-pointer"
+                            onClick={() =>
+                              navigateTo("song-detail", {
+                                id: track.id,
+                                artistSlug:
+                                  track.artist_unique_id ||
+                                  createSlug(track.artist_name || "artist"),
+                                songSlug: createSlug(track.title),
+                              })
+                            }
+                          >
                             <Image
                               src={
                                 track.image ||
@@ -712,14 +715,36 @@ export default function DesktopProfile() {
                               }
                               alt=""
                               fill
-                              className="object-cover"
+                              className="object-cover group-hover:scale-110 transition-transform duration-500"
                             />
+                            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
                           </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-lg text-white truncate">
+                          <div className="flex-1 min-w-0 text-right">
+                            <h3
+                              className="font-semibold text-lg text-white truncate cursor-pointer hover:text-emerald-400 transition-colors"
+                              onClick={() =>
+                                navigateTo("song-detail", {
+                                  id: track.id,
+                                  artistSlug:
+                                    track.artist_unique_id ||
+                                    createSlug(track.artist_name || "artist"),
+                                  songSlug: createSlug(track.title),
+                                })
+                              }
+                            >
                               {track.title}
                             </h3>
-                            <p className="text-gray-400 text-sm truncate">
+                            <p
+                              className="text-gray-400 text-sm truncate cursor-pointer hover:text-emerald-400 transition-colors"
+                              onClick={() =>
+                                navigateTo("artist-detail", {
+                                  id: track.artist_unique_id || track.artist_id,
+                                  slug:
+                                    track.artist_unique_id ||
+                                    createSlug(track.artist_name || "artist"),
+                                })
+                              }
+                            >
                               {track.artist_name}
                             </p>
                             <p className="text-gray-500 text-xs mt-1">
@@ -732,7 +757,7 @@ export default function DesktopProfile() {
                               {track.duration_display || track.duration || "-"}
                             </p>
                           </div>
-                        </button>
+                        </div>
                       ))
                   ) : (
                     <div className="w-full text-center py-8 text-gray-500 text-sm">

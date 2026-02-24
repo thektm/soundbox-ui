@@ -621,8 +621,6 @@ export default function Profile() {
                           </div>
                         ))}
                       </div>
-
-                      
                     </div>
                   </div>
                 ) : (
@@ -751,7 +749,7 @@ export default function Profile() {
                 اخیراً پخش شده
               </h3>
 
-              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 hide-scrollbar">
+              <div className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1 custom-scrollbar">
                 {isFetching ? (
                   // Recently Played Skeletons
                   Array.from({ length: 3 }).map((_, idx) => (
@@ -770,57 +768,79 @@ export default function Profile() {
                   ))
                 ) : authUser?.recently_played?.items?.length ? (
                   authUser.recently_played.items.slice(0, 10).map((track) => (
-                    <button
+                    <div
                       key={track.id}
-                      onClick={() =>
-                        navigateTo("song-detail", {
-                          id: track.id,
-                          artistSlug:
-                            track.artist_unique_id ||
-                            createSlug(track.artist_name || "artist"),
-                          songSlug: createSlug(track.title),
-                        })
-                      }
-                      className="min-w-[260px] max-w-xs shrink-0 flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/7 hover:shadow-lg hover:scale-[1.01] transition-all duration-200 overflow-hidden focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-                      aria-label={`پخش مجدد ${track.title} اثر ${track.artist_name}`}
+                      className="min-w-[260px] max-w-xs shrink-0 flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/7 transition-all duration-200 overflow-hidden group"
                     >
                       <div
-                        className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-800"
-                        aria-hidden="true"
+                        className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-zinc-800 cursor-pointer"
+                        onClick={() =>
+                          navigateTo("song-detail", {
+                            id: track.id,
+                            artistSlug:
+                              track.artist_unique_id ||
+                              createSlug(track.artist_name || "artist"),
+                            songSlug: createSlug(track.title),
+                          })
+                        }
                       >
                         <Image
                           src={track.cover_image || "/music-listen.webp"}
                           alt=""
                           fill
-                          className="object-cover"
+                          className="object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       </div>
 
                       <div className="flex-1 text-right overflow-hidden">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-sm text-white truncate">
-                            {track.title}
-                          </h4>
-                          <span className="text-xs text-gray-400"> • </span>
-                          <span className="text-xs text-gray-400 truncate">
-                            {track.artist_name}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {track.duration_display}
-                        </div>
+                        <h4
+                          className="font-semibold text-sm text-white truncate cursor-pointer hover:text-emerald-400 transition-colors"
+                          onClick={() =>
+                            navigateTo("song-detail", {
+                              id: track.id,
+                              artistSlug:
+                                track.artist_unique_id ||
+                                createSlug(track.artist_name || "artist"),
+                              songSlug: createSlug(track.title),
+                            })
+                          }
+                        >
+                          {track.title}
+                        </h4>
+                        <p
+                          className="text-xs text-gray-400 truncate mt-1 cursor-pointer hover:text-emerald-400 transition-colors"
+                          onClick={() =>
+                            navigateTo("artist-detail", {
+                              id: track.artist_unique_id || track.artist_id,
+                              slug:
+                                track.artist_unique_id ||
+                                createSlug(track.artist_name || "artist"),
+                            })
+                          }
+                        >
+                          {track.artist_name}
+                        </p>
                       </div>
 
-                      <div
-                        className="w-10 h-10 flex items-center justify-center rounded-md bg-white/6"
-                        aria-hidden="true"
+                      <button
+                        onClick={() =>
+                          navigateTo("song-detail", {
+                            id: track.id,
+                            artistSlug:
+                              track.artist_unique_id ||
+                              createSlug(track.artist_name || "artist"),
+                            songSlug: createSlug(track.title),
+                          })
+                        }
+                        className="w-10 h-10 flex items-center justify-center rounded-md bg-white/6 active:scale-95 transition-all"
+                        aria-label={`پخش مجدد ${track.title}`}
                       >
                         <Icon
                           d={ICONS.music}
                           className="w-5 h-5 text-emerald-400"
                         />
-                      </div>
-                    </button>
+                      </button>
+                    </div>
                   ))
                 ) : (
                   <div className="w-full text-center py-8 text-gray-500 text-sm">
