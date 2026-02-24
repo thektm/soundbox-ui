@@ -279,7 +279,7 @@ interface NavItem {
 interface PlaylistItem {
   id: string;
   name: string;
-  type: "playlist" | "artist" | "album" | "podcast" | "song";
+  type: "playlist" | "artist" | "album" | "podcast" | "song" | "user";
   image?: string | string[];
   owner?: string;
   pinned?: boolean;
@@ -401,6 +401,7 @@ const LibraryItemComponent = memo(
       playlist: "پلی‌لیست",
       artist: "هنرمند",
       album: "آلبوم",
+      user: "کاربر",
       podcast: "پادکست",
       song: "آهنگ",
     };

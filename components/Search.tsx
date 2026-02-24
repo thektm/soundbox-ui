@@ -49,6 +49,8 @@ interface Album {
   id: string;
   title: string;
   artist: string;
+  artistId?: string | number;
+  slug?: string;
   image: string;
   year: string;
   type: string;

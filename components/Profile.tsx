@@ -622,18 +622,7 @@ export default function Profile() {
                         ))}
                       </div>
 
-                      <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-300">
-                            اعتبار تا
-                          </span>
-                          <span className="text-sm font-medium text-white">
-                            {new Date(
-                              Date.now() + 30 * 24 * 60 * 60 * 1000,
-                            ).toLocaleDateString("fa-IR")}
-                          </span>
-                        </div>
-                      </div>
+                      
                     </div>
                   </div>
                 ) : (

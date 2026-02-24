@@ -576,18 +576,7 @@ export default function DesktopProfile() {
                           </div>
                         ))}
                       </div>
-                      <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                        <div className="flex items-center justify-between">
-                          <span className="text-lg text-gray-300">
-                            اعتبار تا
-                          </span>
-                          <span className="text-lg font-medium text-white">
-                            {new Date(
-                              Date.now() + 30 * 24 * 60 * 60 * 1000,
-                            ).toLocaleDateString("fa-IR")}
-                          </span>
-                        </div>
-                      </div>
+                     
                     </div>
                   </div>
                 ) : (
