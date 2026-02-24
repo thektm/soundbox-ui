@@ -710,6 +710,21 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
       <header className="hidden md:flex sticky relative top-0 z-50 h-16 items-center justify-center px-6 bg-zinc-900/80 backdrop-blur-xl">
         <span className="absolute left-1/2 transform -translate-x-1/2 text-lg font-bold text-white pointer-events-none">
           {fullName}
+          {profile && (profile as any).unique_id === "sedabox" && (
+            <span
+              title="تأیید شده"
+              className="text-emerald-400 inline-block mr-2"
+            >
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          )}
         </span>
 
         {/* Back button positioned absolutely to ensure it's at the far left */}
@@ -767,6 +782,21 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
           style={{ opacity: headerOpacity }}
         >
           {fullName}
+          {profile && (profile as any).unique_id === "sedabox" && (
+            <span
+              title="تأیید شده"
+              className="text-emerald-400 inline-block mr-2 align-middle"
+            >
+              <svg
+                className="w-4 h-4 inline-block"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          )}
         </span>
         <button
           onClick={handleFollow}
@@ -939,10 +969,25 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
               }}
             >
               {fullName}
+              {profile && (profile as any).unique_id === "sedabox" && (
+                <span
+                  title="تأیید شده"
+                  className="text-emerald-400 inline-block mr-2 align-middle"
+                >
+                  <svg
+                    className="w-5 h-5 inline-block"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden
+                  >
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </span>
+              )}
             </h1>
 
             {/* Desktop Stats & Actions row */}
-            <div className="flex flex-col md:flex-row items-center md:items-center gap-6 md:gap-4 w-full">
+            <div className="flex  flex-col md:flex-row items-center md:items-center gap-6 md:gap-4 w-full">
               {/* Stats group */}
               <div className="hidden md:flex items-center gap-3 md:gap-2 text-zinc-400 text-sm md:text-base font-medium">
                 <button
@@ -1039,6 +1084,57 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     fill="currentColor"
                   >
                     <path d="M3 3v18l9-4 9 4V3H3zm13 9h-6V8h6v4z" />
+                  </svg>
+                </button>
+
+                {/* Share button (desktop) - same icon/behavior as mobile */}
+                <button
+                  aria-label="اشتراک‌گذاری پروفایل"
+                  onClick={async () => {
+                    const shareUrl =
+                      typeof window !== "undefined" && window.location
+                        ? window.location.href
+                        : `${typeof window !== "undefined" ? window.location.origin : "https://sedabox.com"}/u/${profile.unique_id}/${slugify(fullName)}`;
+                    try {
+                      if (
+                        typeof navigator !== "undefined" &&
+                        (navigator as any).clipboard
+                      ) {
+                        await (navigator as any).clipboard.writeText(shareUrl);
+                        toast.success("لینک کپی شد");
+                      } else if (typeof document !== "undefined") {
+                        const ta = document.createElement("textarea");
+                        ta.value = shareUrl;
+                        ta.style.position = "fixed";
+                        ta.style.left = "-9999px";
+                        document.body.appendChild(ta);
+                        ta.select();
+                        try {
+                          document.execCommand("copy");
+                          toast.success("لینک کپی شد");
+                        } catch (e) {
+                          toast.error("اشتراک‌گذاری ممکن نیست");
+                        }
+                        document.body.removeChild(ta);
+                      } else {
+                        toast.error("اشتراک‌گذاری ممکن نیست");
+                      }
+                    } catch (e) {
+                      toast.error("اشتراک‌گذاری ممکن نیست");
+                    }
+                  }}
+                  className="w-10 h-10 rounded-full flex items-center justify-center transition-all"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <svg
+                    className="w-4 h-4 text-zinc-300"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z" />
                   </svg>
                 </button>
 
@@ -1185,6 +1281,40 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
 
                 {/* Share button */}
                 <button
+                  aria-label="اشتراک‌گذاری پروفایل"
+                  onClick={async () => {
+                    const shareUrl =
+                      typeof window !== "undefined" && window.location
+                        ? window.location.href
+                        : `${window.location.origin}/u/${profile.unique_id}/${slugify(fullName)}`;
+                    try {
+                      if (
+                        typeof navigator !== "undefined" &&
+                        (navigator as any).clipboard
+                      ) {
+                        await (navigator as any).clipboard.writeText(shareUrl);
+                        toast.success("لینک کپی شد");
+                      } else if (typeof document !== "undefined") {
+                        const ta = document.createElement("textarea");
+                        ta.value = shareUrl;
+                        ta.style.position = "fixed";
+                        ta.style.left = "-9999px";
+                        document.body.appendChild(ta);
+                        ta.select();
+                        try {
+                          document.execCommand("copy");
+                          toast.success("لینک کپی شد");
+                        } catch (e) {
+                          toast.error("اشتراک‌گذاری ممکن نیست");
+                        }
+                        document.body.removeChild(ta);
+                      } else {
+                        toast.error("اشتراک‌گذاری ممکن نیست");
+                      }
+                    } catch (e) {
+                      toast.error("اشتراک‌گذاری ممکن نیست");
+                    }
+                  }}
                   className="w-12 h-12 rounded-full flex items-center justify-center transition-all"
                   style={{
                     background: "rgba(255,255,255,0.06)",
@@ -1412,27 +1542,34 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                   onClick={async () => {
                     const shareUrl =
                       typeof window !== "undefined" && window.location
-                        ? `${window.location.origin}/u/${profile.unique_id}/${slugify(fullName)}`
-                        : `/u/${profile.unique_id}`;
-                    if (navigator.share) {
-                      try {
-                        await navigator.share({
-                          title: fullName,
-                          url: shareUrl,
-                        });
-                      } catch (e) {}
-                    } else if (
-                      typeof navigator !== "undefined" &&
-                      (navigator as any).clipboard
-                    ) {
-                      try {
+                        ? window.location.href
+                        : `${window.location.origin}/u/${profile.unique_id}/${slugify(fullName)}`;
+                    try {
+                      if (
+                        typeof navigator !== "undefined" &&
+                        (navigator as any).clipboard
+                      ) {
                         await (navigator as any).clipboard.writeText(shareUrl);
                         toast.success("لینک کپی شد");
-                      } catch (e) {
+                      } else if (typeof document !== "undefined") {
+                        const ta = document.createElement("textarea");
+                        ta.value = shareUrl;
+                        ta.style.position = "fixed";
+                        ta.style.left = "-9999px";
+                        document.body.appendChild(ta);
+                        ta.select();
+                        try {
+                          document.execCommand("copy");
+                          toast.success("لینک کپی شد");
+                        } catch (e) {
+                          toast.error("اشتراک‌گذاری ممکن نیست");
+                        }
+                        document.body.removeChild(ta);
+                      } else {
                         toast.error("اشتراک‌گذاری ممکن نیست");
                       }
-                    } else {
-                      toast("اشتراک‌گذاری در این مرورگر پشتیبانی نمی‌شود");
+                    } catch (e) {
+                      toast.error("اشتراک‌گذاری ممکن نیست");
                     }
                     setOptionsOpen(false);
                   }}
@@ -1482,27 +1619,34 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                   onClick={async () => {
                     const shareUrl =
                       typeof window !== "undefined" && window.location
-                        ? `${window.location.origin}/u/${profile.unique_id}/${slugify(fullName)}`
-                        : `/u/${profile.unique_id}`;
-                    if (navigator.share) {
-                      try {
-                        await navigator.share({
-                          title: fullName,
-                          url: shareUrl,
-                        });
-                      } catch (e) {}
-                    } else if (
-                      typeof navigator !== "undefined" &&
-                      (navigator as any).clipboard
-                    ) {
-                      try {
+                        ? window.location.href
+                        : `${window.location.origin}/u/${profile.unique_id}/${slugify(fullName)}`;
+                    try {
+                      if (
+                        typeof navigator !== "undefined" &&
+                        (navigator as any).clipboard
+                      ) {
                         await (navigator as any).clipboard.writeText(shareUrl);
                         toast.success("لینک کپی شد");
-                      } catch (e) {
+                      } else if (typeof document !== "undefined") {
+                        const ta = document.createElement("textarea");
+                        ta.value = shareUrl;
+                        ta.style.position = "fixed";
+                        ta.style.left = "-9999px";
+                        document.body.appendChild(ta);
+                        ta.select();
+                        try {
+                          document.execCommand("copy");
+                          toast.success("لینک کپی شد");
+                        } catch (e) {
+                          toast.error("اشتراک‌گذاری ممکن نیست");
+                        }
+                        document.body.removeChild(ta);
+                      } else {
                         toast.error("اشتراک‌گذاری ممکن نیست");
                       }
-                    } else {
-                      toast("اشتراک‌گذاری در این مرورگر پشتیبانی نمی‌شود");
+                    } catch (e) {
+                      toast.error("اشتراک‌گذاری ممکن نیست");
                     }
                     setOptionsOpen(false);
                   }}

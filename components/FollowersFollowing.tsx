@@ -128,6 +128,15 @@ const FollowerCard = memo(
             <span className="text-sm font-bold text-white truncate">
               {user.name}
             </span>
+            {(user as any).unique_id === "sedabox" && (
+              <span
+                title="تأیید شده"
+                className="text-emerald-400 shrink-0 ml-1"
+                aria-hidden
+              >
+                <Icon d={ICONS.verified} className="w-4 h-4" filled={true} />
+              </span>
+            )}
             <span className="text-[11px] bg-white/[0.03] text-gray-400 px-2 py-0.5 rounded-full shrink-0">
               {user.type === "artist" ? "هنرمند" : "کاربر"}
             </span>
@@ -212,6 +221,15 @@ const FollowingCard = memo(
             <span className="text-sm font-bold text-white truncate block">
               {artist.name}
             </span>
+            {(artist as any).unique_id === "sedabox" && (
+              <span
+                title="تأیید شده"
+                className="text-emerald-400 shrink-0 ml-1"
+                aria-hidden
+              >
+                <Icon d={ICONS.verified} className="w-4 h-4" filled={true} />
+              </span>
+            )}
             <span className="text-[11px] bg-white/[0.03] text-gray-400 px-2 py-0.5 rounded-full shrink-0">
               {artist.type === "artist" ? "هنرمند" : "کاربر"}
             </span>

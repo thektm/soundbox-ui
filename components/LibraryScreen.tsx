@@ -32,6 +32,7 @@ const LibraryItem = ({
   imageUrl,
   icon,
   type,
+  meta,
   onClick,
   onOptionsClick,
   onTitleClick,
@@ -43,6 +44,7 @@ const LibraryItem = ({
   imageUrl?: string;
   icon?: React.ReactNode;
   type?: string;
+  meta?: any;
   onClick: () => void;
   onOptionsClick?: () => void;
   onTitleClick?: () => void;
@@ -52,6 +54,11 @@ const LibraryItem = ({
   const itemAriaLabel = `مشاهده ${title}${subtitle ? ` اثر ${subtitle}` : ""}`;
 
   if (viewMode === "grid") {
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(min-width: 768px)").matches;
+
     return (
       <motion.button
         layout
@@ -81,6 +88,7 @@ const LibraryItem = ({
               aria-hidden="true"
             >
               {icon || <User className="w-10 h-10 text-zinc-500" />}
+              {/* plan badge moved to subtitle area for user cards (appended after unique_id) */}
             </div>
           )}
         </div>
@@ -105,6 +113,29 @@ const LibraryItem = ({
                 className="text-white text-xs font-semibold truncate w-full cursor-pointer hover:underline"
               >
                 {title}
+                {type === "user" && meta && meta.unique_id === "sedabox" && (
+                  <span
+                    className="inline-flex items-center mr-2 text-emerald-500"
+                    aria-label="تأیید شده"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="w-4 h-4"
+                    >
+                      <path d="M12 2a2 2 0 012 2v.184a2 2 0 001.106 1.788l.796.447a2 2 0 01.94 2.457l-.244.79a2 2 0 00.485 1.86l.56.61a2 2 0 01.29 2.03l-.37.828a2 2 0 00.44 2.2l.59.59a2 2 0 01.02 2.83l-1.06 1.06a2 2 0 01-2.83.02l-.59-.59a2 2 0 00-2.2-.44l-.828.37a2 2 0 01-2.03-.29l-.61-.56a2 2 0 00-1.86-.485l-.79.244a2 2 0 01-2.457-.94l-.447-.796A2 2 0 014.184 16H4a2 2 0 01-2-2V12a2 2 0 012-2h.184a2 2 0 001.788-1.106l.447-.796A2 2 0 018.07 5.17L8.314 4.38A2 2 0 009.7 3.44L10.31 3a2 2 0 001.69-1.285A2 2 0 0112 2z" />
+                      <path
+                        d="M10 13l2 2 4-4"
+                        fill="none"
+                        stroke="white"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                )}
               </span>
               {subtitle && (
                 <span
@@ -120,20 +151,105 @@ const LibraryItem = ({
                   }}
                   role={onSubtitleClick ? "link" : undefined}
                   tabIndex={onSubtitleClick ? 0 : undefined}
-                  className="text-zinc-400 text-[10px] truncate w-full mt-0.5 cursor-pointer hover:underline"
+                  className="text-zinc-400 text-[10px] truncate w-full mt-0.5 cursor-pointer hover:underline flex items-center gap-1"
                 >
-                  {subtitle}
+                  <span className="truncate">{subtitle}</span>
+                  {type === "user" && meta && (
+                    <span className="text-emerald-500 text-5xl">·</span>
+                  )}
+                  {type === "user" &&
+                    meta &&
+                    (meta.plan === "premium" ? (
+                      <span className="font-semibold text-yellow-300">
+                        پرمیوم
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-white">
+                        کاربر
+                      </span>
+                    ))}
                 </span>
               )}
             </>
           ) : (
             <>
-              <span className="text-white text-xs font-semibold truncate w-full">
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTitleClick && onTitleClick();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    onTitleClick && onTitleClick();
+                  }
+                }}
+                role={onTitleClick ? "link" : undefined}
+                tabIndex={onTitleClick ? 0 : undefined}
+                className={`text-white text-xs font-semibold truncate w-full ${
+                  onTitleClick ? "cursor-pointer hover:underline" : ""
+                }`}
+              >
                 {title}
+                {type === "user" && meta && meta.unique_id === "sedabox" && (
+                  <span
+                    className="inline-flex items-center mr-2 text-emerald-500"
+                    aria-label="تأیید شده"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="w-4 h-4"
+                    >
+                      <path d="M12 2a2 2 0 012 2v.184a2 2 0 001.106 1.788l.796.447a2 2 0 01.94 2.457l-.244.79a2 2 0 00.485 1.86l.56.61a2 2 0 01.29 2.03l-.37.828a2 2 0 00.44 2.2l.59.59a2 2 0 01.02 2.83l-1.06 1.06a2 2 0 01-2.83.02l-.59-.59a2 2 0 00-2.2-.44l-.828.37a2 2 0 01-2.03-.29l-.61-.56a2 2 0 00-1.86-.485l-.79.244a2 2 0 01-2.457-.94l-.447-.796A2 2 0 014.184 16H4a2 2 0 01-2-2V12a2 2 0 012-2h.184a2 2 0 001.788-1.106l.447-.796A2 2 0 018.07 5.17L8.314 4.38A2 2 0 009.7 3.44L10.31 3a2 2 0 001.69-1.285A2 2 0 0112 2z" />
+                      <path
+                        d="M10 13l2 2 4-4"
+                        fill="none"
+                        stroke="white"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                )}
               </span>
               {subtitle && (
-                <span className="text-zinc-400 text-[10px] truncate w-full mt-0.5">
-                  {subtitle}
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSubtitleClick && onSubtitleClick();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.stopPropagation();
+                      onSubtitleClick && onSubtitleClick();
+                    }
+                  }}
+                  role={onSubtitleClick ? "link" : undefined}
+                  tabIndex={onSubtitleClick ? 0 : undefined}
+                  className={`text-zinc-400 text-[10px] truncate w-full mt-0.5 flex items-center gap-1 ${
+                    (type === "song" || type === "album") && onSubtitleClick
+                      ? "cursor-pointer hover:underline"
+                      : ""
+                  }`}
+                >
+                  <span className="truncate">{subtitle}</span>
+                  {type === "user" && meta && (
+                    <span className="text-emerald-500 text-5xl">·</span>
+                  )}
+                  {type === "user" &&
+                    meta &&
+                    (meta.plan === "premium" ? (
+                      <span className="font-semibold text-yellow-300">
+                        پرمیوم
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-white">
+                        کاربر
+                      </span>
+                    ))}
                 </span>
               )}
             </>
@@ -163,6 +279,7 @@ const LibraryItem = ({
             icon || <User className="w-6 h-6 text-zinc-400" />
           )}
         </div>
+
         <div className="flex flex-col items-start overflow-hidden text-right flex-1">
           {typeof window !== "undefined" &&
           window.matchMedia &&
@@ -184,6 +301,29 @@ const LibraryItem = ({
                 className="text-white text-lg font-medium truncate w-full cursor-pointer hover:underline"
               >
                 {title}
+                {type === "user" && meta && meta.unique_id === "sedabox" && (
+                  <span
+                    className="inline-flex items-center mr-2 text-emerald-500"
+                    aria-label="تأیید شده"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="w-4 h-4"
+                    >
+                      <path d="M12 2a2 2 0 012 2v.184a2 2 0 001.106 1.788l.796.447a2 2 0 01.94 2.457l-.244.79a2 2 0 00.485 1.86l.56.61a2 2 0 01.29 2.03l-.37.828a2 2 0 00.44 2.2l.59.59a2 2 0 01.02 2.83l-1.06 1.06a2 2 0 01-2.83.02l-.59-.59a2 2 0 00-2.2-.44l-.828.37a2 2 0 01-2.03-.29l-.61-.56a2 2 0 00-1.86-.485l-.79.244a2 2 0 01-2.457-.94l-.447-.796A2 2 0 014.184 16H4a2 2 0 01-2-2V12a2 2 0 012-2h.184a2 2 0 001.788-1.106l.447-.796A2 2 0 018.07 5.17L8.314 4.38A2 2 0 009.7 3.44L10.31 3a2 2 0 001.69-1.285A2 2 0 0112 2z" />
+                      <path
+                        d="M10 13l2 2 4-4"
+                        fill="none"
+                        stroke="white"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                )}
               </span>
               {subtitle && (
                 <span
@@ -199,20 +339,105 @@ const LibraryItem = ({
                   }}
                   role={onSubtitleClick ? "link" : undefined}
                   tabIndex={onSubtitleClick ? 0 : undefined}
-                  className="text-zinc-400 text-sm truncate w-full cursor-pointer"
+                  className="text-zinc-400 text-sm truncate w-full cursor-pointer hover:underline flex items-center gap-1"
                 >
-                  {subtitle}
+                  <span className="truncate">{subtitle}</span>
+                  {type === "user" && meta && (
+                    <span className="text-emerald-500 text-5xl">·</span>
+                  )}
+                  {type === "user" &&
+                    meta &&
+                    (meta.plan === "premium" ? (
+                      <span className="font-semibold text-yellow-300">
+                        پرمیوم
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-white">
+                        کاربر
+                      </span>
+                    ))}
                 </span>
               )}
             </>
           ) : (
             <>
-              <span className="text-white text-lg font-medium truncate w-full">
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTitleClick && onTitleClick();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    onTitleClick && onTitleClick();
+                  }
+                }}
+                role={onTitleClick ? "link" : undefined}
+                tabIndex={onTitleClick ? 0 : undefined}
+                className={`text-white text-lg font-medium truncate w-full ${
+                  onTitleClick ? "cursor-pointer hover:underline" : ""
+                }`}
+              >
                 {title}
+                {type === "user" && meta && meta.unique_id === "sedabox" && (
+                  <span
+                    className="inline-flex items-center mr-2 text-emerald-500"
+                    aria-label="تأیید شده"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="w-4 h-4"
+                    >
+                      <path d="M12 2a2 2 0 012 2v.184a2 2 0 001.106 1.788l.796.447a2 2 0 01.94 2.457l-.244.79a2 2 0 00.485 1.86l.56.61a2 2 0 01.29 2.03l-.37.828a2 2 0 00.44 2.2l.59.59a2 2 0 01.02 2.83l-1.06 1.06a2 2 0 01-2.83.02l-.59-.59a2 2 0 00-2.2-.44l-.828.37a2 2 0 01-2.03-.29l-.61-.56a2 2 0 00-1.86-.485l-.79.244a2 2 0 01-2.457-.94l-.447-.796A2 2 0 014.184 16H4a2 2 0 01-2-2V12a2 2 0 012-2h.184a2 2 0 001.788-1.106l.447-.796A2 2 0 08.07 5.17L8.314 4.38A2 2 0 009.7 3.44L10.31 3a2 2 0 001.69-1.285A2 2 0 0112 2z" />
+                      <path
+                        d="M10 13l2 2 4-4"
+                        fill="none"
+                        stroke="white"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                )}
               </span>
               {subtitle && (
-                <span className="text-zinc-400 text-sm truncate w-full">
-                  {subtitle}
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSubtitleClick && onSubtitleClick();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.stopPropagation();
+                      onSubtitleClick && onSubtitleClick();
+                    }
+                  }}
+                  role={onSubtitleClick ? "link" : undefined}
+                  tabIndex={onSubtitleClick ? 0 : undefined}
+                  className={`text-zinc-400 text-sm truncate w-full flex items-center gap-1 ${
+                    (type === "song" || type === "album") && onSubtitleClick
+                      ? "cursor-pointer hover:underline"
+                      : ""
+                  }`}
+                >
+                  <span className="truncate">{subtitle}</span>
+                  {type === "user" && meta && (
+                    <span className="text-emerald-500 text-5xl">·</span>
+                  )}
+                  {type === "user" &&
+                    meta &&
+                    (meta.plan === "premium" ? (
+                      <span className="font-semibold text-yellow-300">
+                        پرمیوم
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-white">
+                        کاربر
+                      </span>
+                    ))}
                 </span>
               )}
             </>
@@ -297,6 +522,7 @@ const LibraryScreen: React.FC = () => {
 
   const filters = [
     { id: "artist", label: "هنرمندان" },
+    { id: "user", label: "کاربران" },
     { id: "song", label: "آهنگ‌ها" },
     { id: "playlist", label: "پلی‌لیست‌ها" },
     { id: "album", label: "آلبوم‌ها" },
@@ -507,6 +733,8 @@ const LibraryScreen: React.FC = () => {
     switch (type) {
       case "artist":
         return "هنرمند";
+      case "user":
+        return "کاربر";
       case "song":
         return "آهنگ";
       case "playlist":
@@ -520,6 +748,8 @@ const LibraryScreen: React.FC = () => {
 
   const getIconForType = (type: string) => {
     switch (type) {
+      case "user":
+        return <User className="w-6 h-6 text-emerald-500" />;
       case "artist":
         return <User className="w-6 h-6 text-zinc-400" />;
       case "song":
@@ -757,12 +987,30 @@ const LibraryScreen: React.FC = () => {
               <AnimatePresence mode="popLayout">
                 {displayItems.map((historyItem) => {
                   const { type, item } = historyItem;
-                  const title = item.title || item.name || "";
-                  const imageUrl = item.cover_image || item.profile_image || "";
-                  const subtitle =
-                    type === "song" || type === "album"
-                      ? item.artist_name || getTranslatedType(type)
-                      : getTranslatedType(type);
+                  let title = item.title || item.name || "";
+                  let imageUrl = item.cover_image || item.profile_image || "";
+                  let subtitle = getTranslatedType(type);
+
+                  if (type === "user") {
+                    const name =
+                      `${item.first_name || ""} ${item.last_name || ""}`.trim();
+                    title = name || item.unique_id || `کاربر ${item.id}`;
+                    subtitle = item.unique_id || "";
+                    imageUrl = item.image_profile?.image || imageUrl || "";
+                  } else if (type === "artist") {
+                    title = item.name || title;
+                    imageUrl = item.profile_image || imageUrl || "";
+                    subtitle = item.unique_id || getTranslatedType(type);
+                  } else if (type === "song" || type === "album") {
+                    title = item.title || item.name || title;
+                    imageUrl =
+                      item.cover_image || item.profile_image || imageUrl || "";
+                    subtitle = item.artist_name || getTranslatedType(type);
+                  } else if (type === "playlist") {
+                    title = item.title || title;
+                    imageUrl = item.cover_image || imageUrl || "";
+                    subtitle = getTranslatedType(type);
+                  }
 
                   return (
                     <LibraryItem
@@ -772,30 +1020,54 @@ const LibraryScreen: React.FC = () => {
                       imageUrl={imageUrl}
                       icon={getIconForType(type)}
                       type={type}
+                      meta={item}
                       viewMode={viewMode}
                       onClick={() => {
+                        // Special-case users: prefer navigating using unique_id when available
+                        if (type === "user") {
+                          const uid = item.unique_id || item.id.toString();
+                          navigateTo("user-detail", { id: uid });
+                          return;
+                        }
+
                         const pageMap: Record<string, string> = {
+                          user: "user-detail",
                           artist: "artist-detail",
                           song: "song-detail",
                           playlist: "playlist-detail",
                           album: "album-detail",
                         };
-                        navigateTo(pageMap[type], {
-                          id: item.id,
-                          slug: item.id, // Fallback slug to ID
-                        });
+                        const page = pageMap[type];
+                        if (page) {
+                          navigateTo(page, {
+                            id: item.id,
+                            uniqueId: item.unique_id || undefined,
+                            slug: item.unique_id || item.id,
+                          });
+                        }
                       }}
                       onTitleClick={() => {
+                        if (type === "user") {
+                          const uid = item.unique_id || item.id.toString();
+                          navigateTo("user-detail", { id: uid });
+                          return;
+                        }
+
                         const pageMap: Record<string, string> = {
+                          user: "user-detail",
                           artist: "artist-detail",
                           song: "song-detail",
                           playlist: "playlist-detail",
                           album: "album-detail",
                         };
-                        navigateTo(pageMap[type], {
-                          id: item.id,
-                          slug: item.id,
-                        });
+                        const page = pageMap[type];
+                        if (page) {
+                          navigateTo(page, {
+                            id: item.id,
+                            uniqueId: item.unique_id || undefined,
+                            slug: item.unique_id || item.id,
+                          });
+                        }
                       }}
                       onSubtitleClick={() => {
                         // for songs/albums, subtitle is artist name -> go to artist detail
@@ -803,6 +1075,9 @@ const LibraryScreen: React.FC = () => {
                           if (item.artist_id) {
                             navigateTo("artist-detail", { id: item.artist_id });
                           }
+                        } else if (type === "user") {
+                          const uid = item.unique_id || item.id.toString();
+                          navigateTo("user-detail", { id: uid });
                         }
                       }}
                     />

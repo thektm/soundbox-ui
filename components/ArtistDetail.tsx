@@ -269,6 +269,9 @@ const SongRow = memo(
     playing,
     onPlay,
     onMore,
+    onTitleClick,
+    onArtistClick,
+    artistName,
     delay,
   }: {
     song: ApiSong;
@@ -277,11 +280,19 @@ const SongRow = memo(
     playing: boolean;
     onPlay: () => void;
     onMore: (song: ApiSong) => void;
+    onTitleClick?: () => void;
+    onArtistClick?: () => void;
+    artistName?: string;
     delay: number;
   }) => {
     const [liked, setLiked] = useState(song.is_liked);
     const [hover, setHover] = useState(false);
     const { ref, visible } = useVisible();
+
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(min-width: 768px)").matches;
 
     return (
       <div
@@ -315,16 +326,47 @@ const SongRow = memo(
         </div>
 
         <div className="flex-1 min-w-0">
-          <div
-            className={`text-[15px] font-medium truncate ${
-              current ? "text-green-500" : "text-white"
-            }`}
-          >
-            {song.title}
-          </div>
-          <div className="text-[13px] text-white/60 truncate mt-0.5">
-            {song.plays}
-          </div>
+          {isDesktop && (onTitleClick || onArtistClick) ? (
+            <>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTitleClick && onTitleClick();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    onTitleClick && onTitleClick();
+                  }
+                }}
+                role={onTitleClick ? "link" : undefined}
+                tabIndex={onTitleClick ? 0 : undefined}
+                className={`text-[15px] font-medium truncate ${
+                  current ? "text-green-500" : "text-white"
+                } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
+              >
+                {song.title}
+              </div>
+              <div
+                
+              >
+                {song.plays}
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                className={`text-[15px] font-medium truncate ${
+                  current ? "text-green-500" : "text-white"
+                }`}
+              >
+                {song.title}
+              </div>
+              <div className="text-[13px] text-white/60 truncate mt-0.5">
+                {song.plays ? `${song.plays.toLocaleString("fa-IR")} پخش` : song.artist_name || artistName}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -512,8 +554,8 @@ const ArtistSkeleton = () => (
 );
 
 export default function ArtistDetail({ id }: ArtistDetailProps) {
-  const { goBack, currentParams, scrollY } = useNavigation();
-  const { playTrack, setQueue } = usePlayer();
+  const { goBack, currentParams, scrollY , navigateTo } = useNavigation();
+  const { playTrack, setQueue, currentTrack, isPlaying } = usePlayer();
   const { accessToken, authenticatedFetch } = useAuth();
 
   // Support navigation by numeric id OR by unique_id slug (from URL)
@@ -1010,10 +1052,24 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                   key={song.id}
                   song={song}
                   idx={i}
-                  current={false}
-                  playing={false}
+                  current={String(song.id) === currentTrack?.id}
+                  playing={isPlaying}
                   onPlay={() => playSong(song)}
                   onMore={() => handleMore(song)}
+                  onTitleClick={() =>
+                    navigateTo("song-detail", {
+                      id: song.id,
+                      title: createSlug(song.title),
+                    })
+                  }
+                  onArtistClick={() =>
+                    (song.artist_id || artist.id) &&
+                    navigateTo("artist-detail", {
+                      id: song.artist_id || artist.id,
+                      slug: artist.unique_id,
+                    })
+                  }
+                  artistName={artist.name}
                   delay={i * 50}
                 />
               ))}
@@ -1051,9 +1107,12 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
             {(data?.latest_songs.items || []).map((song) => (
               <SongCard
                 key={song.id}
+                id={song.id}
                 image={song.cover_image}
                 title={song.title}
                 artist={song.artist_name}
+                artistId={song.artist_id || artist.id}
+                artistSlug={artist.unique_id}
                 onClick={() => playSong(song)}
               />
             ))}
@@ -1194,31 +1253,69 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
 
 // Missing SongCard component
 const SongCard = ({
+  id,
   image,
   title,
   artist,
+  artistId,
+  artistSlug,
   onClick,
 }: {
+  id: number;
   image: string;
   title: string;
   artist: string;
+  artistId?: number;
+  artistSlug?: string;
   onClick: () => void;
-}) => (
-  <div
-    onClick={onClick}
-    className="flex-shrink-0 w-56 bg-neutral-800 rounded-lg p-3 hover:bg-neutral-700 transition cursor-pointer"
-  >
-    <div className="w-full aspect-square rounded mb-2 overflow-hidden relative">
-      <ImageWithPlaceholder
-        src={image}
-        alt={title}
-        className="w-full h-full object-cover"
-      />
+}) => {
+  const { navigateTo } = useNavigation();
+  const isDesktop =
+    typeof window !== "undefined" &&
+    window.matchMedia("(min-width: 768px)").matches;
+
+  return (
+    <div
+      onClick={onClick}
+      className="flex-shrink-0 w-40 sm:w-56 bg-neutral-800/40 rounded-xl p-3 hover:bg-neutral-700/60 transition cursor-pointer group"
+    >
+      <div className="w-full aspect-square rounded-lg mb-3 overflow-hidden relative shadow-lg">
+        <ImageWithPlaceholder
+          src={image}
+          alt={title}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        />
+        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
+      </div>
+      <h3
+        className={`font-semibold text-[13px] sm:text-sm truncate mb-1 ${
+          isDesktop ? "hover:underline decoration-zinc-500" : ""
+        }`}
+        onClick={(e) => {
+          if (!isDesktop) return;
+          e.stopPropagation();
+          navigateTo("song-detail", { id });
+        }}
+      >
+        {title}
+      </h3>
+      <p
+        className={`text-[11px] text-neutral-400 truncate ${
+          isDesktop
+            ? "hover:text-white transition-colors hover:underline decoration-zinc-500"
+            : ""
+        }`}
+        onClick={(e) => {
+          if (!isDesktop || !artistId) return;
+          e.stopPropagation();
+          navigateTo("artist-detail", { id: artistId, slug: artistSlug });
+        }}
+      >
+        {artist}
+      </p>
     </div>
-    <h3 className="font-semibold text-sm truncate">{title}</h3>
-    <p className="text-xs text-neutral-400 truncate">{artist}</p>
-  </div>
-);
+  );
+};
 
 const PlaylistSnippetCard = ({
   playlist,

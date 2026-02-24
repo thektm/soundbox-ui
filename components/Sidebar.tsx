@@ -283,6 +283,7 @@ interface PlaylistItem {
   image?: string | string[];
   owner?: string;
   pinned?: boolean;
+  meta?: any;
 }
 
 // ============================================================================
@@ -386,11 +387,15 @@ const LibraryItemComponent = memo(
     isCollapsed,
     viewMode,
     onClick,
+    onTitleClick,
+    onSubtitleClick,
   }: {
     item: PlaylistItem;
     isCollapsed: boolean;
     viewMode: "list" | "grid";
     onClick: () => void;
+    onTitleClick?: () => void;
+    onSubtitleClick?: () => void;
   }) => {
     const typeLabels = {
       playlist: "پلی‌لیست",
@@ -533,11 +538,95 @@ const LibraryItemComponent = memo(
             viewMode === "grid" ? "w-full" : "text-right"
           }`}
         >
-          <p className="text-sm font-medium text-white truncate">{item.name}</p>
-          <p className="text-xs text-zinc-400 truncate">
-            {typeLabels[item.type]}
-            {item.owner && ` • ${item.owner}`}
-          </p>
+          {(() => {
+            const displayName =
+              item.name || (item.meta && (item.meta.unique_id || "")) || "";
+            if (item.type === "user") {
+              return (
+                <>
+                  <p className="text-sm font-medium text-white truncate">
+                    {displayName}
+                    {item.meta && item.meta.unique_id === "sedabox" && (
+                      <span
+                        className="inline-flex items-center mr-2 text-emerald-500"
+                        aria-label="تأیید شده"
+                      >
+                        ✓
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-zinc-400 truncate">
+                    {item.meta ? (
+                      item.meta.plan === "premium" ? (
+                        <span className="font-semibold text-yellow-300">
+                          پرمیوم
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-white">
+                          کاربر
+                        </span>
+                      )
+                    ) : (
+                      <>
+                        {typeLabels[item.type]}
+                        {item.owner && ` • ${item.owner}`}
+                      </>
+                    )}
+                  </p>
+                </>
+              );
+            }
+
+            // For non-user items render clickable title/subtitle when handlers are provided
+            const subtitleText =
+              // prefer explicit artist/owner name if available
+              (item.meta && (item.meta.artist_name || item.owner)) ||
+              typeLabels[item.type];
+
+            return (
+              <>
+                <p className="text-sm font-medium text-white truncate">
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTitleClick ? onTitleClick() : onClick();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.stopPropagation();
+                        onTitleClick ? onTitleClick() : onClick();
+                      }
+                    }}
+                    role={onTitleClick ? "link" : undefined}
+                    tabIndex={onTitleClick ? 0 : undefined}
+                    className={`truncate ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
+                  >
+                    {displayName}
+                  </span>
+                </p>
+                <p className="text-xs text-zinc-400 truncate">
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSubtitleClick && onSubtitleClick();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.stopPropagation();
+                        onSubtitleClick && onSubtitleClick();
+                      }
+                    }}
+                    role={onSubtitleClick ? "link" : undefined}
+                    tabIndex={onSubtitleClick ? 0 : undefined}
+                    className={`truncate ${onSubtitleClick ? "cursor-pointer hover:underline" : ""}`}
+                  >
+                    {subtitleText}
+                  </span>
+                  {item.owner && item.meta == null && ` • ${item.owner}`}
+                </p>
+              </>
+            );
+          })()}
         </div>
       </button>
     );
@@ -657,14 +746,30 @@ function Sidebar() {
         const list = data.results || [];
         const mapped = list.map((h: any) => {
           const item = h.item;
+          const isUser = h.type === "user" || item.type === "user";
+          let displayName = item.title || item.name || item.unique_id || "";
+          if (isUser) {
+            const name =
+              `${item.first_name || ""} ${item.last_name || ""}`.trim();
+            displayName = name || item.unique_id || `کاربر ${item.id}`;
+          }
+          const imageSrc =
+            (h.type === "user"
+              ? item.image_profile?.image ||
+                item.profile_image ||
+                item.profile_image?.image
+              : undefined) ||
+            item.cover_image ||
+            item.image ||
+            item.covers;
+
           return {
             id: item.unique_id || item.id,
-            name: item.title || item.name,
+            name: displayName,
             type: h.type as any,
-            image: normalizeCover(
-              item.cover_image || item.image || item.covers,
-            ),
+            image: normalizeCover(imageSrc),
             owner: item.owner || undefined,
+            meta: item,
             pinned: false,
           } as PlaylistItem;
         });
@@ -971,9 +1076,51 @@ function Sidebar() {
                       }
 
                       if (item.type === "song") {
-                        // maybe navigate to song detail?
                         navigateTo("song-detail", { id: item.id });
                         return;
+                      }
+                    }}
+                    onTitleClick={() => {
+                      // same behavior as clicking the item
+                      if (item.type === "artist") {
+                        navigateTo("artist-detail", {
+                          id: item.id,
+                          slug: createSlug(item.name || ""),
+                        });
+                        return;
+                      }
+                      if (item.type === "album") {
+                        navigateTo("album-detail", {
+                          id: item.id,
+                          slug: createSlug(item.name),
+                          album: item,
+                        });
+                        return;
+                      }
+                      if (item.type === "playlist") {
+                        navigateTo("playlist-detail", { id: item.id });
+                        return;
+                      }
+                      if (item.type === "song") {
+                        navigateTo("song-detail", { id: item.id });
+                        return;
+                      }
+                    }}
+                    onSubtitleClick={() => {
+                      // when subtitle represents an artist (songs/albums), try to open artist detail
+                      if (item.type === "song" || item.type === "album") {
+                        const meta = item.meta || {};
+                        const artistId = meta.artist_id || meta.artist?.id;
+                        const artistUnique =
+                          meta.artist_unique_id || meta.artist?.unique_id || meta.unique_id;
+                        if (artistId) {
+                          navigateTo("artist-detail", { id: artistId });
+                        } else if (artistUnique) {
+                          navigateTo("artist-detail", {
+                            id: artistUnique,
+                            slug: createSlug((meta.artist_name || item.owner) || ""),
+                          });
+                        }
                       }
                     }}
                   />

@@ -27,6 +27,7 @@ interface PaginatedResponse<T> {
 const LatestReleasesPage: React.FC = () => {
   const { accessToken, authenticatedFetch } = useAuth();
   const { setQueue } = usePlayer();
+  const { navigateTo } = useNavigation();
   const [songs, setSongs] = useState<ApiSong[]>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -126,10 +127,36 @@ const LatestReleasesPage: React.FC = () => {
             <div className="flex-1 p-6 sm:p-8 space-y-3 w-full">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <h3 className="text-2xl font-black text-white group-hover:text-emerald-400 transition-colors">
+                  <h3
+                    className="text-2xl font-black text-white group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
+                    onClick={(e) => {
+                      const isDesktop =
+                        typeof window !== "undefined" &&
+                        window.matchMedia("(min-width: 768px)").matches;
+                      if (!isDesktop) return;
+
+                      e.stopPropagation();
+                      navigateTo("song-detail", { id: song.id });
+                    }}
+                  >
                     {song.title}
                   </h3>
-                  <p className="text-zinc-400 font-medium text-lg">
+                  <p
+                    className="text-zinc-400 font-medium text-lg hover:text-white transition-colors hover:underline decoration-zinc-500"
+                    onClick={(e) => {
+                      const isDesktop =
+                        typeof window !== "undefined" &&
+                        window.matchMedia("(min-width: 768px)").matches;
+                      if (!isDesktop) return;
+
+                      e.stopPropagation();
+                      if ((song as any).artist_id) {
+                        navigateTo("artist-detail", {
+                          id: (song as any).artist_id,
+                        });
+                      }
+                    }}
+                  >
                     {song.artist_name}
                   </p>
                 </div>

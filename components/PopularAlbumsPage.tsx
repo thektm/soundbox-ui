@@ -121,10 +121,41 @@ const PopularAlbumsPage: React.FC = () => {
             </div>
 
             <div className="space-y-1 px-1">
-              <h3 className="font-black text-white text-lg group-hover:text-emerald-400 transition-colors line-clamp-1">
+              <h3
+                className="font-black text-white text-lg group-hover:text-emerald-400 transition-colors line-clamp-1 hover:underline decoration-zinc-500"
+                onClick={(e) => {
+                  const isDesktop =
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(min-width: 768px)").matches;
+                  if (!isDesktop) return;
+
+                  e.stopPropagation();
+                  navigateTo("album-detail", {
+                    id: album.id,
+                    slug: createSlug(album.title),
+                  });
+                }}
+              >
                 {album.title}
               </h3>
-              <p className="text-zinc-500 font-medium">{album.artist_name}</p>
+              <p
+                className="text-zinc-500 font-medium hover:text-white transition-colors hover:underline decoration-zinc-500"
+                onClick={(e) => {
+                  const isDesktop =
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(min-width: 768px)").matches;
+                  if (!isDesktop) return;
+
+                  e.stopPropagation();
+                  if ((album as any).artist_id) {
+                    navigateTo("artist-detail", {
+                      id: (album as any).artist_id,
+                    });
+                  }
+                }}
+              >
+                {album.artist_name}
+              </p>
             </div>
           </div>
         ))}

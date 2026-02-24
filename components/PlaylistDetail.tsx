@@ -421,6 +421,28 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
     fetchPlaylist();
   }, [fetchPlaylist]);
 
+  useEffect(() => {
+    const handleSongLikeChanged = (e: any) => {
+      const { id: songId, liked } = e.detail;
+      setPlaylist((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          songs: prev.songs.map((s) =>
+            String(s.id) === String(songId) ? { ...s, is_liked: !!liked } : s,
+          ),
+        };
+      });
+    };
+
+    window.addEventListener("song-like-changed" as any, handleSongLikeChanged);
+    return () =>
+      window.removeEventListener(
+        "song-like-changed" as any,
+        handleSongLikeChanged,
+      );
+  }, []);
+
   const handleToggleLike = async () => {
     if (!playlist || !accessToken) {
       toast.error("لطفا ابتدا وارد حساب خود شوید");
@@ -492,7 +514,10 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
   const handleShare = async () => {
     if (!playlist) return;
     try {
-      const url = getFullShareUrl("playlist", playlist.id, playlist.title);
+      const uniqueIdStr = String(playlist.unique_id || playlist.id);
+      const useUniqueId = !!playlist.unique_id && !/^\d+$/.test(uniqueIdStr);
+      const idForShare = useUniqueId ? playlist.unique_id! : playlist.id;
+      const url = getFullShareUrl("playlist", idForShare, playlist.title);
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: playlist.title,
@@ -508,22 +533,42 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
     }
   };
 
-  const handleAction = useCallback(async (action: string, song: any) => {
-    if (action === "share" && song) {
-      try {
-        const url = getFullShareUrl("song", song.id, song.title);
-        const text = `گوش دادن به آهنگ ${song.title} از ${song.artist_name} در سداباکس`;
-        if (typeof navigator !== "undefined" && navigator.share) {
-          await navigator.share({ title: song.title, text, url });
-        } else {
-          await navigator.clipboard.writeText(url);
-          toast.success("لینک کپی شد");
+  const handleAction = useCallback(
+    async (action: string, song: any) => {
+      if (action === "share" && song) {
+        try {
+          const url = getFullShareUrl("song", song.id, song.title);
+          const text = `گوش دادن به آهنگ ${song.title} از ${song.artist_name} در سداباکس`;
+          if (typeof navigator !== "undefined" && navigator.share) {
+            await navigator.share({ title: song.title, text, url });
+          } else {
+            await navigator.clipboard.writeText(url);
+            toast.success("لینک کپی شد");
+          }
+        } catch (err) {
+          console.error("Song share failed:", err);
         }
-      } catch (err) {
-        console.error("Song share failed:", err);
       }
-    }
-  }, []);
+      if (action === "toggle-like" && song) {
+        try {
+          const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;
+          const resp = await fetch(url, {
+            method: "POST",
+            headers: accessToken
+              ? { Authorization: `Bearer ${accessToken}` }
+              : {},
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            return data;
+          }
+        } catch (err) {
+          console.error("Song like failed:", err);
+        }
+      }
+    },
+    [accessToken],
+  );
 
   const handlePlaySong = (idx: number) => {
     if (!playlist) return;

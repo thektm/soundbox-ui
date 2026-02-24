@@ -119,6 +119,7 @@ interface LikedAlbum {
   id: number;
   title: string;
   artist: string;
+  artistId?: number;
   image: string;
   year: string;
   songsCount: number;
@@ -142,6 +143,12 @@ const AlbumCardGrid = memo(
     onPress: () => void;
     onLike: () => void;
   }) => {
+    const { navigateTo } = useNavigation();
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(min-width: 768px)").matches;
+
     return (
       <div
         onClick={onPress}
@@ -196,10 +203,28 @@ const AlbumCardGrid = memo(
         </div>
 
         {/* Album Info */}
-        <h3 className="text-sm font-medium text-white truncate">
+        <h3
+          onClick={(e) => {
+            if (isDesktop) {
+              e.stopPropagation();
+              navigateTo("album-detail", { id: album.id });
+            }
+          }}
+          className={`text-sm font-medium text-white truncate ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
+        >
           {album.title}
         </h3>
-        <p className="text-xs text-gray-500 truncate mt-0.5">{album.artist}</p>
+        <p
+          onClick={(e) => {
+            if (isDesktop && album.artistId) {
+              e.stopPropagation();
+              navigateTo("artist-detail", { id: album.artistId });
+            }
+          }}
+          className={`text-xs text-gray-500 truncate mt-0.5 ${isDesktop && album.artistId ? "hover:underline cursor-pointer" : ""}`}
+        >
+          {album.artist}
+        </p>
         <p className="text-[10px] text-gray-600 mt-1">
           {album.songsCount} آهنگ
         </p>
@@ -223,6 +248,12 @@ const AlbumCardList = memo(
     onPress: () => void;
     onLike: () => void;
   }) => {
+    const { navigateTo } = useNavigation();
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(min-width: 768px)").matches;
+
     return (
       <div
         onClick={onPress}
@@ -245,10 +276,26 @@ const AlbumCardList = memo(
 
         {/* Album Info */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-medium text-white truncate">
+          <h3
+            onClick={(e) => {
+              if (isDesktop) {
+                e.stopPropagation();
+                navigateTo("album-detail", { id: album.id });
+              }
+            }}
+            className={`text-sm font-medium text-white truncate ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
+          >
             {album.title}
           </h3>
-          <p className="text-xs text-gray-500 truncate mt-0.5">
+          <p
+            onClick={(e) => {
+              if (isDesktop && album.artistId) {
+                e.stopPropagation();
+                navigateTo("artist-detail", { id: album.artistId });
+              }
+            }}
+            className={`text-xs text-gray-500 truncate mt-0.5 ${isDesktop && album.artistId ? "hover:underline cursor-pointer" : ""}`}
+          >
             {album.artist}
           </p>
           <div className="flex items-center gap-2 mt-1">
@@ -410,6 +457,7 @@ export default function LikedAlbums() {
             id: album.id,
             title: album.title,
             artist: album.artist_name,
+            artistId: album.artist_id,
             image: ensureHttps(album.cover_image) || "",
             year: album.release_date
               ? new Date(album.release_date).getFullYear().toString()

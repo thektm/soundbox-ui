@@ -2197,6 +2197,11 @@ const HorizontalList = ({
                 variant === "circle" ? "text-sm" : "text-sm"
               }`}
               onClick={(e) => {
+                const isDesktop =
+                  typeof window !== "undefined" &&
+                  window.matchMedia("(min-width: 768px)").matches;
+                if (!isDesktop) return;
+
                 e.stopPropagation();
                 if (item.type === "artist") {
                   navigateTo("artist-detail", { id: item.id, slug: item.slug });
@@ -2217,6 +2222,11 @@ const HorizontalList = ({
             <p
               className="text-zinc-400 text-xs truncate w-full hover:text-white transition-colors"
               onClick={(e) => {
+                const isDesktop =
+                  typeof window !== "undefined" &&
+                  window.matchMedia("(min-width: 768px)").matches;
+                if (!isDesktop) return;
+
                 e.stopPropagation();
                 if (
                   (item.type === "song" || item.type === "album") &&
@@ -2414,6 +2424,11 @@ const PremiumChartList = ({
               <h4
                 className="text-white font-bold truncate text-base hover:underline decoration-zinc-500"
                 onClick={(e) => {
+                  const isDesktop =
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(min-width: 768px)").matches;
+                  if (!isDesktop) return;
+
                   e.stopPropagation();
                   if (item.type === "song") {
                     navigateTo("song-detail", { id: item.id });
@@ -2430,6 +2445,11 @@ const PremiumChartList = ({
               <p
                 className="text-zinc-400 text-xs truncate mt-0.5 hover:text-white transition-colors"
                 onClick={(e) => {
+                  const isDesktop =
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(min-width: 768px)").matches;
+                  if (!isDesktop) return;
+
                   e.stopPropagation();
                   if (
                     (item.type === "song" || item.type === "album") &&
@@ -2510,6 +2530,11 @@ const GlassAlbumGrid = ({
             <h4
               className="text-white font-bold text-sm truncate px-1 hover:underline decoration-zinc-500"
               onClick={(e) => {
+                const isDesktop =
+                  typeof window !== "undefined" &&
+                  window.matchMedia("(min-width: 768px)").matches;
+                if (!isDesktop) return;
+
                 e.stopPropagation();
                 if (item.type === "album") {
                   navigateTo("album-detail", { id: item.id, slug: item.slug });
@@ -2521,6 +2546,11 @@ const GlassAlbumGrid = ({
             <p
               className="text-zinc-400 text-[11px] truncate px-1 mt-0.5 hover:text-white transition-colors"
               onClick={(e) => {
+                const isDesktop =
+                  typeof window !== "undefined" &&
+                  window.matchMedia("(min-width: 768px)").matches;
+                if (!isDesktop) return;
+
                 e.stopPropagation();
                 if (item.artistId) {
                   navigateTo("artist-detail", {
@@ -2632,6 +2662,11 @@ const SpotlightArtistList = ({
           <h4
             className="text-white font-bold text-sm group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
             onClick={(e) => {
+              const isDesktop =
+                typeof window !== "undefined" &&
+                window.matchMedia("(min-width: 768px)").matches;
+              if (!isDesktop) return;
+
               e.stopPropagation();
               navigateTo("artist-detail", { id: item.id, slug: item.slug });
             }}

@@ -36,6 +36,7 @@ interface Song {
 interface Artist {
   id: string;
   name: string;
+  slug?: string;
   image: string;
   /** Circular profile image used for overlays and avatars. Falls back to `image` if absent. */
   profileImage?: string;
@@ -373,6 +374,7 @@ const useSearch = (
                 id: item.id.toString(),
                 title: item.title,
                 artist: item.data?.artist_name || "Unknown Artist",
+                artistId: item.data?.artist_id,
                 album: item.data?.album_name || "",
                 duration: formattedDuration,
                 image: item.image || "https://picsum.photos/200",
@@ -385,6 +387,7 @@ const useSearch = (
               artists.push({
                 id: item.id.toString(),
                 name: item.title,
+                slug: item.data?.unique_id,
                 image: item.image || "https://picsum.photos/200",
                 followers: "", // Not provided in this response
                 verified: item.data?.verified || false,
@@ -396,6 +399,8 @@ const useSearch = (
                 id: item.id.toString(),
                 title: item.title,
                 artist: item.data?.artist_name || "",
+                artistId: item.data?.artist_id,
+                slug: item.data?.slug || createSlug(item.title),
                 image: item.image || "https://picsum.photos/200",
                 year: item.data?.release_date
                   ? new Date(item.data.release_date).getFullYear().toString()
@@ -512,13 +517,22 @@ const SongCard = memo(
     song,
     onPlay,
     onMore,
+    onTitleClick,
+    onArtistClick,
   }: {
     song: Song;
     index?: number;
     onPlay: () => void;
     onMore: (song: Song) => void;
+    onTitleClick?: () => void;
+    onArtistClick?: () => void;
   }) => {
     const [isHovered, setIsHovered] = useState(false);
+
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(min-width: 768px)").matches;
 
     return (
       <div
@@ -556,9 +570,21 @@ const SongCard = memo(
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center">
-            <span className="text-white font-normal truncate">
-              {song.title}
-            </span>
+            {isDesktop && onTitleClick ? (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTitleClick();
+                }}
+                className={`text-white font-normal truncate cursor-pointer hover:underline`}
+              >
+                {song.title}
+              </span>
+            ) : (
+              <span className="text-white font-normal truncate">
+                {song.title}
+              </span>
+            )}
             {song.explicit && (
               <span
                 className="inline-flex items-center justify-center w-4 h-4 bg-[#9b9b9b] text-black text-[9px] font-bold rounded-sm ml-2"
@@ -569,7 +595,19 @@ const SongCard = memo(
             )}
           </div>
           <div className="flex items-center text-sm text-[#a7a7a7]">
-            <span className="truncate">{song.artist}</span>
+            {isDesktop && onArtistClick ? (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onArtistClick();
+                }}
+                className="truncate cursor-pointer hover:underline"
+              >
+                {song.artist}
+              </span>
+            ) : (
+              <span className="truncate">{song.artist}</span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -613,6 +651,11 @@ const ArtistCard = memo(
     isFollowing: boolean;
     isFollowLoading: boolean;
   }) => {
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(min-width: 768px)").matches;
+
     return (
       <button
         onClick={onClick}
@@ -640,7 +683,9 @@ const ArtistCard = memo(
         </div>
         <div className="flex flex-col items-center gap-1 mb-3 w-full px-2">
           <div className="flex items-center gap-1 justify-center w-full">
-            <span className="font-bold text-white truncate max-w-full">
+            <span
+              className={`font-bold text-white truncate max-w-full ${isDesktop ? "hover:underline" : ""}`}
+            >
               {artist.name}
             </span>
           </div>
@@ -733,6 +778,12 @@ const UserCard = memo(
 
 const AlbumCard = memo(
   ({ album, onClick }: { album: Album; onClick: () => void }) => {
+    const { navigateTo } = useNavigation();
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(min-width: 768px)").matches;
+
     return (
       <button
         onClick={onClick}
@@ -747,8 +798,26 @@ const AlbumCard = memo(
             type="song"
           />
         </div>
-        <div className="font-bold text-white truncate mb-1">{album.title}</div>
-        <div className="text-sm text-[#a7a7a7] truncate">
+        <div
+          onClick={(e) => {
+            if (isDesktop) {
+              e.stopPropagation();
+              navigateTo("album-detail", { id: album.id, slug: album.slug });
+            }
+          }}
+          className={`font-bold text-white truncate mb-1 ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
+        >
+          {album.title}
+        </div>
+        <div
+          onClick={(e) => {
+            if (isDesktop && album.artistId) {
+              e.stopPropagation();
+              navigateTo("artist-detail", { id: album.artistId });
+            }
+          }}
+          className={`text-sm text-[#a7a7a7] truncate ${isDesktop && album.artistId ? "hover:underline cursor-pointer" : ""}`}
+        >
           {album.artist} • {album.year}
         </div>
       </button>
@@ -903,9 +972,14 @@ const SectionCard = memo(
     onClick: () => void;
     onPlay: (e: React.MouseEvent) => void;
   }) => {
+    const { navigateTo } = useNavigation();
     const title = item.title;
     const subTitle = item.artist_name || item.name || item.description || "";
     const mainImage = item.cover_image || item.image;
+
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 768px)").matches;
 
     // Playlist multi-cover logic
     const playlistSongs = type === "playlist" ? item.songs || [] : [];
@@ -976,10 +1050,42 @@ const SectionCard = memo(
           </button>
         </div>
         <div className="w-full space-y-1">
-          <div className="font-bold text-white text-sm truncate w-full">
+          <div
+            onClick={(e) => {
+              if (isDesktop) {
+                e.stopPropagation();
+                if (type === "song") {
+                  navigateTo("song-detail", { id: item.id, title: item.title });
+                } else if (type === "album") {
+                  navigateTo("album-detail", { id: item.id, slug: item.slug });
+                } else if (type === "playlist") {
+                  navigateTo("playlist-detail", {
+                    id: item.id,
+                    generatedBy: item.generated_by,
+                    creatorUniqueId: item.creator_unique_id,
+                  });
+                }
+              }
+            }}
+            className={`font-bold text-white text-sm truncate w-full ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
+          >
             {title}
           </div>
-          <div className="text-xs text-[#a7a7a7] truncate w-full group-hover:text-white/80 transition-colors">
+          <div
+            onClick={(e) => {
+              if (isDesktop && (type === "song" || type === "album")) {
+                const artistId = item.artist_id || item.artistId;
+                if (artistId) {
+                  e.stopPropagation();
+                  navigateTo("artist-detail", {
+                    id: artistId,
+                    slug: item.artist_slug || item.artistSlug,
+                  });
+                }
+              }
+            }}
+            className={`text-xs text-[#a7a7a7] truncate w-full group-hover:text-white/80 transition-colors ${isDesktop && (type === "song" || type === "album") ? "hover:underline cursor-pointer" : ""}`}
+          >
             {subTitle}
           </div>
         </div>
@@ -1546,6 +1652,18 @@ export default function Search() {
                           index={i}
                           onPlay={() => handlePlaySong(song)}
                           onMore={handleMore}
+                          onTitleClick={() =>
+                            navigateTo("song-detail", {
+                              id: song.id,
+                              title: song.title,
+                            })
+                          }
+                          onArtistClick={() =>
+                            song.artistId &&
+                            navigateTo("artist-detail", {
+                              id: song.artistId,
+                            })
+                          }
                         />
                       ))}
                     </div>
@@ -1646,6 +1764,18 @@ export default function Search() {
                       index={i}
                       onPlay={() => handlePlaySong(song)}
                       onMore={handleMore}
+                      onTitleClick={() =>
+                        navigateTo("song-detail", {
+                          id: song.id,
+                          title: song.title,
+                        })
+                      }
+                      onArtistClick={() =>
+                        song.artistId &&
+                        navigateTo("artist-detail", {
+                          id: song.artistId,
+                        })
+                      }
                     />
                   ))}
                 </div>

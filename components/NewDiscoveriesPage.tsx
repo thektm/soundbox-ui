@@ -4,11 +4,14 @@ import React, { useState, useEffect } from "react";
 import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
 import { usePlayer } from "./PlayerContext";
+import { useNavigation } from "./NavigationContext";
+import { createSlug } from "./home";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 
 interface ApiSong {
   id: number;
   title: string;
+  artist_id?: number;
   artist_name: string;
   cover_image: string;
   stream_url: string;
@@ -25,6 +28,7 @@ interface PaginatedResponse<T> {
 const NewDiscoveriesPage: React.FC = () => {
   const { accessToken, authenticatedFetch } = useAuth();
   const { setQueue } = usePlayer();
+  const { navigateTo } = useNavigation();
   const [songs, setSongs] = useState<ApiSong[]>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,10 +121,35 @@ const NewDiscoveriesPage: React.FC = () => {
               </div>
             </div>
             <div className="flex-1 min-w-0 pr-2">
-              <h3 className="font-black text-white text-lg truncate group-hover:text-emerald-400 transition-colors">
+              <h3
+                className="font-black text-white text-lg truncate group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
+                onClick={(e) => {
+                  const isDesktop =
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(min-width: 768px)").matches;
+                  if (!isDesktop) return;
+
+                  e.stopPropagation();
+                  navigateTo("song-detail", {
+                    id: song.id,
+                    title: createSlug(song.title),
+                  });
+                }}
+              >
                 {song.title}
               </h3>
-              <p className="text-zinc-500 font-medium truncate">
+              <p
+                className="text-zinc-500 font-medium truncate hover:text-white transition-all hover:underline decoration-zinc-500"
+                onClick={(e) => {
+                  const isDesktop =
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(min-width: 768px)").matches;
+                  if (!isDesktop || !song.artist_id) return;
+
+                  e.stopPropagation();
+                  navigateTo("artist-detail", { id: song.artist_id });
+                }}
+              >
                 {song.artist_name}
               </p>
               <div className="mt-2 text-[10px] text-emerald-500 font-bold tracking-tighter uppercase px-2 py-0.5 bg-emerald-500/10 w-fit rounded">

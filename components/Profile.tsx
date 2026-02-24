@@ -63,6 +63,8 @@ const ICONS = {
     "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
   camera:
     "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z",
+  profile:
+    "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
   trash:
     "M14.74 9l-.34 9m-4.72 0l-.34-9M4.5 7h15M10 3h4a1 1 0 011 1v1h-6V4a1 1 0 011-1zM18.37 7l-.64 12.42A2 2 0 0115.75 21H8.25a2 2 0 01-1.98-1.58L5.63 7h12.74z",
 };
@@ -77,7 +79,7 @@ export default function Profile() {
     deleteProfileImage,
     formatErrorMessage,
   } = useAuth();
-  const { navigateTo, currentParams } = useNavigation();
+  const { navigateTo, currentParams, goBack } = useNavigation();
   const [isFetching, setIsFetching] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -304,9 +306,9 @@ export default function Profile() {
               <Icon d={ICONS.settings} className="w-6 h-6 text-white" />
             </button>
             <button
-              onClick={() => navigateTo("home")}
+              onClick={goBack}
               className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70  flex items-center justify-center transition-all duration-300 hover:scale-105 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-              aria-label="بازگشت به خانه"
+              aria-label="بازگشت"
             >
               <Icon d={ICONS.back} className="w-6 h-6 text-white" />
             </button>
@@ -457,7 +459,7 @@ export default function Profile() {
             <button
               onClick={() => navigateTo("downloads-history")}
               aria-label="مشاهده تاریخچه دانلودها"
-              className="w-full mb-8 relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+              className="w-full mb-2 relative group overflow-hidden rounded-2xl p-2 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
             >
               <div className="relative z-10 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -493,6 +495,45 @@ export default function Profile() {
               />
             </button>
 
+            {/* View Profile Card */}
+            <button
+              onClick={() =>
+                navigateTo("user-detail", {
+                  id: authUser?.unique_id || authUser?.id,
+                })
+              }
+              aria-label={`مشاهده پروفایل کاربر ${authUser?.unique_id || ""}`}
+              className="w-full mb-8 relative group overflow-hidden rounded-2xl p-2 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+            >
+              <div className="relative z-10 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div
+                    className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors"
+                    aria-hidden="true"
+                  >
+                    <Icon
+                      d={ICONS.profile}
+                      className="w-6 h-6 text-emerald-400"
+                    />
+                  </div>
+                  <div className="text-right">
+                    <h3 className="text-lg font-bold text-white leading-tight">
+                      مشاهده پروفایل
+                    </h3>
+                  </div>
+                </div>
+                <div
+                  className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all"
+                  aria-hidden="true"
+                >
+                  <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
+                </div>
+              </div>
+              <div
+                className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors"
+                aria-hidden="true"
+              />
+            </button>
             {/* ---------------------------------------------------------- */}
             {/* User Plan Section */}
             {/* ---------------------------------------------------------- */}

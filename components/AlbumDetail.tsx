@@ -121,6 +121,8 @@ interface SongRowProps {
   isPlaying?: boolean;
   onPlay?: () => void;
   onMore: (song: ApiSong) => void;
+  onTitleClick?: () => void;
+  onArtistClick?: () => void;
 }
 
 const SongRow: React.FC<SongRowProps> = ({
@@ -129,9 +131,16 @@ const SongRow: React.FC<SongRowProps> = ({
   isPlaying = false,
   onPlay,
   onMore,
+  onTitleClick,
+  onArtistClick,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLiked, setIsLiked] = useState(song.is_liked);
+
+  const isDesktop =
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(min-width: 768px)").matches;
 
   return (
     <div
@@ -174,16 +183,43 @@ const SongRow: React.FC<SongRowProps> = ({
           />
         </div>
         <div className="min-w-0 flex-1">
-          <p
-            className={`text-sm font-medium truncate ${
-              isPlaying ? "text-green-500" : "text-white"
-            }`}
-          >
-            {song.title}
-          </p>
-          <p className="text-xs text-neutral-400 truncate flex items-center gap-1">
-            {song.artist_name}
-          </p>
+          {isDesktop && (onTitleClick || onArtistClick) ? (
+            <>
+              <p
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTitleClick && onTitleClick();
+                }}
+                className={`text-sm font-medium truncate ${
+                  isPlaying ? "text-green-500" : "text-white"
+                } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
+              >
+                {song.title}
+              </p>
+              <p
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onArtistClick && onArtistClick();
+                }}
+                className="text-xs text-neutral-400 truncate flex items-center gap-1 cursor-pointer hover:underline"
+              >
+                {song.artist_name}
+              </p>
+            </>
+          ) : (
+            <>
+              <p
+                className={`text-sm font-medium truncate ${
+                  isPlaying ? "text-green-500" : "text-white"
+                }`}
+              >
+                {song.title}
+              </p>
+              <p className="text-xs text-neutral-400 truncate flex items-center gap-1">
+                {song.artist_name}
+              </p>
+            </>
+          )}
         </div>
       </div>
 
@@ -626,6 +662,18 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
               }
               onPlay={() => handlePlaySong(index)}
               onMore={handleMore}
+              onTitleClick={() =>
+                navigateTo("song-detail", {
+                  id: song.id,
+                  title: slugify(song.title),
+                })
+              }
+              onArtistClick={() =>
+                (song.artist_id || albumData.artist_id) &&
+                navigateTo("artist-detail", {
+                  id: song.artist_id || albumData.artist_id,
+                })
+              }
             />
           ))}
         </div>

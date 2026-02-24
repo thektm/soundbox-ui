@@ -250,19 +250,27 @@ export const SongOptionsDrawer = ({
               try {
                 const data = await (maybePromise as Promise<any>);
                 console.log("Like response from onAction:", data);
-                if (
-                  data &&
-                  (data.liked !== undefined || data.likes_count !== undefined)
-                ) {
-                  window.dispatchEvent(
-                    new CustomEvent("song-like-changed", {
-                      detail: {
-                        id: String(song.id),
-                        liked: data.liked,
-                        likes_count: data.likes_count,
-                      },
-                    }),
-                  );
+                if (data) {
+                  const liked =
+                    data.liked !== undefined ? data.liked : data.is_liked;
+                  if (liked !== undefined) {
+                    const likedBool = !!liked;
+                    setLocalIsLiked(likedBool);
+                    window.dispatchEvent(
+                      new CustomEvent("song-like-changed", {
+                        detail: {
+                          id: String(song.id),
+                          liked: likedBool,
+                          likes_count: data.likes_count,
+                        },
+                      }),
+                    );
+                    try {
+                      toast.success(
+                        likedBool ? "به لایک‌ها اضافه شد" : "از لایک‌ها حذف شد",
+                      );
+                    } catch (e) {}
+                  }
                 }
               } catch (err) {
                 console.error("onAction like handler failed:", err);
@@ -455,10 +463,41 @@ export const SongOptionsDrawer = ({
           />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-[17px] font-bold text-white truncate leading-tight">
+          <h3
+            className={`text-[17px] font-bold text-white truncate leading-tight ${
+              isDesktop ? "hover:underline cursor-pointer" : ""
+            }`}
+            onClick={(e) => {
+              if (!isDesktop) return;
+              e.stopPropagation();
+              const songSlug = song.title ? createSlug(song.title) : undefined;
+              const artistSlug = song.artist_name
+                ? createSlug(song.artist_name)
+                : undefined;
+              navigateTo("song-detail", { id: song.id, songSlug, artistSlug });
+              onClose();
+            }}
+          >
             {song.title}
           </h3>
-          <p className="text-[14px] text-white/50 truncate mt-1">
+          <p
+            className={`text-[14px] text-white/50 truncate mt-1 ${
+              isDesktop && (song as any).artistId
+                ? "hover:underline cursor-pointer hover:text-white/80 transition-colors"
+                : ""
+            }`}
+            onClick={(e) => {
+              const artistId =
+                (song as any).artistId || (song as any).artist_id;
+              if (!isDesktop || !artistId) return;
+              e.stopPropagation();
+              const artistSlug = song.artist_name
+                ? createSlug(song.artist_name)
+                : undefined;
+              navigateTo("artist-detail", { id: artistId, slug: artistSlug });
+              onClose();
+            }}
+          >
             {song.artist_name}
           </p>
         </div>

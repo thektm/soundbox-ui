@@ -363,7 +363,7 @@ const TrackRow = memo(
     onPlay: (track: Song) => void;
   }) => {
     const [isHovered, setIsHovered] = useState(false);
-
+const { navigateTo } = useNavigation();
     return (
       <div
         onMouseEnter={() => setIsHovered(true)}
@@ -393,10 +393,42 @@ const TrackRow = memo(
           </div>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-white text-sm font-medium truncate">
+          <p
+            className="text-white text-sm font-medium truncate hover:underline decoration-zinc-500 cursor-pointer"
+            onClick={(e) => {
+              const isDesktop =
+                typeof window !== "undefined" &&
+                window.matchMedia("(min-width: 768px)").matches;
+              if (!isDesktop) return;
+
+              e.stopPropagation();
+              navigateTo("song-detail", {
+                id: track.id,
+                title: createSlug(track.title),
+              });
+            }}
+          >
             {track.title}
           </p>
-          <p className="text-neutral-400 text-xs truncate">{track.artist}</p>
+          <p
+            className="text-neutral-400 text-xs truncate hover:text-white transition-colors cursor-pointer"
+            onClick={(e) => {
+              const isDesktop =
+                typeof window !== "undefined" &&
+                window.matchMedia("(min-width: 768px)").matches;
+              if (!isDesktop) return;
+
+              e.stopPropagation();
+              if (track.artistId) {
+                navigateTo("artist-detail", {
+                  id: track.artistId,
+                  slug: createSlug(track.artist),
+                });
+              }
+            }}
+          >
+            {track.artist}
+          </p>
         </div>
         <span className="text-neutral-500 text-xs">{track.duration}</span>
       </div>

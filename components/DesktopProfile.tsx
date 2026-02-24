@@ -372,9 +372,9 @@ export default function DesktopProfile() {
                   </p>
                   <p
                     className="text-gray-400 text-lg mb-1"
-                    aria-label={`ایمیل: ${user.email}`}
+                    aria-label={`شناسه: ${user.uniqueId}`}
                   >
-                    {user.email}
+                    {user.uniqueId}
                   </p>
                   <p className="text-gray-400 text-lg">
                     عضو از {user.joinDate}
@@ -407,6 +407,48 @@ export default function DesktopProfile() {
                       </div>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
+                      <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
+                    </div>
+                  </div>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
+                </button>
+              </section>
+
+              {/* View Profile Card (in Overview) */}
+              <section aria-label="مشاهده پروفایل">
+                <button
+                  onClick={() =>
+                    navigateTo("user-detail", {
+                      id: authUser?.unique_id || authUser?.id,
+                    })
+                  }
+                  aria-label={`مشاهده پروفایل کاربر ${authUser?.unique_id || ""}`}
+                  className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] text-right focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                >
+                  <div className="relative z-10 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div
+                        className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors"
+                        aria-hidden="true"
+                      >
+                        <Icon
+                          d={ICONS.profile}
+                          className="w-6 h-6 text-emerald-400"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white leading-tight">
+                          مشاهده پروفایل
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          باز کردن صفحه پروفایل با شناسه منحصر به فرد کاربر
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all"
+                      aria-hidden="true"
+                    >
                       <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
                     </div>
                   </div>
@@ -469,7 +511,16 @@ export default function DesktopProfile() {
               {/* Plan Section */}
               <section
                 aria-label="وضعیت اشتراک"
-                className={`relative w-full rounded-3xl overflow-hidden border shadow-2xl ${
+                role="button"
+                tabIndex={0}
+                onClick={() => navigateTo("premium")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigateTo("premium");
+                  }
+                }}
+                className={`relative w-full rounded-3xl overflow-hidden border shadow-2xl cursor-pointer ${
                   isPremium
                     ? "bg-gradient-to-br from-[#0d1f17] via-[#0a1a12] to-[#061210] border-emerald-500/30"
                     : "bg-[#070707] border-white/8"
@@ -799,6 +850,41 @@ export default function DesktopProfile() {
                 </div>
               </button>
             ))}
+            {/* View Profile Card */}
+            <section aria-label="مشاهده پروفایل">
+              <button
+                onClick={() =>
+                  navigateTo("user-detail", {
+                    id: authUser?.unique_id || authUser?.id,
+                  })
+                }
+                aria-label={`مشاهده پروفایل کاربر ${authUser?.unique_id || ""}`}
+                className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] text-right focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+              >
+                <div className="relative z-10 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-colors">
+                      <Icon
+                        d={ICONS.profile}
+                        className="w-6 h-6 text-emerald-400"
+                      />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white leading-tight">
+                        مشاهده پروفایل
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        باز کردن صفحه پروفایل با شناسه منحصر به فرد کاربر
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
+                    <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
+                  </div>
+                </div>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
+              </button>
+            </section>
             {/* Logout Button */}
             <button
               className="relative w-full flex items-center gap-3 py-4 px-5 bg-gradient-to-r from-red-500/10 to-black/20 border border-red-500/30 rounded-xl overflow-hidden hover:from-red-500/20 transition-all duration-300 group will-change-transform focus-visible:ring-2 focus-visible:ring-red-500 outline-none"

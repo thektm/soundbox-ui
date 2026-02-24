@@ -65,7 +65,21 @@ Icon.displayName = "Icon";
 // Sub-Components
 // ============================================================================
 const SongRow = memo(
-  ({ song, index, isPlaying, onPlay, onLike, onOptions }: any) => {
+  ({
+    song,
+    index,
+    isPlaying,
+    onPlay,
+    onLike,
+    onOptions,
+    onTitleClick,
+    onArtistClick,
+  }: any) => {
+    const isDesktop =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(min-width: 768px)").matches;
+
     return (
       <div
         onClick={onPlay}
@@ -101,12 +115,39 @@ const SongRow = memo(
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3
-            className={`text-sm font-medium truncate ${isPlaying ? "text-emerald-400" : "text-white"}`}
-          >
-            {song.title}
-          </h3>
-          <p className="text-xs text-gray-500 truncate">{song.artist}</p>
+          {isDesktop && (onTitleClick || onArtistClick) ? (
+            <>
+              <h3
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTitleClick && onTitleClick();
+                }}
+                className={`text-sm font-medium truncate ${
+                  isPlaying ? "text-emerald-400" : "text-white"
+                } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
+              >
+                {song.title}
+              </h3>
+              <p
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onArtistClick && onArtistClick();
+                }}
+                className="text-xs text-gray-500 truncate cursor-pointer hover:underline"
+              >
+                {song.artist}
+              </p>
+            </>
+          ) : (
+            <>
+              <h3
+                className={`text-sm font-medium truncate ${isPlaying ? "text-emerald-400" : "text-white"}`}
+              >
+                {song.title}
+              </h3>
+              <p className="text-xs text-gray-500 truncate">{song.artist}</p>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
@@ -156,7 +197,7 @@ SkeletonSongRow.displayName = "SkeletonSongRow";
 // Main Component
 // ============================================================================
 export default function LikedSongs() {
-  const { goBack, scrollToTop } = useNavigation();
+  const { goBack, scrollToTop, navigateTo } = useNavigation();
   const { currentTrack, isPlaying, playTrack, togglePlay } = usePlayer();
   const { accessToken, authenticatedFetch } = useAuth();
 
@@ -231,6 +272,7 @@ export default function LikedSongs() {
             id: item.id.toString(),
             title: item.title,
             artist: item.artist_name,
+            artistId: item.artist_id,
             image: ensureHttps(item.cover_image) || "",
             duration: item.duration_display,
             src: item.stream_url,
@@ -419,6 +461,18 @@ export default function LikedSongs() {
               });
               setIsDrawerOpen(true);
             }}
+            onTitleClick={() =>
+              navigateTo("song-detail", {
+                id: song.id,
+                title: song.title,
+              })
+            }
+            onArtistClick={() =>
+              song.artistId &&
+              navigateTo("artist-detail", {
+                id: song.artistId,
+              })
+            }
           />
         ))}
         {viewState.isFetchingMore && (

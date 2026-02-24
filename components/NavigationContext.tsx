@@ -521,17 +521,24 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   const goBack = useCallback(() => {
-    if (previousPage) {
-      // Prefer internal navigation using stored params so we reliably
-      // restore pages like `user-detail` with their identifiers.
+    // If we have a previous page and it's different from the current page,
+    // navigate to it using internal navigation so we restore params/state.
+    if (previousPage && previousPage !== currentPage) {
       navigateTo(previousPage, previousParams, false);
       return;
     }
 
+    // If previousPage is missing or it's equal to currentPage (for example
+    // after a `replaceState` update), fall back to native history navigation
+    // so the browser actually moves back.
     if (typeof window !== "undefined" && window.history.length > 1) {
       window.history.back();
+      return;
     }
-  }, [previousPage, previousParams, navigateTo]);
+
+    // As a last resort, navigate to home to avoid staying on the same page.
+    navigateTo("home", null, false);
+  }, [previousPage, previousParams, navigateTo, currentPage]);
 
   const handleSetCurrentPage = useCallback(
     (page: string) => navigateTo(page, currentParams),

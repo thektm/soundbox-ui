@@ -181,11 +181,48 @@ const ChartPage: React.FC<ChartPageProps> = ({ title, type, initialData }) => {
             </div>
 
             {/* Text */}
-            <div className="flex-1">
-              <h3 className="text-white font-black text-lg group-hover:text-emerald-400 transition-colors">
+            <div className="flex-1 min-w-0 pr-2">
+              <h3
+                className="text-white font-black text-lg group-hover:text-emerald-400 transition-colors truncate hover:underline decoration-zinc-500"
+                onClick={(e) => {
+                  const isDesktop =
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(min-width: 768px)").matches;
+                  if (!isDesktop) return;
+
+                  e.stopPropagation();
+                  if (type === "songs") {
+                    navigateTo("song-detail", { id: item.id });
+                  } else if (type === "albums") {
+                    navigateTo("album-detail", {
+                      id: item.id,
+                      slug: createSlug(item.title),
+                    });
+                  } else if (type === "artists") {
+                    navigateTo("artist-detail", {
+                      id: item.id,
+                      slug:
+                        item.unique_id || createSlug(item.name || item.title),
+                    });
+                  }
+                }}
+              >
                 {item.title || item.name || item.artistic_name}
               </h3>
-              <p className="text-zinc-500 font-medium">
+              <p
+                className="text-zinc-500 font-medium truncate hover:text-white transition-all hover:underline decoration-zinc-500"
+                onClick={(e) => {
+                  const isDesktop =
+                    typeof window !== "undefined" &&
+                    window.matchMedia("(min-width: 768px)").matches;
+                  if (!isDesktop) return;
+
+                  e.stopPropagation();
+                  if (item.artist_id) {
+                    navigateTo("artist-detail", { id: item.artist_id });
+                  }
+                }}
+              >
                 {item.artist_name || (type === "artists" ? "هنرمند" : "")}
               </p>
             </div>
