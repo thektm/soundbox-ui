@@ -371,6 +371,58 @@ const UserPlaylistCard = memo(
 UserPlaylistCard.displayName = "UserPlaylistCard";
 
 /* ───────────────────────────────────────────
+   Show More Button
+   ─────────────────────────────────────────── */
+const ShowMoreButton = memo(({ onClick }: { onClick: () => void }) => {
+  return (
+    <div
+      className="flex justify-center w-full mt-12 mb-8 ud-card-enter"
+      style={{ animationDelay: "0.5s" }}
+    >
+      <button
+        onClick={onClick}
+        className="group relative flex items-center gap-6 px-10 py-5 rounded-full transition-all duration-500 hover:scale-[1.03] active:scale-95 overflow-hidden backdrop-blur-3xl border border-white/10 shadow-2xl"
+        style={{
+          background:
+            "linear-gradient(145deg, rgba(29,185,84,0.1) 0%, rgba(10,10,10,0.6) 100%)",
+          boxShadow:
+            "0 15px 35px -10px rgba(0,0,0,0.8), 0 0 20px -5px rgba(29,185,84,0.1)",
+        }}
+      >
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+        <div className="relative flex items-center justify-center w-12 h-12 rounded-full bg-zinc-900/80 text-emerald-500 transition-all duration-700 group-hover:bg-emerald-500 group-hover:text-black group-hover:rotate-12">
+          <svg
+            className="w-6 h-6 transition-transform duration-500 group-hover:-translate-x-1"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+        </div>
+
+        <div className="relative text-right">
+          <div className="font-black text-white text-lg md:text-xl tracking-tight leading-tight">
+            مشاهده همه پلی‌لیست‌ها
+          </div>
+          <div className="text-[11px] text-zinc-400 font-bold uppercase tracking-[0.3em] opacity-50 mt-1">
+            Browse All Public Playlists
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+});
+ShowMoreButton.displayName = "ShowMoreButton";
+
+/* ───────────────────────────────────────────
    Stat Box
    ─────────────────────────────────────────── */
 const StatBox = memo(
@@ -901,27 +953,6 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                 />
               </div>
             </div>
-
-            {/* Premium star badge (only for premium plan users) */}
-            {profile.plan === "premium" && (
-              <div
-                aria-hidden
-                className="absolute -top-1 -right-1 md:top-2 md:right-2 w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center border-2 border-[#0d0d0d] z-10"
-                style={{
-                  background: "linear-gradient(135deg, #ffd54a, #ffb347)",
-                  boxShadow: "0 6px 18px rgba(255,165,0,0.18)",
-                  animation: "ud-glow 3s ease-in-out infinite",
-                }}
-              >
-                <svg
-                  className="w-4 h-4 md:w-5 md:h-5 text-black"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path d="M12 .587l3.668 7.431L24 9.75l-6 5.848L19.336 24 12 19.897 4.664 24 6 15.598 0 9.75l8.332-1.732z" />
-                </svg>
-              </div>
-            )}
           </div>
 
           {/* Info Section */}
@@ -1020,14 +1051,22 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                   <span>دنبال‌شونده</span>
                 </button>
                 <span className="hidden md:inline text-zinc-600">•</span>
-                <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() =>
+                    navigateTo("other-user-playlists", {
+                      uniqueId: profile.unique_id,
+                      fullName: fullName,
+                    })
+                  }
+                  className="flex items-center gap-1.5 bg-transparent border-0 p-0 hover:opacity-80 transition-opacity"
+                >
                   <span className="text-white font-bold">
                     {getPlaylistsCount(profile.user_playlists).toLocaleString(
                       "fa-IR",
                     )}
                   </span>
                   <span>پلی‌لیست</span>
-                </div>
+                </button>
               </div>
 
               {/* Action buttons (inline on desktop) */}
@@ -1188,6 +1227,12 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     profile.user_playlists,
                   ).toLocaleString("fa-IR")}
                   delay={700}
+                  onClick={() =>
+                    navigateTo("other-user-playlists", {
+                      uniqueId: profile.unique_id,
+                      fullName: fullName,
+                    })
+                  }
                 />
               </div>
 
@@ -1407,7 +1452,15 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
       {getPlaylistsArray(profile.user_playlists).length > 0 && (
         <section className="px-6 md:px-10 pt-10 pb-32 md:pb-12">
           {/* Section header */}
-          <div className="flex items-center gap-3 mb-8">
+          <div
+            className="flex items-center gap-3 mb-8 cursor-pointer group"
+            onClick={() =>
+              navigateTo("other-user-playlists", {
+                uniqueId: profile.unique_id,
+                fullName: fullName,
+              })
+            }
+          >
             <div
               className="w-1 h-8 rounded-full"
               style={{
@@ -1415,17 +1468,17 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
               }}
             />
             <h2
-              className="text-2xl md:text-3xl font-black"
+              className="text-2xl md:text-3xl font-black group-hover:text-emerald-400 transition-colors"
               style={{
                 background: "linear-gradient(135deg, #fff 0%, #a3a3a3 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
               }}
             >
-              لیست‌های پخش عمومی
+            پلی لیست های عمومی
             </h2>
             <span
-              className="px-3 py-1 rounded-full text-xs font-bold"
+              className="px-3 py-1 rounded-full text-xs font-bold transition-all group-hover:scale-110"
               style={{
                 background: "rgba(29,185,84,0.15)",
                 color: "#1db954",
@@ -1440,8 +1493,9 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
 
           {/* Mobile: vertical list (wide, low-height product-style cards) */}
           <div className="flex flex-col md:hidden gap-4">
-            {getPlaylistsArray(profile.user_playlists).map(
-              (playlist, index) => (
+            {getPlaylistsArray(profile.user_playlists)
+              .slice(0, 6)
+              .map((playlist, index) => (
                 <UserPlaylistCard
                   key={playlist.id}
                   playlist={playlist}
@@ -1468,14 +1522,14 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     }
                   }}
                 />
-              ),
-            )}
+              ))}
           </div>
 
           {/* Desktop & tablet: keep existing grid */}
           <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-6 gap-5 sm:md:grid-cols-3 md:gap-5">
-            {getPlaylistsArray(profile.user_playlists).map(
-              (playlist, index) => (
+            {getPlaylistsArray(profile.user_playlists)
+              .slice(0, 6)
+              .map((playlist, index) => (
                 <UserPlaylistCard
                   key={playlist.id}
                   playlist={playlist}
@@ -1501,9 +1555,19 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     }
                   }}
                 />
-              ),
-            )}
+              ))}
           </div>
+
+          {getPlaylistsArray(profile.user_playlists).length > 6 && (
+            <ShowMoreButton
+              onClick={() =>
+                navigateTo("other-user-playlists", {
+                  uniqueId: profile.unique_id,
+                  fullName: fullName,
+                })
+              }
+            />
+          )}
         </section>
       )}
 

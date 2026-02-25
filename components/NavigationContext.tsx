@@ -71,6 +71,7 @@ const ROUTED_PAGES = [
   "followed-artists",
   "chart-detail",
   "recommended-playlists",
+  "other-user-playlists",
 ];
 
 /**
@@ -146,9 +147,20 @@ function parsePathname(pathname: string): { page: string; params: any } {
 
   // artist: /artists/{id}-{slug} (new) or /artist/{id} (legacy)
   if ((first === "artists" || first === "artist") && parts[1]) {
+    const id = extractIdFromSegment(parts[1]);
+    const slug = parts[1].includes("-")
+      ? parts[1].split("-").slice(1).join("-")
+      : null;
+
+    if (parts[2]) {
+      return {
+        page: "artist-sub-page",
+        params: { id, slug, subPage: parts[2] },
+      };
+    }
     return {
       page: "artist-detail",
-      params: { id: extractIdFromSegment(parts[1]) },
+      params: { id, slug },
     };
   }
 
@@ -210,12 +222,18 @@ function parsePathname(pathname: string): { page: string; params: any } {
     }
   }
 
-  // chart detail: /chart/:type/:title?
+  // chart detail: /chart/:chartType/:title?
   if (first === "chart" && parts[1]) {
+    const chartType = parts[1];
+    let type: "songs" | "albums" | "artists" = "songs";
+    if (chartType.includes("album")) type = "albums";
+    else if (chartType.includes("artist")) type = "artists";
+
     return {
       page: "chart-detail",
       params: {
-        type: parts[1],
+        chartType: chartType,
+        type: type,
         title: parts[2] ? decodeURIComponent(parts[2]) : undefined,
       },
     };
@@ -226,10 +244,20 @@ function parsePathname(pathname: string): { page: string; params: any } {
 }
 
 function pageToPathname(page: string, params?: any): string | null {
+  if (page === "chart-detail") {
+    if (params?.chartType) {
+      if (params?.title)
+        return `/chart/${params.chartType}/${encodeURIComponent(params.title)}`;
+      return `/chart/${params.chartType}`;
+    }
+    if (params?.type && params?.title)
+      return `/chart/${params.type}/${encodeURIComponent(params.title)}`;
+    if (params?.type) return `/chart/${params.type}`;
+    return "/chart";
+  }
+
   // simple pages with direct path
   if (ROUTED_PAGES.includes(page)) {
-    // ensure we map chart-detail separately
-    if (page === "chart-detail") return "/chart";
     return `/${page}`;
   }
 
@@ -247,6 +275,17 @@ function pageToPathname(page: string, params?: any): string | null {
           ? `-${slugify(params.slug)}`
           : "";
       return `/artists/${params.id}${namePart}`;
+    }
+  }
+
+  if (page === "artist-sub-page") {
+    if (params?.id && params?.subPage) {
+      const namePart = params.name
+        ? `-${slugify(params.name)}`
+        : params.slug
+          ? `-${slugify(params.slug)}`
+          : "";
+      return `/artists/${params.id}${namePart}/${params.subPage}`;
     }
   }
 
@@ -305,13 +344,6 @@ function pageToPathname(page: string, params?: any): string | null {
   if (page === "liked-songs") return "/liked/songs";
   if (page === "liked-albums") return "/liked/albums";
   if (page === "liked-playlists") return "/liked/playlists";
-
-  if (page === "chart-detail") {
-    if (params?.type && params?.title)
-      return `/chart/${params.type}/${encodeURIComponent(params.title)}`;
-    if (params?.type) return `/chart/${params.type}`;
-    return "/chart";
-  }
 
   return null; // other pages: don't change the URL
 }
@@ -521,23 +553,22 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   const goBack = useCallback(() => {
-    // If we have a previous page and it's different from the current page,
-    // navigate to it using internal navigation so we restore params/state.
-    if (previousPage && previousPage !== currentPage) {
-      navigateTo(previousPage, previousParams, false);
-      return;
-    }
-
-    // If previousPage is missing or it's equal to currentPage (for example
-    // after a `replaceState` update), fall back to native history navigation
-    // so the browser actually moves back.
+    // If we can go back in browser history, do it. This ensures the URL
+    // stays in sync with the page content automatically via popstate.
     if (typeof window !== "undefined" && window.history.length > 1) {
       window.history.back();
       return;
     }
 
-    // As a last resort, navigate to home to avoid staying on the same page.
-    navigateTo("home", null, false);
+    // If we have a previous page but history.back() isn't available,
+    // navigate to it using replace so the URL updates correctly.
+    if (previousPage && previousPage !== currentPage) {
+      navigateTo(previousPage, previousParams, "replace");
+      return;
+    }
+
+    // As a last resort, navigate to home.
+    navigateTo("home", null, "replace");
   }, [previousPage, previousParams, navigateTo, currentPage]);
 
   const handleSetCurrentPage = useCallback(

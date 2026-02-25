@@ -336,6 +336,7 @@ export default function Home() {
   const isInitialMount = useRef(true);
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
   const navRef = useRef<HTMLDivElement>(null);
+  const desktopNavRef = useRef<HTMLDivElement>(null);
   const lastFetchedToken = useRef<string | null>(null);
   const { isDesktop } = useResponsiveLayout();
   const isMobileView = !isDesktop;
@@ -720,23 +721,37 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const idx = Number(entry.target.getAttribute("data-index"));
-            setActiveIndex(idx);
-          }
-        });
-      },
-      { rootMargin: "-100px 0px -40% 0px", threshold: 0.4 },
-    );
-    sectionRefs.current.forEach((el) => el && observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
+  // Recompute whenever the list of rendered sections changes:
+  // – homeData becomes available (first real render)
+  // – a skeleton section resolves to real content (loadingExtra / playlist loading)
+  const observerKey = `${homeData !== null}|${loadingPlaylistRecommendations}|${JSON.stringify(loadingExtra)}`;
 
   useEffect(() => {
+    let observer: IntersectionObserver | null = null;
+    // Defer one tick so React has committed all sectionRef callback assignments
+    const tid = setTimeout(() => {
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const idx = Number(entry.target.getAttribute("data-index"));
+              setActiveIndex(idx);
+            }
+          });
+        },
+        { rootMargin: "-100px 0px -40% 0px", threshold: 0.4 },
+      );
+      sectionRefs.current.forEach((el) => el && observer!.observe(el));
+    }, 50);
+    return () => {
+      clearTimeout(tid);
+      observer?.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [observerKey]);
+
+  useEffect(() => {
+    // Mobile nav – scrollIntoView
     const nav = navRef.current;
     if (nav) {
       const activeBtn = nav.querySelector(
@@ -747,6 +762,20 @@ export default function Home() {
         inline: "center",
         block: "nearest",
       });
+    }
+    // Desktop nav – manual center calculation so the active pill lands in the middle
+    const desktopNav = desktopNavRef.current;
+    if (desktopNav) {
+      const activeBtn = desktopNav.querySelector(
+        `[data-index="${activeIndex}"]`,
+      ) as HTMLElement;
+      if (activeBtn) {
+        const navWidth = desktopNav.offsetWidth;
+        const btnLeft = activeBtn.offsetLeft;
+        const btnWidth = activeBtn.offsetWidth;
+        const scrollTarget = btnLeft - navWidth / 2 + btnWidth / 2;
+        desktopNav.scrollTo({ left: scrollTarget, behavior: "smooth" });
+      }
     }
   }, [activeIndex]);
 
@@ -854,7 +883,11 @@ export default function Home() {
     onTitleClick?: () => void;
   }> = [];
 
-  if (homeData.songs_recommendations && homeData.songs_recommendations.songs) {
+  if (
+    homeData.songs_recommendations &&
+    homeData.songs_recommendations.songs &&
+    homeData.songs_recommendations.songs.length > 0
+  ) {
     availableSections.push({
       key: "songs_recommendations",
       title: "برای شما",
@@ -875,12 +908,17 @@ export default function Home() {
       // Always show the "نمایش بیشتر" button on the home screen for the
       // personalized section so users can open the dedicated "for-you" page
       // regardless of whether the server returned a `next` page here.
-      showMore: true,
+      showMore: sectionData.forYou.length > 0,
       onShowMore: () => navigateTo("for-you"),
+      onTitleClick: () => navigateTo("for-you"),
     });
   }
 
-  if (homeData.latest_releases && homeData.latest_releases.results) {
+  if (
+    homeData.latest_releases &&
+    homeData.latest_releases.results &&
+    homeData.latest_releases.results.length > 0
+  ) {
     availableSections.push({
       key: "latest_releases",
       title: "جدیدترین ریلیز ها",
@@ -936,12 +974,18 @@ export default function Home() {
           ))}
         </div>
       ),
-      showMore: !!homeData.latest_releases.next,
+      showMore:
+        !!homeData.latest_releases.next && sectionData.hottestDrops.length > 0,
       onShowMore: () => navigateTo("latest-releases"),
+      onTitleClick: () => navigateTo("latest-releases"),
     });
   }
 
-  if (homeData.popular_artists && homeData.popular_artists.results) {
+  if (
+    homeData.popular_artists &&
+    homeData.popular_artists.results &&
+    homeData.popular_artists.results.length > 0
+  ) {
     availableSections.push({
       key: "popular_artists",
       title: "هنرمندان محبوب",
@@ -957,12 +1001,19 @@ export default function Home() {
           }
         />
       ),
-      showMore: !!homeData.popular_artists.next,
+      showMore:
+        !!homeData.popular_artists.next &&
+        sectionData.popularArtists.length > 0,
       onShowMore: () => navigateTo("popular-artists"),
+      onTitleClick: () => navigateTo("popular-artists"),
     });
   }
 
-  if (homeData.popular_albums && homeData.popular_albums.results) {
+  if (
+    homeData.popular_albums &&
+    homeData.popular_albums.results &&
+    homeData.popular_albums.results.length > 0
+  ) {
     availableSections.push({
       key: "popular_albums",
       title: "آلبوم‌های محبوب",
@@ -981,12 +1032,18 @@ export default function Home() {
           overlayHeight="75%"
         />
       ),
-      showMore: !!homeData.popular_albums.next,
+      showMore:
+        !!homeData.popular_albums.next && sectionData.popularAlbums.length > 0,
       onShowMore: () => navigateTo("popular-albums"),
+      onTitleClick: () => navigateTo("popular-albums"),
     });
   }
 
-  if (homeData.discoveries && homeData.discoveries.results) {
+  if (
+    homeData.discoveries &&
+    homeData.discoveries.results &&
+    homeData.discoveries.results.length > 0
+  ) {
     availableSections.push({
       key: "discoveries",
       title: "اکتشافات جدید",
@@ -998,8 +1055,10 @@ export default function Home() {
           }
         />
       ),
-      showMore: !!homeData.discoveries.next,
+      showMore:
+        !!homeData.discoveries.next && sectionData.newDiscoveries.length > 0,
       onShowMore: () => navigateTo("new-discoveries"),
+      onTitleClick: () => navigateTo("new-discoveries"),
     });
   }
 
@@ -1043,6 +1102,7 @@ export default function Home() {
       ),
       showMore: true,
       onShowMore: () => navigateTo("recommended-playlists"),
+      onTitleClick: () => navigateTo("recommended-playlists"),
     });
   }
 
@@ -1080,7 +1140,13 @@ export default function Home() {
       showMore: true,
       onShowMore: () =>
         navigateTo("chart-detail", {
-          title: "برترین آهنگ‌های روز",
+          chartType: "daily-songs",
+          type: "songs",
+          initialData: dailyTopSongs,
+        }),
+      onTitleClick: () =>
+        navigateTo("chart-detail", {
+          chartType: "daily-songs",
           type: "songs",
           initialData: dailyTopSongs,
         }),
@@ -1122,7 +1188,14 @@ export default function Home() {
           showMore={true}
           onShowMore={() =>
             navigateTo("chart-detail", {
-              title: "برترین آلبوم‌های روز",
+              chartType: "daily-albums",
+              type: "albums",
+              initialData: dailyTopAlbums,
+            })
+          }
+          onTitleClick={() =>
+            navigateTo("chart-detail", {
+              chartType: "daily-albums",
               type: "albums",
               initialData: dailyTopAlbums,
             })
@@ -1133,7 +1206,13 @@ export default function Home() {
       showMore: true,
       onShowMore: () =>
         navigateTo("chart-detail", {
-          title: "برترین آلبوم‌های روز",
+          chartType: "daily-albums",
+          type: "albums",
+          initialData: dailyTopAlbums,
+        }),
+      onTitleClick: () =>
+        navigateTo("chart-detail", {
+          chartType: "daily-albums",
           type: "albums",
           initialData: dailyTopAlbums,
         }),
@@ -1174,7 +1253,13 @@ export default function Home() {
       showMore: true,
       onShowMore: () =>
         navigateTo("chart-detail", {
-          title: "برترین هنرمندان روز",
+          chartType: "daily-artists",
+          type: "artists",
+          initialData: dailyTopArtists,
+        }),
+      onTitleClick: () =>
+        navigateTo("chart-detail", {
+          chartType: "daily-artists",
           type: "artists",
           initialData: dailyTopArtists,
         }),
@@ -1215,7 +1300,13 @@ export default function Home() {
       showMore: true,
       onShowMore: () =>
         navigateTo("chart-detail", {
-          title: "برترین آهنگ‌های هفته",
+          chartType: "weekly-songs",
+          type: "songs",
+          initialData: weeklyTopSongs,
+        }),
+      onTitleClick: () =>
+        navigateTo("chart-detail", {
+          chartType: "weekly-songs",
           type: "songs",
           initialData: weeklyTopSongs,
         }),
@@ -1257,7 +1348,14 @@ export default function Home() {
           showMore={true}
           onShowMore={() =>
             navigateTo("chart-detail", {
-              title: "برترین آلبوم‌های هفته",
+              chartType: "weekly-albums",
+              type: "albums",
+              initialData: weeklyTopAlbums,
+            })
+          }
+          onTitleClick={() =>
+            navigateTo("chart-detail", {
+              chartType: "weekly-albums",
               type: "albums",
               initialData: weeklyTopAlbums,
             })
@@ -1268,7 +1366,13 @@ export default function Home() {
       showMore: true,
       onShowMore: () =>
         navigateTo("chart-detail", {
-          title: "برترین آلبوم‌های هفته",
+          chartType: "weekly-albums",
+          type: "albums",
+          initialData: weeklyTopAlbums,
+        }),
+      onTitleClick: () =>
+        navigateTo("chart-detail", {
+          chartType: "weekly-albums",
           type: "albums",
           initialData: weeklyTopAlbums,
         }),
@@ -1310,7 +1414,13 @@ export default function Home() {
       showMore: true,
       onShowMore: () =>
         navigateTo("chart-detail", {
-          title: "برترین هنرمندان هفته",
+          chartType: "weekly-artists",
+          type: "artists",
+          initialData: weeklyTopArtists,
+        }),
+      onTitleClick: () =>
+        navigateTo("chart-detail", {
+          chartType: "weekly-artists",
           type: "artists",
           initialData: weeklyTopArtists,
         }),
@@ -1574,21 +1684,29 @@ export default function Home() {
         </header>
 
         {/* Desktop Header */}
-        <header className="hidden md:block sticky top-0 z-50 px-6 pt-4 pb-2">
-          <div className="flex items-center justify-between mb-4">
-            {/* Navigation buttons */}
-            <div className="flex items-center gap-2">
+        <header className="hidden md:block sticky top-0 z-50 px-4 pt-3 pb-2 bg-black/90 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            {/* Prev / Next section arrows */}
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
-                onClick={() => window.history.back()}
-                className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-                aria-label="برگشت"
+                onClick={() => {
+                  const newIndex = Math.max(0, activeIndex - 1);
+                  const el = sectionRefs.current[newIndex];
+                  if (el) {
+                    el.scrollIntoView({ behavior: "auto", block: "start" });
+                    setActiveIndex(newIndex);
+                  }
+                }}
+                disabled={activeIndex === 0}
+                className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                aria-label="بخش قبلی"
               >
                 <svg
-                  className="w-5 h-5"
+                  className="w-4 h-4"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                   aria-hidden="true"
                 >
                   <path
@@ -1599,16 +1717,27 @@ export default function Home() {
                 </svg>
               </button>
               <button
-                onClick={() => window.history.forward()}
-                className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-                aria-label="جلو"
+                onClick={() => {
+                  const newIndex = Math.min(
+                    availableSections.length - 1,
+                    activeIndex + 1,
+                  );
+                  const el = sectionRefs.current[newIndex];
+                  if (el) {
+                    el.scrollIntoView({ behavior: "auto", block: "start" });
+                    setActiveIndex(newIndex);
+                  }
+                }}
+                disabled={activeIndex >= availableSections.length - 1}
+                className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                aria-label="بخش بعدی"
               >
                 <svg
-                  className="w-5 h-5"
+                  className="w-4 h-4"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                   aria-hidden="true"
                 >
                   <path
@@ -1620,38 +1749,48 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Center: Section navigation pills */}
-            <div className="flex-1 flex justify-center">
-              <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-3xl">
-                {availableSections.map((s, i) => (
+            {/* Center: Section navigation pills – scrollable, centered on active */}
+            <div
+              ref={desktopNavRef}
+              className="flex-1 flex gap-2 overflow-x-auto no-scrollbar items-center py-1"
+              style={{ direction: "rtl" }}
+              aria-label="بخش‌های خانه"
+            >
+              {availableSections.map((s, i) => {
+                const isSkeleton = s.key.endsWith("_skeleton");
+                return (
                   <button
                     key={s.key}
+                    data-index={i}
                     onClick={() => {
+                      if (isSkeleton) return;
                       const el = sectionRefs.current[i];
                       if (el) {
                         el.scrollIntoView({ behavior: "auto", block: "start" });
                         setActiveIndex(i);
                       }
                     }}
-                    aria-pressed={i === activeIndex}
+                    aria-pressed={!isSkeleton && i === activeIndex}
                     className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none ${
-                      i === activeIndex
-                        ? "bg-white text-black"
-                        : "bg-zinc-800 text-white hover:bg-zinc-700"
+                      isSkeleton
+                        ? "bg-zinc-800/40 text-zinc-600 cursor-default"
+                        : i === activeIndex
+                          ? "bg-white text-black shadow-md"
+                          : "bg-zinc-800 text-white hover:bg-zinc-700"
                     }`}
                   >
                     {s.title}
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
 
-            {/* Right side controls */}
-            <div className="flex items-center gap-3">
+            {/* Right side controls – fixed max width so they don't crowd the nav */}
+            <div className="flex items-center gap-3 shrink-0 max-w-xs">
               {!isPremium && (
                 <button
                   onClick={() => navigateTo("premium")}
-                  className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold text-sm hover:text-emerald-400 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                  className="text-emerald-500 px-3 py-1.5 rounded-full font-semibold text-sm whitespace-nowrap hover:text-emerald-400 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                 >
                   ارتقا پلن +
                 </button>
@@ -1668,7 +1807,7 @@ export default function Home() {
               />
               <button
                 onClick={() => navigateTo("profile")}
-                className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                className="shrink-0 w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                 aria-label="مشاهده پروفایل"
               >
                 {user?.image_profile && user.image_profile.image ? (
@@ -1679,7 +1818,7 @@ export default function Home() {
                     type="artist"
                   />
                 ) : (
-                  <UserIcon className="w-6 h-6 text-zinc-400" />
+                  <UserIcon className="w-5 h-5 text-zinc-400" />
                 )}
               </button>
             </div>
@@ -1939,7 +2078,7 @@ const Section = ({
                 e.stopPropagation();
                 onTitleClick();
               }}
-              className="text-2xl font-bold tracking-tight leading-none text-right w-full text-left md:text-right focus-visible:ring-2 focus-visible:ring-emerald-500 rounded outline-none"
+              className="text-2xl font-bold tracking-tight leading-none text-right w-full text-left md:text-right hover:text-white transition-colors hover:underline decoration-zinc-500 focus-visible:ring-2 focus-visible:ring-emerald-500 rounded outline-none"
             >
               {title}
             </button>
@@ -2491,6 +2630,7 @@ const GlassAlbumGrid = ({
   maxItems = 10,
   showMore = false,
   onShowMore,
+  onTitleClick,
   overlayHeight = "50%",
 }: {
   items: ItemType[];
@@ -2498,6 +2638,7 @@ const GlassAlbumGrid = ({
   maxItems?: number;
   showMore?: boolean;
   onShowMore?: () => void;
+  onTitleClick?: () => void;
   overlayHeight?: string;
 }) => {
   const { navigateTo } = useNavigation();
@@ -2651,12 +2792,6 @@ const SpotlightArtistList = ({
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                 type="artist"
               />
-            </div>
-            <div
-              className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[10px] font-black px-3 py-1 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap"
-              aria-hidden="true"
-            >
-              VERIFIED
             </div>
           </div>
           <h4

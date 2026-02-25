@@ -49,6 +49,7 @@ const UserPlaylistDetail = dynamic(() => import("./UserPlaylistDetail"), {
   ssr: false,
 });
 const ArtistDetail = dynamic(() => import("./ArtistDetail"), { ssr: false });
+const ArtistSubPage = dynamic(() => import("./ArtistSubPage"), { ssr: false });
 const AlbumDetail = dynamic(() => import("./AlbumDetail"), { ssr: false });
 const UserDetail = dynamic(() => import("./UserDetail"), { ssr: false });
 const ChartPage = dynamic(() => import("./ChartPage"), { ssr: false });
@@ -95,6 +96,9 @@ const RecommendedPlaylistsPage = dynamic(
   { ssr: false },
 );
 const ForYouPage = dynamic(() => import("./ForYouPage"), { ssr: false });
+const OtherUserPlaylists = dynamic(() => import("./OtherUserPlaylists"), {
+  ssr: false,
+});
 
 // ── Settings & payments ─────────────────────────────────────────────────────
 const Settings = dynamic(() => import("./Settings"), { ssr: false });
@@ -164,6 +168,13 @@ export const AppRouter: React.FC = () => {
         );
       case "artist-detail":
         return <ArtistDetail id={currentParams?.id} />;
+      case "artist-sub-page":
+        return (
+          <ArtistSubPage
+            id={currentParams?.id}
+            subPage={currentParams?.subPage}
+          />
+        );
       case "user-detail":
         return <UserDetail uniqueId={currentParams?.id} />;
       case "album-detail":
@@ -211,11 +222,19 @@ export const AppRouter: React.FC = () => {
         return <NewDiscoveriesPage />;
       case "for-you":
         return <ForYouPage />;
+      case "other-user-playlists":
+        return (
+          <OtherUserPlaylists
+            uniqueId={currentParams?.uniqueId}
+            fullName={currentParams?.fullName}
+          />
+        );
       case "chart-detail":
         return (
           <ChartPage
             title={currentParams?.title}
             type={currentParams?.type}
+            chartType={currentParams?.chartType}
             initialData={currentParams?.initialData}
           />
         );

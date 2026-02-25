@@ -64,6 +64,7 @@ interface SectionDetailLayoutProps {
   onLoadMore?: () => void;
   hasMore?: boolean;
   isLoading?: boolean;
+  hideScrollbar?: boolean;
 }
 
 const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
@@ -74,6 +75,7 @@ const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
   onLoadMore,
   hasMore,
   isLoading,
+  hideScrollbar = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { registerScrollContainer, restoreScroll, goBack } = useNavigation();
@@ -101,7 +103,7 @@ const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="fixed inset-0 overflow-y-auto bg-[#0a0a0a] text-white no-scrollbar"
+      className={`fixed inset-0 overflow-y-auto bg-[#0a0a0a] text-white ${hideScrollbar ? "no-scrollbar" : "custom-scrollbar"}`}
       style={{ zIndex: 40 }}
     >
       {/* Top Bar (overlays header image) */}

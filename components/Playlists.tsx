@@ -310,8 +310,8 @@ const PlaylistCard: React.FC<{
             size === "small"
               ? "128px"
               : size === "large"
-              ? "224px"
-              : "(max-width: 768px) 160px, 176px"
+                ? "224px"
+                : "(max-width: 768px) 160px, 176px"
           }
           className={`absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out will-change-transform ${
             isHovered ? "scale-105" : "scale-100"
@@ -415,7 +415,7 @@ const FeaturedPlaylistCard: React.FC<{ playlist: Playlist }> = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 const QuickPickCard: React.FC<{ playlist: Playlist }> = memo(({ playlist }) => {
@@ -596,6 +596,7 @@ const Playlists: React.FC = () => {
         title={config.title}
         subtitle={config.subtitle}
         icon={config.icon}
+        showSeeAll={config.data && config.data.length > 0}
       />
 
       <div className="px-1">
@@ -615,7 +616,7 @@ const Playlists: React.FC = () => {
                   size="small"
                   showMeta={false}
                 />
-              )
+              ),
             )}
           </div>
         ) : (

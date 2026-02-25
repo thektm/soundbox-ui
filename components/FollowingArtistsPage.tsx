@@ -106,7 +106,7 @@ const FollowingArtistsPage: React.FC = () => {
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="relative w-full h-[100dvh] lg:h-full overflow-y-auto bg-[#030303] text-white no-scrollbar pb-32"
+      className="relative w-full h-[100dvh] lg:h-full overflow-y-auto bg-[#030303] text-white custom-scrollbar pb-32"
       dir="rtl"
     >
       {/* Background Glows */}

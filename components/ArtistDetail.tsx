@@ -260,6 +260,49 @@ const AnimNum = memo(
 );
 AnimNum.displayName = "AnimNum";
 
+// ============== EMPTY STATE COMPONENT ==============
+const NoItemsState = ({
+  title,
+  subtitle,
+  iconType = "music",
+}: {
+  title: string;
+  subtitle: string;
+  iconType?: "music" | "album" | "playlist" | "artist";
+}) => {
+  const iconPaths = {
+    music:
+      "M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm12-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
+    album:
+      "M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18zm0-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+    playlist: "M12 2v20m-8-6h16M4 12h16M4 6h16",
+    artist:
+      "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center py-4 px-6 text-center animate-fade-in bg-zinc-900/10 rounded-2xl border border-dashed border-white/5">
+      <div className="w-16 h-16 bg-zinc-800/30 rounded-full flex items-center justify-center mb-4 ring-1 ring-white/5">
+        <svg
+          className="w-8 h-8 text-zinc-600"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d={iconPaths[iconType]} />
+        </svg>
+      </div>
+      <h3 className="text-lg font-bold text-white/80 mb-1">{title}</h3>
+      <p className="text-zinc-500 text-sm max-w-sm mx-auto leading-relaxed">
+        {subtitle}
+      </p>
+    </div>
+  );
+};
+
 // ============== SONG ROW ==============
 const SongRow = memo(
   ({
@@ -347,11 +390,7 @@ const SongRow = memo(
               >
                 {song.title}
               </div>
-              <div
-                
-              >
-                {song.plays}
-              </div>
+              <div>{song.plays}</div>
             </>
           ) : (
             <>
@@ -363,7 +402,9 @@ const SongRow = memo(
                 {song.title}
               </div>
               <div className="text-[13px] text-white/60 truncate mt-0.5">
-                {song.plays ? `${song.plays.toLocaleString("fa-IR")} پخش` : song.artist_name || artistName}
+                {song.plays
+                  ? `${song.plays.toLocaleString("fa-IR")} پخش`
+                  : song.artist_name || artistName}
               </div>
             </>
           )}
@@ -554,7 +595,7 @@ const ArtistSkeleton = () => (
 );
 
 export default function ArtistDetail({ id }: ArtistDetailProps) {
-  const { goBack, currentParams, scrollY , navigateTo } = useNavigation();
+  const { goBack, currentParams, scrollY, navigateTo } = useNavigation();
   const { playTrack, setQueue, currentTrack, isPlaying } = usePlayer();
   const { accessToken, authenticatedFetch } = useAuth();
 
@@ -1045,34 +1086,69 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         <section className="px-6 py-4">
           {/* Songs */}
           <div className="mb-8">
-            <h3 className="text-lg font-semibold mb-4">اهنگ های برتر</h3>
-            <div className="flex flex-col group">
-              {displayed.map((song, i) => (
-                <SongRow
-                  key={song.id}
-                  song={song}
-                  idx={i}
-                  current={String(song.id) === currentTrack?.id}
-                  playing={isPlaying}
-                  onPlay={() => playSong(song)}
-                  onMore={() => handleMore(song)}
-                  onTitleClick={() =>
-                    navigateTo("song-detail", {
-                      id: song.id,
-                      title: createSlug(song.title),
-                    })
-                  }
-                  onArtistClick={() =>
-                    (song.artist_id || artist.id) &&
-                    navigateTo("artist-detail", {
-                      id: song.artist_id || artist.id,
+            <div className="flex items-center justify-between mb-4">
+              <h3
+                className="text-lg font-semibold cursor-pointer hover:underline"
+                onClick={() =>
+                  navigateTo("artist-sub-page", {
+                    id: artist.id,
+                    slug: artist.unique_id,
+                    subPage: "top-songs",
+                  })
+                }
+              >
+                اهنگ های برتر
+              </h3>
+              {songs.length > 0 && (
+                <button
+                  onClick={() =>
+                    navigateTo("artist-sub-page", {
+                      id: artist.id,
                       slug: artist.unique_id,
+                      subPage: "top-songs",
                     })
                   }
-                  artistName={artist.name}
-                  delay={i * 50}
+                  className="text-white/70 text-[13px] font-semibold hover:text-white transition"
+                >
+                  مشاهده همه
+                </button>
+              )}
+            </div>
+            <div className="flex flex-col group">
+              {displayed.length > 0 ? (
+                displayed.map((song, i) => (
+                  <SongRow
+                    key={song.id}
+                    song={song}
+                    idx={i}
+                    current={String(song.id) === currentTrack?.id}
+                    playing={isPlaying}
+                    onPlay={() => playSong(song)}
+                    onMore={() => handleMore(song)}
+                    onTitleClick={() =>
+                      navigateTo("song-detail", {
+                        id: song.id,
+                        title: createSlug(song.title),
+                      })
+                    }
+                    onArtistClick={() =>
+                      (song.artist_id || artist.id) &&
+                      navigateTo("artist-detail", {
+                        id: song.artist_id || artist.id,
+                        slug: artist.unique_id,
+                      })
+                    }
+                    artistName={artist.name}
+                    delay={i * 50}
+                  />
+                ))
+              ) : (
+                <NoItemsState
+                  title="هنوز آهنگی منتشر نشده است"
+                  subtitle={`به زودی موزیک‌های ${artist.name} در اینجا قرار می‌گیرد.`}
+                  iconType="music"
                 />
-              ))}
+              )}
             </div>
             {songs.length > 5 && (
               <button
@@ -1087,38 +1163,102 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
           {/* Albums */}
           <div>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold">آلبوم‌ها</h3>
-              <button className="text-white/70 text-[13px] font-semibold hover:text-white transition">
-                مشاهده همه
-              </button>
+              <h3
+                className="text-lg font-semibold cursor-pointer hover:underline"
+                onClick={() =>
+                  navigateTo("artist-sub-page", {
+                    id: artist.id,
+                    slug: artist.unique_id,
+                    subPage: "albums",
+                  })
+                }
+              >
+                آلبوم‌ها
+              </h3>
+              {albums.length > 0 && (
+                <button
+                  onClick={() =>
+                    navigateTo("artist-sub-page", {
+                      id: artist.id,
+                      slug: artist.unique_id,
+                      subPage: "albums",
+                    })
+                  }
+                  className="text-white/70 text-[13px] font-semibold hover:text-white transition"
+                >
+                  مشاهده همه
+                </button>
+              )}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4 sm:gap-5">
-              {albums.map((a, i) => (
-                <AlbumCard key={a.id} album={a} idx={i} />
-              ))}
+              {albums.length > 0 ? (
+                albums.map((a, i) => <AlbumCard key={a.id} album={a} idx={i} />)
+              ) : (
+                <div className="col-span-full">
+                  <NoItemsState
+                    title="آلبومی یافت نشد"
+                    subtitle="این هنرمند در حال حاضر آلبوم فعالی ندارد."
+                    iconType="album"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </section>
 
         {/* Latest Songs */}
         <section className="px-6 py-4">
-          <h2 className="text-[22px] font-bold mb-5">آخرین آهنگ‌ها</h2>
+          <div className="flex items-center justify-between mb-5">
+            <h2
+              className="text-[22px] font-bold cursor-pointer hover:underline"
+              onClick={() =>
+                navigateTo("artist-sub-page", {
+                  id: artist.id,
+                  slug: artist.unique_id,
+                  subPage: "latest-songs",
+                })
+              }
+            >
+              آخرین آهنگ‌ها
+            </h2>
+            {(data?.latest_songs.items || []).length > 0 && (
+              <button
+                onClick={() =>
+                  navigateTo("artist-sub-page", {
+                    id: artist.id,
+                    slug: artist.unique_id,
+                    subPage: "latest-songs",
+                  })
+                }
+                className="text-white/70 text-[13px] font-semibold hover:text-white transition"
+              >
+                مشاهده همه
+              </button>
+            )}
+          </div>
           <div className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar">
-            {(data?.latest_songs.items || []).map((song) => (
-              <SongCard
-                key={song.id}
-                id={song.id}
-                image={song.cover_image}
-                title={song.title}
-                artist={song.artist_name}
-                artistId={song.artist_id || artist.id}
-                artistSlug={artist.unique_id}
-                onClick={() => playSong(song)}
-              />
-            ))}
-            <button className="flex-shrink-0 text-white/70 text-sm font-semibold hover:text-white transition px-4 py-2">
-              مشاهده همه
-            </button>
+            {(data?.latest_songs.items || []).length > 0 ? (
+              (data?.latest_songs.items || []).map((song) => (
+                <SongCard
+                  key={song.id}
+                  id={song.id}
+                  image={song.cover_image}
+                  title={song.title}
+                  artist={song.artist_name}
+                  artistId={song.artist_id || artist.id}
+                  artistSlug={artist.unique_id}
+                  onClick={() => playSong(song)}
+                />
+              ))
+            ) : (
+              <div className="w-full">
+                <NoItemsState
+                  title="آهنگ جدیدی موجود نیست"
+                  subtitle="به محض انتشار آهنگ جدید در اینجا نمایش داده می‌شود."
+                  iconType="music"
+                />
+              </div>
+            )}
           </div>
         </section>
 
@@ -1164,7 +1304,32 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         {/* Discovered On (Playlists) */}
         {discoveredOn.length > 0 && (
           <section className="px-6 py-4">
-            <h2 className="text-[22px] font-bold mb-5"> کشف‌شده در </h2>
+            <div className="flex items-center justify-between mb-5">
+              <h2
+                className="text-[22px] font-bold cursor-pointer hover:underline"
+                onClick={() =>
+                  navigateTo("artist-sub-page", {
+                    id: artist.id,
+                    slug: artist.unique_id,
+                    subPage: "discovered-on",
+                  })
+                }
+              >
+                کشف‌شده در
+              </h2>
+              <button
+                onClick={() =>
+                  navigateTo("artist-sub-page", {
+                    id: artist.id,
+                    slug: artist.unique_id,
+                    subPage: "discovered-on",
+                  })
+                }
+                className="text-white/70 text-[13px] font-semibold hover:text-white transition"
+              >
+                مشاهده همه
+              </button>
+            </div>
             <div className="flex gap-4 overflow-x-auto pb-2 hide-scrollbar">
               {discoveredOn.map((playlist) => (
                 <PlaylistSnippetCard key={playlist.id} playlist={playlist} />
@@ -1176,14 +1341,21 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         <section className="px-6 py-8">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-[22px] font-bold">هنرمندان مشابه</h2>
-            <button className="text-white/70 text-[13px] font-semibold hover:text-white transition">
-              مشاهده همه
-            </button>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 sm:gap-5">
-            {similarArtists.map((a, i) => (
-              <ArtistCard key={a.id} artist={a} idx={i} />
-            ))}
+            {similarArtists.length > 0 ? (
+              similarArtists.map((a, i) => (
+                <ArtistCard key={a.id} artist={a} idx={i} />
+              ))
+            ) : (
+              <div className="col-span-full">
+                <NoItemsState
+                  title="هنرمند مشابهی یافت نشد"
+                  subtitle="در حال حاضر هنرمندی مشابه با این هنرمند پیشنهاد نمی‌شود."
+                  iconType="artist"
+                />
+              </div>
+            )}
           </div>
         </section>
 
@@ -1213,6 +1385,19 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
       />
 
       <style jsx global>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.5s ease-out forwards;
+        }
         @keyframes equalizer {
           0%,
           100% {

@@ -160,8 +160,8 @@ const LibraryItem = ({
                   {type === "user" &&
                     meta &&
                     (meta.plan === "premium" ? (
-                      <span className="font-semibold text-yellow-300">
-                        پرمیوم
+                      <span className="flex items-center gap-1 text-white">
+                        {/* کاربر */}
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-white">
@@ -242,8 +242,8 @@ const LibraryItem = ({
                   {type === "user" &&
                     meta &&
                     (meta.plan === "premium" ? (
-                      <span className="font-semibold text-yellow-300">
-                        پرمیوم
+                      <span className="flex items-center gap-1 text-white">
+                        کاربر
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-white">
@@ -348,8 +348,8 @@ const LibraryItem = ({
                   {type === "user" &&
                     meta &&
                     (meta.plan === "premium" ? (
-                      <span className="font-semibold text-yellow-300">
-                        پرمیوم
+                      <span className="flex items-center gap-1 text-white">
+                        کاربر
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-white">
@@ -430,8 +430,8 @@ const LibraryItem = ({
                   {type === "user" &&
                     meta &&
                     (meta.plan === "premium" ? (
-                      <span className="font-semibold text-yellow-300">
-                        پرمیوم
+                      <span className="flex items-center gap-1 text-white">
+                        کاربر
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-white">

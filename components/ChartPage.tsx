@@ -8,12 +8,24 @@ import { usePlayer } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 
 interface ChartPageProps {
-  title: string;
+  title?: string;
   type: "songs" | "albums" | "artists";
+  chartType?:
+    | "daily-songs"
+    | "daily-albums"
+    | "daily-artists"
+    | "weekly-songs"
+    | "weekly-albums"
+    | "weekly-artists";
   initialData?: any;
 }
 
-const ChartPage: React.FC<ChartPageProps> = ({ title, type, initialData }) => {
+const ChartPage: React.FC<ChartPageProps> = ({
+  title: initialTitle,
+  type,
+  chartType,
+  initialData,
+}) => {
   const { accessToken, authenticatedFetch } = useAuth();
   const { navigateTo } = useNavigation();
   const { setQueue } = usePlayer();
@@ -22,60 +34,79 @@ const ChartPage: React.FC<ChartPageProps> = ({ title, type, initialData }) => {
     initialData?.next || null,
   );
   const [loading, setLoading] = useState(!initialData);
+  const [title, setTitle] = useState(initialTitle || "");
 
-  const endpointMap = {
-    "daily-top-songs-global": "daily-top-songs-global",
-    "daily-top-albums-global": "daily-top-albums-global",
-    "daily-top-artists-global": "daily-top-artists-global",
-    "weekly-top-songs-global": "weekly-top-songs-global",
-    "weekly-top-albums-global": "weekly-top-albums-global",
-    "weekly-top-artists-global": "weekly-top-artists-global",
+  const endpointMap: Record<string, string> = {
+    "daily-songs": "daily-top-songs-global",
+    "daily-albums": "daily-top-albums-global",
+    "daily-artists": "daily-top-artists-global",
+    "weekly-songs": "weekly-top-songs-global",
+    "weekly-albums": "weekly-top-albums-global",
+    "weekly-artists": "weekly-top-artists-global",
   };
+
+  const titleMap: Record<string, string> = {
+    "daily-songs": "برترین آهنگ‌های روز",
+    "daily-albums": "برترین آلبوم‌های روز",
+    "daily-artists": "برترین هنرمندان روز",
+    "weekly-songs": "برترین آهنگ‌های هفته",
+    "weekly-albums": "برترین آلبوم‌های هفته",
+    "weekly-artists": "برترین هنرمندان هفته",
+  };
+
+  useEffect(() => {
+    if (chartType && !title) {
+      setTitle(titleMap[chartType] || "");
+    }
+  }, [chartType, title]);
 
   useEffect(() => {
     if (items.length > 0) return;
 
-    // We need to infer the endpoint from the title or pass it explicitly.
-    // Let's assume the calling navigateTo passes a 'slug' or 'endpoint' in params.
-    // For now I'll use a hacky search in title to find the endpoint context.
-    const getEndpoint = () => {
-      if (title.includes("آهنگ") && title.includes("روز"))
-        return "daily-top-songs-global";
-      if (title.includes("آلبوم") && title.includes("روز"))
-        return "daily-top-albums-global";
-      if (title.includes("هنرمند") && title.includes("روز"))
-        return "daily-top-artists-global";
-      if (title.includes("آهنگ") && title.includes("هفته"))
-        return "weekly-top-songs-global";
-      if (title.includes("آلبوم") && title.includes("هفته"))
-        return "weekly-top-albums-global";
-      if (title.includes("هنرمند") && title.includes("هفته"))
-        return "weekly-top-artists-global";
-      return "";
-    };
+    const endpoint = chartType ? endpointMap[chartType] : null;
+    if (!endpoint) {
+      // Fallback for when chartType is not provided (legacy or direct navigation)
+      const getEndpointFromTitle = () => {
+        if (!title) return "";
+        if (title.includes("آهنگ") && title.includes("روز"))
+          return "daily-top-songs-global";
+        if (title.includes("آلبوم") && title.includes("روز"))
+          return "daily-top-albums-global";
+        if (title.includes("هنرمند") && title.includes("روز"))
+          return "daily-top-artists-global";
+        if (title.includes("آهنگ") && title.includes("هفته"))
+          return "weekly-top-songs-global";
+        if (title.includes("آلبوم") && title.includes("هفته"))
+          return "weekly-top-albums-global";
+        if (title.includes("هنرمند") && title.includes("هفته"))
+          return "weekly-top-artists-global";
+        return "";
+      };
+      const fallbackEndpoint = getEndpointFromTitle();
+      if (!fallbackEndpoint) return;
+      fetchChart(fallbackEndpoint);
+    } else {
+      fetchChart(endpoint);
+    }
+  }, [accessToken, title, chartType, items.length]);
 
-    const endpoint = getEndpoint();
-    if (!endpoint) return;
-
-    const fetchChart = async () => {
-      try {
-        const response = await authenticatedFetch(
-          `https://api.sedabox.com/api/home/${endpoint}/`,
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setItems(data.results);
-          setNextUrl(data.next);
-        }
-      } catch (error) {
-        console.error("Error fetching chart:", error);
-      } finally {
-        setLoading(false);
+  const fetchChart = async (endpoint: string) => {
+    setLoading(true);
+    try {
+      const response = await authenticatedFetch(
+        `https://api.sedabox.com/api/home/${endpoint}/`,
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setItems(data.results);
+        setNextUrl(data.next);
       }
-    };
-
-    fetchChart();
-  }, [accessToken, title, items.length]);
+    } catch (error) {
+      console.error("Error fetching chart:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadMore = async () => {
     if (!nextUrl || loading) return;
