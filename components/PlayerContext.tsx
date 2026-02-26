@@ -188,7 +188,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (isActuallyPlayingRef.current || currentTrackRef.current) {
         toast.error("اتصال اینترنت قطع شد. لطفاً شبکه خود را بررسی کنید.", {
           id: "network-error",
-          duration: 4000,
+          duration: 3000,
         });
       }
     };
@@ -426,7 +426,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             ) {
               toast.error("خطا در شبکه: اتصال اینترنت قطع شده است.", {
                 id: "network-error-event",
-                duration: 4000,
+                duration: 3000,
               });
             }
           } else {
@@ -447,7 +447,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         ) {
           toast.error("اتصال اینترنت قطع شد. پخش متوقف شد.", {
             id: "network-error-stalled",
-            duration: 4000,
+            duration: 3000,
           });
         }
       };

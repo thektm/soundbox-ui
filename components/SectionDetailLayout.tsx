@@ -18,7 +18,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
   showLogo = true,
 }) => {
   return (
-    <div className="relative h-[338px] sm:h-[405px] w-full overflow-hidden">
+    <div className="relative h-[250px] sm:h-[250px] w-full overflow-hidden">
       {/* Background Image with Overlay */}
       {backgroundImage ? (
         <div className="absolute inset-0">
@@ -37,7 +37,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
 
       {/* Content */}
       <div
-        className="absolute inset-0 flex flex-col p-6 pt-12 sm:p-10 justify-end"
+        className="absolute inset-0 flex flex-col p-6 sm:p-10 justify-end"
         style={{ direction: "rtl" }}
       >
         {/* Text */}
@@ -152,7 +152,7 @@ const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
         backgroundImage={backgroundImage}
       />
 
-      <div className="px-4 py-8 pt-16 sm:px-10 max-w-7xl mx-auto">
+      <div className="px-4 py-6 pt-2 sm:px-10 max-w-7xl mx-auto">
         {children}
 
         {/* Loading Spinner */}

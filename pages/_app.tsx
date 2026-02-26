@@ -4,7 +4,7 @@ import React from "react";
 import dynamic from "next/dynamic";
 import { AppRouter } from "@/components/AppRouter";
 import ResponsiveAppShell from "../components/ResponsiveAppShell";
-import { Toaster } from "react-hot-toast";
+import toast, { Toaster, ToastBar } from "react-hot-toast";
 import { SEO } from "@/components/SEO";
 
 const AppContainer = dynamic(() => import("../components/AppContainer"), {
@@ -20,10 +20,11 @@ const toastStyle = {
   padding: "12px 16px",
   borderRadius: "12px",
   fontFamily: "'Vazir', Arial, Helvetica, sans-serif",
+  cursor: "pointer",
 } as const;
 
 const toastOptions = {
-  duration: 4000,
+  duration: 3000,
   style: toastStyle,
   className: "sb-toast",
   success: { className: "sb-toast sb-toast--success" },
@@ -38,11 +39,16 @@ export default function App({ Component, pageProps }: AppProps) {
       <SEO />
       <AppContainer>
         <Toaster
-       
           position="bottom-center"
           containerStyle={containerStyle}
           toastOptions={toastOptions}
-        />
+        >
+          {(t) => (
+            <div onClick={() => toast.dismiss(t.id)}>
+              <ToastBar toast={t} />
+            </div>
+          )}
+        </Toaster>
         <ResponsiveAppShell>
           <AppRouter />
         </ResponsiveAppShell>

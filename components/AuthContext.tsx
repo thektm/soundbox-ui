@@ -2,6 +2,7 @@ import React, {
   createContext,
   useContext,
   useState,
+  useRef,
   ReactNode,
   useEffect,
   Dispatch,
@@ -159,11 +160,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     return false;
   });
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
+  const isInitializingRef = useRef<boolean>(true);
+
+  const updateIsInitializing = (val: boolean) => {
+    setIsInitializing(val);
+    isInitializingRef.current = val;
+  };
+
   const [user, setUser] = useState<User | null>(null);
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
+
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const accessTokenRef = useRef<string | null>(null);
+
+  const updateAccessToken = (val: string | null) => {
+    setAccessToken(val);
+    accessTokenRef.current = val;
+  };
   const [verificationContext, setVerificationContext] = useState<string | null>(
     null,
   );
@@ -458,14 +473,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         if (r.status === 401) {
           if (typeof window !== "undefined")
             localStorage.removeItem("refreshToken");
-          setAccessToken(null);
+          updateAccessToken(null);
           setIsLoggedIn(false);
           setUser(null);
         }
         return null;
       }
       const data = r.body;
-      setAccessToken(data.accessToken);
+      updateAccessToken(data.accessToken);
       if (typeof window !== "undefined")
         localStorage.setItem("refreshToken", data.refreshToken);
 
@@ -479,7 +494,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setIsLoggedIn(true);
 
       // Check initial check status after refreshing token
-      await checkInitialStatus(data.accessToken);
+      checkInitialStatus(data.accessToken);
 
       return data.accessToken;
     } catch (err) {
@@ -491,15 +506,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> => {
-    let currentToken = accessToken;
+    let currentToken = accessTokenRef.current;
 
     // If the auth layer is still initializing (refresh in progress), wait
-    // briefly for it to complete to avoid racing other components that
-    // immediately call protected endpoints (e.g. opening /profile directly).
-    if (isInitializing) {
+    // briefly for it to complete. However, if we already have an accessToken
+    // (e.g. set during tryRefreshToken), we can proceed immediately.
+    if (isInitializingRef.current && !currentToken) {
       await new Promise((resolve) => {
         const interval = setInterval(() => {
-          if (!isInitializing) {
+          if (!isInitializingRef.current || accessTokenRef.current) {
             clearInterval(interval);
             resolve(null);
           }
@@ -511,7 +526,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         }, 5000);
       });
       // Refresh currentToken after init completes
-      currentToken = accessToken;
+      currentToken = accessTokenRef.current;
+    }
+
+    // Refresh currentToken once more just in case it was set during the wait
+    if (!currentToken) {
+      currentToken = accessTokenRef.current;
     }
 
     // If we have neither an in-memory access token nor a stored refresh token,
@@ -656,7 +676,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Fetch fresh token and user data without artificial delays
       // to reduce Cumulative Layout Shift (CLS) during hydration.
       await tryRefreshToken();
-      if (mounted) setIsInitializing(false);
+      if (mounted) updateIsInitializing(false);
     };
     init();
     return () => {
@@ -672,7 +692,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     });
     if (!r.ok) throw r.body || new Error("Login failed");
     const data = r.body;
-    setAccessToken(data.accessToken);
+    updateAccessToken(data.accessToken);
     if (typeof window !== "undefined")
       localStorage.setItem("refreshToken", data.refreshToken);
 
@@ -706,7 +726,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     });
     if (!r.ok) throw r.body || new Error("Verification failed");
     const data = r.body;
-    setAccessToken(data.accessToken);
+    updateAccessToken(data.accessToken);
     if (typeof window !== "undefined")
       localStorage.setItem("refreshToken", data.refreshToken);
 
@@ -731,7 +751,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     });
     if (!r.ok) throw r.body || new Error("Verification failed");
     const data = r.body;
-    setAccessToken(data.accessToken);
+    updateAccessToken(data.accessToken);
     if (typeof window !== "undefined")
       localStorage.setItem("refreshToken", data.refreshToken);
 
@@ -770,7 +790,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     if (typeof window !== "undefined") {
       localStorage.removeItem("refreshToken");
     }
-    setAccessToken(null);
+    updateAccessToken(null);
     setIsLoggedIn(false);
     setUser(null);
     setNeedsInitialCheck(false);
