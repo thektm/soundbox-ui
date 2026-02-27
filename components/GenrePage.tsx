@@ -313,18 +313,7 @@ const SongGridCard = memo(
         {song.artist_name}
       </button>
 
-      {/* Album in smaller text */}
-      {song.album_title && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onAlbumClick();
-          }}
-          className="text-zinc-600 text-xs truncate text-right mt-0.5 block w-full hover:underline hover:text-zinc-400 outline-none"
-        >
-          {song.album_title}
-        </button>
-      )}
+      
     </div>
   ),
 );
@@ -621,7 +610,7 @@ export default function GenrePage({
               <div className="text-center">#</div>
               <div />
               <div>عنوان</div>
-              <div className="hidden lg:block">آلبوم</div>
+              
               <div />
               <div className="text-center">مدت</div>
             </div>
