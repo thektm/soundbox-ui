@@ -197,22 +197,7 @@ const SongListItem = memo(
         </button>
       </div>
 
-      {/* Album — hidden on small screens */}
-      <div className="hidden lg:block text-zinc-400 text-sm truncate max-w-[180px] text-right flex-shrink-0">
-        {song.album_title ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onAlbumClick();
-            }}
-            className="hover:text-white hover:underline outline-none text-right w-full"
-          >
-            {song.album_title}
-          </button>
-        ) : (
-          "-"
-        )}
-      </div>
+      
 
       {/* Tags — hidden on small screens */}
 
