@@ -53,6 +53,7 @@ const ArtistSubPage = dynamic(() => import("./ArtistSubPage"), { ssr: false });
 const AlbumDetail = dynamic(() => import("./AlbumDetail"), { ssr: false });
 const UserDetail = dynamic(() => import("./UserDetail"), { ssr: false });
 const ChartPage = dynamic(() => import("./ChartPage"), { ssr: false });
+const GenrePage = dynamic(() => import("./GenrePage"), { ssr: false });
 
 // ── Profile & social ───────────────────────────────────────────────────────
 const Profile = dynamic(() => import("./Profile"), { ssr: false });
@@ -236,6 +237,14 @@ export const AppRouter: React.FC = () => {
             type={currentParams?.type}
             chartType={currentParams?.chartType}
             initialData={currentParams?.initialData}
+          />
+        );
+      case "genre-detail":
+        return (
+          <GenrePage
+            id={currentParams?.id}
+            name={currentParams?.name ?? ""}
+            color={currentParams?.color}
           />
         );
       default:

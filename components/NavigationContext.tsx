@@ -198,6 +198,21 @@ function parsePathname(pathname: string): { page: string; params: any } {
     };
   }
 
+  // genre: /genres/{id}-{slug} or /genre/{id}-{slug}
+  if ((first === "genres" || first === "genre") && parts[1]) {
+    const id = extractIdFromSegment(parts[1]);
+    const remaining = parts[1].includes("-")
+      ? parts[1].split("-").slice(1).join("-")
+      : null;
+    return {
+      page: "genre-detail",
+      params: {
+        id,
+        name: remaining ? decodeURIComponent(remaining).replace(/-/g, " ") : "",
+      },
+    };
+  }
+
   // user details: /user/{id}-{unique_id}
   if (first === "user" && parts[1]) {
     return {
@@ -327,6 +342,13 @@ function pageToPathname(page: string, params?: any): string | null {
       return `/album/${params.id}${titlePart}`;
     }
     if (params?.slug) return `/album/${encodeURIComponent(params.slug)}`;
+  }
+
+  if (page === "genre-detail") {
+    if (params?.id) {
+      const namePart = params.name ? `-${slugify(params.name)}` : "";
+      return `/genres/${params.id}${namePart}`;
+    }
   }
 
   if (page === "user-detail") {

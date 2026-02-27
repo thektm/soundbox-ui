@@ -1,7 +1,7 @@
 // Share links utility for sedabox
 // Generates clean, human-readable share URLs.
 
-export type ShareType = "song" | "artist" | "album" | "playlist" | "user-playlist";
+export type ShareType = "song" | "artist" | "album" | "playlist" | "user-playlist" | "genre";
 
 /**
  * Converts a string into a URL-friendly slug.
@@ -22,6 +22,7 @@ const TYPE_PREFIX: Record<ShareType, string> = {
   album: "album",
   playlist: "playlist",
   "user-playlist": "playlist",
+  genre: "genres",
 };
 
 // ─── Legacy decode helpers (for old /s/{code} links) ─────────────────────────

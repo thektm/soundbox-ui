@@ -14,6 +14,22 @@ import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
+import {
+  Music2,
+  Mic2,
+  Headphones,
+  Radio,
+  Zap,
+  Cpu,
+  Coffee,
+  Scroll,
+  Shuffle,
+  Layers,
+  Disc3,
+  Flame,
+  Star,
+  Film,
+} from "lucide-react";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getFullShareUrl } from "../utils/share";
 import { createSlug } from "./mockData";
@@ -130,6 +146,13 @@ interface EventPlaylistSong {
 interface EventPlaylistDetail {
   id: number;
   songs: EventPlaylistSong[];
+}
+
+interface Genre {
+  id: number;
+  name: string;
+  title: string;
+  slug: string;
 }
 
 // ============ UTILS & HOOKS ============
@@ -292,6 +315,45 @@ const useSearchSections = (
   }, [authenticatedFetch, enabled]);
 
   return { sections, isLoading };
+};
+
+const useGenres = (
+  authenticatedFetch: (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<Response>,
+  enabled = true,
+) => {
+  const [genres, setGenres] = useState<Genre[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const timer = setTimeout(() => {
+      const fetchGenres = async () => {
+        setIsLoading(true);
+        try {
+          const response = await authenticatedFetch(
+            "https://api.sedabox.com/api/genres/",
+          );
+          if (response.ok) {
+            const data = await response.json();
+            setGenres(Array.isArray(data) ? data : []);
+          }
+        } catch (error) {
+          console.error("Failed to fetch genres", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchGenres();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [authenticatedFetch, enabled]);
+
+  return { genres, isLoading };
 };
 
 // Hook: Handle API Logic
@@ -962,6 +1024,108 @@ const SectionsSkeleton = memo(() => (
   </div>
 ));
 
+// ============ GENRE CONFIG ============
+type LucideIcon = React.ComponentType<{
+  className?: string;
+  strokeWidth?: number;
+}>;
+
+const GENRE_CONFIG: Record<string, { bg: string; icon: LucideIcon }> = {
+  پاپ: { bg: "linear-gradient(135deg,#E91E63,#AD1457)", icon: Music2 },
+  رپ: { bg: "linear-gradient(135deg,#212121,#000000)", icon: Mic2 },
+  هیپ‌هاپ: { bg: "linear-gradient(135deg,#E65100,#BF360C)", icon: Headphones },
+  "آر اند بی": { bg: "linear-gradient(135deg,#6A1B9A,#4A148C)", icon: Radio },
+  راک: { bg: "linear-gradient(135deg,#B71C1C,#7F0000)", icon: Zap },
+  الکترونیک: { bg: "linear-gradient(135deg,#006064,#00363A)", icon: Cpu },
+  جاز: { bg: "linear-gradient(135deg,#1565C0,#0D47A1)", icon: Coffee },
+  کلاسیک: { bg: "linear-gradient(135deg,#4E342E,#3E2723)", icon: Scroll },
+  آلترناتیو: { bg: "linear-gradient(135deg,#2E7D32,#1B5E20)", icon: Shuffle },
+  تلفیقی: { bg: "linear-gradient(135deg,#F57F17,#E65100)", icon: Layers },
+  دیسکو: { bg: "linear-gradient(135deg,#F9A825,#E65100)", icon: Disc3 },
+  سول: { bg: "linear-gradient(135deg,#880E4F,#4A148C)", icon: Flame },
+  فانک: { bg: "linear-gradient(135deg,#33691E,#1B5E20)", icon: Star },
+  "موسیقی متن": { bg: "linear-gradient(135deg,#37474F,#263238)", icon: Film },
+};
+
+const DEFAULT_GENRE_CONFIGS: Array<{ bg: string; icon: LucideIcon }> = [
+  { bg: "linear-gradient(135deg,#1a1a2e,#16213e)", icon: Music2 },
+  { bg: "linear-gradient(135deg,#0f3460,#533483)", icon: Radio },
+  { bg: "linear-gradient(135deg,#16213e,#0f3460)", icon: Disc3 },
+  { bg: "linear-gradient(135deg,#2d1b69,#11052c)", icon: Flame },
+];
+
+// Map genre id → accent hex color (used for GenrePage hero)
+const GENRE_ACCENT_HEX: Record<number, string> = {
+  1: "#E91E63",
+  2: "#6A1B9A",
+  3: "#F57F17",
+  4: "#212121",
+  5: "#E65100",
+  6: "#1565C0",
+  7: "#4E342E",
+  8: "#37474F",
+  9: "#2E7D32",
+  10: "#006064",
+  11: "#B71C1C",
+  12: "#F9A825",
+  13: "#33691E",
+  14: "#880E4F",
+};
+
+// ============ GENRE CARD ============
+const GenreCard = memo(
+  ({
+    genre,
+    index,
+    onClick,
+  }: {
+    genre: Genre;
+    index: number;
+    onClick: () => void;
+  }) => {
+    const cfg =
+      GENRE_CONFIG[genre.name] ??
+      DEFAULT_GENRE_CONFIGS[index % DEFAULT_GENRE_CONFIGS.length];
+    const IconComp = cfg.icon;
+
+    return (
+      <button
+        onClick={onClick}
+        className="group relative h-[62px] w-full overflow-hidden rounded-xl cursor-pointer transition-all duration-200 hover:scale-[1.04] hover:brightness-110 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white shadow-md hover:shadow-xl"
+        aria-label={`ژانر ${genre.name}`}
+        style={{ background: cfg.bg }}
+      >
+        {/* Hover shimmer */}
+        <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-200 rounded-xl" />
+
+        {/* Genre name – right side (RTL start) */}
+        <span className="absolute inset-y-0 right-0 flex items-center pr-4 text-white font-bold text-sm md:text-[15px] leading-tight drop-shadow-sm z-10 pointer-events-none">
+          {genre.name}
+        </span>
+
+        {/* Icon – left side, oversized, rotated, semi-transparent */}
+        <div className="absolute -bottom-2 -left-1.5 z-0 opacity-50 group-hover:opacity-70 rotate-[-14deg] group-hover:rotate-[-10deg] group-hover:scale-110 transition-all duration-300 pointer-events-none">
+          <IconComp className="w-14 h-14 text-white" strokeWidth={1.3} />
+        </div>
+      </button>
+    );
+  },
+);
+GenreCard.displayName = "GenreCard";
+
+// ============ GENRES SKELETON ============
+const GenresSkeleton = memo(() => (
+  <div className="space-y-4 animate-pulse">
+    <div className="h-7 w-36 bg-zinc-800/60 rounded-lg" />
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+      {[...Array(8)].map((_, i) => (
+        <div key={i} className="h-[62px] rounded-xl bg-zinc-800/60" />
+      ))}
+    </div>
+  </div>
+));
+GenresSkeleton.displayName = "GenresSkeleton";
+
 const SectionCard = memo(
   ({
     item,
@@ -1299,6 +1463,11 @@ export default function Search() {
   );
 
   const { sections, isLoading: isSectionsLoading } = useSearchSections(
+    authenticatedFetch,
+    isReady,
+  );
+
+  const { genres, isLoading: isGenresLoading } = useGenres(
     authenticatedFetch,
     isReady,
   );
@@ -1948,6 +2117,30 @@ export default function Search() {
                   />
                 </section>
               ))}
+
+            {/* ── Genres ─────────────────────────────────────────────────── */}
+            {isGenresLoading && <GenresSkeleton />}
+            {!isGenresLoading && genres.length > 0 && (
+              <section>
+                <h2 className="text-2xl font-bold mb-4">مرور بر اساس ژانر</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {genres.map((genre, i) => (
+                    <GenreCard
+                      key={genre.id}
+                      genre={genre}
+                      index={i}
+                      onClick={() =>
+                        navigateTo("genre-detail", {
+                          id: genre.id,
+                          name: genre.name,
+                          color: GENRE_ACCENT_HEX[genre.id] ?? "#1a1a2e",
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </main>
