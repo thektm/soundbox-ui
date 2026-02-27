@@ -44,6 +44,7 @@ const REVERSE_TYPE_MAP: Record<ShareType, string> = {
   album: "l",
   playlist: "p",
   "user-playlist": "u",
+  genre : "g",
 };
 
 /**
