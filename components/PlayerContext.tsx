@@ -1111,6 +1111,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     } else {
       audioRef.current.play().catch(console.error);
       setIsPlaying(true);
+      setIsVisible(true);
     }
   }, [isPlaying]);
 
@@ -1125,6 +1126,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (audioRef.current && !isPlaying) {
       audioRef.current.play().catch(console.error);
       setIsPlaying(true);
+      setIsVisible(true);
     }
   }, [isPlaying]);
 
