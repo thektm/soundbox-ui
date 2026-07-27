@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
+import { useGuestAccess } from "./GuestAccessContext";
 
 interface ReportModalProps {
   isOpen: boolean;
@@ -38,6 +39,7 @@ export const ReportModal = ({
   targetTitle,
 }: ReportModalProps) => {
   const { accessToken, authenticatedFetch } = useAuth();
+  const { requestAuth } = useGuestAccess();
   const [selectedReason, setSelectedReason] = useState<string>("");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,6 +66,12 @@ export const ReportModal = ({
     resetForm();
     onClose();
   }, [onClose, resetForm]);
+
+  useEffect(() => {
+    if (!isOpen || accessToken) return;
+    requestAuth("برای ثبت گزارش و دریافت نتیجه بررسی وارد شوید.");
+    onClose();
+  }, [isOpen, accessToken, onClose, requestAuth]);
 
   const handleSubmit = async () => {
     if (!accessToken) {

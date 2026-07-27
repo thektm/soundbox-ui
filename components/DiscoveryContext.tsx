@@ -6,6 +6,7 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useRef,
 } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
@@ -45,14 +46,18 @@ export const useDiscovery = () => useContext(DiscoveryContext);
 export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { accessToken, user, authenticatedFetch } = useAuth();
   const { homeCache } = useNavigation();
+  const audienceKey = accessToken
+    ? `member:${user?.id ?? "loading"}`
+    : "guest";
   const [recommendedPlaylists, setRecommendedPlaylists] = useState<
     ApiPlaylist[]
   >([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [hasInitialFetched, setHasInitialFetched] = useState(false);
+  const lastAudienceRef = useRef<string | null>(null);
 
   const setRecommendedData = useCallback((data: any) => {
     if (!data) return;
@@ -62,14 +67,18 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   useEffect(() => {
-    if (homeCache?.playlist_recommendations && !hasInitialFetched) {
+    if (
+      homeCache?._audience === audienceKey &&
+      homeCache?.playlist_recommendations &&
+      !hasInitialFetched
+    ) {
       setRecommendedData(homeCache.playlist_recommendations);
     }
-  }, [homeCache, hasInitialFetched, setRecommendedData]);
+  }, [audienceKey, homeCache, hasInitialFetched, setRecommendedData]);
 
   const refreshRecommended = useCallback(
     async (force = false) => {
-      if (!accessToken || (hasInitialFetched && !force)) return;
+      if (hasInitialFetched && !force) return;
       setIsLoading(true);
       try {
         const response = await authenticatedFetch(
@@ -110,10 +119,16 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [nextUrl, isLoading, authenticatedFetch]);
 
   useEffect(() => {
-    if (accessToken) {
-      refreshRecommended();
-    }
-  }, [accessToken, refreshRecommended]);
+    if (lastAudienceRef.current === audienceKey) return;
+    lastAudienceRef.current = audienceKey;
+
+    // Clear the previous audience immediately so personalized playlists never
+    // flash during login/logout transitions.
+    setRecommendedPlaylists([]);
+    setNextUrl(null);
+    setHasInitialFetched(false);
+    void refreshRecommended(true);
+  }, [audienceKey, refreshRecommended]);
 
   return (
     <DiscoveryContext.Provider

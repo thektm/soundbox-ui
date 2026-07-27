@@ -11,8 +11,9 @@ import React, {
 import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
+import { useGuestAccess } from "./GuestAccessContext";
 import { toast } from "react-hot-toast";
-import { MOCK_SONGS as CENTRALIZED_SONGS, createSlug } from "./mockData";
+import { createSlug } from "./mockData";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
@@ -230,36 +231,6 @@ const useImageColor = (imageUrl: string): string => {
 
   return color;
 };
-
-const mockLyrics: LyricLine[] = [
-  { time: 0, text: "در این شب‌های تنهایی" },
-  { time: 4, text: "تو رو یادم میاد عزیزم" },
-  { time: 8, text: "چقدر دلم برات تنگ شده" },
-  { time: 12, text: "کاش می‌شد برگردی پیشم" },
-  { time: 16, text: "هنوزم منتظرتم" },
-  { time: 20, text: "توی خیابون‌های شهر" },
-  { time: 24, text: "دنبال رد پاهاتم" },
-  { time: 28, text: "هر جا که میرم" },
-  { time: 32, text: "یاد تو میوفتم" },
-  { time: 36, text: "این عشق تموم نمیشه" },
-];
-
-const mockCredits: Credit[] = [
-  { role: "خواننده", name: "محسن یگانه" },
-  { role: "آهنگساز", name: "محسن یگانه" },
-  { role: "ترانه‌سرا", name: "امیر عباس گلاب" },
-  { role: "تنظیم", name: "میلاد ترابی" },
-  { role: "میکس و مستر", name: "استودیو آوا" },
-];
-
-const MOCK_SONGS: Song[] = CENTRALIZED_SONGS.map((s) => ({
-  id: s.id,
-  title: s.title,
-  artist: s.artist,
-  duration: s.duration,
-  image: s.image,
-  src: s.src,
-}));
 
 function formatNumber(num: number): string {
   if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -685,6 +656,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   const { currentTrack, isPlaying, playTrack, togglePlay, download } =
     usePlayer();
   const { accessToken, authenticatedFetch } = useAuth();
+  const { requestAuth } = useGuestAccess();
 
   const idOrSlug = useMemo(() => {
     if (propId) return propId;
@@ -767,14 +739,13 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             }
           }
         } else {
-          // Fallback to mock if needed or show error
-          const foundSong = MOCK_SONGS.find((s) => s.id === idOrSlug);
-          setSong(foundSong || null);
+          setFullSongData(null);
+          setSong(null);
         }
       } catch (err) {
         console.error("Failed to fetch song detail:", err);
-        const foundSong = MOCK_SONGS.find((s) => s.id === idOrSlug);
-        setSong(foundSong || null);
+        setFullSongData(null);
+        setSong(null);
       } finally {
         setLoading(false);
       }
@@ -807,7 +778,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           : "",
       }));
     }
-    return MOCK_SONGS.filter((s) => s.id !== idOrSlug).slice(0, 4);
+    return [];
   }, [idOrSlug, fullSongData]);
 
   const apiLyrics = useMemo((): LyricLine[] => {
@@ -823,7 +794,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   }, [fullSongData]);
 
   const apiCredits = useMemo((): Credit[] => {
-    if (!fullSongData) return mockCredits;
+    if (!fullSongData) return [];
     const credits: Credit[] = [];
     if (fullSongData.producers?.length)
       credits.push({
@@ -842,7 +813,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
       });
     if (fullSongData.label)
       credits.push({ role: "ناشر", name: fullSongData.label });
-    return credits.length ? credits : mockCredits;
+    return credits;
   }, [fullSongData]);
 
   const showNotification = useCallback(
@@ -870,7 +841,11 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   }, [song, playTrack, currentTrack, togglePlay]);
 
   const handleLike = useCallback(async () => {
-    if (!song || !accessToken || isLiking) return;
+    if (!song || isLiking) return;
+    if (!accessToken) {
+      requestAuth("برای لایک‌کردن آهنگ و نگه‌داشتن آن در کتابخانه وارد شوید.");
+      return;
+    }
 
     setIsLiking(true);
     try {
@@ -895,7 +870,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     } finally {
       setIsLiking(false);
     }
-  }, [song, accessToken, isLiking, showNotification]);
+  }, [song, accessToken, isLiking, showNotification, authenticatedFetch, requestAuth]);
 
   const handleDownload = useCallback(() => {
     if (song) {

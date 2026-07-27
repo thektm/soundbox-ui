@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { usePlayer, Track } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
+import { useGuestAccess } from "./GuestAccessContext";
 import { useNavigation } from "./NavigationContext";
 import { useResponsiveLayout } from "./ResponsiveLayout";
 import {
@@ -3148,6 +3149,7 @@ ExpandedPlayer.displayName = "ExpandedPlayer";
 // ============================================================================
 export default function MusicPlayer() {
   const { isLoggedIn, user, authenticatedFetch } = useAuth();
+  const { requestAuth } = useGuestAccess();
   const userPlan = user?.plan || null;
   const { isVisible, isExpanded, expand, collapse, setVolume } = usePlayer();
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
@@ -3205,22 +3207,40 @@ export default function MusicPlayer() {
     }
   }, [setVolume]);
 
-  if (!isLoggedIn || !isVisible || !portalRoot) return null;
+  if (!isVisible || !portalRoot) return null;
 
   return createPortal(
-    <AnimatePresence mode="wait">
-      {isExpanded ? (
-        <ExpandedPlayer
-          key="expanded"
-          onCollapse={collapse}
-          userPlan={userPlan}
-          banner={banner}
-          bannerLoaded={bannerLoaded}
-        />
-      ) : (
-        <CollapsedPlayer key="collapsed" onExpand={expand} />
+    <>
+      <AnimatePresence mode="wait">
+        {isExpanded ? (
+          <ExpandedPlayer
+            key="expanded"
+            onCollapse={collapse}
+            userPlan={userPlan}
+            banner={banner}
+            bannerLoaded={bannerLoaded}
+          />
+        ) : (
+          <CollapsedPlayer key="collapsed" onExpand={expand} />
+        )}
+      </AnimatePresence>
+      {!isLoggedIn && !isExpanded && (
+        <button
+          type="button"
+          onClick={() =>
+            requestAuth({
+              title: "در حال شنیدن پیش‌نمایش",
+              description:
+                "مهمان‌ها ۳۰ ثانیه از هر آهنگ را می‌شنوند. برای پخش کامل، لایک و ساخت پلی‌لیست وارد شوید.",
+            })
+          }
+          className="fixed bottom-[132px] left-1/2 z-[100001] -translate-x-1/2 rounded-full border border-emerald-400/30 bg-black/90 px-4 py-2 text-xs font-bold text-emerald-300 shadow-xl backdrop-blur-xl md:bottom-[86px]"
+          dir="rtl"
+        >
+          پیش‌نمایش ۳۰ ثانیه‌ای · ورود برای پخش کامل
+        </button>
       )}
-    </AnimatePresence>,
+    </>,
     portalRoot,
   );
 }

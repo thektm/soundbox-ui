@@ -27,7 +27,8 @@ interface PaginatedResponse<T> {
 }
 
 const RecommendedPlaylistsPage: React.FC = () => {
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { accessToken } = useAuth();
+  const isGuest = !accessToken;
   const { navigateTo } = useNavigation();
   const {
     recommendedPlaylists: playlists,
@@ -53,8 +54,12 @@ const RecommendedPlaylistsPage: React.FC = () => {
 
   return (
     <SectionDetailLayout
-      title="پلی‌لیست‌های پیشنهادی"
-      subtitle="موسیقی‌هایی که دوست خواهید داشت"
+      title={isGuest ? "پلی‌لیست‌های منتخب" : "پلی‌لیست‌های پیشنهادی"}
+      subtitle={
+        isGuest
+          ? "انتخاب‌هایی آماده برای هر حال‌وهوا"
+          : "هماهنگ با سلیقه و شنیده‌های شما"
+      }
       onLoadMore={loadMore}
       hasMore={!!nextUrl}
       isLoading={loading}

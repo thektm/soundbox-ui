@@ -32,14 +32,25 @@ interface SummaryResponse {
 
 const ForYouPage: React.FC = () => {
   const { accessToken, authenticatedFetch } = useAuth();
+  const isGuest = !accessToken;
   const { setQueue } = usePlayer();
   const { navigateTo } = useNavigation();
   const [songs, setSongs] = useState<ApiSong[]>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [subtitle, setSubtitle] = useState("بر اساس فعالیت های اخیر شما");
+  const [subtitle, setSubtitle] = useState(
+    isGuest
+      ? "ترکیبی تازه از صداهای شنیدنی"
+      : "بر اساس شنیده‌ها و انتخاب‌های اخیر شما",
+  );
 
   useEffect(() => {
+    setSubtitle(
+      isGuest
+        ? "ترکیبی تازه از صداهای شنیدنی"
+        : "بر اساس شنیده‌ها و انتخاب‌های اخیر شما",
+    );
+
     const fetchRecommendations = async () => {
       try {
         const response = await authenticatedFetch(
@@ -50,12 +61,12 @@ const ForYouPage: React.FC = () => {
           if (data.songs_recommendations) {
             setSongs(data.songs_recommendations.songs || []);
             setNextUrl(data.songs_recommendations.next || null);
-            if (
-              data.songs_recommendations.type === "trending" &&
-              data.songs_recommendations.message ===
-                "Start listening to get personalized recommendations!"
+            if (data.songs_recommendations.type === "guest_discovery") {
+              setSubtitle("ترکیبی تازه از صداهای شنیدنی");
+            } else if (
+              data.songs_recommendations.type !== "personalized"
             ) {
-              setSubtitle("شروع کنید به کاوش ..");
+              setSubtitle("پیشنهادهایی برای شروع یک کشف تازه");
             }
           }
         }
@@ -67,7 +78,7 @@ const ForYouPage: React.FC = () => {
     };
 
     fetchRecommendations();
-  }, [accessToken, authenticatedFetch]);
+  }, [accessToken, authenticatedFetch, isGuest]);
 
   const loadMore = async () => {
     if (!nextUrl || loading) return;
@@ -105,7 +116,7 @@ const ForYouPage: React.FC = () => {
 
   return (
     <SectionDetailLayout
-      title="برای شما"
+      title={isGuest ? "منتخب‌های امروز" : "برای شما"}
       subtitle={subtitle}
       onLoadMore={loadMore}
       hasMore={!!nextUrl}

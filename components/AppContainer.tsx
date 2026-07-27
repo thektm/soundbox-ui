@@ -5,6 +5,7 @@ import { AuthProvider } from "./AuthContext";
 import { DiscoveryProvider } from "./DiscoveryContext";
 import { ResponsiveLayoutProvider } from "./ResponsiveLayout";
 import { PlayerProvider } from "./PlayerContext";
+import { GuestAccessProvider } from "./GuestAccessContext";
 
 // Heavy components that are not needed for initial paint — lazy-load them.
 // MusicPlayer (3 200+ lines) only matters once a track is played.
@@ -24,16 +25,18 @@ const AppContainer: React.FC<AppContainerProps> = ({ children }) => {
   return (
     <NavigationProvider>
       <AuthProvider>
-        <DiscoveryProvider>
-          <PlayerProvider>
-            <ResponsiveLayoutProvider>
-              {children}
-              <MusicPlayer />
-              <SplashScreen />
-              <InitialModal />
-            </ResponsiveLayoutProvider>
-          </PlayerProvider>
-        </DiscoveryProvider>
+        <GuestAccessProvider>
+          <DiscoveryProvider>
+            <PlayerProvider>
+              <ResponsiveLayoutProvider>
+                {children}
+                <MusicPlayer />
+                <SplashScreen />
+                <InitialModal />
+              </ResponsiveLayoutProvider>
+            </PlayerProvider>
+          </DiscoveryProvider>
+        </GuestAccessProvider>
       </AuthProvider>
     </NavigationProvider>
   );

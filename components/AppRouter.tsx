@@ -3,6 +3,7 @@ import dynamic from "next/dynamic";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { useResponsiveLayout } from "./ResponsiveLayout";
+import { GuestProtectedPage } from "./GuestAccessContext";
 
 // ── Generic page skeleton for dynamic loading ─────────────────────────────
 const PageSkeleton = () => (
@@ -117,138 +118,120 @@ const PaymentSuccess = dynamic(() => import("./PaymentSuccess"), {
 
 export const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, isInitializing } = useAuth();
   const { isDesktop } = useResponsiveLayout();
 
-  if (!isLoggedIn) {
-    switch (currentPage) {
-      case "login":
-        return <Login />;
-      case "register":
-        return <Register />;
-      case "verify":
-        return <Verify />;
-      case "forgot-password":
-        return <ForgotPassword />;
-      default:
-        return <Login />;
-    }
-  } else {
-    switch (currentPage) {
-      case "home":
-        return <Home />;
-      case "song-detail":
-        return <SongDetail id={currentParams?.id} />;
-      case "search":
-        return <Search />;
-      case "library":
-        return <LibraryScreen />;
-      case "playlists":
-        return <Playlists />;
-      case "profile":
-        return isDesktop ? <DesktopProfile /> : <Profile />;
-      case "downloads-history":
-        return <DownloadsHistory />;
-      case "settings":
-        return <Settings />;
-      case "playlist-detail":
-        return (
-          <PlaylistDetail
-            id={currentParams?.id}
-            slug={currentParams?.slug}
-            generatedBy={currentParams?.generatedBy}
-            creatorUniqueId={currentParams?.creatorUniqueId}
-          />
-        );
-      case "user-playlist-detail":
-        return (
-          <UserPlaylistDetail
-            id={currentParams?.id}
-            isOwner={currentParams?.isOwner}
-          />
-        );
-      case "artist-detail":
-        return <ArtistDetail id={currentParams?.id} />;
-      case "artist-sub-page":
-        return (
-          <ArtistSubPage
-            id={currentParams?.id}
-            subPage={currentParams?.subPage}
-          />
-        );
-      case "user-detail":
-        return <UserDetail uniqueId={currentParams?.id} />;
-      case "album-detail":
-        return (
-          <AlbumDetail
-            id={currentParams?.id}
-            slug={currentParams?.slug}
-            album={currentParams?.album}
-          />
-        );
-      case "followers-following":
-        return (
-          <FollowersFollowing
-            initialTab={currentParams?.tab || "followers"}
-            uniqueId={currentParams?.uniqueId || currentParams?.id}
-          />
-        );
-      case "liked-songs":
-        return <LikedSongs />;
-      case "liked-albums":
-        return <LikedAlbums />;
-      case "liked-playlists":
-        return <LikedPlaylists />;
-      case "premium":
-        return <Premium />;
-      case "followed-artists":
-        return <FollowingArtistsPage />;
-      case "my-playlists":
-        return <MyPlaylists />;
-      case "upgrade-plans":
-        return <UpgradePlans />;
-      case "payment-processing":
-        return <PaymentProcessing />;
-      case "payment-success":
-        return <PaymentSuccess />;
-      case "popular-artists":
-        return <PopularArtistsPage />;
-      case "latest-releases":
-        return <LatestReleasesPage />;
-      case "popular-albums":
-        return <PopularAlbumsPage />;
-      case "recommended-playlists":
-        return <RecommendedPlaylistsPage />;
-      case "new-discoveries":
-        return <NewDiscoveriesPage />;
-      case "for-you":
-        return <ForYouPage />;
-      case "other-user-playlists":
-        return (
-          <OtherUserPlaylists
-            uniqueId={currentParams?.uniqueId}
-            fullName={currentParams?.fullName}
-          />
-        );
-      case "chart-detail":
-        return (
-          <ChartPage
-            title={currentParams?.title}
-            type={currentParams?.type}
-            chartType={currentParams?.chartType}
-            initialData={currentParams?.initialData}
-          />
-        );
-      case "genre-detail":
-        return (
-          <GenrePage
-            id={currentParams?.id}
-            name={currentParams?.name ?? ""}
-            color={currentParams?.color}
-          />
-        );
-      default:
-        return <Home />;
-    }
+  if (isInitializing) return <PageSkeleton />;
+
+  // Authentication pages are always reachable and keep the original public URL
+  // stored by GuestAccessProvider for post-login continuation.
+  switch (currentPage) {
+    case "login":
+      return isLoggedIn ? <Home /> : <Login />;
+    case "register":
+      return isLoggedIn ? <Home /> : <Register />;
+    case "verify":
+      return isLoggedIn ? <Home /> : <Verify />;
+    case "forgot-password":
+      return isLoggedIn ? <Home /> : <ForgotPassword />;
+  }
+
+  const publicPages = new Set([
+    "home",
+    "search",
+    "song-detail",
+    "playlist-detail",
+    "user-playlist-detail",
+    "artist-detail",
+    "artist-sub-page",
+    "album-detail",
+    "genre-detail",
+    "popular-artists",
+    "latest-releases",
+    "popular-albums",
+    "recommended-playlists",
+    "chart-detail",
+  ]);
+
+  if (!isLoggedIn && !publicPages.has(currentPage)) {
+    return <GuestProtectedPage />;
+  }
+
+  switch (currentPage) {
+    case "home":
+      return <Home />;
+    case "song-detail":
+      return <SongDetail id={currentParams?.id} />;
+    case "search":
+      return <Search />;
+    case "library":
+      return <LibraryScreen />;
+    case "playlists":
+      return <Playlists />;
+    case "profile":
+      return isDesktop ? <DesktopProfile /> : <Profile />;
+    case "downloads-history":
+      return <DownloadsHistory />;
+    case "settings":
+      return <Settings />;
+    case "playlist-detail":
+      return (
+        <PlaylistDetail
+          id={currentParams?.id}
+          slug={currentParams?.slug}
+          generatedBy={currentParams?.generatedBy}
+          creatorUniqueId={currentParams?.creatorUniqueId}
+        />
+      );
+    case "user-playlist-detail":
+      return <UserPlaylistDetail id={currentParams?.id} isOwner={currentParams?.isOwner} />;
+    case "artist-detail":
+      return <ArtistDetail id={currentParams?.id} />;
+    case "artist-sub-page":
+      return <ArtistSubPage id={currentParams?.id} subPage={currentParams?.subPage} />;
+    case "user-detail":
+      return <UserDetail uniqueId={currentParams?.id} />;
+    case "album-detail":
+      return <AlbumDetail id={currentParams?.id} slug={currentParams?.slug} album={currentParams?.album} />;
+    case "followers-following":
+      return <FollowersFollowing initialTab={currentParams?.tab || "followers"} uniqueId={currentParams?.uniqueId || currentParams?.id} />;
+    case "liked-songs":
+      return <LikedSongs />;
+    case "liked-albums":
+      return <LikedAlbums />;
+    case "liked-playlists":
+      return <LikedPlaylists />;
+    case "premium":
+      return <Premium />;
+    case "followed-artists":
+      return <FollowingArtistsPage />;
+    case "my-playlists":
+      return <MyPlaylists />;
+    case "upgrade-plans":
+      return <UpgradePlans />;
+    case "payment-processing":
+      return <PaymentProcessing />;
+    case "payment-success":
+      return <PaymentSuccess />;
+    case "popular-artists":
+      return <PopularArtistsPage />;
+    case "latest-releases":
+      return <LatestReleasesPage />;
+    case "popular-albums":
+      return <PopularAlbumsPage />;
+    case "recommended-playlists":
+      return <RecommendedPlaylistsPage />;
+    case "new-discoveries":
+      return <NewDiscoveriesPage />;
+    case "for-you":
+      return <ForYouPage />;
+    case "other-user-playlists":
+      return <OtherUserPlaylists uniqueId={currentParams?.uniqueId} fullName={currentParams?.fullName} />;
+    case "chart-detail":
+      return <ChartPage title={currentParams?.title} type={currentParams?.type} chartType={currentParams?.chartType} initialData={currentParams?.initialData} />;
+    case "genre-detail":
+      return <GenrePage id={currentParams?.id} name={currentParams?.name ?? ""} color={currentParams?.color} />;
+    default:
+      return <Home />;
   }
 };

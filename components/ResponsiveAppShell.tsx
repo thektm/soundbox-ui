@@ -6,6 +6,7 @@ import Sidebar from "./Sidebar";
 import { useResponsiveLayout } from "./ResponsiveLayout";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
+import { GuestBottomNav, GuestSidebar, GuestTopActions } from "./GuestNavigation";
 
 interface Props {
   children: React.ReactNode;
@@ -61,7 +62,8 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
         </div>
 
         {/* Bottom Navbar - only visible on mobile via its own classes */}
-        {isLoggedIn && <BottomNavbar />}
+        {isLoggedIn ? <BottomNavbar /> : <GuestBottomNav />}
+        {!isLoggedIn && <GuestTopActions />}
 
         <div id="music-player-root" />
       </>
@@ -73,14 +75,12 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
     <>
       <div dir="rtl" className="flex min-h-screen">
         {/* Sidebar - Hidden on mobile, visible on tablet/desktop when logged in */}
-        {isLoggedIn && <Sidebar />}
+        {isLoggedIn ? <Sidebar /> : <GuestSidebar />}
 
         {/* Main Content Area */}
         <div
           className={`flex-1 flex flex-col min-h-screen md:max-h-screen md:overflow-hidden ${
-            isLoggedIn
-              ? "md:m-2 md:mr-0 md:bg-linear-to-b md:from-zinc-900 md:via-zinc-900/95 md:to-black md:rounded-lg"
-              : ""
+            "md:m-2 md:mr-0 md:bg-linear-to-b md:from-zinc-900 md:via-zinc-900/95 md:to-black md:rounded-lg"
           }`}
           style={{ contain: "layout style", overscrollBehavior: "contain" }}
         >
@@ -98,7 +98,8 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
       </div>
 
       {/* Bottom Navbar */}
-      {isLoggedIn && <BottomNavbar />}
+      {isLoggedIn ? <BottomNavbar /> : <GuestBottomNav />}
+      {!isLoggedIn && <GuestTopActions />}
 
       {/* Music Player */}
       {/* <MusicPlayer /> - not implemented */}

@@ -12,6 +12,7 @@ import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import PlaylistOptionsDrawer from "./PlaylistOptionsDrawer";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { useGuestAccess } from "./GuestAccessContext";
 import { usePlayer, Track } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { toast } from "react-hot-toast";
@@ -402,6 +403,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
 }) => {
   const { goBack, scrollY, navigateTo } = useNavigation();
   const { accessToken, authenticatedFetch } = useAuth();
+  const { requestAuth } = useGuestAccess();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
   const [playlist, setPlaylist] = useState<UserPlaylistResponse | null>(null);
@@ -575,8 +577,9 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   }, [playlist]);
 
   const handleToggleLike = async () => {
-    if (!playlist || !accessToken) {
-      toast.error("لطفا ابتدا وارد حساب خود شوید");
+    if (!playlist) return;
+    if (!accessToken) {
+      requestAuth("برای لایک‌کردن این پلی‌لیست وارد شوید.");
       return;
     }
     setIsLiking(true);
@@ -650,6 +653,10 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
         }
       }
       if (action === "toggle-like" && song) {
+        if (!accessToken) {
+          requestAuth("برای لایک‌کردن آهنگ وارد شوید.");
+          return;
+        }
         try {
           const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;
           const resp = await authenticatedFetch(url, { method: "POST" });
@@ -662,7 +669,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
         }
       }
     },
-    [authenticatedFetch],
+    [authenticatedFetch, accessToken, requestAuth],
   );
 
   const handlePlaySong = (idx: number) => {

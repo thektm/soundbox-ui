@@ -18,11 +18,11 @@ import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { ArtistOptionsDrawer } from "./ArtistOptionsDrawer";
 import { useAuth } from "./AuthContext";
+import { useGuestAccess } from "./GuestAccessContext";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
 import { SEO } from "./SEO";
 
-const FALLBACK_SRC = "https://cdn.sedabox.com/music.mp3";
 
 interface ApiArtist {
   id: number;
@@ -598,6 +598,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
   const { goBack, currentParams, scrollY, navigateTo } = useNavigation();
   const { playTrack, setQueue, currentTrack, isPlaying } = usePlayer();
   const { accessToken, authenticatedFetch } = useAuth();
+  const { requestAuth } = useGuestAccess();
 
   // Support navigation by numeric id OR by unique_id slug (from URL)
   const artistIdOrSlug = id || currentParams?.id || currentParams?.slug;
@@ -634,7 +635,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         setData(json);
         setFollowing(json.artist?.is_following ?? false);
 
-        // Update browser URL to canonical format: /artists/{id}-{slug}
+        // Update browser URL to canonical format: /artist/{id}-{slug}
         if (typeof window !== "undefined" && json.artist) {
           const artistName =
             json.artist.artistic_name || json.artist.name || "";
@@ -646,7 +647,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
               .replace(/[^\w\u0600-\u06FF\-]/g, "")
               .replace(/-+/g, "-")
               .replace(/^-+|-+$/g, "");
-            const targetPath = `/artists/${artistId}${slug ? `-${slug}` : ""}`;
+            const targetPath = `/artist/${artistId}${slug ? `-${slug}` : ""}`;
             if (window.location.pathname !== targetPath) {
               window.history.replaceState(
                 {
@@ -693,7 +694,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         artistId: song.artist_id || song.artist,
         image: song.cover_image,
         duration: song.duration_display,
-        src: (ensureHttps(song.stream_url) as string) || FALLBACK_SRC,
+        src: (ensureHttps(song.stream_url) as string) || "",
         isLiked: song.is_liked,
         likesCount: song.likes_count,
       };
@@ -711,7 +712,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
       artistId: song.artist_id || song.artist,
       image: song.cover_image,
       duration: song.duration_display,
-      src: (ensureHttps(song.stream_url) as string) || FALLBACK_SRC,
+      src: (ensureHttps(song.stream_url) as string) || "",
       isLiked: song.is_liked,
       likesCount: song.likes_count,
     }));
@@ -728,7 +729,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
       artistId: song.artist_id || song.artist,
       image: song.cover_image,
       duration: song.duration_display,
-      src: (ensureHttps(song.stream_url) as string) || FALLBACK_SRC,
+      src: (ensureHttps(song.stream_url) as string) || "",
       isLiked: song.is_liked,
       likesCount: song.likes_count,
     }));
@@ -742,7 +743,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
 
   const handleFollow = useCallback(async () => {
     if (!accessToken) {
-      toast.error("برای دنبال کردن ابتدا وارد شوید");
+      requestAuth("برای دنبال‌کردن هنرمند و دریافت آثار جدید او وارد شوید.");
       return;
     }
     const followId = data?.artist?.id || artistIdOrSlug;
@@ -775,15 +776,15 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     } finally {
       setIsFollowLoading(false);
     }
-  }, [accessToken, artistIdOrSlug, data?.artist?.id]);
+  }, [accessToken, artistIdOrSlug, data?.artist?.id, authenticatedFetch, requestAuth]);
 
   const handleAction = async (action: string, song: any) => {
     console.log(`Action ${action} on song ${song.title}`);
     if (action === "toggle-like") {
       if (!song) return;
       if (!accessToken) {
-        toast.error("برای لایک کردن لطفا وارد شوید");
-        return Promise.reject(new Error("not-authenticated"));
+        requestAuth("برای لایک‌کردن و ذخیره این آهنگ وارد شوید.");
+        return;
       }
       try {
         const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;

@@ -534,27 +534,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       currentToken = accessTokenRef.current;
     }
 
-    // If we have neither an in-memory access token nor a stored refresh token,
-    // avoid calling the API for protected endpoints — return a synthetic 401
-    // response so callers can handle missing auth without triggering refresh/logout.
-    if (
-      !currentToken &&
-      typeof window !== "undefined" &&
-      !localStorage.getItem("refreshToken")
-    ) {
-      if (typeof Response !== "undefined") {
-        return new Response(null, { status: 401, statusText: "Unauthorized" });
+    const method = (init?.method || "GET").toUpperCase();
+    const isSafeMethod = ["GET", "HEAD", "OPTIONS"].includes(method);
+    const hasStoredRefresh =
+      typeof window !== "undefined" && !!localStorage.getItem("refreshToken");
+
+    // Guests are allowed to reach public read endpoints. Mutations are blocked
+    // locally and open the global login/register prompt instead of sending a
+    // request that can never succeed.
+    if (!currentToken && !hasStoredRefresh && !isSafeMethod) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("sedabox:auth-required", {
+            detail: {
+              title: "برای انجام این کار وارد شوید",
+              description:
+                "لایک، دنبال‌کردن، ذخیره، دانلود و تغییرات حساب فقط پس از ورود در دسترس هستند.",
+            },
+          }),
+        );
       }
-      // Fallback for environments without Response constructor
-      const fake: any = {
-        ok: false,
-        status: 401,
-        text: async () => "",
-        clone() {
-          return this;
+      return new Response(
+        JSON.stringify({ detail: "Authentication required" }),
+        {
+          status: 401,
+          statusText: "Unauthorized",
+          headers: { "Content-Type": "application/json" },
         },
-      };
-      return fake as Response;
+      );
     }
 
     const applyAuth = (token: string | null) => {
@@ -577,7 +584,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     try {
       let response = await fetch(input, applyAuth(currentToken));
 
-      if (response.status === 401) {
+      if (response.status === 401 && (currentToken || hasStoredRefresh)) {
         const newToken = await tryRefreshToken();
         if (newToken) {
           response = await fetch(input, applyAuth(newToken));

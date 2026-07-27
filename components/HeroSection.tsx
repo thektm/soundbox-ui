@@ -65,6 +65,7 @@ type Props = {
   sectionData: HeroSectionData;
   heroHighlights: HeroHighlight[];
   stats: HeroStats;
+  isGuest: boolean;
   onPrimaryPlay: () => void;
   onGoToDiscover: () => void;
   onCardPlay?: (item: HeroHighlight) => void;
@@ -132,6 +133,7 @@ AnimatedCounter.displayName = "AnimatedCounter";
 function HeroSection({
   homeData,
   heroHighlights,
+  isGuest,
   onPrimaryPlay,
   onGoToDiscover,
   onCardPlay,
@@ -361,7 +363,7 @@ function HeroSection({
                 onClick={onPrimaryPlay}
                 className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-5 py-2.5 text-[13px] font-semibold text-black shadow-lg shadow-emerald-500/20 transition-transform active:scale-95 md:text-sm hover:bg-emerald-400"
               >
-                شروع پخش شخصی
+                {isGuest ? "شروع پخش منتخب" : "شروع پخش شخصی"}
               </button>
               <button
                 type="button"

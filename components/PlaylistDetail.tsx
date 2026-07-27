@@ -13,6 +13,7 @@ import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import PlaylistOptionsDrawer from "./PlaylistOptionsDrawer";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { useGuestAccess } from "./GuestAccessContext";
 import { usePlayer, Track } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { toast } from "react-hot-toast";
@@ -327,6 +328,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
 }) => {
   const { goBack, scrollY, navigateTo, currentParams } = useNavigation();
   const { accessToken } = useAuth();
+  const { requestAuth } = useGuestAccess();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
   const [playlist, setPlaylist] = useState<PlaylistResponse | null>(null);
@@ -346,14 +348,6 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
 
     // Use the recommendation endpoint if the ID is not purely numeric (like smart_rec_ or liked_rec_)
     const isRecommended = typeof id === "string" && !/^\d+$/.test(id);
-
-    // Recommendation playlists require an access token. If we don't have one yet,
-    // skip the fetch and wait for `accessToken` to be available to avoid triggering
-    // an unnecessary failed network request and an unwanted toast message.
-    if (isRecommended && !accessToken) {
-      setLoading(true);
-      return;
-    }
 
     setLoading(true);
     try {
@@ -444,8 +438,9 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
   }, []);
 
   const handleToggleLike = async () => {
-    if (!playlist || !accessToken) {
-      toast.error("لطفا ابتدا وارد حساب خود شوید");
+    if (!playlist) return;
+    if (!accessToken) {
+      requestAuth("برای لایک‌کردن و ذخیره این پلی‌لیست وارد شوید.");
       return;
     }
     setIsLiking(true);
@@ -550,6 +545,10 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         }
       }
       if (action === "toggle-like" && song) {
+        if (!accessToken) {
+          requestAuth("برای لایک‌کردن آهنگ وارد شوید.");
+          return;
+        }
         try {
           const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;
           const resp = await fetch(url, {
@@ -567,7 +566,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         }
       }
     },
-    [accessToken],
+    [accessToken, requestAuth],
   );
 
   const handlePlaySong = (idx: number) => {

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import { toast } from "react-hot-toast";
 import { Plus, Music, Lock, Globe, Search, X } from "lucide-react";
+import { useGuestAccess } from "./GuestAccessContext";
 
 interface APIUserPlaylist {
   id: number;
@@ -27,6 +28,7 @@ export const AddToPlaylistModal = ({
   songId,
 }: AddToPlaylistModalProps) => {
   const { accessToken, authenticatedFetch } = useAuth();
+  const { requestAuth } = useGuestAccess();
   const [playlists, setPlaylists] = useState<APIUserPlaylist[]>([]);
   const [loading, setLoading] = useState(true);
   const [addingToId, setAddingToId] = useState<number | null>(null);
@@ -50,11 +52,15 @@ export const AddToPlaylistModal = ({
   }, [authenticatedFetch]);
 
   useEffect(() => {
-    if (isOpen) {
-      fetchPlaylists();
-      setSearchQuery("");
+    if (!isOpen) return;
+    if (!accessToken) {
+      requestAuth("برای افزودن آهنگ به پلی‌لیست، ابتدا وارد شوید.");
+      onClose();
+      return;
     }
-  }, [isOpen, fetchPlaylists]);
+    fetchPlaylists();
+    setSearchQuery("");
+  }, [isOpen, accessToken, fetchPlaylists, onClose, requestAuth]);
 
   const handleAddToPlaylist = async (playlistId: number) => {
     if (addingToId !== null) return;

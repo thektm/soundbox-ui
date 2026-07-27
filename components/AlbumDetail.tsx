@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { useGuestAccess } from "./GuestAccessContext";
 import { usePlayer, Track } from "./PlayerContext";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getFullShareUrl, slugify } from "../utils/share";
@@ -310,6 +311,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
 }) => {
   const { goBack, currentParams, navigateTo } = useNavigation();
   const { accessToken, authenticatedFetch } = useAuth();
+  const { requestAuth } = useGuestAccess();
   const { setQueue, currentTrack, isPlaying: isPlayerPlaying } = usePlayer();
 
   const albumId = idProp || currentParams?.id;
@@ -428,6 +430,10 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
 
   const handleLike = async () => {
     if (!albumData) return;
+    if (!accessToken) {
+      requestAuth("برای لایک‌کردن آلبوم و نگه‌داشتن آن در کتابخانه وارد شوید.");
+      return;
+    }
 
     setLiking(true);
     try {
@@ -462,7 +468,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
       image: song.cover_image,
       duration: song.duration_display,
       durationSeconds: song.duration_seconds,
-      src: song.stream_url.replace("http://", "https://"),
+      src: (song.stream_url || (song as any).preview_url || "").replace("http://", "https://"),
       isLiked: song.is_liked,
     }));
 
@@ -480,7 +486,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
       image: song.cover_image,
       duration: song.duration_display,
       durationSeconds: song.duration_seconds,
-      src: song.stream_url.replace("http://", "https://"),
+      src: (song.stream_url || (song as any).preview_url || "").replace("http://", "https://"),
       isLiked: song.is_liked,
     }));
 

@@ -71,6 +71,7 @@ interface ApiNotification {
 }
 
 interface HomeSummaryResponse {
+  _audience?: string;
   songs_recommendations: {
     type: string;
     message: string;
@@ -285,6 +286,14 @@ export default function Home() {
     loadMoreRecommended,
   } = useDiscovery();
   const { setQueue } = usePlayer();
+  const isGuest = !accessToken;
+  const audienceKey = isGuest
+    ? "guest"
+    : `member:${user?.id ?? "loading"}`;
+  const cachedHomeData =
+    homeCache?._audience === audienceKey
+      ? (homeCache as HomeSummaryResponse)
+      : null;
 
   const isPremium = Boolean(
     user &&
@@ -299,7 +308,7 @@ export default function Home() {
   );
 
   const [homeData, setHomeData] = useState<HomeSummaryResponse | null>(
-    (homeCache as HomeSummaryResponse) ?? null,
+    cachedHomeData,
   );
 
   // Extra sections state
@@ -327,7 +336,7 @@ export default function Home() {
 
   // if we already have cached home data, don't show skeleton on mount
   const [isLoading, setIsLoading] = useState<boolean>(() =>
-    homeCache ? false : true,
+    cachedHomeData ? false : true,
   );
   const [showBrandText, setShowBrandText] = useState(true);
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
@@ -356,14 +365,22 @@ export default function Home() {
   ];
 
   useEffect(() => {
-    if (!accessToken || accessToken === lastFetchedToken.current) return;
-    lastFetchedToken.current = accessToken;
+    if (audienceKey === lastFetchedToken.current) return;
+    lastFetchedToken.current = audienceKey;
 
-    // If we have cached data, we show it immediately but still refresh in the background
-    const isBackground = Boolean(homeCache);
-    if (homeCache) {
-      setHomeData(homeCache as HomeSummaryResponse);
+    const audienceCache =
+      homeCache?._audience === audienceKey
+        ? (homeCache as HomeSummaryResponse)
+        : null;
+
+    // Never reuse another audience's home payload during login/logout transitions.
+    const isBackground = Boolean(audienceCache);
+    if (audienceCache) {
+      setHomeData(audienceCache);
       setIsLoading(false);
+    } else {
+      setHomeData(null);
+      setIsLoading(true);
     }
 
     const fetchHomeData = async (background: boolean) => {
@@ -373,6 +390,7 @@ export default function Home() {
         );
         if (response.ok) {
           const data = await response.json();
+          data._audience = audienceKey;
 
           // Ensure songs_recommendations always has a songs array
           if (!data.songs_recommendations) {
@@ -390,7 +408,8 @@ export default function Home() {
           }
 
           // Only update if data is actually different to avoid unnecessary re-renders
-          const hasChanged = JSON.stringify(data) !== JSON.stringify(homeCache);
+          const hasChanged =
+            JSON.stringify(data) !== JSON.stringify(audienceCache);
 
           if (!background || hasChanged) {
             setHomeData(data);
@@ -411,12 +430,10 @@ export default function Home() {
     };
 
     fetchHomeData(isBackground);
-  }, [accessToken, homeCache, setHomeCache]);
+  }, [audienceKey, authenticatedFetch, homeCache, setHomeCache]);
 
   // Fetch extra sections
   useEffect(() => {
-    if (!accessToken) return;
-
     const fetchExtra = async (
       endpoint: string,
       setter: (data: any) => void,
@@ -890,13 +907,12 @@ export default function Home() {
   ) {
     availableSections.push({
       key: "songs_recommendations",
-      title: "برای شما",
-      subtitle:
-        homeData.songs_recommendations.type === "trending" &&
-        homeData.songs_recommendations.message ===
-          "Start listening to get personalized recommendations!"
-          ? "شروع کنید به کاوش .."
-          : "بر اساس فعالیت های اخیر شما",
+      title: isGuest ? "منتخب‌های امروز" : "برای شما",
+      subtitle: isGuest
+        ? "ترکیبی تازه از صداهای شنیدنی"
+        : homeData.songs_recommendations.type === "personalized"
+          ? "بر اساس شنیده‌ها و انتخاب‌های اخیر شما"
+          : "پیشنهادهایی برای شروع یک کشف تازه",
       content: (
         <HorizontalList
           items={sectionData.forYou}
@@ -1063,14 +1079,14 @@ export default function Home() {
   }
 
   if (loadingPlaylistRecommendations) {
+    const playlistSectionTitle = isGuest
+      ? "پلی‌لیست‌های منتخب"
+      : "پلی‌لیست‌های جدید برای شما";
     availableSections.push({
       key: "playlist_recommendations_skeleton",
-      title: "پلی لیست‌های جدید برای شما",
+      title: playlistSectionTitle,
       content: (
-        <SectionSkeleton
-          title="پلی لیست‌های جدید برای شما"
-          variant="horizontal"
-        />
+        <SectionSkeleton title={playlistSectionTitle} variant="horizontal" />
       ),
     });
   } else if (playlistRecommendations && playlistRecommendations.length > 0) {
@@ -1078,7 +1094,12 @@ export default function Home() {
 
     availableSections.push({
       key: "playlist_recommendations",
-      title: "پلی لیست‌های جدید برای شما",
+      title: isGuest
+        ? "پلی‌لیست‌های منتخب"
+        : "پلی‌لیست‌های جدید برای شما",
+      subtitle: isGuest
+        ? "انتخاب‌هایی آماده برای هر حال‌وهوا"
+        : "هماهنگ با سلیقه و شنیده‌های شما",
       content: (
         <HorizontalList
           items={playlists.map((p: any) => ({
@@ -1441,13 +1462,16 @@ export default function Home() {
     const idx = heroHighlights.length % meshGradients.length;
     heroHighlights.push({
       key: `personal-${firstRec.id}`,
-      pill: "پخش شخصی",
+      pill: isGuest ? "پیشنهاد امروز" : "پخش شخصی",
       title: firstRec.title,
-      subtitle: `${firstRec.artist_name} • بر اساس فعالیت‌های اخیرت`,
+      subtitle: isGuest
+        ? `${firstRec.artist_name} • انتخابی تازه برای این لحظه`
+        : `${firstRec.artist_name} • بر اساس شنیده‌های اخیرت`,
       image: firstRec.cover_image || "/default-cover.jpg",
       meshGradient: meshGradients[idx],
       highlight:
-        firstRec.genre_names?.slice(0, 2).join(" • ") || "چند ژانر منتخب",
+        firstRec.genre_names?.slice(0, 2).join(" • ") ||
+        (isGuest ? "منتخب صداباکس" : "چند ژانر منتخب"),
       metaRight: formatDuration(firstRec.duration_seconds),
       type: "song",
       item: firstRec,
@@ -1502,7 +1526,11 @@ export default function Home() {
       key: `playlist-${playlistForHero.unique_id || playlistForHero.id}`,
       pill: "لیست پخش منتخب",
       title: playlistForHero.title,
-      subtitle: playlistForHero.description || "منتخب صداباکس برای حال تو",
+      subtitle:
+        playlistForHero.description ||
+        (isGuest
+          ? "منتخب صداباکس برای این لحظه"
+          : "منتخب صداباکس برای حال تو"),
       image: playlistForHero.cover_image || "/default-cover.jpg",
       meshGradient: meshGradients[idx],
       highlight: `${playlistForHero.songs_count} ترک`,
@@ -1831,6 +1859,7 @@ export default function Home() {
             sectionData={sectionData}
             heroHighlights={heroHighlights}
             stats={heroStats}
+            isGuest={isGuest}
             onPrimaryPlay={handleHeroPrimaryPlay}
             onGoToDiscover={() => scrollToSectionByKey("discoveries")}
             onCardPlay={handleHeroCardPlay}

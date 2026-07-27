@@ -13,6 +13,7 @@ import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
+import { useGuestAccess } from "./GuestAccessContext";
 import { toast } from "react-hot-toast";
 import {
   Music2,
@@ -442,7 +443,7 @@ const useSearch = (
                 album: item.data?.album_name || "",
                 duration: formattedDuration,
                 image: item.image || "https://picsum.photos/200",
-                src: item.data?.stream_url || "",
+                src: item.data?.stream_url || item.data?.preview_url || "",
                 explicit: false, // Not provided in response
                 plays: item.data?.plays || 0,
               });
@@ -1329,6 +1330,7 @@ export default function Search() {
   const { navigateTo } = useNavigation();
   const { playTrack } = usePlayer();
   const { accessToken, authenticatedFetch } = useAuth();
+  const { requestAuth } = useGuestAccess();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   // Remove Persian/Arabic diacritics and special mark characters from input
@@ -1380,6 +1382,10 @@ export default function Search() {
 
   const handleFollow = useCallback(
     (artistId: string, currentlyFollowing: boolean) => {
+      if (!accessToken) {
+        requestAuth("برای دنبال‌کردن هنرمندان و دیدن انتشارهای جدید وارد شوید.");
+        return;
+      }
       setFollowingId(artistId);
 
       authenticatedFetch(`https://api.sedabox.com/api/follow/`, {
@@ -1412,7 +1418,7 @@ export default function Search() {
           setFollowingId(null);
         });
     },
-    [authenticatedFetch],
+    [authenticatedFetch, accessToken, requestAuth],
   );
 
   // mark ready after first paint; initial network requests wait for this

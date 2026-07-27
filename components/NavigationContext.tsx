@@ -145,7 +145,7 @@ function parsePathname(pathname: string): { page: string; params: any } {
     }
   }
 
-  // artist: /artists/{id}-{slug} (new) or /artist/{id} (legacy)
+  // artist: canonical /artist/{id}-{slug}; plural form remains accepted for old links
   if ((first === "artists" || first === "artist") && parts[1]) {
     const id = extractIdFromSegment(parts[1]);
     const slug = parts[1].includes("-")
@@ -289,7 +289,7 @@ function pageToPathname(page: string, params?: any): string | null {
         : params.slug
           ? `-${slugify(params.slug)}`
           : "";
-      return `/artists/${params.id}${namePart}`;
+      return `/artist/${params.id}${namePart}`;
     }
   }
 
@@ -300,7 +300,7 @@ function pageToPathname(page: string, params?: any): string | null {
         : params.slug
           ? `-${slugify(params.slug)}`
           : "";
-      return `/artists/${params.id}${namePart}/${params.subPage}`;
+      return `/artist/${params.id}${namePart}/${params.subPage}`;
     }
   }
 

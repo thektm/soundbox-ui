@@ -73,7 +73,6 @@ interface ArtistResponse {
   discovered_on?: ApiPlaylistSnippet[];
 }
 
-const FALLBACK_SRC = "https://cdn.sedabox.com/music.mp3";
 
 // ============== EMPTY STATE COMPONENT ==============
 const NoItemsState = ({
@@ -227,7 +226,7 @@ export default function ArtistSubPage({
       artistId: song.artist_id || song.artist,
       image: song.cover_image,
       duration: song.duration_display,
-      src: song.stream_url || FALLBACK_SRC,
+      src: song.stream_url || "",
       isLiked: song.is_liked,
       likesCount: song.likes_count,
     };

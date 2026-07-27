@@ -10,6 +10,7 @@ import React, {
   useMemo,
 } from "react";
 import { useAuth } from "./AuthContext";
+import { useGuestAccess } from "./GuestAccessContext";
 // hls.js is heavy (~200 KB) — import it lazily the first time HLS playback is needed.
 // import Hls from "hls.js";
 import { scrapeIpInfo } from "./ipScraper";
@@ -49,6 +50,8 @@ export interface Track {
   isLiked?: boolean;
   likesCount?: number;
   lyrics?: string;
+  isPreview?: boolean;
+  previewUrl?: string;
 }
 
 interface PlayerContextType {
@@ -113,7 +116,6 @@ export function usePlayer() {
 }
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
-  const FALLBACK_SRC = "https://cdn.sedabox.com/music.mp3";
   const [queue, setQueueState] = useState<Track[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -142,6 +144,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<any>(null);
   const { accessToken } = useAuth();
+  const { requestAuth } = useGuestAccess();
   // mirror accessToken in a ref so long-lived handlers always see latest value
   const accessTokenRef = useRef<string | null>(accessToken || null);
   useEffect(() => {
@@ -163,6 +166,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const isAdPlayingRef = useRef<boolean>(false);
   const adSubmitIdRef = useRef<string | null>(null);
   const currentTrackRef = useRef<Track | null>(null);
+  const previewRefreshAttemptsRef = useRef<Set<string>>(new Set());
 
   // Derived state for current, previous, and next tracks
   const currentTrack = useMemo(
@@ -411,7 +415,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       };
 
-      const handleError = (e: Event) => {
+      const handleError = async (e: Event) => {
+        const track = currentTrackRef.current;
         try {
           const mediaErr = audio.error;
           if (mediaErr) {
@@ -419,18 +424,68 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               code: mediaErr.code,
               message: (mediaErr as any).message || null,
             });
-            // If it's a network error and we are actually offline, notify.
-            if (
-              !navigator.onLine &&
-              (isActuallyPlayingRef.current || currentTrackRef.current)
-            ) {
+          } else {
+            console.error("Audio error event:", e);
+          }
+
+          if (!navigator.onLine) {
+            if (isActuallyPlayingRef.current || track) {
               toast.error("خطا در شبکه: اتصال اینترنت قطع شده است.", {
                 id: "network-error-event",
                 duration: 3000,
               });
             }
-          } else {
-            console.error("Audio error event:", e);
+            setIsLoading(false);
+            setIsPlaying(false);
+            return;
+          }
+
+          // Guest preview URLs are signed and may expire while sitting in a
+          // queue. Refresh the public song payload once per failed URL and
+          // retry transparently before showing an error.
+          if (!accessTokenRef.current && track?.isPreview) {
+            const retryKey = `${track.id}:${track.src}`;
+            if (!previewRefreshAttemptsRef.current.has(retryKey)) {
+              previewRefreshAttemptsRef.current.add(retryKey);
+              setIsLoading(true);
+              try {
+                const response = await fetch(
+                  `https://api.sedabox.com/api/songs/${track.id}/`,
+                  { headers: { Accept: "application/json" } },
+                );
+                if (response.ok) {
+                  const data = await response.json();
+                  const refreshedSrc = ensureHttps(
+                    data.preview_url || data.stream_url || "",
+                  ) as string;
+                  if (refreshedSrc) {
+                    const refreshedTrack = {
+                      ...track,
+                      src: refreshedSrc,
+                      previewUrl: refreshedSrc,
+                      isPreview: true,
+                    };
+                    currentTrackRef.current = refreshedTrack;
+                    setQueueState((previous) =>
+                      previous.map((item) =>
+                        String(item.id) === String(track.id)
+                          ? refreshedTrack
+                          : item,
+                      ),
+                    );
+                    audio.src = refreshedSrc;
+                    audio.load();
+                    await audio.play();
+                    setIsPlaying(true);
+                    setIsLoading(false);
+                    return;
+                  }
+                }
+              } catch (refreshError) {
+                console.error("Failed to refresh guest preview:", refreshError);
+              }
+            }
+            toast.error("پیش‌نمایش در دسترس نیست؛ کمی بعد دوباره تلاش کنید.");
           }
         } catch (err) {
           console.error("Error while processing audio error event:", err, e);
@@ -499,6 +554,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const q = queueToUse || queue;
       const track = q[index];
       if (!track || !audioRef.current) return;
+      if (!track.src) {
+        toast.error(
+          accessTokenRef.current
+            ? "فایل پخش این آهنگ در دسترس نیست."
+            : "پیش‌نمایش این آهنگ هنوز آماده نشده است.",
+        );
+        setIsPlaying(false);
+        setIsLoading(false);
+        return;
+      }
 
       setIsLoading(true);
       setIsVisible(true);
@@ -573,7 +638,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
       })();
 
-      const initialSrc = (ensureHttps(track.src) as string) || FALLBACK_SRC;
+      let initialSrc = (ensureHttps(track.src) as string) || track.src;
       let resolvedSrc = initialSrc;
 
       try {
@@ -601,8 +666,75 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           if (candidate && typeof candidate === "string") {
             resolvedSrc = candidate;
           }
+        } else if (!accessTokenRef.current) {
+          // A queue may survive logout. If it still contains a protected stream
+          // wrapper, exchange it for the current public preview before playing.
+          if (!track.isPreview) {
+            const response = await fetch(
+              `https://api.sedabox.com/api/songs/${track.id}/`,
+              { headers: { Accept: "application/json" } },
+            );
+            if (!response.ok) throw new Error("Unable to load guest preview");
+            const data = await response.json();
+            const previewSrc = ensureHttps(
+              data.preview_url || data.stream_url || "",
+            ) as string;
+            if (!previewSrc) {
+              toast.error("پیش‌نمایش این آهنگ هنوز آماده نشده است.");
+              setIsLoading(false);
+              return;
+            }
+            initialSrc = previewSrc;
+            resolvedSrc = previewSrc;
+            const guestTrack = {
+              ...track,
+              src: previewSrc,
+              previewUrl: previewSrc,
+              isPreview: true,
+            };
+            currentTrackRef.current = guestTrack;
+            setQueueState((previous) =>
+              previous.map((item) =>
+                String(item.id) === String(track.id) ? guestTrack : item,
+              ),
+            );
+          } else {
+            // Guest tracks already point to a signed 30-second media file.
+            resolvedSrc = initialSrc;
+          }
         } else {
-          // Call the stream API (track.src) with Authorization to get the final media URL
+          // A queue may survive login. Upgrade a guest preview to the protected
+          // full-stream wrapper before resolving it.
+          if (track.isPreview) {
+            const response = await fetch(
+              `https://api.sedabox.com/api/songs/${track.id}/`,
+              {
+                headers: {
+                  Accept: "application/json",
+                  Authorization: `Bearer ${accessTokenRef.current}`,
+                },
+              },
+            );
+            if (!response.ok) throw new Error("Unable to upgrade preview stream");
+            const data = await response.json();
+            const fullStream = ensureHttps(data.stream_url || "") as string;
+            if (!fullStream) throw new Error("Full stream is unavailable");
+            initialSrc = fullStream;
+            resolvedSrc = fullStream;
+            const fullTrack = {
+              ...track,
+              src: fullStream,
+              isPreview: false,
+            };
+            currentTrackRef.current = fullTrack;
+            setQueueState((previous) =>
+              previous.map((item) =>
+                String(item.id) === String(track.id) ? fullTrack : item,
+              ),
+            );
+          }
+
+          // Authenticated tracks use the protected unwrap endpoint.
           try {
             console.debug("Requesting stream API (needs auth):", initialSrc);
             const headers: Record<string, string> = {};
@@ -1071,6 +1203,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         ...t,
         src: (ensureHttps(t.src) as string) || t.src,
         image: (ensureHttps(t.image) as string) || t.image,
+        isPreview: t.isPreview ?? !accessTokenRef.current,
       }));
       setQueueState(norm);
       setCurrentIndex(startIndex);
@@ -1186,19 +1319,30 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const cycleQuality = useCallback(() => {
+    if (!accessTokenRef.current) {
+      requestAuth({
+        title: "انتخاب کیفیت پخش",
+        description: "برای پخش کامل و انتخاب کیفیت موسیقی وارد حساب شوید.",
+      });
+      return;
+    }
     setQuality((prev) => {
       if (prev === "low") return "medium";
       if (prev === "medium") return "high";
       return "low";
     });
-  }, []);
+  }, [requestAuth]);
 
   const setQualityValue = useCallback((q: "low" | "medium" | "high") => {
     setQuality(q);
   }, []);
 
   const toggleLike = useCallback(async () => {
-    if (!currentTrack || !accessTokenRef.current || isLiking) return;
+    if (!currentTrack || isLiking) return;
+    if (!accessTokenRef.current) {
+      requestAuth("برای لایک‌کردن آهنگ و نگه‌داشتن آن در حساب خود وارد شوید.");
+      return;
+    }
 
     setIsLiking(true);
     try {
@@ -1236,7 +1380,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLiking(false);
     }
-  }, [currentTrack, isLiking, currentIndex]);
+  }, [currentTrack, isLiking, currentIndex, requestAuth]);
 
   const next = useCallback(() => {
     if (queue.length === 0) return;
@@ -1347,6 +1491,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     async (track?: Track) => {
       const targetTrack = track || currentTrack;
       if (!targetTrack) return;
+      if (!accessTokenRef.current) {
+        requestAuth({
+          title: "دانلود موسیقی",
+          description: "دانلود برای کاربران واردشده و براساس پلن حساب در دسترس است.",
+        });
+        return;
+      }
 
       // Submit download record to API
       if (accessTokenRef.current && targetTrack.id) {
@@ -1441,7 +1592,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         window.open(targetTrack.src, "_blank");
       }
     },
-    [currentTrack],
+    [currentTrack, requestAuth],
   );
 
   const reorderQueue = useCallback(

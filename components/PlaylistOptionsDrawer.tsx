@@ -7,6 +7,7 @@ import { Share2, Heart, Loader2, X } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
+import { useGuestAccess } from "./GuestAccessContext";
 
 interface PlaylistOptionsDrawerProps {
   isOpen: boolean;
@@ -45,6 +46,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
 }) => {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { accessToken, authenticatedFetch } = useAuth();
+  const { requestAuth } = useGuestAccess();
   const [processing, setProcessing] = useState<string | null>(null);
 
   const handleShare = async () => {
@@ -70,6 +72,11 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
 
   const handleToggleLike = useCallback(async () => {
     if (!playlist || processing) return;
+    if (!accessToken) {
+      requestAuth("برای ذخیره این پلی‌لیست در پسندیده‌ها وارد شوید.");
+      onClose();
+      return;
+    }
     setProcessing("toggle-like");
     try {
       if (onAction) {
@@ -113,7 +120,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
       setProcessing(null);
       onClose();
     }
-  }, [onAction, playlist, authenticatedFetch, processing, onClose]);
+  }, [onAction, playlist, authenticatedFetch, processing, onClose, accessToken, requestAuth]);
 
   if (!playlist) return null;
 

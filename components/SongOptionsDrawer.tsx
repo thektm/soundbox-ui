@@ -24,6 +24,7 @@ import { toast } from "react-hot-toast";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
 import { ReportModal } from "./ReportModal";
 import { getFullShareUrl } from "../utils/share";
+import { useGuestAccess } from "./GuestAccessContext";
 
 interface SongOptionsDrawerProps {
   isOpen: boolean;
@@ -34,6 +35,10 @@ interface SongOptionsDrawerProps {
     artist_name?: string;
     cover_image: string;
     is_liked?: boolean;
+    stream_url?: string;
+    preview_url?: string;
+    src?: string;
+    audio_file?: string;
   } | null;
   onAction?: (action: string, song: any) => Promise<any> | void;
 }
@@ -60,6 +65,7 @@ export const SongOptionsDrawer = ({
 }: SongOptionsDrawerProps) => {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const { accessToken, user, authenticatedFetch } = useAuth();
+  const { requestAuth } = useGuestAccess();
   const { download, playTrack, queue, setQueue, isVisible, currentIndex } =
     usePlayer();
 
@@ -103,6 +109,18 @@ export const SongOptionsDrawer = ({
     async (actionId: string) => {
       if (!song || processing) return;
 
+      const guestOnlyActions: Record<string, string> = {
+        "add-to-playlist": "برای ساخت و مدیریت پلی‌لیست وارد شوید.",
+        "toggle-like": "برای ذخیره این آهنگ در پسندیده‌ها وارد شوید.",
+        report: "برای ثبت گزارش و پیگیری آن وارد شوید.",
+        download: "دانلود موسیقی فقط برای کاربران واردشده در دسترس است.",
+      };
+      if (!accessToken && guestOnlyActions[actionId]) {
+        requestAuth(guestOnlyActions[actionId]);
+        onClose();
+        return;
+      }
+
       if (actionId === "share") {
         try {
           const url = getFullShareUrl("song", song.id, song.title);
@@ -141,8 +159,9 @@ export const SongOptionsDrawer = ({
           src:
             (song as any).src ||
             (song as any).stream_url ||
+            (song as any).preview_url ||
             (song as any).audio_file ||
-            `https://api.sedabox.com/api/songs/${song.id}/stream/`,
+            "",
         };
 
         try {
@@ -183,8 +202,9 @@ export const SongOptionsDrawer = ({
         const url =
           (song as any).src ||
           (song as any).stream_url ||
+          (song as any).preview_url ||
           (song as any).audio_file ||
-          `https://api.sedabox.com/api/songs/${song.id}/stream/`;
+          "";
         download({
           id: String(song.id),
           title: song.title,

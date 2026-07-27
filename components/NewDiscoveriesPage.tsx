@@ -79,7 +79,7 @@ const NewDiscoveriesPage: React.FC = () => {
       title: song.title,
       artist: song.artist_name,
       image: song.cover_image,
-      src: song.stream_url.replace("http://", "https://"),
+      src: (song.stream_url || (song as any).preview_url || "").replace("http://", "https://"),
       duration: `${Math.floor(song.duration_seconds / 60)}:${(song.duration_seconds % 60).toString().padStart(2, "0")}`,
     }));
     setQueue(queue, startIndex);
