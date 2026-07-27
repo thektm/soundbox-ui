@@ -802,26 +802,8 @@ const UserCard = memo(
               type="user"
             />
 
-            {/* Premium star badge */}
-            {user.plan === "premium" && (
-              <div
-                aria-hidden
-                className="absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center"
-                style={{
-                  background: "linear-gradient(135deg, #ffd54a, #ffb347)",
-                  boxShadow: "0 6px 18px rgba(255,165,0,0.18)",
-                  animation: "ud-glow 3s ease-in-out infinite",
-                }}
-              >
-                <svg
-                  className="w-4 h-4 text-black"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path d="M12 .587l3.668 7.431L24 9.75l-6 5.848L19.336 24 12 19.897 4.664 24 6 15.598 0 9.75l8.332-1.732z" />
-                </svg>
-              </div>
-            )}
+           
+            
           </div>
         </div>
         <div className="flex flex-col items-center gap-1 w-full px-2">

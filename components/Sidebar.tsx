@@ -546,15 +546,33 @@ const LibraryItemComponent = memo(
               return (
                 <>
                   <p className="text-sm font-medium text-white truncate">
-                    {displayName}
-                    {item.meta && item.meta.unique_id === "sedabox" && (
-                      <span
-                        className="inline-flex items-center mr-2 text-emerald-500"
-                        aria-label="تأیید شده"
-                      >
-                        ✓
-                      </span>
-                    )}
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTitleClick ? onTitleClick() : onClick();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.stopPropagation();
+                          onTitleClick ? onTitleClick() : onClick();
+                        }
+                      }}
+                      role={onTitleClick ? "link" : undefined}
+                      tabIndex={onTitleClick ? 0 : undefined}
+                      className={`truncate ${
+                        onTitleClick ? "cursor-pointer hover:underline" : ""
+                      }`}
+                    >
+                      {displayName}
+                      {item.meta && item.meta.unique_id === "sedabox" && (
+                        <span
+                          className="inline-flex items-center mr-2 text-emerald-500"
+                          aria-label="تأیید شده"
+                        >
+                          ✓
+                        </span>
+                      )}
+                    </span>
                   </p>
                   <p className="text-xs text-zinc-400 truncate">
                     {item.meta ? (
@@ -1080,6 +1098,13 @@ function Sidebar() {
                         navigateTo("song-detail", { id: item.id });
                         return;
                       }
+
+                      if (item.type === "user") {
+                        const uniqueId =
+                          item.meta?.unique_id || item.id || item.unique_id;
+                        navigateTo("user-detail", { id: uniqueId });
+                        return;
+                      }
                     }}
                     onTitleClick={() => {
                       // same behavior as clicking the item
@@ -1106,6 +1131,12 @@ function Sidebar() {
                         navigateTo("song-detail", { id: item.id });
                         return;
                       }
+                      if (item.type === "user") {
+                        const uniqueId =
+                          item.meta?.unique_id || item.id || item.unique_id;
+                        navigateTo("user-detail", { id: uniqueId });
+                        return;
+                      }
                     }}
                     onSubtitleClick={() => {
                       // when subtitle represents an artist (songs/albums), try to open artist detail
@@ -1113,13 +1144,17 @@ function Sidebar() {
                         const meta = item.meta || {};
                         const artistId = meta.artist_id || meta.artist?.id;
                         const artistUnique =
-                          meta.artist_unique_id || meta.artist?.unique_id || meta.unique_id;
+                          meta.artist_unique_id ||
+                          meta.artist?.unique_id ||
+                          meta.unique_id;
                         if (artistId) {
                           navigateTo("artist-detail", { id: artistId });
                         } else if (artistUnique) {
                           navigateTo("artist-detail", {
                             id: artistUnique,
-                            slug: createSlug((meta.artist_name || item.owner) || ""),
+                            slug: createSlug(
+                              meta.artist_name || item.owner || "",
+                            ),
                           });
                         }
                       }

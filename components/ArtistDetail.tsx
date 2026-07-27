@@ -892,8 +892,8 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         dir="rtl"
       >
         {/* Desktop Header */}
-        <header className="hidden md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl">
-          <div className="flex items-center gap-2">
+        <header className="hidden flex-row-reverse md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl">
+          <div className="flex flex-row-reverse items-center gap-2">
             <button
               onClick={goBack}
               className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
@@ -908,7 +908,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  d="M9 5l7 7-7 7"
+                  d="M15 19l-7-7 7-7"
                 />
               </svg>
             </button>
@@ -1197,7 +1197,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                 <div className="col-span-full">
                   <NoItemsState
                     title="آلبومی یافت نشد"
-                    subtitle="این هنرمند در حال حاضر آلبوم فعالی ندارد."
+                    subtitle="این هنرمند در حال حاضر آلبومی ندارد."
                     iconType="album"
                   />
                 </div>
