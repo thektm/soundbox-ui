@@ -59,6 +59,19 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
   const [hasInitialFetched, setHasInitialFetched] = useState(false);
   const lastAudienceRef = useRef<string | null>(null);
 
+  const authenticatedFetchRef = useRef(authenticatedFetch);
+  authenticatedFetchRef.current = authenticatedFetch;
+
+  const fetchPublicRecommendations = useCallback(
+    async (input: RequestInfo | URL): Promise<Response> => {
+      if (!accessToken) return fetch(input);
+
+      const response = await authenticatedFetchRef.current(input);
+      return response.status === 401 ? fetch(input) : response;
+    },
+    [accessToken],
+  );
+
   const setRecommendedData = useCallback((data: any) => {
     if (!data) return;
     const results = Array.isArray(data) ? data : data.results || [];
@@ -81,7 +94,7 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
       if (hasInitialFetched && !force) return;
       setIsLoading(true);
       try {
-        const response = await authenticatedFetch(
+        const response = await fetchPublicRecommendations(
           "https://api.sedabox.com/api/home/playlist-recommendations/",
         );
         if (response.ok) {
@@ -95,14 +108,14 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
         setIsLoading(false);
       }
     },
-    [accessToken, authenticatedFetch, hasInitialFetched, setRecommendedData],
+    [fetchPublicRecommendations, hasInitialFetched, setRecommendedData],
   );
 
   const loadMoreRecommended = useCallback(async () => {
     if (!nextUrl || isLoading) return;
     setIsLoading(true);
     try {
-      const response = await authenticatedFetch(
+      const response = await fetchPublicRecommendations(
         nextUrl.replace("http://", "https://"),
       );
       if (response.ok) {
@@ -116,7 +129,7 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [nextUrl, isLoading, authenticatedFetch]);
+  }, [fetchPublicRecommendations, isLoading, nextUrl]);
 
   useEffect(() => {
     if (lastAudienceRef.current === audienceKey) return;

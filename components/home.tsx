@@ -350,6 +350,19 @@ export default function Home() {
   const { isDesktop } = useResponsiveLayout();
   const isMobileView = !isDesktop;
 
+  const authenticatedFetchRef = useRef(authenticatedFetch);
+  authenticatedFetchRef.current = authenticatedFetch;
+
+  const fetchPublicHome = useCallback(
+    async (input: RequestInfo | URL): Promise<Response> => {
+      if (!accessToken) return fetch(input);
+
+      const response = await authenticatedFetchRef.current(input);
+      return response.status === 401 ? fetch(input) : response;
+    },
+    [accessToken],
+  );
+
   const sectionTitles = [
     "برای شما",
     "جدیدترین ریلیز ها ",
@@ -385,7 +398,7 @@ export default function Home() {
 
     const fetchHomeData = async (background: boolean) => {
       try {
-        const response = await authenticatedFetch(
+        const response = await fetchPublicHome(
           "https://api.sedabox.com/api/home/summary/",
         );
         if (response.ok) {
@@ -430,7 +443,7 @@ export default function Home() {
     };
 
     fetchHomeData(isBackground);
-  }, [audienceKey, authenticatedFetch, homeCache, setHomeCache]);
+  }, [audienceKey, fetchPublicHome, homeCache, setHomeCache]);
 
   // Fetch extra sections
   useEffect(() => {
@@ -440,7 +453,7 @@ export default function Home() {
       key: string,
     ) => {
       try {
-        const response = await authenticatedFetch(
+        const response = await fetchPublicHome(
           `https://api.sedabox.com/api/home/${endpoint}/`,
         );
         if (response.ok) {
@@ -472,7 +485,7 @@ export default function Home() {
       "weeklyTopArtists",
     );
     fetchExtra("weekly-top-songs-global", setWeeklyTopSongs, "weeklyTopSongs");
-  }, [accessToken]);
+  }, [fetchPublicHome]);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -593,7 +606,7 @@ export default function Home() {
     if (!section || !section.next) return;
     try {
       const url = section.next.replace(/^http:/, "https:");
-      const res = await authenticatedFetch(url);
+      const res = await fetchPublicHome(url);
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
       const page = await res.json();
 
