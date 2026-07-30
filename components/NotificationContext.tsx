@@ -165,6 +165,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   const {
     accessToken,
     authenticatedFetch,
+    getFreshAccessToken,
     isInitializing,
     isLoggedIn,
     user,
@@ -183,6 +184,8 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   accessTokenRef.current = accessToken;
   const authenticatedFetchRef = useRef(authenticatedFetch);
   authenticatedFetchRef.current = authenticatedFetch;
+  const getFreshAccessTokenRef = useRef(getFreshAccessToken);
+  getFreshAccessTokenRef.current = getFreshAccessToken;
   const languageRef = useRef(language);
   languageRef.current = language;
   const notificationsRef = useRef(notifications);
@@ -532,6 +535,10 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     let reconnectAttempt = 0;
     let lastMessageAt = Date.now();
     let lastFailureReconcileAt = 0;
+    let preparingConnection = false;
+    let forceRefreshBeforeNextConnect = false;
+    let tokenUsedForHandshake: string | null = null;
+    let socketWasAccepted = false;
 
     const clearSocketTimers = () => {
       if (heartbeatTimer !== null) window.clearInterval(heartbeatTimer);
@@ -548,7 +555,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       setRealtimeStatus("reconnecting");
       reconnectTimer = window.setTimeout(() => {
         reconnectTimer = null;
-        connect();
+        void connect();
       }, delay);
     };
 
@@ -625,8 +632,8 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       }
     };
 
-    const connect = () => {
-      if (disposed) return;
+    const connect = async () => {
+      if (disposed || preparingConnection) return;
       if (!navigator.onLine) {
         setRealtimeStatus("reconnecting");
         return;
@@ -639,11 +646,24 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      const currentToken = accessTokenRef.current;
-      if (!currentToken) return;
+      preparingConnection = true;
       setRealtimeStatus(reconnectAttempt ? "reconnecting" : "connecting");
 
       try {
+        const shouldForceRefresh = forceRefreshBeforeNextConnect;
+        forceRefreshBeforeNextConnect = false;
+        const currentToken = await getFreshAccessTokenRef.current(
+          shouldForceRefresh,
+        );
+        if (disposed || !currentToken) {
+          if (!disposed) setRealtimeStatus("disabled");
+          return;
+        }
+
+        accessTokenRef.current = currentToken;
+        tokenUsedForHandshake = currentToken;
+        socketWasAccepted = false;
+
         socket = new WebSocket(buildNotificationsSocketUrl(), [
           SOCKET_PUBLIC_PROTOCOL,
           `jwt.${currentToken}`,
@@ -652,6 +672,8 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         clientTrace("NOTIFICATIONS", "socket:construct-failed", error, "error");
         scheduleReconnect();
         return;
+      } finally {
+        preparingConnection = false;
       }
 
       connectTimeout = window.setTimeout(() => {
@@ -661,6 +683,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       }, 12_000);
 
       socket.onopen = () => {
+        socketWasAccepted = true;
         if (disposed) {
           socket?.close(1000, "provider disposed");
           return;
@@ -686,17 +709,29 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       };
       socket.onclose = (event) => {
         clearSocketTimers();
+        const rejectedBeforeAccept = !socketWasAccepted && event.code !== 1000;
         clientTrace("NOTIFICATIONS", "socket:closed", {
           code: event.code,
           reason: event.reason,
           clean: event.wasClean,
+          rejectedBeforeAccept,
         }, event.code === 1000 ? "log" : "warn");
         socket = null;
+
+        if (
+          rejectedBeforeAccept &&
+          tokenUsedForHandshake &&
+          tokenUsedForHandshake === accessTokenRef.current
+        ) {
+          // A browser reports an HTTP 401/403 WebSocket rejection as close 1006.
+          // Force one token rotation before the next handshake instead of
+          // repeatedly retrying the same stale/revoked access token.
+          forceRefreshBeforeNextConnect = true;
+        }
+        tokenUsedForHandshake = null;
+        socketWasAccepted = false;
+
         if (!disposed) {
-          // Browsers often surface a server rejection before WebSocket accept as
-          // 1006 instead of the custom 4401 code. Reconcile on abnormal closes
-          // with a cooldown; authenticatedFetch can refresh an expired JWT and
-          // HTTP remains authoritative when Redis/the proxy is unavailable.
           const now = Date.now();
           if (
             event.code !== 1000 &&
@@ -716,7 +751,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         window.clearTimeout(reconnectTimer);
         reconnectTimer = null;
       }
-      connect();
+      void connect();
       void refreshNotifications();
     };
     const handleOffline = () => {
@@ -725,7 +760,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     };
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState !== "visible") return;
-      if (!socket || socket.readyState !== WebSocket.OPEN) connect();
+      if (!socket || socket.readyState !== WebSocket.OPEN) void connect();
       if (Date.now() - lastHttpSyncRef.current > FOCUS_RECONCILE_AGE_MS) {
         void refreshNotifications();
       }
@@ -735,7 +770,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     window.addEventListener("offline", handleOffline);
     window.addEventListener("focus", handleVisibilityOrFocus);
     document.addEventListener("visibilitychange", handleVisibilityOrFocus);
-    connect();
+    void connect();
 
     return () => {
       disposed = true;

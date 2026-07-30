@@ -156,6 +156,7 @@ interface AuthContextType {
     input: RequestInfo | URL,
     init?: RequestInit,
   ) => Promise<Response>;
+  getFreshAccessToken: (forceRefresh?: boolean) => Promise<string | null>;
   verificationContext: string | null;
   setVerificationContext: (context: string | null) => void;
   formatErrorMessage: (error: any) => string;
@@ -769,6 +770,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const getFreshAccessToken = useCallback(
+    async (forceRefresh = false): Promise<string | null> => {
+      const currentToken = accessTokenRef.current;
+      if (!forceRefresh && isAccessTokenUsable(currentToken, 60)) {
+        return currentToken;
+      }
+
+      const refreshedToken = await tryRefreshToken(undefined, currentToken);
+      return refreshedToken || accessTokenRef.current;
+    },
+    [],
+  );
+
   const authenticatedFetch = async (
     input: RequestInfo | URL,
     init?: RequestInit,
@@ -1244,6 +1258,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         updateStreamQuality,
         updateNotificationSettings,
         authenticatedFetch,
+        getFreshAccessToken,
         verificationContext,
         setVerificationContext,
         formatErrorMessage,

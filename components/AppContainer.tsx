@@ -1,39 +1,26 @@
 import React, { useEffect } from "react";
 import dynamic from "next/dynamic";
+import MusicPlayer from "./MusicPlayer";
 import { NavigationProvider } from "./NavigationContext";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { NotificationProvider } from "./NotificationContext";
 import { DiscoveryProvider } from "./DiscoveryContext";
 import { ResponsiveLayoutProvider } from "./ResponsiveLayout";
-import { PlayerProvider, usePlayer } from "./PlayerContext";
+import { PlayerProvider } from "./PlayerContext";
 import { GuestAccessProvider } from "./GuestAccessContext";
 import NetworkStatusMonitor from "./NetworkStatusMonitor";
 import SplashScreen from "./SplashScreen";
 import { SplashVisibilityProvider } from "./SplashVisibilityContext";
 import { clientTrace, installGlobalClientDiagnostics } from "../lib/clientDebug";
 
-// Heavy components that are not needed for initial paint — lazy-load them.
-// MusicPlayer (3 200+ lines) only matters once a track is played.
-// The splash is imported eagerly so its asset preloading and startup orchestration begin immediately.
-// InitialModal remains lazy because it is not required for the first paint.
-const MusicPlayer = dynamic(() => import("./MusicPlayer"), {
-  ssr: false,
-  loading: () => null,
-});
+// The player is imported eagerly and mounted from application startup. AppContainer
+// itself is client-only, so this prepares the complete player behind the splash
+// without rendering a visible player until PlayerContext marks it visible.
 const InitialModal = dynamic(
   () => import("./InitialModal").then((m) => ({ default: m.InitialModal })),
   { ssr: false },
 );
 
-
-const DeferredMusicPlayer: React.FC = () => {
-  const { currentTrack, isVisible } = usePlayer();
-  // Do not download/evaluate the 3,000+ line player UI until a restored or new
-  // playback session actually needs it. PlayerProvider remains available to
-  // every screen, so play actions and session restoration are unchanged.
-  if (!currentTrack && !isVisible) return null;
-  return <MusicPlayer />;
-};
 
 const DeferredInitialModal: React.FC = () => {
   const { accessToken, isInitializing, needsInitialCheck } = useAuth();
@@ -68,7 +55,7 @@ const AppContainer: React.FC<AppContainerProps> = ({ children }) => {
                   <ResponsiveLayoutProvider>
                     {children}
                     <NetworkStatusMonitor />
-                    <DeferredMusicPlayer />
+                    <MusicPlayer />
                     <SplashScreen />
                     <DeferredInitialModal />
                   </ResponsiveLayoutProvider>
