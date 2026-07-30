@@ -214,10 +214,16 @@ export const warmAppScreensDuringSplash = async ({
 export const continueAppScreenWarmup = (options: WarmupOptions): void => {
   if (typeof window === "undefined") return;
   const start = () => void warmAppScreensDuringSplash(options);
-  if ("requestIdleCallback" in window) {
-    (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number })
-      .requestIdleCallback(start, { timeout: 2_000 });
+  const browserWindow = window as Window & {
+    requestIdleCallback?: (
+      callback: () => void,
+      options?: { timeout: number },
+    ) => number;
+  };
+
+  if (typeof browserWindow.requestIdleCallback === "function") {
+    browserWindow.requestIdleCallback(start, { timeout: 2_000 });
   } else {
-    window.setTimeout(start, 250);
+    globalThis.setTimeout(start, 250);
   }
 };

@@ -349,14 +349,17 @@ export const GuestSidebar = () => {
 };
 
 export const GuestBottomNav = () => {
-  const { direction } = useI18n();
   const { currentPage, navigateTo } = useNavigation();
   const { requestAuth } = useGuestAccess();
   const itemClass = (active: boolean) =>
     `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-bold transition ${active ? "text-white" : "text-zinc-500"}`;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-[80] flex h-16 border-t border-white/10 bg-black/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden" dir={direction}>
+    <nav
+      className="fixed inset-x-0 bottom-0 z-[80] flex h-16 border-t border-white/10 bg-black/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
+      dir="ltr"
+      data-direction-fixed="ltr"
+    >
       <button type="button" onClick={() => navigateTo("home")} className={itemClass(currentPage === "home")}>
         <Home className="h-6 w-6" strokeWidth={1.8} /><span>خانه</span>
       </button>

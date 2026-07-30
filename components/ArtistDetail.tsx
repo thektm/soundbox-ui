@@ -756,7 +756,9 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     }
     const followId = data?.artist?.id || artistIdOrSlug;
     if (!followId) return;
-    const wasFollowing = following;
+    const wasFollowing = Boolean(
+      following ?? data?.artist?.is_following ?? false,
+    );
     const shouldFollow = !wasFollowing;
     const artistName = data?.artist?.name || "";
 

@@ -7,6 +7,7 @@ import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { useI18n } from "./I18nContext";
 import { useSplashVisibility } from "./SplashVisibilityContext";
+import { usePlayerLayoutState } from "./PlayerContext";
 
 
 const BottomNavbar = dynamic(() => import("./BottomNavbar"), { ssr: false });
@@ -33,8 +34,18 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
   const { direction } = useI18n();
   const { isLoggedIn } = useAuth();
   const { splashVisible } = useSplashVisibility();
+  const { hasCollapsedPlayer } = usePlayerLayoutState();
   const { registerScrollContainer, restoreScroll, navigationKey } =
     useNavigation();
+
+  // Screens already reserve their normal navbar gutter. Add only the
+  // collapsed player's own footprint, with a small breathing gap, so the last
+  // item remains scrollable above the player without a large empty tail.
+  const playerContentInset = hasCollapsedPlayer
+    ? isMobile
+      ? "calc(88px + env(safe-area-inset-bottom, 0px))"
+      : "106px"
+    : "0px";
 
   // Restore scroll when page or params change
   useEffect(() => {
@@ -76,7 +87,13 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
             overscrollBehavior: "contain",
           }}
         >
-          {children}
+          <div
+            className="min-h-full transition-[padding-bottom] duration-300 ease-out"
+            style={{ paddingBottom: playerContentInset }}
+            data-player-content-inset={hasCollapsedPlayer ? "active" : "idle"}
+          >
+            {children}
+          </div>
         </div>
 
         {/* Bottom Navbar - only visible on mobile via its own classes */}
@@ -109,7 +126,13 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
               overscrollBehavior: "contain",
               }}
           >
-            {children}
+            <div
+              className="min-h-full transition-[padding-bottom] duration-300 ease-out"
+              style={{ paddingBottom: playerContentInset }}
+              data-player-content-inset={hasCollapsedPlayer ? "active" : "idle"}
+            >
+              {children}
+            </div>
           </div>
         </div>
       </div>

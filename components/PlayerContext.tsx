@@ -219,8 +219,23 @@ interface PlayerActionsContextType {
   setQuality: PlayerContextType["setQuality"];
 }
 
+interface PlayerLayoutContextType {
+  isVisible: boolean;
+  isExpanded: boolean;
+  hasCollapsedPlayer: boolean;
+}
+
 const PlayerContext = createContext<PlayerContextType | null>(null);
 const PlayerActionsContext = createContext<PlayerActionsContextType | null>(null);
+const PlayerLayoutContext = createContext<PlayerLayoutContextType | null>(null);
+
+export function usePlayerLayoutState() {
+  const context = useContext(PlayerLayoutContext);
+  if (!context) {
+    throw new Error("usePlayerLayoutState must be used within a PlayerProvider");
+  }
+  return context;
+}
 
 export function usePlayerActions() {
   const context = useContext(PlayerActionsContext);
@@ -2617,6 +2632,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [playTrack, setQueue, setQualityValue],
   );
 
+  const layoutState = useMemo<PlayerLayoutContextType>(
+    () => ({
+      isVisible,
+      isExpanded,
+      hasCollapsedPlayer: isVisible && !isExpanded,
+    }),
+    [isExpanded, isVisible],
+  );
+
   const value: PlayerContextType = {
     currentTrack,
     previousTrack,
@@ -2667,25 +2691,29 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PlayerActionsContext.Provider value={actions}>
-      <PlayerContext.Provider value={value}>
-        {children}
-        {downloadTrack && (
-          <DownloadFlowModal
-            isOpen
-            track={downloadTrack}
-            options={downloadOptions}
-            selectedQuality={selectedDownloadQuality}
-            status={downloadStatus}
-            progress={downloadProgress}
-            loadedBytes={downloadLoadedBytes}
-            totalBytes={downloadTotalBytes}
-            error={downloadError}
-            onSelect={(selected) => setSelectedDownloadQuality(selected)}
-            onStart={() => void startDownload()}
-            onClose={closeDownloadFlow}
-          />
-        )}
-      </PlayerContext.Provider>
+      <PlayerLayoutContext.Provider value={layoutState}>
+        <PlayerContext.Provider value={value}>
+          {children}
+          {downloadTrack && (
+            <DownloadFlowModal
+              isOpen
+              track={downloadTrack}
+              options={downloadOptions}
+              selectedQuality={selectedDownloadQuality}
+              status={downloadStatus}
+              progress={downloadProgress}
+              loadedBytes={downloadLoadedBytes}
+              totalBytes={downloadTotalBytes}
+              error={downloadError}
+              onSelect={(selected: DownloadQuality) =>
+                setSelectedDownloadQuality(selected)
+              }
+              onStart={() => void startDownload()}
+              onClose={closeDownloadFlow}
+            />
+          )}
+        </PlayerContext.Provider>
+      </PlayerLayoutContext.Provider>
     </PlayerActionsContext.Provider>
   );
 }

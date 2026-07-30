@@ -1041,8 +1041,11 @@ export default function Home() {
 
   useEffect(() => {
     const hasTerminalError = !isLoading && Boolean(homeError) && !homeData;
+    // Once any valid summary payload exists, render it immediately. The chart
+    // and playlist requests remain independent and keep their own per-section
+    // skeletons, so a slow chart endpoint can never hold the Hero or summary
+    // sections behind the full-page loader.
     const isRenderBlocked =
-      isLoading ||
       (!homeData && !hasTerminalError) ||
       (Boolean(homeData) && !sectionData);
     const snapshot = {
@@ -1171,7 +1174,10 @@ export default function Home() {
     );
   }
 
-  if (isLoading || !sectionData || !homeData) {
+  // Do not gate already-available summary content on the request's final
+  // bookkeeping state. This matters for cached/partial summary delivery and
+  // guarantees progressive rendering while independent sections are loading.
+  if (!sectionData || !homeData) {
     return (
       <>
         <SEO />
@@ -2115,6 +2121,8 @@ export default function Home() {
         dir={direction}
         className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
         style={{ minHeight: "calc(var(--vh, 1vh) * 100)" }}
+        aria-busy={isLoading}
+        data-home-loading={isLoading ? "summary-refresh" : "ready"}
       >
         {/* Background gradients - adjusted for responsive */}
         <div className="fixed top-0 left-0 w-full h-96 bg-gradient-to-b from-emerald-900/40 to-transparent pointer-events-none z-0 md:rounded-t-lg" />
