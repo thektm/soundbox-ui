@@ -26,10 +26,17 @@ const Login = dynamic(() => import("./Login"), {
   ssr: false,
   loading: () => <div className="fixed inset-0 bg-[#0a0a0a]" />,
 });
-const Register = dynamic(() => import("./Register"), { ssr: false });
-const Verify = dynamic(() => import("./Verify"), { ssr: false });
+const Register = dynamic(() => import("./Register"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const Verify = dynamic(() => import("./Verify"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
 const ForgotPassword = dynamic(() => import("./ForgotPassword"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 
 // ── Core pages (most likely to be visited first) ────────────────────────────
@@ -67,78 +74,137 @@ const LibraryScreen = dynamic(() => import("./LibraryScreen"), {
 });
 
 // ── Detail pages ────────────────────────────────────────────────────────────
-const SongDetail = dynamic(() => import("./SongDetail"), { ssr: false });
+const SongDetail = dynamic(() => import("./SongDetail"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
 const PlaylistDetail = dynamic(() => import("./PlaylistDetail"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 const UserPlaylistDetail = dynamic(() => import("./UserPlaylistDetail"), {
   ssr: false,
+  loading: PageSkeleton,
 });
-const ArtistDetail = dynamic(() => import("./ArtistDetail"), { ssr: false });
-const ArtistSubPage = dynamic(() => import("./ArtistSubPage"), { ssr: false });
-const AlbumDetail = dynamic(() => import("./AlbumDetail"), { ssr: false });
-const UserDetail = dynamic(() => import("./UserDetail"), { ssr: false });
-const ChartPage = dynamic(() => import("./ChartPage"), { ssr: false });
-const GenrePage = dynamic(() => import("./GenrePage"), { ssr: false });
+const ArtistDetail = dynamic(() => import("./ArtistDetail"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const ArtistSubPage = dynamic(() => import("./ArtistSubPage"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const AlbumDetail = dynamic(() => import("./AlbumDetail"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const UserDetail = dynamic(() => import("./UserDetail"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const ChartPage = dynamic(() => import("./ChartPage"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const GenrePage = dynamic(() => import("./GenrePage"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
 
 // ── Profile & social ───────────────────────────────────────────────────────
-const Profile = dynamic(() => import("./Profile"), { ssr: false });
+const Profile = dynamic(() => import("./Profile"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
 const DesktopProfile = dynamic(() => import("./DesktopProfile"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 const FollowersFollowing = dynamic(() => import("./FollowersFollowing"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 const FollowingArtistsPage = dynamic(() => import("./FollowingArtistsPage"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 
 // ── Library sub-pages ───────────────────────────────────────────────────────
-const LikedSongs = dynamic(() => import("./LikedSongs"), { ssr: false });
-const LikedAlbums = dynamic(() => import("./LikedAlbums"), { ssr: false });
+const LikedSongs = dynamic(() => import("./LikedSongs"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const LikedAlbums = dynamic(() => import("./LikedAlbums"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
 const LikedPlaylists = dynamic(() => import("./LikedPlaylists"), {
   ssr: false,
+  loading: PageSkeleton,
 });
-const MyPlaylists = dynamic(() => import("./MyPlaylists"), { ssr: false });
-const Playlists = dynamic(() => import("./Playlists"), { ssr: false });
+const MyPlaylists = dynamic(() => import("./MyPlaylists"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
+const Playlists = dynamic(() => import("./Playlists"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
 const DownloadsHistory = dynamic(() => import("./DownloadsHistory"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 
 // ── Discovery / browse pages ────────────────────────────────────────────────
 const PopularArtistsPage = dynamic(() => import("./PopularArtistsPage"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 const LatestReleasesPage = dynamic(() => import("./LatestReleasesPage"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 const PopularAlbumsPage = dynamic(() => import("./PopularAlbumsPage"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 const NewDiscoveriesPage = dynamic(() => import("./NewDiscoveriesPage"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 const RecommendedPlaylistsPage = dynamic(
   () => import("./RecommendedPlaylistsPage"),
-  { ssr: false },
+  { ssr: false, loading: PageSkeleton },
 );
-const ForYouPage = dynamic(() => import("./ForYouPage"), { ssr: false });
+const ForYouPage = dynamic(() => import("./ForYouPage"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
 const OtherUserPlaylists = dynamic(() => import("./OtherUserPlaylists"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 
 // ── Settings & payments ─────────────────────────────────────────────────────
-const Settings = dynamic(() => import("./Settings"), { ssr: false });
+const Settings = dynamic(() => import("./Settings"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
 const Premium = dynamic(() => import("./Premium"), {
   ssr: false,
   loading: PageSkeleton,
 });
-const UpgradePlans = dynamic(() => import("./UpgradePlans"), { ssr: false });
+const UpgradePlans = dynamic(() => import("./UpgradePlans"), {
+  ssr: false,
+  loading: PageSkeleton,
+});
 const PaymentProcessing = dynamic(() => import("./PaymentProcessing"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 const PaymentSuccess = dynamic(() => import("./PaymentSuccess"), {
   ssr: false,
+  loading: PageSkeleton,
 });
 
 type HomeRouteErrorBoundaryProps = {
