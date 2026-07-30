@@ -17,6 +17,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { useI18n } from "./I18nContext";
+import { openAuthPrompt } from "./authPrompt";
+import { buildUserNavigationParams, isSedaboxUser } from "../lib/userProfileRoute";
 
 // ============================================================================
 // Utils
@@ -79,6 +82,7 @@ const FollowerCard = memo(
     user: UserFollowItem;
     onFollow: (id: number) => void;
   }) => {
+    const { locale } = useI18n();
     const { navigateTo } = useNavigation();
     const [isFollowing, setIsFollowing] = useState(user.is_following);
 
@@ -105,9 +109,7 @@ const FollowerCard = memo(
               slug: (user as any).unique_id || createSlug(user.name),
             });
           } else {
-            // use unique_id for fetching user details (fallback to numeric id)
-            const uid = (user as any).unique_id || user.id.toString();
-            navigateTo("user-detail", { id: uid });
+            navigateTo("user-detail", buildUserNavigationParams(user as any));
           }
         }}
         className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] active:bg-white/[0.04] transition-colors"
@@ -118,17 +120,17 @@ const FollowerCard = memo(
               src={user.image}
               alt={user.name}
               className="w-full h-full object-cover"
-              type={user.type === "artist" ? "artist" : "song"}
+              type={user.type === "artist" ? "artist" : "user"}
             />
           </div>
         </div>
 
-        <div className="flex-1 min-w-0" dir="rtl">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-sm font-bold text-white truncate">
               {user.name}
             </span>
-            {(user as any).unique_id === "sedabox" && (
+            {isSedaboxUser(user as any) && (
               <span
                 title="تأیید شده"
                 className="text-emerald-400 shrink-0 ml-1"
@@ -143,7 +145,7 @@ const FollowerCard = memo(
           </div>
           <p className="text-[11px] text-gray-500 truncate mt-0.5">
             {user.type === "artist" ? "هنرمند" : "کاربر"} •{" "}
-            {user.followers_count.toLocaleString("fa-IR")} دنبال‌کننده
+            {user.followers_count.toLocaleString(locale)} دنبال‌کننده
           </p>
         </div>
 
@@ -175,6 +177,7 @@ const FollowingCard = memo(
     artist: UserFollowItem;
     onUnfollow: (id: number) => void;
   }) => {
+    const { locale } = useI18n();
     const { navigateTo } = useNavigation();
     const [isFollowing, setIsFollowing] = useState(artist.is_following);
 
@@ -199,8 +202,7 @@ const FollowingCard = memo(
               slug: (artist as any).unique_id || createSlug(artist.name),
             });
           } else {
-            const uid = (artist as any).unique_id || artist.id.toString();
-            navigateTo("user-detail", { id: uid });
+            navigateTo("user-detail", buildUserNavigationParams(artist as any));
           }
         }}
         className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] active:bg-white/[0.04] transition-colors cursor-pointer"
@@ -216,12 +218,12 @@ const FollowingCard = memo(
           </div>
         </div>
 
-        <div className="flex-1 min-w-0" dir="rtl">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-sm font-bold text-white truncate block">
               {artist.name}
             </span>
-            {(artist as any).unique_id === "sedabox" && (
+            {isSedaboxUser(artist as any) && (
               <span
                 title="تأیید شده"
                 className="text-emerald-400 shrink-0 ml-1"
@@ -235,7 +237,7 @@ const FollowingCard = memo(
             </span>
           </div>
           <p className="text-[11px] text-gray-500 mt-0.5">
-            {artist.followers_count.toLocaleString("fa-IR")} دنبال‌کننده
+            {artist.followers_count.toLocaleString(locale)} دنبال‌کننده
           </p>
         </div>
 
@@ -266,6 +268,7 @@ export default function FollowersFollowing({
   initialTab?: TabType;
   uniqueId?: string;
 }) {
+  const { locale } = useI18n();
   const { navigateTo, goBack } = useNavigation();
   const { user, accessToken, authenticatedFetch } = useAuth();
 
@@ -334,7 +337,7 @@ export default function FollowersFollowing({
   const handleToggleFollow = useCallback(
     async (id: number) => {
       if (!accessToken) {
-        toast.error("ابتدا وارد شوید");
+        openAuthPrompt("برای دنبال‌کردن کاربران وارد شوید.");
         return;
       }
 
@@ -604,7 +607,6 @@ export default function FollowersFollowing({
   return (
     <div
       className="flex flex-col h-screen bg-[#030303] text-white font-sans overflow-hidden"
-      dir="rtl"
     >
       {/* ================= HEADER ================= */}
       <div className="shrink-0 z-30 bg-[#030303]/95 backdrop-blur-xl border-b border-white/[0.04]">
@@ -616,7 +618,7 @@ export default function FollowersFollowing({
               className="active:scale-90 transition-transform"
             >
               <div className="w-10 h-10 rounded-full bg-white/[0.04] flex items-center justify-center">
-                <Icon d={ICONS.back} className="w-5 h-5" />
+                <Icon d={ICONS.back} className="w-5 h-5 sb-back-icon" />
               </div>
             </button>
           </div>
@@ -644,7 +646,7 @@ export default function FollowersFollowing({
                 <div className="flex items-center justify-center gap-2">
                   <span>{label}</span>
                   <span className="bg-white/[0.08] px-1.5 py-0.5 rounded text-[10px] text-gray-400">
-                    {count.toLocaleString("fa-IR")}
+                    {count.toLocaleString(locale)}
                   </span>
                 </div>
                 {isActive && (

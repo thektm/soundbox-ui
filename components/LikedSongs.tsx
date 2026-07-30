@@ -110,6 +110,7 @@ const SongRow = memo(
             src={song.image}
             alt={song.title}
             fill
+            sizes="100vw"
             className="object-cover"
           />
         </div>
@@ -488,7 +489,6 @@ export default function LikedSongs() {
   return (
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white font-sans"
-      dir="rtl"
     >
       {/* Background Gradient */}
       <div className="absolute top-0 inset-x-0 h-96 bg-gradient-to-b from-emerald-900/20 via-emerald-900/5 to-transparent pointer-events-none" />
@@ -499,7 +499,7 @@ export default function LikedSongs() {
           onClick={goBack}
           className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition"
         >
-          <Icon d={ICONS.back} />
+          <Icon d={ICONS.back} className="sb-back-icon" />
         </button>
         <button
           onClick={() => {

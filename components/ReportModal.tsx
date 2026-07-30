@@ -75,7 +75,7 @@ export const ReportModal = ({
 
   const handleSubmit = async () => {
     if (!accessToken) {
-      toast.error("برای گزارش دادن ابتدا وارد شوید");
+      requestAuth("برای ثبت گزارش وارد شوید.");
       return;
     }
 
@@ -141,7 +141,6 @@ export const ReportModal = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           className="relative w-full max-w-lg bg-[#111] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-emerald-500/10 flex flex-col"
-          dir="rtl"
         >
           {/* Header */}
           <div className="px-8 pt-8 pb-4 flex items-center justify-between">
@@ -185,7 +184,7 @@ export const ReportModal = ({
                         setSelectedReason(reason.label);
                         setStep(2);
                       }}
-                      className="group flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.05] hover:bg-emerald-500/10 hover:border-emerald-500/20 transition-all duration-300 text-right"
+                      className="group flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.05] hover:bg-emerald-500/10 hover:border-emerald-500/20 transition-all duration-300 text-start"
                     >
                       <span className="text-2xl grayscale group-hover:grayscale-0 transition-all">
                         {reason.icon}
@@ -193,7 +192,7 @@ export const ReportModal = ({
                       <span className="flex-1 text-[15px] font-semibold text-white/80 group-hover:text-white">
                         {reason.label}
                       </span>
-                      <ChevronRight className="w-5 h-5 text-white/20 group-hover:text-emerald-500 transition-all" />
+                      <ChevronRight className="w-5 h-5 text-white/20 group-hover:text-emerald-500 transition-all sb-forward-icon" />
                     </button>
                   ))}
                 </div>

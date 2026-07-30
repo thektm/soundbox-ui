@@ -6,6 +6,7 @@ import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { SEO } from "./SEO";
+import { useI18n } from "./I18nContext";
 
 // ============ TYPES ============
 interface GenreSong {
@@ -82,7 +83,7 @@ const GridIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
 
 const BackIcon = () => (
   <svg
-    className="w-5 h-5"
+    className="w-5 h-5 sb-back-icon"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -180,7 +181,7 @@ const SongListItem = memo(
             e.stopPropagation();
             onSongClick();
           }}
-          className={`text-sm font-medium truncate block hover:underline text-right w-full outline-none ${
+          className={`text-sm font-medium truncate block hover:underline text-start w-full outline-none ${
             isPlaying ? "text-emerald-400" : "text-white"
           }`}
         >
@@ -191,7 +192,7 @@ const SongListItem = memo(
             e.stopPropagation();
             onArtistClick();
           }}
-          className="text-zinc-400 text-xs hover:text-white hover:underline text-right block truncate outline-none"
+          className="text-zinc-400 text-xs hover:text-white hover:underline text-start block truncate outline-none"
         >
           {song.artist_name}
         </button>
@@ -280,7 +281,7 @@ const SongGridCard = memo(
           e.stopPropagation();
           onSongClick();
         }}
-        className={`text-sm font-semibold truncate block hover:underline text-right w-full mb-1 outline-none ${
+        className={`text-sm font-semibold truncate block hover:underline text-start w-full mb-1 outline-none ${
           isPlaying ? "text-emerald-400" : "text-white"
         }`}
       >
@@ -293,7 +294,7 @@ const SongGridCard = memo(
           e.stopPropagation();
           onArtistClick();
         }}
-        className="text-zinc-400 text-xs hover:text-white hover:underline text-right block truncate w-full outline-none"
+        className="text-zinc-400 text-xs hover:text-white hover:underline text-start block truncate w-full outline-none"
       >
         {song.artist_name}
       </button>
@@ -345,6 +346,7 @@ export default function GenrePage({
   const { navigateTo } = useNavigation();
   const { playTrack, currentTrack } = usePlayer();
   const { authenticatedFetch } = useAuth();
+  const { direction } = useI18n();
 
   const [songs, setSongs] = useState<GenreSong[]>([]);
   const [name, setName] = useState(initialName);
@@ -462,7 +464,7 @@ export default function GenrePage({
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#121212] text-white pb-32" dir="rtl">
+    <div dir={direction} className="min-h-screen bg-[#121212] text-white pb-32">
       <SEO title={`ژانر ${name}`} />
 
       {/* ── Hero Banner ─────────────────────────────────────────────────── */}
@@ -489,7 +491,7 @@ export default function GenrePage({
           {/* Back button */}
           <button
             onClick={() => navigateTo("search")}
-            className="mb-6 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 active:scale-95 transition-all self-end focus-visible:ring-2 focus-visible:ring-white outline-none"
+            className={`mb-6 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 active:scale-95 transition-all focus-visible:ring-2 focus-visible:ring-white outline-none ${direction === "ltr" ? "self-start" : "self-end"}`}
             aria-label="بازگشت به جستجو"
           >
             <BackIcon />

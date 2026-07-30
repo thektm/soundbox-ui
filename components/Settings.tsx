@@ -1,13 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Drawer } from "vaul";
 import { useNavigation } from "./NavigationContext";
 import { ResponsiveSheet } from "./ResponsiveSheet";
-import { useAuth, User } from "./AuthContext";
+import {
+  DEFAULT_NOTIFICATION_SETTINGS,
+  useAuth,
+  User,
+  UserNotificationSetting,
+} from "./AuthContext";
 import { useResponsiveLayout } from "./ResponsiveLayout";
 import toast from "react-hot-toast";
 import UserIcon from "./UserIcon";
+import { AppLanguage, useI18n } from "./I18nContext";
+import { openAuthPrompt } from "./authPrompt";
+import { usePlayer } from "./PlayerContext";
+import UserAvatar from "./UserAvatar";
 
 // Reusable Icon Component
 const Icon = ({
@@ -41,6 +50,7 @@ const ICONS = {
     "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
   moon: "M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z",
   close: "M6 18L18 6M6 6l12 12",
+  language: "M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.2-2.4 3.4-5.4 3.4-9S14.2 5.4 12 3m0 18c-2.2-2.4-3.4-5.4-3.4-9S9.8 5.4 12 3M3.6 9h16.8M3.6 15h16.8",
   edit: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
   check: "M5 13l4 4L19 7",
   camera:
@@ -138,7 +148,6 @@ const ProfileEditSheet = ({
     <ResponsiveSheet isOpen={isOpen} onClose={onClose} desktopWidth="w-[480px]">
       <div
         className="flex flex-col h-full overflow-hidden bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a]"
-        dir="rtl"
       >
         {/* Header - Sticky */}
         <div className="flex items-center justify-between p-6 border-b border-white/5 flex-shrink-0 bg-black/40 backdrop-blur-md z-10 transition-colors">
@@ -165,10 +174,11 @@ const ProfileEditSheet = ({
               >
                 <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
                   {authUser?.image_profile?.image ? (
-                    <img
+                    <UserAvatar
                       src={authUser.image_profile.image}
-                      alt={formData.firstName}
-                      className="w-full h-full object-cover rounded-full"
+                      alt={formData.firstName || "Profile"}
+                      sizes="112px"
+                      className="w-full h-full rounded-full"
                     />
                   ) : (
                     <UserIcon className="w-10 h-10 text-white/40" />
@@ -250,7 +260,7 @@ const ProfileEditSheet = ({
                         i
                       </span>
                       <span
-                        className="absolute z-50 right-0 top-7 w-56 text-xs text-right bg-[#181f1c] text-white rounded-xl shadow-lg border border-emerald-400 px-4 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-200"
+                        className="absolute z-50 right-0 top-7 w-56 text-xs text-start bg-[#181f1c] text-white rounded-xl shadow-lg border border-emerald-400 px-4 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-200"
                         style={{ fontFamily: "inherit" }}
                       >
                         برای پیدا کردن پروفایل شما در جستجو استفاده می‌شود
@@ -264,7 +274,6 @@ const ProfileEditSheet = ({
                   onChange={(e) => onChange(field.key, e.target.value)}
                   placeholder={field.placeholder}
                   className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.02] transition-colors"
-                  dir="rtl"
                 />
               </div>
             ))}
@@ -326,7 +335,7 @@ const QualitySheet = ({
       isOpen={isOpen}
       onClose={onClose}
     >
-      <div className="p-6 h-full flex flex-col" dir="rtl">
+      <div className="p-6 h-full flex flex-col">
         <div className="flex items-center justify-between mb-6 flex-shrink-0">
           <h3 className="text-xl font-bold text-white">کیفیت پخش</h3>
           <button
@@ -355,7 +364,7 @@ const QualitySheet = ({
                       : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
                   } ${locked ? "opacity-60 cursor-not-allowed" : ""}`}
                 >
-                  <div className="text-right flex-1">
+                  <div className="text-start flex-1">
                     <div
                       className={`font-medium transition-colors ${
                         currentQuality === q.value
@@ -405,26 +414,55 @@ const NotificationSheet = ({
   isOpen,
   onClose,
   preferences,
+  pendingKeys,
   onToggle,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  preferences: Record<string, boolean>;
-  onToggle: (key: string) => void;
+  preferences: UserNotificationSetting;
+  pendingKeys: Set<keyof UserNotificationSetting>;
+  onToggle: (key: keyof UserNotificationSetting) => void;
 }) => {
-  const notifTypes = [
-    { key: "new_song_followed_artists", label: "آهنگ جدید هنرمندان دنبال شده" },
+  const notifTypes: Array<{
+    key: keyof UserNotificationSetting;
+    label: string;
+    description: string;
+  }> = [
+    {
+      key: "new_song_followed_artists",
+      label: "آهنگ جدید هنرمندان دنبال‌شده",
+      description: "انتشار آهنگ توسط هنرمند اصلی یا مهمان که دنبال می‌کنید",
+    },
     {
       key: "new_album_followed_artists",
-      label: "آلبوم جدید هنرمندان دنبال شده",
+      label: "آلبوم جدید هنرمندان دنبال‌شده",
+      description: "انتشار آلبوم تازه توسط هنرمندانی که دنبال می‌کنید",
     },
-    { key: "new_likes", label: "لایک‌ها " },
-    { key: "new_follower", label: "دنبال کننده جدید" },
+    {
+      key: "new_playlist",
+      label: "پلی‌لیست‌های جدید",
+      description: "پلی‌لیست‌های رسمی صداباکس و پلی‌لیست عمومی افراد دنبال‌شده",
+    },
+    {
+      key: "new_likes",
+      label: "پسندیدن آثار شما",
+      description: "لایک آهنگ، آلبوم یا پلی‌لیست شخصی شما",
+    },
+    {
+      key: "new_follower",
+      label: "دنبال‌کننده جدید",
+      description: "دنبال شدن حساب کاربری یا صفحه هنرمندی شما",
+    },
+    {
+      key: "system_notifications",
+      label: "اعلان‌های سیستمی",
+      description: "پیام‌های مهم حساب، امنیت و بروزرسانی‌های صداباکس",
+    },
   ];
 
   return (
     <ResponsiveSheet desktopWidth="w-[500px]" isOpen={isOpen} onClose={onClose}>
-      <div className="p-6 h-full flex flex-col" dir="rtl">
+      <div className="p-6 h-full flex flex-col">
         <div className="flex items-center justify-between mb-2 flex-shrink-0">
           <h3 className="text-xl font-bold text-white">تنظیمات اعلان‌ها</h3>
           <button
@@ -436,31 +474,48 @@ const NotificationSheet = ({
         </div>
 
         <p className="text-sm text-gray-400 mb-6 flex-shrink-0 px-2">
-          انتخاب کنید از چه رویدادهایی مطلع شوید
+          هر گزینه مستقیماً روی همان رویداد در سرور اعمال می‌شود.
         </p>
         <div className="space-y-3 mb-6 flex-1 overflow-y-auto px-2 custom-scrollbar">
-          {notifTypes.map((item) => (
-            <div
-              key={item.key}
-              onClick={() => onToggle(item.key)}
-              className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/[0.07] cursor-pointer transition-colors"
-            >
-              <span className="text-white font-medium text-sm">
-                {item.label}
-              </span>
-              <div
-                className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-                  preferences[item.key] ? "bg-emerald-500" : "bg-white/20"
-                }`}
+          {notifTypes.map((item) => {
+            const pending = pendingKeys.has(item.key);
+            const anyPending = pendingKeys.size > 0;
+            const enabled = preferences[item.key];
+            return (
+              <button
+                type="button"
+                key={item.key}
+                onClick={() => onToggle(item.key)}
+                disabled={anyPending}
+                aria-pressed={enabled}
+                className="w-full flex items-center justify-between gap-4 p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/[0.07] disabled:opacity-60 disabled:cursor-wait transition-colors text-start"
               >
-                <div
-                  className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-200 ${
-                    preferences[item.key] ? "left-1" : "right-1"
+                <span className="min-w-0">
+                  <span className="block text-white font-medium text-sm">
+                    {item.label}
+                  </span>
+                  <span className="block text-xs text-gray-500 mt-1 leading-5">
+                    {item.description}
+                  </span>
+                </span>
+                <span
+                  className={`relative shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${
+                    enabled ? "bg-emerald-500" : "bg-white/20"
                   }`}
-                />
-              </div>
-            </div>
-          ))}
+                >
+                  {pending ? (
+                    <span className="absolute inset-0 m-auto w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span
+                      className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                        enabled ? "left-1" : "right-1"
+                      }`}
+                    />
+                  )}
+                </span>
+              </button>
+            );
+          })}
         </div>
         <div className="pt-4 border-t border-white/5 bg-black/20 backdrop-blur-sm -mx-6 px-6 flex-shrink-0">
           <button
@@ -485,7 +540,8 @@ const SessionsSheet = ({
   isOpen: boolean;
   onClose: () => void;
 }) => {
-  const { accessToken, formatErrorMessage, authenticatedFetch } = useAuth();
+  const { locale, t } = useI18n();
+  const { accessToken, authenticatedFetch } = useAuth();
   const [sessions, setSessions] = useState<Array<any>>([]);
   const [loading, setLoading] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -520,7 +576,7 @@ const SessionsSheet = ({
       if (typeof window === "undefined") return;
       const refreshToken = localStorage.getItem("refreshToken");
       if (!refreshToken) {
-        toast.error("توکن رفرش پیدا نشد؛ لطفا دوباره وارد شوید");
+        openAuthPrompt("برای مدیریت نشست‌های حساب دوباره وارد شوید.");
         return;
       }
 
@@ -533,13 +589,10 @@ const SessionsSheet = ({
         const res = await authenticatedFetch(url, { method: "GET" });
         const text = await res.text();
         const body = text ? JSON.parse(text) : null;
-        if (!res.ok) {
-          toast.error(toPersianError(body, "خطا در دریافت نشست‌ها"));
-          return;
-        }
+        if (!res.ok) return;
         if (mounted) setSessions(body || []);
-      } catch (err: any) {
-        toast.error(toPersianError(err, "خطا در دریافت نشست‌ها"));
+      } catch {
+        // authenticatedFetch already surfaced a localized network/server error.
       } finally {
         if (mounted) setLoading(false);
       }
@@ -552,7 +605,7 @@ const SessionsSheet = ({
 
   const revokeSession = async (sessionId: string) => {
     if (!accessToken) {
-      toast.error("برای این عمل باید وارد شوید");
+      openAuthPrompt("برای مدیریت نشست‌های حساب وارد شوید.");
       return;
     }
 
@@ -566,14 +619,11 @@ const SessionsSheet = ({
       });
       const text = await res.text();
       const body = text ? JSON.parse(text) : null;
-      if (!res.ok) {
-        toast.error(toPersianError(body, "خطا در لغو نشست"));
-        return;
-      }
-      toast.success("نشست با موفقیت لغو شد");
+      if (!res.ok) return;
+      toast.success(t("نشست با موفقیت لغو شد"));
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    } catch (err: any) {
-      toast.error(toPersianError(err, "خطا در لغو نشست"));
+    } catch {
+      // authenticatedFetch already surfaced a localized network/server error.
     } finally {
       setRevokingId(null);
     }
@@ -581,14 +631,14 @@ const SessionsSheet = ({
 
   const revokeOtherSessions = async () => {
     if (!accessToken) {
-      toast.error("برای این عمل باید وارد شوید");
+      openAuthPrompt("برای مدیریت نشست‌های حساب وارد شوید.");
       return;
     }
 
     if (typeof window === "undefined") return;
     const refreshToken = localStorage.getItem("refreshToken");
     if (!refreshToken) {
-      toast.error("توکن رفرش پیدا نشد؛ لطفا دوباره وارد شوید");
+      openAuthPrompt("برای مدیریت نشست‌های حساب دوباره وارد شوید.");
       return;
     }
 
@@ -610,17 +660,14 @@ const SessionsSheet = ({
         body = text;
       }
 
-      if (!res.ok) {
-        toast.error(toPersianError(body, "خطا در لغو سایر نشست‌ها"));
-        return;
-      }
+      if (!res.ok) return;
 
       const revokedCount = body?.revoked_count ?? 0;
-      toast.success(`تعداد ${revokedCount} نشست لغو شد`);
+      toast.success(t(`تعداد ${revokedCount} نشست لغو شد`));
       // Keep only current session(s)
       setSessions((prev) => prev.filter((s) => s.is_current));
-    } catch (err: any) {
-      toast.error(toPersianError(err, "خطا در لغو سایر نشست‌ها"));
+    } catch {
+      // authenticatedFetch already surfaced a localized network/server error.
     } finally {
       setRevokingOthers(false);
     }
@@ -630,7 +677,7 @@ const SessionsSheet = ({
 
   return (
     <ResponsiveSheet desktopWidth="w-[640px]" isOpen={isOpen} onClose={onClose}>
-      <div className="p-6 h-full flex flex-col" dir="rtl">
+      <div className="p-6 h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold text-white">دستگاه‌های فعال</h3>
           <div className="flex items-center gap-2">
@@ -689,7 +736,7 @@ const SessionsSheet = ({
                   <div className="text-xs text-gray-400 mt-1">IP: {s.ip}</div>
                   <div className="text-xs text-gray-400 mt-1">
                     {s.created_at
-                      ? new Date(s.created_at).toLocaleString("fa-IR")
+                      ? new Date(s.created_at).toLocaleString(locale)
                       : "-"}
                   </div>
                 </div>
@@ -732,6 +779,7 @@ const SecuritySheet = ({
   onClose: () => void;
   onChangePassword: (current: string, next: string) => Promise<void>;
 }) => {
+  const { t } = useI18n();
   const [passwords, setPasswords] = useState({
     current: "",
     new: "",
@@ -741,17 +789,17 @@ const SecuritySheet = ({
 
   const handleSave = async () => {
     if (!passwords.current || !passwords.new || !passwords.confirm) {
-      toast.error("لطفاً همه فیلدها را پر کنید");
+      toast.error(t("لطفاً همه فیلدها را پر کنید"));
       return;
     }
 
     if (passwords.new !== passwords.confirm) {
-      toast.error("رمز عبور جدید و تکرار آن یکسان نیستند");
+      toast.error(t("رمز عبور جدید و تکرار آن یکسان نیستند"));
       return;
     }
 
     if (passwords.current === passwords.new) {
-      toast.error("رمز جدید نباید با رمز فعلی یکسان باشد");
+      toast.error(t("رمز جدید نباید با رمز فعلی یکسان باشد"));
       return;
     }
     setIsSubmitting(true);
@@ -759,10 +807,8 @@ const SecuritySheet = ({
       await onChangePassword(passwords.current, passwords.new);
       setPasswords({ current: "", new: "", confirm: "" });
       onClose();
-    } catch (err: any) {
-      // Error already shown by caller; log for debugging.
-      // eslint-disable-next-line no-console
-      console.debug("Password change failed (sheet):", err);
+    } catch {
+      // The request layer already presented the localized error.
     } finally {
       setIsSubmitting(false);
     }
@@ -770,7 +816,7 @@ const SecuritySheet = ({
 
   return (
     <ResponsiveSheet desktopWidth="w-[480px]" isOpen={isOpen} onClose={onClose}>
-      <div className="p-6 h-full flex flex-col" dir="rtl">
+      <div className="p-6 h-full flex flex-col">
         <div className="flex items-center justify-between mb-6 flex-shrink-0">
           <h3 className="text-xl font-bold text-white">تغییر رمز عبور</h3>
           <button
@@ -811,7 +857,6 @@ const SecuritySheet = ({
                   }));
                 }}
                 className="w-full px-4 py-3 bg-[#050505] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.02] transition-colors"
-                dir="rtl"
               />
             </div>
           ))}
@@ -841,12 +886,91 @@ const SecuritySheet = ({
   );
 };
 
+
+const LanguageSheet = ({
+  isOpen,
+  onClose,
+  language,
+  onSelect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  language: AppLanguage;
+  onSelect: (language: AppLanguage) => void;
+}) => {
+  const options: Array<{ value: AppLanguage; nativeName: string; englishName: string }> = [
+    { value: "fa", nativeName: "فارسی", englishName: "Persian" },
+    { value: "en", nativeName: "English", englishName: "English" },
+  ];
+
+  return (
+    <ResponsiveSheet isOpen={isOpen} onClose={onClose} desktopWidth="w-[460px]">
+      <div className="flex h-full flex-col overflow-hidden bg-gradient-to-t from-[#0a0a0a] to-[#1a1a1a]">
+        <div className="flex items-center justify-between border-b border-white/5 bg-black/40 p-6 backdrop-blur-md">
+          <div>
+            <h3 className="text-xl font-bold text-white">انتخاب زبان</h3>
+            <p className="mt-1 text-sm text-gray-400">زبان برنامه</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="بستن پنجره"
+            className="rounded-xl border border-white/10 bg-white/5 p-2 transition-colors hover:bg-white/10"
+          >
+            <Icon d={ICONS.close} className="h-5 w-5 text-gray-400" />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-3 overflow-y-auto p-6">
+          {options.map((option) => {
+            const selected = language === option.value;
+            return (
+              <button
+                type="button"
+                key={option.value}
+                onClick={() => onSelect(option.value)}
+                className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-start transition-all ${
+                  selected
+                    ? "border-emerald-500/40 bg-emerald-500/10"
+                    : "border-white/5 bg-white/[0.03] hover:border-white/10 hover:bg-white/[0.06]"
+                }`}
+              >
+                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${selected ? "bg-emerald-500 text-black" : "bg-white/5 text-white"}`}>
+                  <Icon d={ICONS.language} className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-white" data-i18n-ignore>
+                    {option.nativeName}
+                  </div>
+                  {option.nativeName !== option.englishName && (
+                    <div className="mt-0.5 text-xs text-gray-500" data-i18n-ignore>
+                      {option.englishName}
+                    </div>
+                  )}
+                </div>
+                {selected && (
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-black">
+                    <Icon d={ICONS.check} className="h-4 w-4" />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </ResponsiveSheet>
+  );
+};
+
 export default function Settings() {
+  const { language, setLanguage, t } = useI18n();
   const { navigateTo, goBack } = useNavigation();
+  const { setQuality: setPlayerQuality } = usePlayer();
   const {
     user: authUser,
     updateProfile,
     updateStreamQuality,
+    updateNotificationSettings,
     formatErrorMessage,
     accessToken,
     authenticatedFetch,
@@ -910,13 +1034,12 @@ export default function Settings() {
 
   // Settings state
   const [audioQuality, setAudioQuality] = useState("medium");
-  const [notificationPreferences, setNotificationPreferences] = useState({
-    new_song_followed_artists: true,
-    new_album_followed_artists: true,
-    new_likes: true,
-    new_follower: true,
-    system_notifications: true,
-  });
+  const [notificationPreferences, setNotificationPreferences] =
+    useState<UserNotificationSetting>({ ...DEFAULT_NOTIFICATION_SETTINGS });
+  const [pendingNotificationKeys, setPendingNotificationKeys] = useState<
+    Set<keyof UserNotificationSetting>
+  >(new Set());
+  const notificationSaveInFlightRef = useRef(false);
 
   useEffect(() => {
     if (authUser) {
@@ -927,9 +1050,10 @@ export default function Settings() {
         uniqueId: authUser.unique_id || "",
       });
       setAudioQuality(authUser.stream_quality || "medium");
-      if (authUser.notification_setting) {
-        setNotificationPreferences(authUser.notification_setting);
-      }
+      setNotificationPreferences({
+        ...DEFAULT_NOTIFICATION_SETTINGS,
+        ...(authUser.notification_setting || {}),
+      });
     }
   }, [authUser]);
 
@@ -1040,6 +1164,7 @@ export default function Settings() {
     const tid = toast.loading("در حال تغییر کیفیت پخش...");
     try {
       await updateStreamQuality(quality as "medium" | "high");
+      await setPlayerQuality(quality as "medium" | "high");
       toast.success("کیفیت پخش تغییر یافت", { id: tid });
       setAudioQuality(quality);
     } catch (err: any) {
@@ -1052,12 +1177,11 @@ export default function Settings() {
     newPassword: string,
   ) => {
     if (!accessToken) {
-      const msg = "برای تغییر رمز لطفا وارد شوید";
-      toast.error(msg);
-      throw new Error(msg);
+      openAuthPrompt("برای تغییر رمز عبور وارد شوید.");
+      throw new Error("AUTHENTICATION_REQUIRED");
     }
 
-    const tid = toast.loading("در حال تغییر رمز عبور...");
+    const tid = toast.loading(t("در حال تغییر رمز عبور..."));
     try {
       const url = `https://api.sedabox.com/api/auth/password/change/`;
       const res = await authenticatedFetch(url, {
@@ -1077,20 +1201,15 @@ export default function Settings() {
       }
 
       if (res.ok) {
-        // Always show Persian success text regardless of server language
-        toast.success("رمز با موفقیت تغییر یافت", { id: tid });
+        toast.success(t("رمز با موفقیت تغییر یافت"), { id: tid });
         return;
       }
 
-      // Prefer server-provided error codes, then map/sanitize to Persian.
-      let errMsg = "خطا در تغییر رمز";
-      if (body?.error?.code === "INVALID_PASSWORD") {
-        errMsg = "رمز فعلی اشتباه است";
-      } else if (body?.error || body) {
-        errMsg = toPersianError(body, errMsg);
-      }
-      // Do not show toast here to avoid duplicates; caller will surface the error once.
-      throw new Error(errMsg);
+      // authenticatedFetch has already shown the localized server error.
+      // Preserve the structured response for callers without displaying a duplicate toast.
+      const error = new Error(formatErrorMessage(body));
+      (error as Error & { body?: unknown }).body = body;
+      throw error;
     } catch (err) {
       // Dismiss the loading toast created earlier and rethrow.
       // Let `authenticatedFetch` surface a single, specific error toast.
@@ -1099,30 +1218,42 @@ export default function Settings() {
       } catch (e) {
         // ignore
       }
-      // eslint-disable-next-line no-console
-      console.debug("Password change failed (delegated):", err);
       throw err;
     }
   };
 
-  const handleNotificationToggle = async (key: string) => {
-    const newPrefs = {
-      ...notificationPreferences,
-      [key]:
-        !notificationPreferences[key as keyof typeof notificationPreferences],
-    };
+  const handleNotificationToggle = async (
+    key: keyof UserNotificationSetting,
+  ) => {
+    if (notificationSaveInFlightRef.current || pendingNotificationKeys.size > 0) return;
+    notificationSaveInFlightRef.current = true;
+
+    const previousValue = notificationPreferences[key];
+    const nextValue = !previousValue;
+    setNotificationPreferences((prev) => ({ ...prev, [key]: nextValue }));
+    setPendingNotificationKeys((prev) => new Set(prev).add(key));
 
     const tid = toast.loading("در حال بروزرسانی تنظیمات...");
     try {
-      await updateProfile({
-        notification_setting: newPrefs,
-      } as any);
+      const saved = await updateNotificationSettings({ [key]: nextValue });
+      setNotificationPreferences(saved);
       toast.success("تنظیمات با موفقیت ذخیره شد", { id: tid });
-      setNotificationPreferences(newPrefs);
     } catch (err: any) {
+      setNotificationPreferences((prev) => ({
+        ...prev,
+        [key]: previousValue,
+      }));
       toast.error(toPersianError(err, "خطا در ذخیره تنظیمات"), { id: tid });
+    } finally {
+      notificationSaveInFlightRef.current = false;
+      setPendingNotificationKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
     }
   };
+
 
   const settingSections = [
     {
@@ -1142,6 +1273,14 @@ export default function Settings() {
       description: audioQuality === "high" ? "320 kbps" : "160 kbps",
       color: "from-emerald-500 to-teal-500",
       onClick: () => setActiveSheet("quality"),
+    },
+    {
+      id: "language",
+      title: "زبان برنامه",
+      icon: ICONS.language,
+      description: language === "fa" ? "فارسی" : "English",
+      color: "from-violet-500 to-fuchsia-500",
+      onClick: () => setActiveSheet("language"),
     },
     {
       id: "security",
@@ -1164,7 +1303,6 @@ export default function Settings() {
   return (
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white overflow-hidden font-sans pb-24"
-      dir="rtl"
     >
       {/* Background Effects */}
       <div
@@ -1183,7 +1321,10 @@ export default function Settings() {
             onClick={() => goBack()}
             className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all active:scale-95 border border-white/5"
           >
-            <Icon d={ICONS.back} className="w-5 h-5 text-white" />
+            <Icon
+              d={ICONS.back}
+              className="w-5 h-5 text-white sb-back-icon sb-settings-mobile-back-icon"
+            />
           </button>
           <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
             تنظیمات
@@ -1201,10 +1342,11 @@ export default function Settings() {
             <div className="flex-shrink-0 w-16 h-16 min-w-[64px] min-h-[64px] rounded-full bg-gradient-to-br from-emerald-400 to-blue-500 p-[2px] shadow-lg shadow-emerald-900/20">
               <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center overflow-hidden">
                 {authUser?.image_profile?.image ? (
-                  <img
+                  <UserAvatar
                     src={authUser.image_profile.image}
                     alt={displayName}
-                    className="w-full h-full object-cover rounded-full"
+                    sizes="64px"
+                    className="w-full h-full rounded-full"
                   />
                 ) : (
                   <UserIcon className="w-8 h-8 text-white/90" />
@@ -1261,7 +1403,7 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div className="flex-1 text-right">
+                <div className="flex-1 text-start">
                   <h4 className="text-base font-medium text-white group-hover:text-emerald-400 transition-colors">
                     {section.title}
                   </h4>
@@ -1273,7 +1415,7 @@ export default function Settings() {
                 <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
                   <Icon
                     d={ICONS.chevron}
-                    className="w-4 h-4 text-gray-400 rotate-180"
+                    className="w-4 h-4 text-gray-400 sb-forward-icon"
                   />
                 </div>
               </button>
@@ -1321,7 +1463,18 @@ export default function Settings() {
         isOpen={activeSheet === "notifications"}
         onClose={() => setActiveSheet(null)}
         preferences={notificationPreferences}
+        pendingKeys={pendingNotificationKeys}
         onToggle={handleNotificationToggle}
+      />
+
+      <LanguageSheet
+        isOpen={activeSheet === "language"}
+        onClose={() => setActiveSheet(null)}
+        language={language}
+        onSelect={(nextLanguage) => {
+          setLanguage(nextLanguage);
+          toast.success("زبان با موفقیت تغییر کرد");
+        }}
       />
 
       <SessionsSheet

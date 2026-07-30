@@ -15,6 +15,7 @@ import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
 import { useNavigation } from "./NavigationContext";
 import { useResponsiveLayout } from "./ResponsiveLayout";
+import { useI18n } from "./I18nContext";
 import {
   motion,
   AnimatePresence,
@@ -30,6 +31,7 @@ import { ResponsiveSheet } from "./ResponsiveSheet";
 import { getFullShareUrl } from "../utils/share";
 import { MOCK_ARTISTS, createSlug } from "./mockData";
 import { Sparkles, User, UserRoundCog } from "lucide-react";
+import { clientTrace } from "../lib/clientDebug";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -41,6 +43,11 @@ interface BannerAd {
   navigate_link: string | null;
   view_count: number;
 }
+
+const API_ROOT = (
+  process.env.NEXT_PUBLIC_API_ROOT || "https://api.sedabox.com/api"
+).replace(/\/+$/, "");
+const BANNER_REQUEST_TIMEOUT_MS = 12_000;
 
 // ============================================================================
 // ICONS (Inline SVGs)
@@ -298,6 +305,7 @@ const formatTime = (s: number): string => {
 };
 
 const SWIPE_THRESHOLD = 80;
+const MINI_PLAYER_TAP_SLOP = 18;
 
 // Normalize URLs
 function ensureHttps(u?: string | null): string | undefined {
@@ -405,7 +413,7 @@ const ProgressBar = memo<ProgressProps>(
       return (
         <div className="w-full">
           <div
-            dir="ltr"
+            dir="ltr" data-direction-fixed="ltr"
             ref={ref}
             className="relative h-1.5 bg-white/10 rounded-full cursor-pointer group"
             onClick={handleClick}
@@ -461,7 +469,7 @@ const ProgressBar = memo<ProgressProps>(
 
     return (
       <div className="flex items-center gap-3 w-full">
-        <span className="text-xs text-neutral-400 w-10 text-right tabular-nums">
+        <span className="text-xs text-neutral-400 w-10 text-start tabular-nums">
           {formatTime(progress)}
         </span>
         <div
@@ -513,6 +521,143 @@ const PlayingBars = memo(() => (
   </div>
 ));
 PlayingBars.displayName = "PlayingBars";
+
+function textDirection(value?: string | null): "rtl" | "ltr" {
+  return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(value || "")
+    ? "rtl"
+    : "ltr";
+}
+
+const TrackIdentity = memo<{
+  track: Track;
+  isAdPlaying?: boolean;
+  align?: "start" | "center";
+  compact?: boolean;
+  onBeforeNavigate?: () => void;
+  titleClassName?: string;
+  artistsClassName?: string;
+}>(({
+  track,
+  isAdPlaying,
+  align = "start",
+  compact = false,
+  onBeforeNavigate,
+  titleClassName = "",
+  artistsClassName = "",
+}) => {
+  const { navigateTo } = useNavigation();
+  const artists = useMemo(() => {
+    const items = [
+      {
+        id: track.artistId || (track as any).artist_id,
+        name: track.artist,
+        uniqueId:
+          track.artistUniqueId ||
+          (track as any).artist_unique_id ||
+          undefined,
+      },
+      ...(track.featuredArtists || []),
+    ].filter((artist) => artist?.name);
+    const seen = new Set<string>();
+    return items.filter((artist) => {
+      const key = String(artist.id || artist.name).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [track]);
+
+  const openSong = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (isAdPlaying) return;
+    onBeforeNavigate?.();
+    navigateTo("song-detail", {
+      id: track.id,
+      artistSlug:
+        track.artistUniqueId ||
+        (track as any).artist_unique_id ||
+        createSlug(track.artist),
+      songSlug: createSlug(track.title),
+    });
+  };
+
+  const openArtist = (
+    event: React.MouseEvent,
+    artist: { id?: string | number; name: string; uniqueId?: string },
+  ) => {
+    event.stopPropagation();
+    if (isAdPlaying || (!artist.id && !artist.uniqueId)) return;
+    onBeforeNavigate?.();
+    navigateTo("artist-detail", {
+      id: artist.id || artist.uniqueId,
+      slug: artist.uniqueId || createSlug(artist.name),
+    });
+  };
+
+  const titleAlignment =
+    align === "center" ? "mx-auto text-center" : "text-start";
+  const artistsDirection = textDirection(artists.map((artist) => artist.name).join(" "));
+
+  return (
+    <div className={`min-w-0 ${align === "center" ? "w-full" : "flex-1"}`}>
+      <button
+        type="button"
+        onClick={openSong}
+        disabled={Boolean(isAdPlaying)}
+        dir={textDirection(track.title)}
+        data-player-no-expand="true"
+        className={`block w-fit max-w-full truncate font-bold text-white ${titleAlignment} ${
+          compact ? "text-sm" : ""
+        } ${isAdPlaying ? "cursor-default" : "hover:underline"} ${titleClassName}`}
+      >
+        {track.title}
+      </button>
+      <div
+        dir={artistsDirection}
+        className={`mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 overflow-hidden ${
+          align === "center"
+            ? "justify-center text-center"
+            : artistsDirection === "rtl"
+              ? "justify-end text-right"
+              : "justify-start text-left"
+        } ${artistsClassName}`}
+      >
+        {isAdPlaying ? (
+          <span className="truncate text-xs text-neutral-400">Ad</span>
+        ) : (
+          artists.map((artist, index) => (
+            <React.Fragment key={`${artist.id || artist.name}-${index}`}>
+              {index > 0 && <span className="text-neutral-600">،</span>}
+              {artist.id || artist.uniqueId ? (
+                <button
+                  type="button"
+                  onClick={(event) => openArtist(event, artist)}
+                  dir={textDirection(artist.name)}
+                  data-player-no-expand="true"
+                  className={`inline-block w-fit max-w-full flex-none truncate text-xs text-neutral-400 transition hover:text-white hover:underline ${
+                    textDirection(artist.name) === "rtl"
+                      ? "text-right"
+                      : "text-left"
+                  }`}
+                >
+                  {artist.name}
+                </button>
+              ) : (
+                <span
+                  dir={textDirection(artist.name)}
+                  className="min-w-0 truncate text-xs text-neutral-400"
+                >
+                  {artist.name}
+                </span>
+              )}
+            </React.Fragment>
+          ))
+        )}
+      </div>
+    </div>
+  );
+});
+TrackIdentity.displayName = "TrackIdentity";
 
 // ============================================================================
 // TRACK SLIDE
@@ -576,12 +721,12 @@ const TrackSlide = memo<{
             </div>
           )}
         </div>
-        <div className="flex-1 min-w-0" dir="rtl">
-          <h4 className="text-sm font-semibold text-white truncate">
-            {track.title}
-          </h4>
-          <p className="text-xs text-neutral-400 truncate">{track.artist}</p>
-        </div>
+        <TrackIdentity
+          track={track}
+          isAdPlaying={isAdPlaying}
+          compact
+          titleClassName="text-sm font-semibold"
+        />
         {current && (
           <div className="flex items-center gap-1">
             <button
@@ -639,6 +784,7 @@ const QualitySelectorSheet = memo<{
   onSelect: (q: "medium" | "high") => void;
   isPremium: boolean;
 }>(({ isOpen, onClose, currentQuality, onSelect, isPremium }) => {
+  const { direction } = useI18n();
   const qualities = [
     { value: "medium", label: "متوسط", description: "160 kbps - توصیه شده" },
     {
@@ -655,7 +801,7 @@ const QualitySelectorSheet = memo<{
       onClose={onClose}
       desktopWidth="w-[450px]"
     >
-      <div className="p-6 h-full flex flex-col" dir="rtl">
+      <div className="p-6 h-full flex flex-col" dir={direction}>
         <div className="flex items-center justify-between mb-6 flex-shrink-0">
           <h3 className="text-xl font-bold text-white">کیفیت پخش</h3>
           <button
@@ -684,7 +830,7 @@ const QualitySelectorSheet = memo<{
                       : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
                   } ${locked ? "opacity-60 cursor-not-allowed" : ""}`}
                 >
-                  <div className="text-right flex-1">
+                  <div className="text-start flex-1">
                     <div
                       className={`font-medium transition-colors ${
                         currentQuality === q.value
@@ -764,7 +910,7 @@ const ActionPreview = memo<{
     >
       <div className="flex items-center h-full px-3 gap-2 w-full">
         {align === "right" && (
-          <div className="flex-1 min-w-0 text-right">
+          <div className="flex-1 min-w-0 text-start">
             <div className="text-[10px] uppercase tracking-wider font-bold text-emerald-500 mb-0.5">
               {label}
             </div>
@@ -831,6 +977,7 @@ const AlbumArtCarousel = memo<{
     onNext,
     onPrevious,
   }) => {
+    const { direction } = useI18n();
     const containerRef = useRef<HTMLDivElement>(null);
     const lyricsRef = useRef<HTMLDivElement>(null);
     const dragX = useMotionValue(0);
@@ -1162,8 +1309,8 @@ const AlbumArtCarousel = memo<{
                 </div>
                 <div
                   ref={lyricsRef}
-                  className="overflow-y-auto flex-1 space-y-4 py-4 w-full text-right"
-                  dir="rtl"
+                  className="overflow-y-auto flex-1 space-y-4 py-4 w-full text-start"
+                  dir={direction}
                 >
                   {lyrics ? (
                     lyrics.split("\n").map((line, i) => (
@@ -1232,9 +1379,14 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
 
   const { isDesktop } = useResponsiveLayout();
   const [dragX, setDragX] = useState(0);
-  const [hasDragged, setHasDragged] = useState(false);
   const { navigateTo } = useNavigation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const pointerStartRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    blocked: boolean;
+  } | null>(null);
   const x = useMotionValue(0);
   const width = containerRef.current?.offsetWidth || 350;
   const MAX_DRAG = width * 0.45;
@@ -1253,16 +1405,9 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
     return currentTrack;
   }, [isAdPlaying, currentAd, currentTrack]);
 
-  const handleDragStart = useCallback(() => {
-    setHasDragged(false);
-  }, []);
-
   const handleDrag = useCallback(() => {
     const currentX = x.get();
     setDragX(currentX);
-    if (Math.abs(currentX) > 5) {
-      setHasDragged(true);
-    }
   }, [x]);
 
   const handleDragEnd = useCallback(
@@ -1283,20 +1428,54 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
 
       animate(x, 0, { type: "spring", damping: 25, stiffness: 300 });
       setDragX(0);
-      setTimeout(() => setHasDragged(false), 100);
     },
     [next, previous, nextTrack, previousTrack, x, isAdPlaying],
   );
 
-  const handleExpandClick = useCallback(
-    (e: React.MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (hasDragged || target.closest("button")) {
+  const handleMiniPointerDown = useCallback((event: React.PointerEvent) => {
+    const target = event.target as HTMLElement | null;
+    pointerStartRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      blocked: Boolean(
+        target?.closest(
+          "button, a, [role='link'], [data-player-no-expand='true']",
+        ),
+      ),
+    };
+  }, []);
+
+  const clearMiniPointer = useCallback(() => {
+    pointerStartRef.current = null;
+  }, []);
+
+  const handleMiniPointerUp = useCallback(
+    (event: React.PointerEvent) => {
+      const start = pointerStartRef.current;
+      pointerStartRef.current = null;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        !start ||
+        start.pointerId !== event.pointerId ||
+        start.blocked ||
+        target?.closest(
+          "button, a, [role='link'], [data-player-no-expand='true']",
+        )
+      ) {
         return;
       }
-      onExpand();
+
+      const distance = Math.hypot(
+        event.clientX - start.x,
+        event.clientY - start.y,
+      );
+      if (distance <= MINI_PLAYER_TAP_SLOP) {
+        onExpand();
+      }
     },
-    [hasDragged, onExpand],
+    [onExpand],
   );
 
   if (!displayTrack) return null;
@@ -1314,7 +1493,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
       >
         <div className="mx-2 sm:mx-4">
           <div
-            dir="ltr"
+            dir="ltr" data-direction-fixed="ltr"
             ref={containerRef}
             className="relative bg-neutral-900/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl overflow-hidden"
           >
@@ -1356,10 +1535,11 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 drag={isAdPlaying ? false : "x"}
                 dragConstraints={{ left: -MAX_DRAG, right: MAX_DRAG }}
                 dragElastic={0.1}
-                onDragStart={handleDragStart}
                 onDrag={handleDrag}
                 onDragEnd={handleDragEnd}
-                onClick={handleExpandClick}
+                onPointerDown={handleMiniPointerDown}
+                onPointerUp={handleMiniPointerUp}
+                onPointerCancel={clearMiniPointer}
                 className="relative z-20 h-full w-full bg-neutral-900/95 backdrop-blur-md cursor-pointer active:cursor-grabbing shadow-xl border-x border-white/5"
                 style={{
                   touchAction: "pan-y",
@@ -1391,7 +1571,8 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
         className="hidden md:block fixed bottom-0 left-0 right-0 z-50 bg-zinc-900 border-t border-white/10"
         style={{ willChange: "transform, opacity" }}
-        dir={isDesktop ? "ltr" : "rtl"}
+        dir="ltr"
+        data-direction-fixed="ltr"
       >
         <div className="h-[90px] px-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 w-[30%] min-w-0">
@@ -1421,48 +1602,13 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 type="song"
               />
             </div>
-            <div className="min-w-0 flex-1">
-              <p
-                className={`text-sm font-medium text-white truncate ${
-                  isAdPlaying ? "" : "cursor-pointer hover:underline"
-                }`}
-                onClick={() => {
-                  if (isAdPlaying) return;
-                  if (isDesktop) {
-                    navigateTo("song-detail", {
-                      id: displayTrack.id,
-                      artistSlug: createSlug(displayTrack.artist),
-                      songSlug: createSlug(displayTrack.title),
-                    });
-                  } else {
-                    onExpand();
-                  }
-                }}
-              >
-                {displayTrack.title}
-              </p>
-              <p
-                className={`text-xs text-zinc-400 truncate ${
-                  isAdPlaying ? "" : "cursor-pointer hover:underline"
-                }`}
-                onClick={() => {
-                  if (isAdPlaying) return;
-                  if (isDesktop) {
-                    const artistId =
-                      displayTrack.artistId || (displayTrack as any).artist_id;
-                    if (artistId) {
-                      navigateTo("artist-detail", {
-                        id: artistId,
-                      });
-                    }
-                  } else {
-                    onExpand();
-                  }
-                }}
-              >
-                {isAdPlaying ? "Ad" : displayTrack.artist}
-              </p>
-            </div>
+            <TrackIdentity
+              track={displayTrack}
+              isAdPlaying={isAdPlaying}
+              compact
+              titleClassName="text-sm font-medium"
+              artistsClassName="text-zinc-400"
+            />
             {!isAdPlaying && (
               <button
                 onClick={toggleLike}
@@ -1555,7 +1701,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
               {/* Single dynamic button above handles shuffle/repeat display and actions; duplicate repeat button removed */}
             </div>
             <div className="w-full flex items-center gap-2">
-              <span className="text-xs text-zinc-400 w-10 text-right tabular-nums">
+              <span className="text-xs text-zinc-400 w-10 text-start tabular-nums">
                 {formatTime(progress)}
               </span>
               <div
@@ -1625,8 +1771,10 @@ const DesktopExpandedPlayer = memo<{
   onCollapse: () => void;
   userPlan?: string | null;
   banner?: BannerAd | null;
-  bannerLoaded?: boolean;
-}>(({ onCollapse, userPlan, banner, bannerLoaded }) => {
+  onBannerLoad?: (event: React.SyntheticEvent<HTMLImageElement>) => void;
+  onBannerError?: (event: React.SyntheticEvent<HTMLImageElement>) => void;
+}>(({ onCollapse, userPlan, banner, onBannerLoad, onBannerError }) => {
+  const { direction } = useI18n();
   const { navigateTo } = useNavigation();
   const {
     currentTrack,
@@ -1661,9 +1809,8 @@ const DesktopExpandedPlayer = memo<{
 
   const { updateStreamQuality, formatErrorMessage } = useAuth();
 
-  const isPremium =
-    !!userPlan && String(userPlan).toLowerCase().includes("premium");
-  const isFree = userPlan === "free";
+  const isPremium = userPlan === "premium";
+  const isFree = userPlan !== "premium";
 
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [isQualitySheetOpen, setIsQualitySheetOpen] = useState(false);
@@ -1861,12 +2008,12 @@ const DesktopExpandedPlayer = memo<{
 
   return (
     <motion.div
-      dir="rtl"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
       className="fixed inset-0 z-[60] bg-black"
+      dir={direction}
     >
       {/* Dynamic Background */}
       <div className="absolute inset-0 overflow-hidden">
@@ -1918,7 +2065,7 @@ const DesktopExpandedPlayer = memo<{
           {/* Left Section - Artwork & Info */}
           <div className="flex-1 flex flex-col items-center justify-start pt-[2vh]">
             <AnimatePresence>
-              {isFree && banner && bannerLoaded && (
+              {isFree && banner && (
                 <motion.div
                   initial={{ height: 0, opacity: 0, marginBottom: 0 }}
                   animate={{ height: "auto", opacity: 1, marginBottom: 24 }}
@@ -1937,6 +2084,8 @@ const DesktopExpandedPlayer = memo<{
                       <img
                         src={ensureHttps(banner.image) || banner.image}
                         alt={banner.title}
+                        onLoad={onBannerLoad}
+                        onError={onBannerError}
                         className="w-full h-full object-cover rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 group-hover:border-white/20 transition-all duration-300"
                       />
                     </a>
@@ -1961,7 +2110,7 @@ const DesktopExpandedPlayer = memo<{
                 </div>
 
                 {/* Track Info & Controls */}
-                <div className="flex-1 min-w-0 space-y-8 text-right">
+                <div className="flex-1 min-w-0 space-y-8 text-start">
                   {/* Track Meta */}
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 justify-start">
@@ -1969,24 +2118,13 @@ const DesktopExpandedPlayer = memo<{
                         {isAdPlaying ? "تبلیغ" : "در حال پخش"}
                       </span>
                     </div>
-                    <button
-                      onClick={handleTitleClick}
-                      className={`text-4xl xl:text-3xl font-bold text-white tracking-tight leading-tight text-right ${
-                        isAdPlaying ? "" : "hover:underline"
-                      }`}
-                    >
-                      {displayTrack.title}
-                    </button>
-                    <button
-                      onClick={handleArtistClick}
-                      className={`text-xl text-neutral-300 transition-colors ${
-                        isAdPlaying
-                          ? ""
-                          : "hover:text-white hover:underline decoration-2 underline-offset-4"
-                      }`}
-                    >
-                      {isAdPlaying ? "تبلیغ" : displayTrack.artist}
-                    </button>
+                    <TrackIdentity
+                      track={displayTrack}
+                      isAdPlaying={isAdPlaying}
+                      onBeforeNavigate={onCollapse}
+                      titleClassName="text-4xl xl:text-3xl font-bold tracking-tight leading-tight"
+                      artistsClassName="[&_button]:text-xl [&_span]:text-xl [&_button]:text-neutral-300"
+                    />
                   </div>
 
                   {/* Progress */}
@@ -2139,7 +2277,6 @@ const DesktopExpandedPlayer = memo<{
 
           {/* Right Section - Queue/Lyrics Panel */}
           <div
-            dir="rtl"
             className="w-96 xl:w-[420px] h-full flex flex-col bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden"
           >
             {/* Tabs */}
@@ -2305,7 +2442,7 @@ const DesktopExpandedPlayer = memo<{
               {activeTab === "lyrics" && (
                 <div className="h-full overflow-y-auto p-8">
                   {lyrics ? (
-                    <div className="space-y-6 text-right" dir="rtl">
+                    <div className="space-y-6 text-start">
                       {lyrics.split("\n").map((line, i) => (
                         <p
                           key={i}
@@ -2421,8 +2558,8 @@ const DesktopExpandedPlayer = memo<{
           const tid = toast.loading("در حال تغییر کیفیت پخش...");
           try {
             await updateStreamQuality(q);
+            await setQuality(q);
             toast.success("کیفیت پخش تغییر یافت", { id: tid });
-            setQuality(q);
           } catch (err: any) {
             toast.error(formatErrorMessage(err) || "خطا در تغییر کیفیت پخش", {
               id: tid,
@@ -2440,14 +2577,13 @@ const DesktopExpandedPlayer = memo<{
             className="fixed desktop-menu z-[80] bg-neutral-800 rounded-lg shadow-2xl border border-white/10 overflow-hidden min-w-[200px]"
             style={{ left: menuPos.x, top: menuPos.y }}
           >
-            <div className="py-2" dir="rtl">
+            <div className="py-2" dir={direction}>
               <button
                 onClick={() => {
                   setIsMenuOpenDesktop(false);
                   handleArtistClick();
                 }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
+                className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
               >
                 <Icon.More c="w-5 h-5" />
                 مشاهده هنرمند
@@ -2459,8 +2595,7 @@ const DesktopExpandedPlayer = memo<{
                   setAddSongId(displayTrack.id);
                   setIsAddToPlaylistOpen(true);
                 }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
+                className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
               >
                 <Icon.Add c="w-5 h-5" />
                 افزودن به پلی‌لیست
@@ -2472,12 +2607,11 @@ const DesktopExpandedPlayer = memo<{
                   if (isPremium && currentTrack) download(currentTrack);
                 }}
                 disabled={!isPremium}
-                className={`w-full px-4 py-3 text-right text-white transition-colors flex items-center gap-3 relative ${
+                className={`w-full px-4 py-3 text-start text-white transition-colors flex items-center gap-3 relative ${
                   !isPremium
                     ? "opacity-60 cursor-not-allowed"
                     : "hover:bg-white/10"
                 }`}
-                dir="rtl"
               >
                 <Icon.Download c="w-5 h-5" />
                 دانلود آهنگ
@@ -2493,8 +2627,7 @@ const DesktopExpandedPlayer = memo<{
                   setIsMenuOpenDesktop(false);
                   setIsQueueOpenDesktop(true);
                 }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
+                className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
               >
                 <Icon.Queue c="w-5 h-5" />
                 نمایش صف پخش
@@ -2505,8 +2638,7 @@ const DesktopExpandedPlayer = memo<{
                   setIsMenuOpenDesktop(false);
                   shuffleQueue();
                 }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3 font-medium"
-                dir="rtl"
+                className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3 font-medium"
               >
                 <Icon.Shuffle c="w-5 h-5 text-emerald-400" />
                 مخلوط کردن صف پخش (shuffle)
@@ -2517,8 +2649,7 @@ const DesktopExpandedPlayer = memo<{
                   setIsMenuOpenDesktop(false);
                   setIsQualitySheetOpen(true);
                 }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
+                className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
               >
                 <Icon.Volume c="w-5 h-5" />
                 تغییر کیفیت پخش
@@ -2530,8 +2661,7 @@ const DesktopExpandedPlayer = memo<{
                   setIsMenuOpenDesktop(false);
                   openShareAt(e as unknown as React.MouseEvent);
                 }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
+                className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
               >
                 <Icon.Share c="w-5 h-5" />
                 اشتراک‌گذاری
@@ -2542,8 +2672,7 @@ const DesktopExpandedPlayer = memo<{
                   setIsMenuOpenDesktop(false);
                   generateAndCopyLink("song");
                 }}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
+                className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
               >
                 <Icon.Share c="w-5 h-5" />
                 کپی لینک آهنگ
@@ -2562,19 +2691,17 @@ const DesktopExpandedPlayer = memo<{
             className="fixed desktop-share-menu z-[81] bg-neutral-800 rounded-lg shadow-2xl border border-white/10 overflow-hidden min-w-[180px]"
             style={{ left: sharePos.x, top: sharePos.y }}
           >
-            <div className="py-2" dir="rtl">
+            <div className="py-2" dir={direction}>
               <button
                 onClick={() => generateAndCopyLink("song")}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
+                className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
               >
                 <Icon.Share c="w-5 h-5" />
                 اشتراک‌گذاری آهنگ
               </button>
               <button
                 onClick={() => generateAndCopyLink("artist")}
-                className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                dir="rtl"
+                className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
               >
                 <User className="w-5 h-5" />
                 اشتراک‌گذاری هنرمند
@@ -2600,8 +2727,10 @@ const MobileExpandedPlayer = memo<{
   onCollapse: () => void;
   userPlan: string | null;
   banner: BannerAd | null;
-  bannerLoaded?: boolean;
-}>(({ onCollapse, userPlan, banner, bannerLoaded }) => {
+  onBannerLoad?: (event: React.SyntheticEvent<HTMLImageElement>) => void;
+  onBannerError?: (event: React.SyntheticEvent<HTMLImageElement>) => void;
+}>(({ onCollapse, userPlan, banner, onBannerLoad, onBannerError }) => {
+  const { direction } = useI18n();
   const { navigateTo } = useNavigation();
   const {
     currentTrack,
@@ -2640,8 +2769,7 @@ const MobileExpandedPlayer = memo<{
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [addSongId, setAddSongId] = useState<string | number | null>(null);
 
-  const isPremium =
-    !!userPlan && String(userPlan).toLowerCase().includes("premium");
+  const isPremium = userPlan === "premium";
 
   const displayTrack = useMemo(() => {
     if (isAdPlaying && currentAd) {
@@ -2693,7 +2821,7 @@ const MobileExpandedPlayer = memo<{
 
   if (!displayTrack) return null;
 
-  const isFree = userPlan === "free";
+  const isFree = userPlan !== "premium";
 
   return (
     <motion.div
@@ -2708,7 +2836,7 @@ const MobileExpandedPlayer = memo<{
       className="fixed inset-0 z-60 flex flex-col bg-transparent overflow-hidden"
     >
       <AnimatePresence>
-        {isFree && banner && bannerLoaded && (
+        {isFree && banner && (
           <motion.div
             variants={{
               initial: { height: 0, opacity: 0 },
@@ -2729,6 +2857,8 @@ const MobileExpandedPlayer = memo<{
                 <img
                   src={ensureHttps(banner.image) || banner.image}
                   alt={banner.title}
+                  onLoad={onBannerLoad}
+                  onError={onBannerError}
                   className="w-full h-full object-cover rounded-lg"
                 />
               </a>
@@ -2750,41 +2880,25 @@ const MobileExpandedPlayer = memo<{
         style={{ willChange: "transform, opacity" }}
       >
         <div
-          dir="ltr"
+          dir="ltr" data-direction-fixed="ltr"
           className="relative flex flex-col min-h-0 h-full px-3 py-4 sm:px-6 sm:py-8 overflow-hidden"
         >
-          <div className="flex items-start justify-between mb-4">
+          <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-start gap-2 mb-4">
             <button
               onClick={onCollapse}
               className="w-10 h-10 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors"
             >
               <Icon.Down c="w-6 h-6 text-white" />
             </button>
-            <div className="flex flex-col items-center w-full px-2" dir="rtl">
-              <button
-                onClick={handleArtistClick}
-                className={`text-base font-semibold text-white w-full text-center truncate ${isAdPlaying ? "" : "hover:underline"}`}
-                style={{ maxWidth: "90vw" }}
-              >
-                {isAdPlaying ? "Ad" : displayTrack.artist}
-              </button>
-              <button
-                onClick={() => {
-                  if (isAdPlaying) return;
-                  onCollapse();
-                  navigateTo("song-detail", {
-                    id: displayTrack.id,
-                    artistSlug:
-                      (displayTrack as any).artist_unique_id ||
-                      createSlug(displayTrack.artist),
-                    songSlug: createSlug(displayTrack.title),
-                  });
-                }}
-                className={`text-lg font-bold text-neutral-300 w-full text-center truncate mt-0 ${isAdPlaying ? "" : "hover:underline"}`}
-                style={{ maxWidth: "90vw" }}
-              >
-                {displayTrack.title}
-              </button>
+            <div className="min-w-0 px-1 pt-0.5 text-center">
+              <TrackIdentity
+                track={displayTrack}
+                isAdPlaying={isAdPlaying}
+                align="center"
+                onBeforeNavigate={onCollapse}
+                titleClassName="text-lg font-bold text-white"
+                artistsClassName="[&_button]:text-sm [&_span]:text-sm"
+              />
             </div>
             {!isAdPlaying ? (
               <button
@@ -2816,7 +2930,6 @@ const MobileExpandedPlayer = memo<{
 
             <div
               className="mt-4 sm:mt-8 mb-4 sm:mb-6 w-full max-w-[900px]"
-              dir="rtl"
             ></div>
 
             <div className="w-full max-w-[900px] flex flex-col items-center flex-grow justify-center">
@@ -2961,6 +3074,7 @@ const MobileExpandedPlayer = memo<{
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               className="absolute top-16 right-4 z-[60] bg-neutral-800 rounded-lg shadow-2xl border border-white/10 overflow-hidden min-w-[200px]"
+              dir={direction}
             >
               <div className="py-2">
                 <button
@@ -2968,8 +3082,7 @@ const MobileExpandedPlayer = memo<{
                     setIsMenuOpen(false);
                     handleArtistClick();
                   }}
-                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                  dir="rtl"
+                  className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
                 >
                   <Icon.More c="w-5 h-5" />
                   مشاهده هنرمند
@@ -2980,8 +3093,7 @@ const MobileExpandedPlayer = memo<{
                     setAddSongId(displayTrack.id);
                     setIsAddToPlaylistOpen(true);
                   }}
-                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                  dir="rtl"
+                  className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
                 >
                   <Icon.Add c="w-5 h-5" />
                   افزودن به پلی‌لیست
@@ -2993,12 +3105,11 @@ const MobileExpandedPlayer = memo<{
                     if (currentTrack) download(currentTrack);
                   }}
                   disabled={!isPremium}
-                  className={`w-full px-4 py-3 text-right text-white transition-colors flex items-center gap-3 relative ${
+                  className={`w-full px-4 py-3 text-start text-white transition-colors flex items-center gap-3 relative ${
                     !isPremium
                       ? "opacity-60 cursor-not-allowed"
                       : "hover:bg-white/10"
                   }`}
-                  dir="rtl"
                 >
                   <Icon.Download c="w-5 h-5" />
                   دانلود آهنگ
@@ -3022,8 +3133,7 @@ const MobileExpandedPlayer = memo<{
                       });
                     }
                   }}
-                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                  dir="rtl"
+                  className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
                 >
                   <Icon.Queue c="w-5 h-5" />
                   جزئیات آهنگ
@@ -3032,8 +3142,7 @@ const MobileExpandedPlayer = memo<{
                   onClick={() => {
                     setIsMenuOpen(false);
                   }}
-                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                  dir="rtl"
+                  className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
                 >
                   <Icon.Share c="w-5 h-5" />
                   اشتراک‌گذاری
@@ -3043,8 +3152,7 @@ const MobileExpandedPlayer = memo<{
                     setIsMenuOpen(false);
                     setIsQueueOpen(true);
                   }}
-                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                  dir="rtl"
+                  className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
                 >
                   <Icon.Queue c="w-5 h-5" />
                   نمایش صف پخش
@@ -3054,8 +3162,7 @@ const MobileExpandedPlayer = memo<{
                     setIsMenuOpen(false);
                     shuffleQueue();
                   }}
-                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3 font-medium text-emerald-400"
-                  dir="rtl"
+                  className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3 font-medium text-emerald-400"
                 >
                   <Icon.Shuffle c="w-5 h-5" />
                   مخلوط کردن صف پخش (shuffle)
@@ -3065,8 +3172,7 @@ const MobileExpandedPlayer = memo<{
                     setIsMenuOpen(false);
                     setIsQualitySheetOpen(true);
                   }}
-                  className="w-full px-4 py-3 text-right text-white hover:bg-white/10 transition-colors flex items-center gap-3"
-                  dir="rtl"
+                  className="w-full px-4 py-3 text-start text-white hover:bg-white/10 transition-colors flex items-center gap-3"
                 >
                   <Icon.Volume c="w-5 h-5" />
                   تغییر کیفیت
@@ -3090,8 +3196,8 @@ const MobileExpandedPlayer = memo<{
             const tid = toast.loading("در حال تغییر کیفیت پخش...");
             try {
               await updateStreamQuality(q);
+              await setQuality(q);
               toast.success("کیفیت پخش تغییر یافت", { id: tid });
-              setQuality(q);
             } catch (err: any) {
               toast.error(formatErrorMessage(err) || "خطا در تغییر کیفیت پخش", {
                 id: tid,
@@ -3118,8 +3224,9 @@ const ExpandedPlayer = memo<{
   onCollapse: () => void;
   userPlan: string | null;
   banner: BannerAd | null;
-  bannerLoaded?: boolean;
-}>(({ onCollapse, userPlan, banner, bannerLoaded }) => {
+  onBannerLoad?: (event: React.SyntheticEvent<HTMLImageElement>) => void;
+  onBannerError?: (event: React.SyntheticEvent<HTMLImageElement>) => void;
+}>(({ onCollapse, userPlan, banner, onBannerLoad, onBannerError }) => {
   const { isDesktop } = useResponsiveLayout();
 
   if (isDesktop) {
@@ -3128,7 +3235,8 @@ const ExpandedPlayer = memo<{
         onCollapse={onCollapse}
         userPlan={userPlan}
         banner={banner}
-        bannerLoaded={bannerLoaded}
+        onBannerLoad={onBannerLoad}
+        onBannerError={onBannerError}
       />
     );
   }
@@ -3138,7 +3246,8 @@ const ExpandedPlayer = memo<{
       onCollapse={onCollapse}
       userPlan={userPlan}
       banner={banner}
-      bannerLoaded={bannerLoaded}
+      onBannerLoad={onBannerLoad}
+      onBannerError={onBannerError}
     />
   );
 });
@@ -3150,54 +3259,214 @@ ExpandedPlayer.displayName = "ExpandedPlayer";
 export default function MusicPlayer() {
   const { isLoggedIn, user, authenticatedFetch } = useAuth();
   const { requestAuth } = useGuestAccess();
+  const { language } = useI18n();
   const userPlan = user?.plan || null;
   const { isVisible, isExpanded, expand, collapse, setVolume } = usePlayer();
+  const authenticatedFetchRef = useRef(authenticatedFetch);
+  authenticatedFetchRef.current = authenticatedFetch;
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const [banner, setBanner] = useState<BannerAd | null>(null);
-  const [bannerLoaded, setBannerLoaded] = useState(false);
+  const bannerRequestIdRef = useRef(0);
 
   useEffect(() => {
     setPortalRoot(document.getElementById("music-player-root"));
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    let img: HTMLImageElement | null = null;
-    if (isLoggedIn && userPlan === "free") {
-      setBannerLoaded(false);
-      authenticatedFetch("https://api.sedabox.com/api/ads/banner/")
-        .then((res) => res.json())
-        .then((data) => {
-          if (cancelled) return;
-          if (data && data.image) {
-            const src = ensureHttps(data.image) || data.image;
-            img = new Image();
-            img.onload = () => {
-              if (!cancelled) {
-                setBanner(data);
-                setBannerLoaded(true);
-              }
-            };
-            img.onerror = () => {
-              if (!cancelled) {
-                setBanner(null);
-                setBannerLoaded(false);
-              }
-            };
-            img.src = src;
-          }
-        })
-        .catch((err) => console.error("Banner fetch error", err));
+    const requestId = ++bannerRequestIdRef.current;
+    const controller = new AbortController();
+    const eligible = isVisible && isExpanded && userPlan !== "premium";
+
+    clientTrace("PLAYER_AD", "eligibility:evaluated", {
+      requestId,
+      isVisible,
+      isExpanded,
+      isLoggedIn,
+      userPlan,
+      language,
+      eligible,
+    });
+
+    if (!eligible) {
+      setBanner(null);
+      clientTrace("PLAYER_AD", "request:skipped", {
+        requestId,
+        reason: !isVisible
+          ? "player-hidden"
+          : !isExpanded
+            ? "player-collapsed"
+            : "premium-plan",
+      });
+      return () => controller.abort();
     }
-    return () => {
-      cancelled = true;
-      if (img) {
-        img.onload = null;
-        img.onerror = null;
-        img = null;
+
+    const url = `${API_ROOT}/ads/banner/`;
+    const startedAt = performance.now();
+    const timeoutId = window.setTimeout(() => {
+      clientTrace(
+        "PLAYER_AD",
+        "request:timeout",
+        { requestId, url, timeoutMs: BANNER_REQUEST_TIMEOUT_MS },
+        "error",
+      );
+      controller.abort("banner-request-timeout");
+    }, BANNER_REQUEST_TIMEOUT_MS);
+
+    setBanner(null);
+    clientTrace("PLAYER_AD", "request:start", {
+      requestId,
+      url,
+      authenticated: isLoggedIn,
+      language,
+    });
+
+    void (async () => {
+      try {
+        const requestInit: RequestInit = {
+          signal: controller.signal,
+          headers: {
+            Accept: "application/json",
+            "Accept-Language": language,
+          },
+        };
+        const response = isLoggedIn
+          ? await authenticatedFetchRef.current(url, requestInit)
+          : await fetch(url, requestInit);
+
+        const contentType = response.headers.get("content-type") || "";
+        clientTrace("PLAYER_AD", "response:received", {
+          requestId,
+          status: response.status,
+          ok: response.ok,
+          type: response.type,
+          redirected: response.redirected,
+          responseUrl: response.url,
+          contentType,
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
+
+        if (response.status === 204) {
+          setBanner(null);
+          clientTrace("PLAYER_AD", "response:no-active-banner", { requestId });
+          return;
+        }
+
+        const bodyText = await response.text();
+        clientTrace("PLAYER_AD", "response:body-read", {
+          requestId,
+          bytes: new Blob([bodyText]).size,
+          preview: bodyText.slice(0, 240),
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Banner request failed with ${response.status}: ${bodyText.slice(0, 180)}`,
+          );
+        }
+
+        let rawData: any;
+        try {
+          rawData = bodyText ? JSON.parse(bodyText) : null;
+        } catch (parseError) {
+          throw new Error(
+            `Banner endpoint returned invalid JSON (${contentType || "unknown content-type"})`,
+            { cause: parseError },
+          );
+        }
+
+        const data =
+          rawData?.data ??
+          rawData?.result ??
+          (Array.isArray(rawData?.results) ? rawData.results[0] : rawData);
+        if (controller.signal.aborted || requestId !== bannerRequestIdRef.current) {
+          clientTrace("PLAYER_AD", "response:ignored-stale", { requestId });
+          return;
+        }
+
+        const image =
+          data?.image || data?.image_url || data?.banner_image || null;
+        if (typeof image !== "string" || !image.trim()) {
+          throw new Error("Banner response did not contain a usable image URL");
+        }
+
+        const normalizedBanner: BannerAd = {
+          id: Number(data?.id || 0),
+          title: String(data?.title || data?.title_en || "Advertisement"),
+          image: ensureHttps(image.trim()) || image.trim(),
+          navigate_link:
+            typeof data?.navigate_link === "string" && data.navigate_link.trim()
+              ? data.navigate_link.trim()
+              : null,
+          view_count: Number(data?.view_count || 0),
+        };
+
+        setBanner(normalizedBanner);
+        clientTrace("PLAYER_AD", "state:banner-ready", {
+          requestId,
+          bannerId: normalizedBanner.id,
+          title: normalizedBanner.title,
+          image: normalizedBanner.image,
+          hasNavigateLink: Boolean(normalizedBanner.navigate_link),
+        });
+      } catch (error) {
+        if (controller.signal.aborted) {
+          clientTrace("PLAYER_AD", "request:aborted", {
+            requestId,
+            reason: controller.signal.reason || "effect-cleanup",
+          });
+          return;
+        }
+        clientTrace("PLAYER_AD", "request:failed", error, "error");
+        setBanner(null);
+      } finally {
+        window.clearTimeout(timeoutId);
+        clientTrace("PLAYER_AD", "request:settled", {
+          requestId,
+          current: requestId === bannerRequestIdRef.current,
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
       }
+    })();
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort("effect-cleanup");
     };
-  }, [isLoggedIn, userPlan]);
+  }, [isVisible, isExpanded, isLoggedIn, language, userPlan]);
+
+  const handleBannerLoad = useCallback(
+    (event: React.SyntheticEvent<HTMLImageElement>) => {
+      const image = event.currentTarget;
+      clientTrace("PLAYER_AD", "image:loaded", {
+        bannerId: banner?.id ?? null,
+        src: image.currentSrc || image.src,
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+        renderedWidth: image.clientWidth,
+        renderedHeight: image.clientHeight,
+      });
+    },
+    [banner?.id],
+  );
+
+  const handleBannerError = useCallback(
+    (event: React.SyntheticEvent<HTMLImageElement>) => {
+      const image = event.currentTarget;
+      clientTrace(
+        "PLAYER_AD",
+        "image:failed",
+        {
+          bannerId: banner?.id ?? null,
+          src: image.currentSrc || image.src,
+          naturalWidth: image.naturalWidth,
+          naturalHeight: image.naturalHeight,
+        },
+        "error",
+      );
+      setBanner(null);
+    },
+    [banner?.id],
+  );
 
   useEffect(() => {
     try {
@@ -3218,7 +3487,8 @@ export default function MusicPlayer() {
             onCollapse={collapse}
             userPlan={userPlan}
             banner={banner}
-            bannerLoaded={bannerLoaded}
+            onBannerLoad={handleBannerLoad}
+            onBannerError={handleBannerError}
           />
         ) : (
           <CollapsedPlayer key="collapsed" onExpand={expand} />
@@ -3235,7 +3505,6 @@ export default function MusicPlayer() {
             })
           }
           className="fixed bottom-[132px] left-1/2 z-[100001] -translate-x-1/2 rounded-full border border-emerald-400/30 bg-black/90 px-4 py-2 text-xs font-bold text-emerald-300 shadow-xl backdrop-blur-xl md:bottom-[86px]"
-          dir="rtl"
         >
           پیش‌نمایش ۳۰ ثانیه‌ای · ورود برای پخش کامل
         </button>

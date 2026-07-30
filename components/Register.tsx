@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { useI18n } from "./I18nContext";
 import toast from "react-hot-toast";
 import { Loader2 } from "lucide-react";
 
 const Register: React.FC = () => {
+  const { direction, t } = useI18n();
   const { setCurrentPage } = useNavigation();
   const {
     register,
@@ -29,54 +31,6 @@ const Register: React.FC = () => {
     setPhone(clean.slice(0, 9));
   };
 
-  // Translate server / raw error messages to Persian-friendly text
-  const translateError = (raw: string | null | undefined) => {
-    const msg = String(raw || "").trim();
-    if (!msg) return "خطایی رخ داد. لطفاً دوباره تلاش کنید.";
-    const lower = msg.toLowerCase();
-
-    // common phone already registered patterns
-    if (
-      lower.includes("phone") &&
-      (lower.includes("registered") ||
-        lower.includes("already") ||
-        lower.includes("exists"))
-    ) {
-      return "این شماره قبلاً ثبت شده است. اگر شماره‌ی شماست، لطفاً وارد شوید یا بازیابی رمز عبور را انجام دهید.";
-    }
-
-    // invalid phone
-    if (lower.includes("invalid") && lower.includes("phone")) {
-      return "شماره همراه نامعتبر است.";
-    }
-
-    // password related
-    if (
-      lower.includes("password") &&
-      (lower.includes("short") ||
-        lower.includes("weak") ||
-        lower.includes("too short"))
-    ) {
-      return "رمز عبور کوتاه یا ناامن است. یک رمز قوی‌تر انتخاب کنید.";
-    }
-
-    // network issues
-    if (
-      lower.includes("network") ||
-      lower.includes("failed to fetch") ||
-      lower.includes("timeout")
-    ) {
-      return "خطا در اتصال شبکه. اتصال اینترنت خود را بررسی کنید.";
-    }
-
-    // if the message already contains Persian, return it as-is
-    if (/[آ-ی]/.test(msg)) return msg;
-
-    // fallback generic Persian message
-    console.debug("Server error (raw):", msg);
-    return "خطایی رخ داد. لطفاً دوباره تلاش کنید.";
-  };
-
   const handleRegister = () => {
     if (!phone || !password) return;
     setError(null);
@@ -84,17 +38,16 @@ const Register: React.FC = () => {
     const promise = register(phone, password);
 
     toast.promise(promise, {
-      loading: "در حال ایجاد حساب کاربری...",
+      loading: t("در حال ایجاد حساب کاربری..."),
       success: () => {
         setVerificationContext("register");
         setCurrentPage("verify");
-        return "کد تایید برای شما ارسال شد";
+        return t("کد تایید برای شما ارسال شد");
       },
       error: (e) => {
-        const raw = formatErrorMessage(e);
-        const tr = translateError(raw);
-        setError(tr);
-        return tr;
+        const message = formatErrorMessage(e);
+        setError(message);
+        return message;
       },
     });
 
@@ -122,20 +75,20 @@ const Register: React.FC = () => {
         aria-hidden="true"
       >
         <div className="relative">
-          <div className="w-35 h-35 lg:w-44 lg:h-44 rounded-full md:rounded-none lg:rounded-none flex items-center justify-center overflow-hidden md:overflow-visible lg:overflow-visible">
+          <div className="w-35 h-35 lg:w-44 lg:h-44 rounded-none flex items-center justify-center overflow-visible">
             <img
               src="/logo-text.png"
               alt="SedaBox Logo"
               className="w-28 lg:w-44 object-contain transform transition-transform duration-300"
             />
           </div>
-          <div className="absolute inset-0 rounded-full md:rounded-none lg:rounded-none" />
+          <div className="absolute inset-0 rounded-none" />
         </div>
       </div>
 
-      <div className="w-full mt-8 lg:w-[45%] flex flex-col justify-center items-center relative z-10 p-6 lg:p-12 order-2 lg:order-1">
+      <div dir={direction} className="w-full mt-8 lg:w-[45%] flex flex-col justify-center items-center relative z-10 p-6 lg:p-12 order-2 lg:order-1">
         <div className="w-full max-w-md">
-          <div className="mb-12 text-center lg:text-right" dir="rtl">
+          <div className="mb-12 text-center lg:text-start">
             <div className="flex items-center justify-center lg:justify-start gap-2 mb-4 group cursor-default"></div>
             <h2 className="text-4xl font-medium text-white mb-3 leading-tight">
               ثبت نام{" "}
@@ -152,7 +105,6 @@ const Register: React.FC = () => {
               handleRegister();
             }}
             className="relative group rounded-2xl bg-white/2 border border-white/10 p-1 backdrop-blur-md transition-all duration-500 hover:bg-white/4 hover:border-white/20 hover:shadow-[0_20px_80px_-20px_rgba(0,0,0,0.5)]"
-            dir="rtl"
           >
             <div className="p-6 lg:p-8">
               <label className="block relative mb-6">
@@ -169,7 +121,7 @@ const Register: React.FC = () => {
                         : "border-white/10 hover:border-white/20"
                     }
                   `}
-                  dir="ltr"
+                  dir="ltr" data-direction-fixed="ltr"
                 >
                   <div className="flex items-center justify-center h-14 w-14 bg-white/5 border-r border-white/10 text-gray-400 font-mono text-lg select-none">
                     09
@@ -242,7 +194,7 @@ const Register: React.FC = () => {
                   ) : (
                     <>
                       ثبت نام
-                      <span className="mr-2 rotate-180 transform group-hover/btn:-translate-x-1 transition-transform">
+                      <span className="mr-2 transition-transform sb-forward-icon">
                         →
                       </span>
                     </>
@@ -271,7 +223,7 @@ const Register: React.FC = () => {
             </div>
           </form>
 
-          <div className="mt-8 text-center lg:text-right">
+          <div className="mt-8 text-center lg:text-start">
             <p className="text-xs text-gray-600">
               با ورود به سیستم،{" "}
               <a
@@ -286,7 +238,7 @@ const Register: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full lg:w-[55%] h-[40vh] lg:h-auto relative order-1 lg:order-2">
+      <div dir={direction} className="w-full lg:w-[55%] h-[40vh] lg:h-auto relative order-1 lg:order-2">
         <div className="absolute inset-0 w-full h-full">
           <img
             src="/music-listen.webp"
@@ -299,8 +251,7 @@ const Register: React.FC = () => {
         </div>
 
         <div
-          className="absolute bottom-10 right-10 hidden lg:block text-right"
-          dir="rtl"
+          className="absolute bottom-10 right-10 hidden lg:block text-start"
         >
           <div className="text-6xl font-bold text-white/10 tracking-tighter select-none">
             MUSIC

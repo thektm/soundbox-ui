@@ -74,7 +74,7 @@ export const CreatePlaylistModal = memo(
         onClose={onClose}
         desktopWidth="w-[450px]"
       >
-        <div className="h-full flex flex-col" dir="rtl">
+        <div className="h-full flex flex-col">
           {/* Header */}
           <div className="relative p-6 pb-4 flex-shrink-0">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">

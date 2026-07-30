@@ -4,6 +4,11 @@ import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { useResponsiveLayout } from "./ResponsiveLayout";
 import { GuestProtectedPage } from "./GuestAccessContext";
+import { clientTrace } from "../lib/clientDebug";
+import {
+  getRuntimeClientLanguage,
+  getUserFacingErrorMessage,
+} from "../lib/clientError";
 
 // ── Generic page skeleton for dynamic loading ─────────────────────────────
 const PageSkeleton = () => (
@@ -28,10 +33,30 @@ const ForgotPassword = dynamic(() => import("./ForgotPassword"), {
 });
 
 // ── Core pages (most likely to be visited first) ────────────────────────────
-const Home = dynamic(() => import("./home"), {
-  ssr: false,
-  loading: PageSkeleton,
-});
+const Home = dynamic(
+  () => {
+    const startedAt = performance.now();
+    clientTrace("ROUTER", "home-chunk:load-start");
+    return import("./home")
+      .then((module) => {
+        clientTrace("ROUTER", "home-chunk:load-success", {
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
+        return module;
+      })
+      .catch((error) => {
+        clientTrace("ROUTER", "home-chunk:load-failed", error, "error");
+        throw error;
+      });
+  },
+  {
+    ssr: false,
+    loading: () => {
+      clientTrace("ROUTER", "home-chunk:loading-ui");
+      return <PageSkeleton />;
+    },
+  },
+);
 const Search = dynamic(() => import("./Search"), {
   ssr: false,
   loading: PageSkeleton,
@@ -116,24 +141,126 @@ const PaymentSuccess = dynamic(() => import("./PaymentSuccess"), {
   ssr: false,
 });
 
+type HomeRouteErrorBoundaryProps = {
+  children: React.ReactNode;
+  routeKey: string;
+};
+
+type HomeRouteErrorBoundaryState = {
+  error: Error | null;
+};
+
+class HomeRouteErrorBoundary extends React.Component<
+  HomeRouteErrorBoundaryProps,
+  HomeRouteErrorBoundaryState
+> {
+  state: HomeRouteErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): HomeRouteErrorBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    clientTrace(
+      "ROUTER",
+      "home-render:crashed",
+      { error, componentStack: info.componentStack },
+      "error",
+    );
+  }
+
+  componentDidUpdate(previousProps: HomeRouteErrorBoundaryProps) {
+    if (previousProps.routeKey !== this.props.routeKey && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    const language = getRuntimeClientLanguage();
+    const message = getUserFacingErrorMessage(this.state.error, language, {
+      fa: "صفحه خانه به‌درستی بارگذاری نشد. لطفاً دوباره تلاش کنید.",
+      en: "Home did not load correctly. Please try again.",
+    });
+
+    return (
+      <div className="min-h-screen bg-black text-white p-6 flex items-center justify-center">
+        <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-red-950/15 p-5 text-center">
+          <h1 className="text-xl font-bold text-red-300">
+            {language === "fa" ? "بارگذاری صفحه انجام نشد" : "Page could not be loaded"}
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-zinc-300">{message}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-5 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black"
+          >
+            {language === "fa" ? "تلاش مجدد" : "Try again"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+}
+
+const AuthGateSkeleton = () => {
+  useEffect(() => {
+    const startedAt = performance.now();
+    clientTrace("ROUTER", "auth-gate:waiting");
+    const warningTimer = window.setTimeout(() => {
+      clientTrace(
+        "ROUTER",
+        "auth-gate:still-waiting",
+        { elapsedMs: Math.round(performance.now() - startedAt) },
+        "warn",
+      );
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(warningTimer);
+      clientTrace("ROUTER", "auth-gate:released", {
+        elapsedMs: Math.round(performance.now() - startedAt),
+      });
+    };
+  }, []);
+
+  return <PageSkeleton />;
+};
+
+const renderHome = (routeKey: string) => (
+  <HomeRouteErrorBoundary routeKey={routeKey}>
+    <Home />
+  </HomeRouteErrorBoundary>
+);
+
 export const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
   const { isLoggedIn, isInitializing } = useAuth();
   const { isDesktop } = useResponsiveLayout();
 
-  if (isInitializing) return <PageSkeleton />;
+  useEffect(() => {
+    clientTrace("ROUTER", "state", {
+      currentPage,
+      currentParams,
+      isLoggedIn,
+      isInitializing,
+      isDesktop,
+    });
+  }, [currentPage, currentParams, isDesktop, isInitializing, isLoggedIn]);
+
+  if (isInitializing) return <AuthGateSkeleton />;
 
   // Authentication pages are always reachable and keep the original public URL
   // stored by GuestAccessProvider for post-login continuation.
   switch (currentPage) {
     case "login":
-      return isLoggedIn ? <Home /> : <Login />;
+      return isLoggedIn ? renderHome("login-redirect-home") : <Login />;
     case "register":
-      return isLoggedIn ? <Home /> : <Register />;
+      return isLoggedIn ? renderHome("register-redirect-home") : <Register />;
     case "verify":
-      return isLoggedIn ? <Home /> : <Verify />;
+      return isLoggedIn ? renderHome("verify-redirect-home") : <Verify />;
     case "forgot-password":
-      return isLoggedIn ? <Home /> : <ForgotPassword />;
+      return isLoggedIn ? renderHome("forgot-password-redirect-home") : <ForgotPassword />;
   }
 
   const publicPages = new Set([
@@ -151,6 +278,10 @@ export const AppRouter: React.FC = () => {
     "popular-albums",
     "recommended-playlists",
     "chart-detail",
+    "for-you",
+    "new-discoveries",
+    "user-detail",
+    "other-user-playlists",
   ]);
 
   if (!isLoggedIn && !publicPages.has(currentPage)) {
@@ -159,7 +290,7 @@ export const AppRouter: React.FC = () => {
 
   switch (currentPage) {
     case "home":
-      return <Home />;
+      return renderHome("home");
     case "song-detail":
       return <SongDetail id={currentParams?.id} />;
     case "search":
@@ -181,6 +312,7 @@ export const AppRouter: React.FC = () => {
           slug={currentParams?.slug}
           generatedBy={currentParams?.generatedBy}
           creatorUniqueId={currentParams?.creatorUniqueId}
+          initialPlaylist={currentParams?.initialPlaylist}
         />
       );
     case "user-playlist-detail":
@@ -190,7 +322,12 @@ export const AppRouter: React.FC = () => {
     case "artist-sub-page":
       return <ArtistSubPage id={currentParams?.id} subPage={currentParams?.subPage} />;
     case "user-detail":
-      return <UserDetail uniqueId={currentParams?.id} />;
+      return (
+        <UserDetail
+          uniqueId={currentParams?.uniqueId || currentParams?.id}
+          dbId={currentParams?.dbId}
+        />
+      );
     case "album-detail":
       return <AlbumDetail id={currentParams?.id} slug={currentParams?.slug} album={currentParams?.album} />;
     case "followers-following":
@@ -232,6 +369,6 @@ export const AppRouter: React.FC = () => {
     case "genre-detail":
       return <GenrePage id={currentParams?.id} name={currentParams?.name ?? ""} color={currentParams?.color} />;
     default:
-      return <Home />;
+      return renderHome(`default:${currentPage}`);
   }
 };

@@ -147,7 +147,6 @@ export default function PaymentProcessing() {
   return (
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white overflow-hidden font-sans flex flex-col items-center justify-center"
-      dir="rtl"
     >
       {/* Noise Texture */}
       <div

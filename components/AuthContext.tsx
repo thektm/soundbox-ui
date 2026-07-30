@@ -5,10 +5,16 @@ import React, {
   useRef,
   ReactNode,
   useEffect,
+  useCallback,
   Dispatch,
   SetStateAction,
 } from "react";
 import { toast } from "react-hot-toast";
+import { useI18n } from "./I18nContext";
+import { formatAuthError } from "./authErrors";
+import { openAuthPrompt } from "./authPrompt";
+import { clientTrace, withClientTimeout } from "../lib/clientDebug";
+import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
 
 export interface UserRecentlyPlayedItem {
   id: number;
@@ -52,6 +58,15 @@ export interface UserNotificationSetting {
   new_follower: boolean;
   system_notifications: boolean;
 }
+
+export const DEFAULT_NOTIFICATION_SETTINGS: UserNotificationSetting = {
+  new_song_followed_artists: true,
+  new_album_followed_artists: true,
+  new_playlist: false,
+  new_likes: true,
+  new_follower: true,
+  system_notifications: true,
+};
 
 export interface UserFollowItem {
   id: number;
@@ -99,6 +114,7 @@ export interface User {
   notification_setting: UserNotificationSetting;
   image_profile: UserProfileImage | null;
   plan: string;
+  premium_expires_at?: string | null;
   // Optional fields used by various API versions to indicate premium status
   is_premium?: boolean | string | number;
   isPremium?: boolean;
@@ -128,10 +144,14 @@ interface AuthContextType {
   requestLoginOtp: (phone: string) => Promise<boolean>;
   requestPasswordReset: (phone: string) => Promise<boolean>;
   fetchUserProfile: () => Promise<void>;
+  applyUserSnapshot: (user: User) => void;
   updateProfile: (data: Partial<User>) => Promise<void>;
   updateProfileImage: (file: File) => Promise<UserProfileImage>;
   deleteProfileImage: () => Promise<void>;
   updateStreamQuality: (quality: "medium" | "high") => Promise<void>;
+  updateNotificationSettings: (
+    changes: Partial<UserNotificationSetting>,
+  ) => Promise<UserNotificationSetting>;
   authenticatedFetch: (
     input: RequestInfo | URL,
     init?: RequestInit,
@@ -146,23 +166,108 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const normalizeFollowCollection = (collection: any): UserFollows => ({
+  ...(collection || {}),
+  items: Array.isArray(collection?.items)
+    ? collection.items.map((item: any) => ({
+        ...item,
+        image: normalizeUserAvatarUrl(item?.image),
+      }))
+    : [],
+  total: Number(collection?.total || 0),
+  page: Number(collection?.page || 1),
+  has_next: Boolean(collection?.has_next),
+  next: collection?.next || null,
+});
+
+const normalizeServerUser = (candidate: any): User => {
+  const exactPlan = candidate?.plan === "premium" ? "premium" : "free";
+  const rawImageProfile = candidate?.image_profile;
+  const imageProfile = rawImageProfile
+    ? {
+        ...rawImageProfile,
+        image: normalizeUserAvatarUrl(rawImageProfile.image),
+      }
+    : null;
+
+  return {
+    ...candidate,
+    plan: exactPlan,
+    is_premium: exactPlan === "premium",
+    isPremium: exactPlan === "premium",
+    subscription: candidate?.subscription
+      ? { ...candidate.subscription, is_active: exactPlan === "premium" }
+      : candidate?.subscription,
+    image_profile: imageProfile,
+    followers: normalizeFollowCollection(candidate?.followers),
+    following: normalizeFollowCollection(candidate?.following),
+    notification_setting: {
+      ...DEFAULT_NOTIFICATION_SETTINGS,
+      ...(candidate?.notification_setting || {}),
+    },
+  } as User;
+};
+
+const ACCESS_TOKEN_STORAGE_KEY = "sedaboxAccessToken";
+const REFRESH_TOKEN_STORAGE_KEY = "refreshToken";
+const REFRESH_LOCK_NAME = "sedabox-auth-refresh";
+
+const getStoredRefreshToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+};
+
+const setStoredRefreshToken = (token: string | null) => {
+  if (typeof window === "undefined") return;
+  if (token) localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token);
+  else localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+};
+
+const isAccessTokenUsable = (token: string | null, skewSeconds = 30) => {
+  if (!token) return false;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return false;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = JSON.parse(atob(padded));
+    const expiresAt = Number(decoded?.exp || 0);
+    return expiresAt > Math.floor(Date.now() / 1000) + skewSeconds;
+  } catch {
+    return false;
+  }
+};
+
+const readStoredAccessToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+  if (isAccessTokenUsable(token)) return token;
+  if (token) localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  return null;
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
+  const { language } = useI18n();
   const API_ROOT = "https://api.sedabox.com/api";
 
+  const initialStoredAccessToken = readStoredAccessToken();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     // Synchronous hint for the first client-side render to prevent layout shifts.
-    // If a refreshToken exists, assume we are logged in so the Shell renders the Sidebar immediately.
-    if (typeof window !== "undefined") {
-      return !!localStorage.getItem("refreshToken");
-    }
-    return false;
+    // A valid access token avoids an unnecessary refresh on every page reload.
+    return !!initialStoredAccessToken || !!getStoredRefreshToken();
   });
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const isInitializingRef = useRef<boolean>(true);
 
   const updateIsInitializing = (val: boolean) => {
+    clientTrace("AUTH", "initializing:set", {
+      previous: isInitializingRef.current,
+      next: val,
+      hasStoredAccessToken: Boolean(readStoredAccessToken()),
+      hasRefreshToken: Boolean(getStoredRefreshToken()),
+    });
     setIsInitializing(val);
     isInitializingRef.current = val;
   };
@@ -172,109 +277,57 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
 
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const accessTokenRef = useRef<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(
+    initialStoredAccessToken,
+  );
+  const accessTokenRef = useRef<string | null>(initialStoredAccessToken);
+  const authRevisionRef = useRef(0);
+  const refreshPromiseRef = useRef<Promise<string | null> | null>(null);
+  const profileRequestRef = useRef<{
+    key: string;
+    promise: Promise<User | null>;
+  } | null>(null);
+  const notificationSettingsQueueRef = useRef<Promise<void>>(Promise.resolve());
 
-  const updateAccessToken = (val: string | null) => {
+  const syncAccessTokenState = (val: string | null) => {
+    if (accessTokenRef.current !== val) {
+      authRevisionRef.current += 1;
+    }
     setAccessToken(val);
     accessTokenRef.current = val;
+  };
+
+  const updateAccessToken = (val: string | null) => {
+    syncAccessTokenState(val);
+    if (typeof window !== "undefined") {
+      if (val) localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, val);
+      else localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+    }
+  };
+
+  const clearLocalAuth = (expectedRefreshToken?: string): boolean => {
+    if (
+      expectedRefreshToken &&
+      getStoredRefreshToken() !== expectedRefreshToken
+    ) {
+      // Another refresh already replaced the token. This 401 is stale.
+      return false;
+    }
+    setStoredRefreshToken(null);
+    updateAccessToken(null);
+    setIsLoggedIn(false);
+    setUser(null);
+    setNeedsInitialCheck(false);
+    return true;
   };
   const [verificationContext, setVerificationContext] = useState<string | null>(
     null,
   );
   const [needsInitialCheck, setNeedsInitialCheck] = useState<boolean>(false);
 
-  const formatErrorMessage = (errorArg: any): string => {
-    const error = errorArg?.error ?? errorArg;
-    if (!error) return "خطای نامشخصی رخ داده است";
+  const formatErrorMessage = (errorArg: any): string =>
+    formatAuthError(errorArg, language);
 
-    const errorMap: Record<string, string> = {
-      "Invalid credentials": "نام کاربری یا رمز عبور اشتباه است",
-      "User already exists": "این کاربر قبلاً ثبت‌نام کرده است",
-      "Invalid OTP": "کد تایید وارد شده اشتباه است",
-      "OTP expired": "کد تایید منقضی شده است",
-      "Phone number not found": "شماره همراه یافت نشد",
-      "Passwords do not match": "رمز عبور با تکرار آن مطابقت ندارد",
-      "Phone number already exists": "این شماره همراه قبلاً در سیستم وجود دارد",
-      "Account is not active": "حساب کاربری فعال نیست",
-      "Token is invalid or expired":
-        "زمان نشست شما به پایان رسیده است، مجدداً وارد شوید",
-      "User not found": "کاربر مورد نظر پیدا نشد",
-      "Password reset failed": "تغییر رمز عبور با شکست مواجه شد",
-      "Registration failed": "ثبت‌نام انجام نشد",
-      "Login failed": "ورود به حساب با خطا مواجه شد",
-      "Verification failed": "تایید کد ناموفق بود",
-      "OTP request failed": "خطا در ارسال کد تایید",
-      "Method Not Allowed": "دسترسی غیرمجاز",
-      "Internal Server Error": "خطا در سمت سرور رخ داده است",
-      "Bad Request": "درخواست نامعتبر",
-      "Too many requests": "تعداد درخواست‌ها بیش از حد مجاز است",
-      "User not logged in": "لطفا ابتدا وارد حساب خود شوید",
-      "No active subscription found.": "شما اشتراک فعال ندارید",
-    };
-
-    if (error.code === "RATE_LIMIT") {
-      const seconds = error.retry_after_seconds || 30;
-      return `لطفا ${seconds} ثانیه صبر کنید و سپس دوباره امتحان کنید`;
-    }
-
-    // Helper for substring-based mapping (covers many server wording variants)
-    const mapBySubstring = (s: string) => {
-      const lc = (s || "").toLowerCase();
-      if (
-        lc.includes("current password") ||
-        lc.includes("incorrect password") ||
-        lc.includes("invalid password") ||
-        lc.includes("current password is incorrect")
-      )
-        return "رمز فعلی اشتباه است";
-      if (
-        lc.includes("unique id") ||
-        lc.includes("unique_id") ||
-        lc.includes("user with this unique id")
-      )
-        return "شناسه منحصر به فرد قبلا استفاده شده است";
-      if (lc.includes("refresh token") || lc.includes("refresh"))
-        return "توکن رفرش نامعتبر است";
-      if (lc.includes("not found") && lc.includes("session"))
-        return "نشست پیدا نشد";
-      if (lc.includes("too many requests") || lc.includes("rate limit"))
-        return "تعداد درخواست‌ها بیش از حد مجاز است";
-      return null;
-    };
-
-    if (error.fields) {
-      const msgs = Object.values(error.fields)
-        .flat()
-        .map((m: any) => {
-          const s = String(m || "");
-          return (
-            errorMap[s] ||
-            mapBySubstring(s) ||
-            "خطایی رخ داده است. لطفا دوباره تلاش کنید"
-          );
-        });
-      return msgs.join(" - ");
-    }
-
-    const detail =
-      error.detail ||
-      error.message ||
-      (typeof error === "string" ? error : null);
-    if (detail) {
-      const s = String(detail);
-      // Exact map
-      if (errorMap[s]) return errorMap[s];
-      // Substring map
-      const bySub = mapBySubstring(s);
-      if (bySub) return bySub;
-      // If the detail contains English letters, avoid returning raw English.
-      if (/[a-zA-Z]/.test(s)) return "خطایی رخ داده است. لطفا دوباره تلاش کنید";
-      return s;
-    }
-
-    return "خطایی رخ داده است. لطفا دوباره تلاش کنید";
-  };
 
   async function get(path: string) {
     const res = await authenticatedFetch(`${API_ROOT}${path}`, {
@@ -339,33 +392,84 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   }
 
   const fetchUserProfile = async (providedToken?: string) => {
-    // If a token is provided manually, we use it, otherwise authenticatedFetch handles it
-    try {
-      let r;
-      if (providedToken) {
-        const res = await fetch(`${API_ROOT}/profile/`, {
-          headers: { Authorization: `Bearer ${providedToken}` },
-        });
-        const body = await res.json();
-        r = { ok: res.ok, body };
-      } else {
-        r = await get("/profile/");
-      }
+    const requestToken =
+      providedToken || accessTokenRef.current || readStoredAccessToken();
+    if (!requestToken) return;
 
-      if (r.ok && r.body) {
-        setUser(r.body as User);
+    // React Strict Mode can execute the startup effect twice in development.
+    // Multiple callers may also request the profile while a refresh is
+    // completing. Share one request for the same access token so those paths
+    // cannot race or perform duplicate profile reads.
+    const requestKey = requestToken;
+    const existingRequest = profileRequestRef.current;
+    if (existingRequest?.key === requestKey) {
+      await existingRequest.promise;
+      return;
+    }
+
+    const revisionAtStart = authRevisionRef.current;
+    const request = (async (): Promise<User | null> => {
+      try {
+        const url = `${API_ROOT}/profile/?_=${Date.now()}`;
+        const requestInit: RequestInit = {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            ...(providedToken
+              ? { Authorization: `Bearer ${providedToken}` }
+              : {}),
+          },
+        };
+
+        // Do not send Cache-Control or Pragma request headers here. They are
+        // not CORS-safelisted and caused the browser preflight to fail. The
+        // cache-busting query parameter plus the API's no-store response header
+        // already guarantee a fresh server-owned profile snapshot.
+        const res = providedToken
+          ? await fetch(url, requestInit)
+          : await authenticatedFetch(url, requestInit);
+        const body = await res.json().catch(() => null);
+        if (!res.ok || !body) return null;
+
+        // Never let an older profile response overwrite a session that was
+        // refreshed, replaced, or explicitly logged out while this request was
+        // in flight.
+        if (
+          authRevisionRef.current !== revisionAtStart ||
+          accessTokenRef.current !== requestToken
+        ) {
+          return null;
+        }
+
+        const nextUser = normalizeServerUser(body);
+        setUser(nextUser);
+        return nextUser;
+      } catch (err) {
+        console.error("Failed to fetch user profile", err);
+        return null;
       }
-    } catch (err) {
-      console.error("Failed to fetch user profile", err);
+    })();
+
+    profileRequestRef.current = { key: requestKey, promise: request };
+    try {
+      await request;
+    } finally {
+      if (profileRequestRef.current?.promise === request) {
+        profileRequestRef.current = null;
+      }
     }
   };
+
+  const applyUserSnapshot = useCallback((nextUser: User) => {
+    setUser(normalizeServerUser(nextUser));
+  }, []);
 
   const updateProfile = async (updateData: Partial<User>) => {
     const r = await patch("/profile/", updateData);
     if (!r.ok) throw r.body || new Error("Failed to update profile");
 
     if (r.body) {
-      setUser(r.body as User);
+      setUser(normalizeServerUser(r.body));
     }
   };
 
@@ -381,9 +485,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const data = await res.json();
     if (!res.ok) throw data || new Error("Failed to upload profile image");
 
-    // Re-fetch profile to update UI
+    const nextImage: UserProfileImage = {
+      ...data,
+      image: normalizeUserAvatarUrl(data?.image),
+    };
+
+    // Commit the successful upload immediately so the edit sheet and every
+    // avatar surface update even if the follow-up profile reconciliation is
+    // delayed or temporarily offline. The server version query prevents stale
+    // browser/CDN cache reuse after replacing a file with the same name.
+    setUser((current) =>
+      current ? { ...current, image_profile: nextImage } : current,
+    );
     await fetchUserProfile();
-    return data;
+    return nextImage;
   };
 
   const deleteProfileImage = async (): Promise<void> => {
@@ -420,11 +535,60 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         const updated: User = {
           ...prev,
           stream_quality: r.body.stream_quality || prev.stream_quality,
-          plan: r.body.plan || prev.plan,
+          plan: r.body.plan === "premium" ? "premium" : r.body.plan === "free" ? "free" : prev.plan,
         };
         return updated;
       });
     }
+  };
+
+  const updateNotificationSettings = async (
+    changes: Partial<UserNotificationSetting>,
+  ): Promise<UserNotificationSetting> => {
+    const allowedKeys: Array<keyof UserNotificationSetting> = [
+      "new_song_followed_artists",
+      "new_album_followed_artists",
+      "new_playlist",
+      "new_likes",
+      "new_follower",
+      "system_notifications",
+    ];
+    const payload = Object.fromEntries(
+      Object.entries(changes).filter(
+        ([key, value]) =>
+          allowedKeys.includes(key as keyof UserNotificationSetting) &&
+          typeof value === "boolean",
+      ),
+    ) as Partial<UserNotificationSetting>;
+
+    if (Object.keys(payload).length === 0) {
+      throw new Error("No valid notification preference was provided");
+    }
+
+    // Serialize preference writes in this tab. Every request remains a partial
+    // PATCH, so rapid clicks or calls from multiple components cannot apply an
+    // older full settings snapshot after a newer update.
+    const operation = notificationSettingsQueueRef.current.then(async () => {
+      const r = await patch("/profile/settings/notifications/", payload);
+      if (!r.ok || !r.body) {
+        throw r.body || new Error("Failed to update notification settings");
+      }
+
+      const nextSettings: UserNotificationSetting = {
+        ...DEFAULT_NOTIFICATION_SETTINGS,
+        ...r.body,
+      };
+      setUser((prev) =>
+        prev ? { ...prev, notification_setting: nextSettings } : prev,
+      );
+      return nextSettings;
+    });
+
+    notificationSettingsQueueRef.current = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
   };
 
   const checkInitialStatus = async (token?: string) => {
@@ -458,47 +622,147 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const tryRefreshToken = async (
-    refreshTokenArg?: string,
+  const performRefresh = async (
+    requestedRefreshToken?: string,
+    staleAccessToken?: string | null,
   ): Promise<string | null> => {
-    const token =
-      refreshTokenArg ||
-      (typeof window !== "undefined"
-        ? localStorage.getItem("refreshToken")
-        : null);
+    const token = requestedRefreshToken || getStoredRefreshToken();
     if (!token) return null;
+
+    const revisionAtStart = authRevisionRef.current;
+    const accessAtStart = accessTokenRef.current;
+
     try {
-      const r = await post("/auth/token/refresh/", { refreshToken: token });
-      if (!r.ok) {
-        if (r.status === 401) {
-          if (typeof window !== "undefined")
-            localStorage.removeItem("refreshToken");
-          updateAccessToken(null);
-          setIsLoggedIn(false);
-          setUser(null);
+      const response = await fetch(`${API_ROOT}/auth/token/refresh/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: token }),
+      });
+
+      const text = await response.text();
+      let body: any = null;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch {
+        body = null;
+      }
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Give a concurrent tab/effect a chance to publish its rotated tokens.
+          await new Promise((resolve) => setTimeout(resolve, 75));
+
+          const latestRefreshToken = getStoredRefreshToken();
+          const latestAccessToken = readStoredAccessToken();
+          const aNewerAuthStateExists =
+            authRevisionRef.current !== revisionAtStart ||
+            (latestAccessToken && latestAccessToken !== accessAtStart);
+
+          if (
+            latestAccessToken &&
+            isAccessTokenUsable(latestAccessToken) &&
+            (aNewerAuthStateExists || latestRefreshToken !== token)
+          ) {
+            syncAccessTokenState(latestAccessToken);
+            setIsLoggedIn(true);
+            return latestAccessToken;
+          }
+
+          if (latestRefreshToken && latestRefreshToken !== token) {
+            // The token used by this request was rotated elsewhere. Retry the
+            // current token instead of treating the stale 401 as a logout.
+            return performRefresh(latestRefreshToken, staleAccessToken);
+          }
+
+          // A refresh 401 is authoritative only when the exact token that
+          // failed is still current and no newer auth state appeared.
+          if (
+            getStoredRefreshToken() === token &&
+            authRevisionRef.current === revisionAtStart
+          ) {
+            clearLocalAuth(token);
+          }
         }
+        // Network/server failures and stale 401s never destroy a valid session.
         return null;
       }
-      const data = r.body;
-      updateAccessToken(data.accessToken);
-      if (typeof window !== "undefined")
-        localStorage.setItem("refreshToken", data.refreshToken);
 
-      // If server returned full user object in refresh response, use it
-      if (data.user) {
-        setUser(data.user as User);
+      const newAccessToken = body?.accessToken;
+      const newRefreshToken = body?.refreshToken;
+      if (!newAccessToken || !newRefreshToken) return null;
+
+      // Publish the rotated refresh token before the access token. Other tabs
+      // that were waiting can then observe a complete, consistent token pair.
+      setStoredRefreshToken(newRefreshToken);
+      updateAccessToken(newAccessToken);
+
+      if (body.user) {
+        setUser(normalizeServerUser(body.user));
       } else {
-        // Fallback: if user info not provided, fetch it
-        await fetchUserProfile(data.accessToken);
+        await fetchUserProfile(newAccessToken);
       }
       setIsLoggedIn(true);
-
-      // Check initial check status after refreshing token
-      checkInitialStatus(data.accessToken);
-
-      return data.accessToken;
-    } catch (err) {
+      void checkInitialStatus(newAccessToken);
+      return newAccessToken;
+    } catch (err: any) {
+      if (
+        err &&
+        (err.name === "AbortError" || String(err).includes("aborted"))
+      ) {
+        return accessTokenRef.current;
+      }
+      // Offline, DNS and 5xx failures must not log the user out.
       return null;
+    }
+  };
+
+  const tryRefreshToken = async (
+    refreshTokenArg?: string,
+    staleAccessToken?: string | null,
+  ): Promise<string | null> => {
+    if (refreshPromiseRef.current) return refreshPromiseRef.current;
+
+    const refreshTask = (async () => {
+      const run = async () => {
+        const storedAccessToken = readStoredAccessToken();
+        if (
+          storedAccessToken &&
+          storedAccessToken !== staleAccessToken &&
+          isAccessTokenUsable(storedAccessToken)
+        ) {
+          syncAccessTokenState(storedAccessToken);
+          setIsLoggedIn(true);
+          return storedAccessToken;
+        }
+        return performRefresh(
+          refreshTokenArg || getStoredRefreshToken() || undefined,
+          staleAccessToken,
+        );
+      };
+
+      if (typeof navigator !== "undefined") {
+        const lockManager = (navigator as Navigator & {
+          locks?: {
+            request: <T>(
+              name: string,
+              callback: () => Promise<T>,
+            ) => Promise<T>;
+          };
+        }).locks;
+        if (lockManager?.request) {
+          return lockManager.request(REFRESH_LOCK_NAME, run);
+        }
+      }
+      return run();
+    })();
+
+    refreshPromiseRef.current = refreshTask;
+    try {
+      return await refreshTask;
+    } finally {
+      if (refreshPromiseRef.current === refreshTask) {
+        refreshPromiseRef.current = null;
+      }
     }
   };
 
@@ -512,6 +776,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     // briefly for it to complete. However, if we already have an accessToken
     // (e.g. set during tryRefreshToken), we can proceed immediately.
     if (isInitializingRef.current && !currentToken) {
+      clientTrace("AUTH", "authenticated-fetch:waiting-for-init", {
+        input: typeof input === "string" ? input : String(input),
+      }, "warn");
+      const waitStartedAt = performance.now();
       await new Promise((resolve) => {
         const interval = setInterval(() => {
           if (!isInitializingRef.current || accessTokenRef.current) {
@@ -527,6 +795,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       });
       // Refresh currentToken after init completes
       currentToken = accessTokenRef.current;
+      clientTrace("AUTH", "authenticated-fetch:init-wait-ended", {
+        elapsedMs: Math.round(performance.now() - waitStartedAt),
+        hasAccessToken: Boolean(currentToken),
+        stillInitializing: isInitializingRef.current,
+      });
     }
 
     // Refresh currentToken once more just in case it was set during the wait
@@ -543,19 +816,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     // locally and open the global login/register prompt instead of sending a
     // request that can never succeed.
     if (!currentToken && !hasStoredRefresh && !isSafeMethod) {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("sedabox:auth-required", {
-            detail: {
-              title: "برای انجام این کار وارد شوید",
-              description:
-                "لایک، دنبال‌کردن، ذخیره، دانلود و تغییرات حساب فقط پس از ورود در دسترس هستند.",
-            },
-          }),
-        );
-      }
+      openAuthPrompt({
+        title: "برای انجام این کار وارد شوید",
+        description:
+          "برای لایک، دنبال‌کردن، ذخیره، دانلود یا تغییر اطلاعات حساب، ابتدا وارد شوید.",
+      });
       return new Response(
-        JSON.stringify({ detail: "Authentication required" }),
+        JSON.stringify({ error: { code: "AUTHENTICATION_REQUIRED", message: "Authentication is required." } }),
         {
           status: 401,
           statusText: "Unauthorized",
@@ -585,9 +852,53 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       let response = await fetch(input, applyAuth(currentToken));
 
       if (response.status === 401 && (currentToken || hasStoredRefresh)) {
-        const newToken = await tryRefreshToken();
-        if (newToken) {
-          response = await fetch(input, applyAuth(newToken));
+        // A different request may already have refreshed while this request
+        // was in flight. Retry that newer access token before rotating again.
+        const latestAccessToken = accessTokenRef.current;
+        if (
+          latestAccessToken &&
+          latestAccessToken !== currentToken &&
+          isAccessTokenUsable(latestAccessToken)
+        ) {
+          response = await fetch(input, applyAuth(latestAccessToken));
+        }
+
+        if (response.status === 401) {
+          const newToken = await tryRefreshToken(undefined, currentToken);
+          if (newToken) {
+            response = await fetch(input, applyAuth(newToken));
+          }
+        }
+      }
+
+      if (response.status === 401) {
+        let authFailureCode = "";
+        try {
+          const authFailureBody = await response.clone().json();
+          authFailureCode = String(
+            authFailureBody?.error?.code || authFailureBody?.code || "",
+          ).toUpperCase();
+        } catch {
+          // A body is optional; status and local auth state remain authoritative.
+        }
+
+        const stillAuthenticated = Boolean(
+          accessTokenRef.current || getStoredRefreshToken(),
+        );
+        const sessionNeedsLogin = new Set([
+          "AUTHENTICATION_REQUIRED",
+          "TOKEN_INVALID",
+          "TOKEN_REVOKED",
+          "CURRENT_SESSION_INVALID",
+        ]).has(authFailureCode);
+
+        if (!stillAuthenticated || sessionNeedsLogin) {
+          openAuthPrompt({
+            title: sessionNeedsLogin ? "دوباره وارد شوید" : "برای ادامه وارد شوید",
+            description: sessionNeedsLogin
+              ? "نشست ورود شما معتبر نیست. برای ادامه دوباره وارد حساب شوید."
+              : "برای دسترسی به این بخش یا انجام این کار، ابتدا وارد حساب شوید.",
+          });
         }
       }
 
@@ -603,10 +914,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           parsedBody = null;
         }
 
-        const defaultMsg =
-          response.status >= 500
-            ? "در ارتباط با سرور خطایی رخ داد. لطفاً بعداً دوباره تلاش کنید"
-            : "درخواست با خطا مواجه شد. لطفاً دوباره تلاش کنید";
+        const defaultMsg = response.status >= 500
+          ? language === "fa"
+            ? "در ارتباط با سرور خطایی رخ داد. لطفاً بعداً دوباره تلاش کنید."
+            : "The server could not complete the request. Please try again later."
+          : language === "fa"
+            ? "درخواست انجام نشد. لطفاً دوباره تلاش کنید."
+            : "The request could not be completed. Please try again.";
 
         const message = parsedBody
           ? formatErrorMessage(parsedBody)
@@ -636,8 +950,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         throw err;
       }
 
-      const netMsg =
-        "در ارتباط با سرور خطایی رخ داد. لطفاً اتصال اینترنت خود را بررسی کنید و دوباره تلاش کنید";
+      const netMsg = language === "fa"
+        ? "ارتباط با سرور برقرار نشد. اتصال اینترنت خود را بررسی کنید و دوباره تلاش کنید."
+        : "Could not connect to the server. Check your internet connection and try again.";
       try {
         toast.error(netMsg);
       } catch (e) {
@@ -678,17 +993,120 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     let mounted = true;
+    const initStartedAt = performance.now();
+
     const init = async () => {
       if (!mounted) return;
-      // Fetch fresh token and user data without artificial delays
-      // to reduce Cumulative Layout Shift (CLS) during hydration.
-      await tryRefreshToken();
-      if (mounted) updateIsInitializing(false);
+
+      const storedAccessToken = readStoredAccessToken();
+      const hasRefreshToken = Boolean(getStoredRefreshToken());
+      clientTrace("AUTH", "init:start", {
+        hasStoredAccessToken: Boolean(storedAccessToken),
+        hasRefreshToken,
+      });
+
+      // Premium state is server-owned. Remove legacy optimistic hints from older builds.
+      localStorage.removeItem("sedabox_user_plan");
+      try {
+        delete (window as any).sedabox_user_plan;
+      } catch (error) {
+        clientTrace("AUTH", "legacy-plan-cleanup:failed", error, "warn");
+      }
+
+      try {
+        await withClientTimeout(
+          "Auth initialization",
+          (async () => {
+            if (storedAccessToken) {
+              clientTrace("AUTH", "init:reuse-access-token");
+              // Normal reloads reuse the unexpired access token. This avoids token
+              // rotation during splash-screen hydration and repeated refreshes.
+              syncAccessTokenState(storedAccessToken);
+              setIsLoggedIn(true);
+
+              clientTrace("AUTH", "profile:request:start");
+              await fetchUserProfile();
+              clientTrace("AUTH", "profile:request:settled", {
+                hasAccessToken: Boolean(accessTokenRef.current),
+              });
+
+              if (accessTokenRef.current) {
+                clientTrace("AUTH", "initial-check:start");
+                await checkInitialStatus(accessTokenRef.current);
+                clientTrace("AUTH", "initial-check:settled");
+              }
+            } else {
+              clientTrace("AUTH", "refresh:start", { hasRefreshToken });
+              const refreshedToken = await tryRefreshToken();
+              clientTrace("AUTH", "refresh:settled", {
+                refreshed: Boolean(refreshedToken),
+                hasAccessToken: Boolean(accessTokenRef.current),
+              });
+            }
+          })(),
+          12_000,
+        );
+      } catch (error) {
+        // This used to leave isInitializing=true forever. Always fail open so
+        // the public Home route can render and the client logs reveal the
+        // failed auth stage instead of showing an endless skeleton.
+        clientTrace("AUTH", "init:failed", error, "error");
+        console.error("Auth initialization failed; releasing app gate", error);
+      } finally {
+        if (mounted) {
+          updateIsInitializing(false);
+          clientTrace("AUTH", "init:gate-released", {
+            elapsedMs: Math.round(performance.now() - initStartedAt),
+            isLoggedIn: Boolean(accessTokenRef.current || getStoredRefreshToken()),
+            hasAccessToken: Boolean(accessTokenRef.current),
+          });
+        } else {
+          clientTrace("AUTH", "init:settled-after-unmount", undefined, "warn");
+        }
+      }
     };
-    init();
+
+    void init().catch((error) => {
+      // Defensive last line: the inner try/finally should already handle every
+      // failure, but never allow a rejected startup promise to disappear.
+      clientTrace("AUTH", "init:unhandled", error, "error");
+      if (mounted) updateIsInitializing(false);
+    });
+
     return () => {
       mounted = false;
+      clientTrace("AUTH", "provider:unmounted", undefined, "warn");
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === ACCESS_TOKEN_STORAGE_KEY) {
+        const nextToken =
+          event.newValue && isAccessTokenUsable(event.newValue)
+            ? event.newValue
+            : null;
+        syncAccessTokenState(nextToken);
+        if (nextToken) setIsLoggedIn(true);
+        else if (!getStoredRefreshToken()) {
+          setIsLoggedIn(false);
+          setUser(null);
+          setNeedsInitialCheck(false);
+        }
+      }
+
+      if (event.key === REFRESH_TOKEN_STORAGE_KEY && !event.newValue) {
+        syncAccessTokenState(null);
+        setIsLoggedIn(false);
+        setUser(null);
+        setNeedsInitialCheck(false);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
   const login = async (phoneArg: string, passwordArg?: string) => {
@@ -700,14 +1118,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     if (!r.ok) throw r.body || new Error("Login failed");
     const data = r.body;
     updateAccessToken(data.accessToken);
-    if (typeof window !== "undefined")
-      localStorage.setItem("refreshToken", data.refreshToken);
+    setStoredRefreshToken(data.refreshToken);
 
     if (
       data.user &&
       (data.user.followers_count !== undefined || data.user.plan)
     ) {
-      setUser(data.user as User);
+      setUser(normalizeServerUser(data.user));
     } else {
       await fetchUserProfile(data.accessToken);
     }
@@ -734,14 +1151,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     if (!r.ok) throw r.body || new Error("Verification failed");
     const data = r.body;
     updateAccessToken(data.accessToken);
-    if (typeof window !== "undefined")
-      localStorage.setItem("refreshToken", data.refreshToken);
+    setStoredRefreshToken(data.refreshToken);
 
     if (
       data.user &&
       (data.user.followers_count !== undefined || data.user.plan)
     ) {
-      setUser(data.user as User);
+      setUser(normalizeServerUser(data.user));
     } else {
       await fetchUserProfile(data.accessToken);
     }
@@ -759,14 +1175,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     if (!r.ok) throw r.body || new Error("Verification failed");
     const data = r.body;
     updateAccessToken(data.accessToken);
-    if (typeof window !== "undefined")
-      localStorage.setItem("refreshToken", data.refreshToken);
+    setStoredRefreshToken(data.refreshToken);
 
     if (
       data.user &&
       (data.user.followers_count !== undefined || data.user.plan)
     ) {
-      setUser(data.user as User);
+      setUser(normalizeServerUser(data.user));
     } else {
       await fetchUserProfile(data.accessToken);
     }
@@ -787,20 +1202,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const logout = async () => {
-    const refresh =
-      typeof window !== "undefined"
-        ? localStorage.getItem("refreshToken")
-        : null;
-    if (refresh) {
-      await post("/auth/logout/", { refreshToken: refresh });
+    const refresh = getStoredRefreshToken();
+    try {
+      if (refresh) {
+        await post("/auth/logout/", { refreshToken: refresh });
+      }
+    } finally {
+      clearLocalAuth();
     }
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("refreshToken");
-    }
-    updateAccessToken(null);
-    setIsLoggedIn(false);
-    setUser(null);
-    setNeedsInitialCheck(false);
   };
 
   return (
@@ -825,10 +1234,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         verifyLoginOtp,
         resetPassword,
         fetchUserProfile,
+        applyUserSnapshot,
         updateProfile,
         updateProfileImage,
         deleteProfileImage,
         updateStreamQuality,
+        updateNotificationSettings,
         authenticatedFetch,
         verificationContext,
         setVerificationContext,

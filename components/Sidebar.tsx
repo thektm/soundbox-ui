@@ -6,6 +6,7 @@ import { useAuth } from "./AuthContext";
 import { useDiscovery } from "./DiscoveryContext";
 import { createSlug } from "./mockData";
 import { CreatePlaylistModal } from "./CreatePlaylistModal";
+import { useI18n } from "./I18nContext";
 
 // ============================================================================
 // ICONS - Spotify-style icons
@@ -278,6 +279,7 @@ interface NavItem {
 
 interface PlaylistItem {
   id: string;
+  unique_id?: string | number;
   name: string;
   type: "playlist" | "artist" | "album" | "podcast" | "song" | "user";
   image?: string | string[];
@@ -389,6 +391,7 @@ const LibraryItemComponent = memo(
     onClick,
     onTitleClick,
     onSubtitleClick,
+    hidePlaylistTypeLabel = false,
   }: {
     item: PlaylistItem;
     isCollapsed: boolean;
@@ -396,6 +399,7 @@ const LibraryItemComponent = memo(
     onClick: () => void;
     onTitleClick?: () => void;
     onSubtitleClick?: () => void;
+    hidePlaylistTypeLabel?: boolean;
   }) => {
     const typeLabels = {
       playlist: "پلی‌لیست",
@@ -536,7 +540,7 @@ const LibraryItemComponent = memo(
         </div>
         <div
           className={`flex-1 min-w-0 ${
-            viewMode === "grid" ? "w-full" : "text-right"
+            viewMode === "grid" ? "w-full" : "text-start"
           }`}
         >
           {(() => {
@@ -597,10 +601,12 @@ const LibraryItemComponent = memo(
             }
 
             // For non-user items render clickable title/subtitle when handlers are provided
-            const subtitleText =
-              // prefer explicit artist/owner name if available
-              (item.meta && (item.meta.artist_name || item.owner)) ||
-              typeLabels[item.type];
+            const explicitSubtitle =
+              item.meta && (item.meta.artist_name || item.owner);
+            const subtitleText = explicitSubtitle ||
+              (hidePlaylistTypeLabel && item.type === "playlist"
+                ? ""
+                : typeLabels[item.type]);
 
             return (
               <>
@@ -623,26 +629,31 @@ const LibraryItemComponent = memo(
                     {displayName}
                   </span>
                 </p>
-                <p className="text-xs text-zinc-400 truncate">
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSubtitleClick && onSubtitleClick();
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.stopPropagation();
-                        onSubtitleClick && onSubtitleClick();
-                      }
-                    }}
-                    role={onSubtitleClick ? "link" : undefined}
-                    tabIndex={onSubtitleClick ? 0 : undefined}
-                    className={`truncate ${onSubtitleClick ? "cursor-pointer hover:underline" : ""}`}
-                  >
-                    {subtitleText}
-                  </span>
-                  {item.owner && item.meta == null && ` • ${item.owner}`}
-                </p>
+                {(subtitleText || (item.owner && item.meta == null)) && (
+                  <p className="text-xs text-zinc-400 truncate">
+                    {subtitleText && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSubtitleClick && onSubtitleClick();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.stopPropagation();
+                            onSubtitleClick && onSubtitleClick();
+                          }
+                        }}
+                        role={onSubtitleClick ? "link" : undefined}
+                        tabIndex={onSubtitleClick ? 0 : undefined}
+                        className={`truncate ${onSubtitleClick ? "cursor-pointer hover:underline" : ""}`}
+                      >
+                        {subtitleText}
+                      </span>
+                    )}
+                    {item.owner && item.meta == null &&
+                      `${subtitleText ? " • " : ""}${item.owner}`}
+                  </p>
+                )}
               </>
             );
           })()}
@@ -658,16 +669,31 @@ LibraryItemComponent.displayName = "LibraryItemComponent";
 // MAIN SIDEBAR COMPONENT
 // ============================================================================
 function Sidebar() {
+  const { direction } = useI18n();
   const { currentPage, navigateTo, homeCache } = useNavigation();
 
-  // Synchronous state initialization to prevent layout shift during hydration.
-  // This ensures the sidebar doesn't snap between collapsed/expanded or grid/list modes.
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("sb-sidebar-collapsed") === "true";
+  // Read the viewport exactly once. Tablets get their own persisted preference
+  // and default to collapsed; desktop behavior remains unchanged. No resize
+  // listener is registered, so rotating/resizing does not unexpectedly toggle it.
+  const [initialSidebarState] = useState(() => {
+    if (typeof window === "undefined") {
+      return { storageKey: "sb-sidebar-collapsed", collapsed: false };
     }
-    return false;
+
+    const isTabletAtStartup = window.matchMedia(
+      "(min-width: 768px) and (max-width: 1023px)",
+    ).matches;
+    const storageKey = isTabletAtStartup
+      ? "sb-sidebar-collapsed-tablet"
+      : "sb-sidebar-collapsed";
+    const storedValue = localStorage.getItem(storageKey);
+
+    return {
+      storageKey,
+      collapsed: storedValue === null ? isTabletAtStartup : storedValue === "true",
+    };
   });
+  const [isCollapsed, setIsCollapsed] = useState(initialSidebarState.collapsed);
   const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
     if (typeof window !== "undefined") {
       return (
@@ -682,9 +708,9 @@ function Sidebar() {
   // Save changes to localStorage to maintain target state on next refresh
   useEffect(() => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("sb-sidebar-collapsed", String(isCollapsed));
+      localStorage.setItem(initialSidebarState.storageKey, String(isCollapsed));
     }
-  }, [isCollapsed]);
+  }, [initialSidebarState.storageKey, isCollapsed]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -762,7 +788,9 @@ function Sidebar() {
       );
       if (resp.ok) {
         const data = await resp.json();
-        const list = data.results || [];
+        const list = (data.results || []).filter(
+          (historyEntry: any) => historyEntry && historyEntry.item,
+        );
         const mapped = list.map((h: any) => {
           const item = h.item;
           const isUser = h.type === "user" || item.type === "user";
@@ -862,7 +890,7 @@ function Sidebar() {
         backfaceVisibility: "hidden",
         transform: "translateZ(0)",
       }}
-      dir="rtl"
+      dir={direction}
     >
       {/* Top Navigation Section */}
       <div className="p-2">
@@ -890,7 +918,7 @@ function Sidebar() {
               aria-label={isCollapsed ? "باز کردن سایدبار" : "بستن سایدبار"}
               aria-expanded={!isCollapsed}
             >
-              {isCollapsed ? <Icons.ChevronLeft /> : <Icons.ChevronRight />}
+              <span className="sb-sidebar-toggle-icon">{isCollapsed ? <Icons.ChevronLeft /> : <Icons.ChevronRight />}</span>
             </button>
           </div>
 
@@ -1071,6 +1099,7 @@ function Sidebar() {
                     item={item}
                     isCollapsed={isCollapsed}
                     viewMode={viewMode}
+                    hidePlaylistTypeLabel={libraryTab === "playlists"}
                     onClick={() => {
                       if (item.type === "artist") {
                         navigateTo("artist-detail", {

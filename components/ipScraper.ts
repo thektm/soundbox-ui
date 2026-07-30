@@ -5,7 +5,9 @@ export async function scrapeIpInfo() {
     const response = await fetch("/api/ip-proxy");
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch ipinfo via proxy: ${response.status}`);
+      const lookupError = new Error("IP_LOOKUP_REQUEST_FAILED") as Error & { status?: number };
+      lookupError.status = response.status;
+      throw lookupError;
     }
 
     const html = await response.text();

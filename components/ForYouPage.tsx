@@ -40,14 +40,14 @@ const ForYouPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [subtitle, setSubtitle] = useState(
     isGuest
-      ? "ترکیبی تازه از صداهای شنیدنی"
+      ? "پرشنونده‌ترین‌های ۲۴ ساعت گذشته؛ با تکمیل از محبوب‌ترین‌ها"
       : "بر اساس شنیده‌ها و انتخاب‌های اخیر شما",
   );
 
   useEffect(() => {
     setSubtitle(
       isGuest
-        ? "ترکیبی تازه از صداهای شنیدنی"
+        ? "پرشنونده‌ترین‌های ۲۴ ساعت گذشته؛ با تکمیل از محبوب‌ترین‌ها"
         : "بر اساس شنیده‌ها و انتخاب‌های اخیر شما",
     );
 
@@ -61,11 +61,12 @@ const ForYouPage: React.FC = () => {
           if (data.songs_recommendations) {
             setSongs(data.songs_recommendations.songs || []);
             setNextUrl(data.songs_recommendations.next || null);
-            if (data.songs_recommendations.type === "guest_discovery") {
-              setSubtitle("ترکیبی تازه از صداهای شنیدنی");
-            } else if (
-              data.songs_recommendations.type !== "personalized"
-            ) {
+            if (data.songs_recommendations.type === "daily_trending") {
+              setSubtitle(
+                data.songs_recommendations.message ||
+                  "پرشنونده‌ترین‌های ۲۴ ساعت گذشته؛ با تکمیل از محبوب‌ترین‌ها",
+              );
+            } else if (data.songs_recommendations.type !== "personalized") {
               setSubtitle("پیشنهادهایی برای شروع یک کشف تازه");
             }
           }
@@ -89,9 +90,13 @@ const ForYouPage: React.FC = () => {
       );
       if (response.ok) {
         const data = await response.json();
-        const newSongs = data.songs || data.results || [];
-        setSongs((prev) => [...prev, ...newSongs]);
-        setNextUrl(data.next || null);
+        const section = data.songs_recommendations || data;
+        const newSongs = section.songs || section.results || [];
+        setSongs((prev) => {
+          const seen = new Set(prev.map((song) => song.id));
+          return [...prev, ...newSongs.filter((song: ApiSong) => !seen.has(song.id))];
+        });
+        setNextUrl(section.next || null);
       }
     } catch (error) {
       console.error("Error loading more recommendations:", error);
@@ -125,7 +130,6 @@ const ForYouPage: React.FC = () => {
     >
       <div
         className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-        style={{ direction: "rtl" }}
       >
         {songs.map((song, index) => (
           <div

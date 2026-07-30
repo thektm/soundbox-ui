@@ -9,6 +9,7 @@ import React, {
   useMemo,
 } from "react";
 import { decodeShare, slugify } from "../utils/share";
+import { getCanonicalUserPath } from "../lib/userProfileRoute";
 
 interface NavigationContextType {
   currentPage: string;
@@ -73,6 +74,32 @@ const ROUTED_PAGES = [
   "recommended-playlists",
   "other-user-playlists",
 ];
+
+type SearchFilter =
+  | "all"
+  | "songs"
+  | "artists"
+  | "albums"
+  | "playlists"
+  | "users";
+
+const SEARCH_FILTERS = new Set<SearchFilter>([
+  "all",
+  "songs",
+  "artists",
+  "albums",
+  "playlists",
+  "users",
+]);
+
+function parseSearchParams(search = ""): { q: string; filter: SearchFilter } {
+  const params = new URLSearchParams(search);
+  const rawFilter = params.get("type") as SearchFilter | null;
+  return {
+    q: params.get("q") || "",
+    filter: rawFilter && SEARCH_FILTERS.has(rawFilter) ? rawFilter : "all",
+  };
+}
 
 /**
  * Extracts the numeric ID from a "{id}-{slug}" URL segment.
@@ -213,11 +240,37 @@ function parsePathname(pathname: string): { page: string; params: any } {
     };
   }
 
-  // user details: /user/{id}-{unique_id}
+  // User details:
+  // - official account: /user/sedabox
+  // - canonical normal user: /user/{database-id}-{display-name-slug}
+  // - legacy unique-id or numeric links remain accepted and are canonicalized
+  //   by UserDetail after the profile resolves.
   if (first === "user" && parts[1]) {
+    const segment = decodeURIComponent(parts[1]);
+    if (segment.toLowerCase() === "sedabox") {
+      return {
+        page: "user-detail",
+        params: { id: "sedabox", uniqueId: "sedabox", isOfficial: true },
+      };
+    }
+
+    const canonicalMatch = segment.match(/^(\d+)-(.+)$/);
+    if (canonicalMatch) {
+      return {
+        page: "user-detail",
+        params: {
+          id: canonicalMatch[1],
+          dbId: canonicalMatch[1],
+          slug: canonicalMatch[2],
+        },
+      };
+    }
+
     return {
       page: "user-detail",
-      params: { id: extractIdFromSegment(parts[1]) },
+      params: /^\d+$/.test(segment)
+        ? { id: segment, legacyNumeric: true }
+        : { id: segment, uniqueId: segment },
     };
   }
 
@@ -258,7 +311,26 @@ function parsePathname(pathname: string): { page: string; params: any } {
   return { page: "home", params: null };
 }
 
+function parseLocation(pathname: string, search = ""): { page: string; params: any } {
+  const parsed = parsePathname(pathname);
+  if (parsed.page === "search") {
+    return { page: "search", params: parseSearchParams(search) };
+  }
+  return parsed;
+}
+
 function pageToPathname(page: string, params?: any): string | null {
+  if (page === "search") {
+    const searchParams = new URLSearchParams();
+    const query = String(params?.q ?? params?.query ?? "").trim();
+    const filter = params?.filter as SearchFilter | undefined;
+    if (query) searchParams.set("q", query);
+    if (filter && filter !== "all" && SEARCH_FILTERS.has(filter)) {
+      searchParams.set("type", filter);
+    }
+    const queryString = searchParams.toString();
+    return queryString ? `/search?${queryString}` : "/search";
+  }
   if (page === "chart-detail") {
     if (params?.chartType) {
       if (params?.title)
@@ -352,10 +424,7 @@ function pageToPathname(page: string, params?: any): string | null {
   }
 
   if (page === "user-detail") {
-    if (params?.id) {
-      const uniquePart = params.uniqueId ? `-${params.uniqueId}` : "";
-      return `/user/${params.id}${uniquePart}`;
-    }
+    return getCanonicalUserPath(params);
   }
 
   if (page === "followers-following") {
@@ -369,6 +438,106 @@ function pageToPathname(page: string, params?: any): string | null {
 
   return null; // other pages: don't change the URL
 }
+
+const NAV_HISTORY_MARKER = "__sedaboxNavigation";
+const NAV_HISTORY_VERSION = 1;
+
+interface NavigationHistoryState {
+  page: string;
+  params: any;
+  [NAV_HISTORY_MARKER]: number;
+  __sbNavIndex: number;
+  __sbNavKey: string;
+}
+
+function createNavigationEntryKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function isNavigationHistoryState(value: unknown): value is NavigationHistoryState {
+  if (!value || typeof value !== "object") return false;
+  const state = value as Record<string, unknown>;
+  return (
+    state[NAV_HISTORY_MARKER] === NAV_HISTORY_VERSION &&
+    typeof state.page === "string" &&
+    typeof state.__sbNavIndex === "number" &&
+    typeof state.__sbNavKey === "string"
+  );
+}
+
+function writeBrowserHistory(
+  mode: "push" | "replace",
+  state: NavigationHistoryState,
+  path: string,
+): void {
+  try {
+    if (mode === "push") window.history.pushState(state, "", path);
+    else window.history.replaceState(state, "", path);
+  } catch (error) {
+    // API payloads passed as initial page data should normally be structured-
+    // cloneable. If a future caller passes a non-cloneable value, keep the
+    // route functional with the stable identifiers needed to reload the page.
+    const raw = state.params && typeof state.params === "object" ? state.params : {};
+    const safeParams = [
+      "id", "dbId", "uniqueId", "slug", "songSlug", "artistSlug", "name",
+      "title", "query", "q", "filter", "tab", "type", "chartType",
+      "subPage", "generatedBy", "creatorUniqueId", "isOwner",
+    ].reduce<Record<string, unknown>>((result, key) => {
+      const value = raw[key];
+      if (["string", "number", "boolean"].includes(typeof value) || value === null) {
+        result[key] = value;
+      }
+      return result;
+    }, {});
+    const fallback = { ...state, params: safeParams };
+    if (mode === "push") window.history.pushState(fallback, "", path);
+    else window.history.replaceState(fallback, "", path);
+    console.warn("Navigation state contained a non-cloneable value; stored safe route params instead.", error);
+  }
+}
+
+/**
+ * Updates the URL/state for the current app entry without changing its
+ * identity or in-app history position. Canonical URL and search-param writers
+ * use this so Back/Forward can always restore the exact prior entry.
+ */
+export function replaceCurrentNavigationEntry(
+  page: string,
+  params: any,
+  path: string,
+): void {
+  if (typeof window === "undefined") return;
+  const existing = window.history.state;
+  const state: NavigationHistoryState = {
+    ...(existing && typeof existing === "object" ? existing : {}),
+    [NAV_HISTORY_MARKER]: NAV_HISTORY_VERSION,
+    __sbNavIndex: isNavigationHistoryState(existing) ? existing.__sbNavIndex : 0,
+    __sbNavKey: isNavigationHistoryState(existing)
+      ? existing.__sbNavKey
+      : createNavigationEntryKey(),
+    page,
+    params: params || null,
+  };
+  writeBrowserHistory("replace", state, path);
+}
+
+/** Used only as a defensive fallback when a component cannot call navigateTo. */
+export function pushNavigationEntry(page: string, params: any, path: string): NavigationHistoryState | null {
+  if (typeof window === "undefined") return null;
+  const existing = window.history.state;
+  const state: NavigationHistoryState = {
+    [NAV_HISTORY_MARKER]: NAV_HISTORY_VERSION,
+    __sbNavIndex: isNavigationHistoryState(existing) ? existing.__sbNavIndex + 1 : 1,
+    __sbNavKey: createNavigationEntryKey(),
+    page,
+    params: params || null,
+  };
+  writeBrowserHistory("push", state, path);
+  return state;
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 const NavigationContext = createContext<NavigationContextType | undefined>(
@@ -380,14 +549,27 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [currentPage, setCurrentPage] = useState<string>(() => {
     if (typeof window === "undefined") return "home";
-    return parsePathname(window.location.pathname).page;
+    return parseLocation(window.location.pathname, window.location.search).page;
   });
   const [currentParams, setCurrentParams] = useState<any>(() => {
     if (typeof window === "undefined") return null;
-    return parsePathname(window.location.pathname).params;
+    return parseLocation(window.location.pathname, window.location.search).params;
   });
+  const initialBrowserState =
+    typeof window !== "undefined" && isNavigationHistoryState(window.history.state)
+      ? window.history.state
+      : null;
+  const initialEntryKeyRef = useRef<string>(
+    initialBrowserState?.__sbNavKey || createNavigationEntryKey(),
+  );
+  const currentHistoryIndexRef = useRef<number>(
+    initialBrowserState?.__sbNavIndex ?? 0,
+  );
+  const currentHistoryKeyRef = useRef<string>(initialEntryKeyRef.current);
+  const [historyEntryKey, setHistoryEntryKey] = useState<string>(
+    initialEntryKeyRef.current,
+  );
   const [previousPage, setPreviousPage] = useState<string | null>(null);
-  const [previousParams, setPreviousParams] = useState<any>(null);
   const [visibilityMap, setVisibilityMap] = useState<Record<string, boolean>>({
     "bottom-navbar": true,
     sidebar: true,
@@ -411,28 +593,9 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     (page: string, params?: any, pushHistory?: boolean) => void
   >(() => {});
 
-  const getScrollKey = useCallback((page: string, params: any) => {
-    if (!params) return page;
-
-    // Prioritize unique identifiers to avoid JSON.stringify issues (circular refs, performance)
-    // and ensure distinct keys for different items (e.g. albums, playlists)
-    if (params.slug) return `${page}-slug-${params.slug}`;
-    if (params.id) return `${page}-id-${params.id}`;
-    if (params.query) return `${page}-query-${params.query}`;
-
-    try {
-      return `${page}-${JSON.stringify(params)}`;
-    } catch (e) {
-      // Fallback to page name if params cannot be serialized
-      // This might cause scroll position collisions for complex params, but prevents crashes
-      return page;
-    }
-  }, []);
-
-  const navigationKey = useMemo(
-    () => getScrollKey(currentPage, currentParams),
-    [currentPage, currentParams, getScrollKey],
-  );
+  // A unique key per browser-history entry keeps repeated visits to the same
+  // page from overwriting one another's scroll/component restoration state.
+  const navigationKey = historyEntryKey;
 
   const registerScrollContainer = useCallback((element: HTMLElement | null) => {
     if (element) {
@@ -463,34 +626,46 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
 
   const navigateTo = useCallback(
     (page: string, params?: any, pushHistory: boolean | "replace" = true) => {
-      if (scrollContainerRef.current) {
-        const key = getScrollKey(currentPage, currentParams);
-        scrollPositions.current[key] = scrollContainerRef.current.scrollTop;
+      // A popstate handler saves the outgoing entry before calling us. For
+      // normal in-app navigation, capture it here while its DOM is still live.
+      if (pushHistory !== false) {
+        const currentPosition = scrollContainerRef.current
+          ? scrollContainerRef.current.scrollTop
+          : typeof window !== "undefined"
+            ? window.scrollY || 0
+            : 0;
+        scrollPositions.current[currentHistoryKeyRef.current] = currentPosition;
       }
 
       if (pushHistory && typeof window !== "undefined") {
-        const path = pageToPathname(page, params);
-        if (pushHistory === "replace") {
-          window.history.replaceState(
-            { page, params: params || null },
-            "",
-            path || window.location.pathname,
-          );
-        } else {
-          window.history.pushState(
-            { page, params: params || null },
-            "",
-            path || window.location.pathname,
-          );
-        }
+        const path = pageToPathname(page, params) || window.location.pathname;
+        const existing = window.history.state;
+        const replacing = pushHistory === "replace";
+        const nextIndex = replacing
+          ? currentHistoryIndexRef.current
+          : currentHistoryIndexRef.current + 1;
+        const nextKey = replacing
+          ? currentHistoryKeyRef.current
+          : createNavigationEntryKey();
+        const state: NavigationHistoryState = {
+          ...(replacing && existing && typeof existing === "object" ? existing : {}),
+          [NAV_HISTORY_MARKER]: NAV_HISTORY_VERSION,
+          __sbNavIndex: nextIndex,
+          __sbNavKey: nextKey,
+          page,
+          params: params || null,
+        };
+        writeBrowserHistory(replacing ? "replace" : "push", state, path);
+        currentHistoryIndexRef.current = nextIndex;
+        currentHistoryKeyRef.current = nextKey;
+        setHistoryEntryKey(nextKey);
       }
 
       setPreviousPage(currentPage);
-      setPreviousParams(currentParams || null);
       setCurrentPage(page);
       setCurrentParams(params || null);
     },
-    [currentPage, currentParams, getScrollKey],
+    [currentPage, currentParams],
   );
 
   // Keep the ref pointing at the latest navigateTo so the popstate handler
@@ -540,8 +715,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   }, [scrollContainer]);
 
   const restoreScroll = useCallback(() => {
-    const key = getScrollKey(currentPage, currentParams);
-    const savedPosition = scrollPositions.current[key] || 0;
+    const savedPosition = scrollPositions.current[historyEntryKey] || 0;
 
     // Immediately update scrollY context state so pages waiting for it
     // (like sticky headers) don't flicker or wait for a scroll event.
@@ -563,7 +737,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     } else if (typeof window !== "undefined") {
       window.scrollTo(0, savedPosition);
     }
-  }, [currentPage, currentParams, getScrollKey]);
+  }, [historyEntryKey]);
 
   const scrollToTop = useCallback(() => {
     setScrollY(0);
@@ -575,23 +749,20 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   const goBack = useCallback(() => {
-    // If we can go back in browser history, do it. This ensures the URL
-    // stays in sync with the page content automatically via popstate.
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    // `history.length` includes pages visited before SedaBox, so it cannot tell
+    // us whether a real previous app screen exists. Use our own entry index to
+    // avoid leaving the app or landing on an unrelated/stale browser entry.
+    if (typeof window !== "undefined" && currentHistoryIndexRef.current > 0) {
       window.history.back();
       return;
     }
 
-    // If we have a previous page but history.back() isn't available,
-    // navigate to it using replace so the URL updates correctly.
-    if (previousPage && previousPage !== currentPage) {
-      navigateTo(previousPage, previousParams, "replace");
-      return;
+    // A cold-started detail/protected page has no prior in-app entry. Keep the
+    // user inside the SPA and replace it with Home rather than guessing.
+    if (currentPage !== "home") {
+      navigateTo("home", null, "replace");
     }
-
-    // As a last resort, navigate to home.
-    navigateTo("home", null, "replace");
-  }, [previousPage, previousParams, navigateTo, currentPage]);
+  }, [navigateTo, currentPage]);
 
   const handleSetCurrentPage = useCallback(
     (page: string) => navigateTo(page, currentParams),
@@ -603,28 +774,85 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     [navigateTo, currentPage],
   );
 
-  // Register the popstate listener exactly once (empty dep array).
-  // The navigateToRef keeps it up-to-date on every render without re-running this effect.
+  // Register the popstate listener exactly once. URL parsing stays unchanged;
+  // the extra metadata only makes browser Back/Forward deterministic.
   useEffect(() => {
-    // Ensure the initial history entry contains structured state so that
-    // going "back" to the entry works correctly.
-    if (typeof window !== "undefined") {
-      const { page, params } = parsePathname(window.location.pathname);
-      const path = pageToPathname(page, params) || window.location.pathname;
-      window.history.replaceState({ page, params: params || null }, "", path);
-    }
+    if (typeof window === "undefined") return;
+
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+
+    const parsedInitial = parseLocation(
+      window.location.pathname,
+      window.location.search,
+    );
+    const existing = window.history.state;
+    const initialState: NavigationHistoryState = isNavigationHistoryState(existing)
+      ? {
+          ...existing,
+          page: parsedInitial.page,
+          params: existing.params ?? parsedInitial.params ?? null,
+        }
+      : {
+          ...(existing && typeof existing === "object" ? existing : {}),
+          [NAV_HISTORY_MARKER]: NAV_HISTORY_VERSION,
+          __sbNavIndex: 0,
+          __sbNavKey: initialEntryKeyRef.current,
+          page: parsedInitial.page,
+          params: parsedInitial.params || null,
+        };
+
+    writeBrowserHistory(
+      "replace",
+      initialState,
+      `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    );
+    currentHistoryIndexRef.current = initialState.__sbNavIndex;
+    currentHistoryKeyRef.current = initialState.__sbNavKey;
+    setHistoryEntryKey(initialState.__sbNavKey);
 
     const handlePopState = (event: PopStateEvent) => {
-      if (event.state) {
-        navigateToRef.current(event.state.page, event.state.params, false);
+      // The old page is still rendered while popstate is dispatched, so this
+      // captures its exact scroll position before React swaps components.
+      const outgoingPosition = scrollContainerRef.current
+        ? scrollContainerRef.current.scrollTop
+        : window.scrollY || 0;
+      scrollPositions.current[currentHistoryKeyRef.current] = outgoingPosition;
+
+      const parsed = parseLocation(window.location.pathname, window.location.search);
+      let state: NavigationHistoryState;
+      if (isNavigationHistoryState(event.state)) {
+        state = event.state;
       } else {
-        navigateToRef.current("home", null, false);
+        // This can happen for an old same-origin entry created before the
+        // navigation provider initialized. Normalize it without changing URL.
+        state = {
+          ...(event.state && typeof event.state === "object" ? event.state : {}),
+          [NAV_HISTORY_MARKER]: NAV_HISTORY_VERSION,
+          __sbNavIndex: Math.max(0, currentHistoryIndexRef.current - 1),
+          __sbNavKey: createNavigationEntryKey(),
+          page: parsed.page,
+          params: parsed.params || null,
+        };
+        writeBrowserHistory(
+          "replace",
+          state,
+          `${window.location.pathname}${window.location.search}${window.location.hash}`,
+        );
       }
+
+      currentHistoryIndexRef.current = state.__sbNavIndex;
+      currentHistoryKeyRef.current = state.__sbNavKey;
+      setHistoryEntryKey(state.__sbNavKey);
+      navigateToRef.current(state.page || parsed.page, state.params ?? parsed.params, false);
     };
 
     window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []); // ← empty array: never re-runs, no infinite loop
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, []);
 
   const setComponentVisibility = (component: string, visible: boolean) => {
     setVisibilityMap((prev) => ({ ...prev, [component]: visible }));

@@ -109,7 +109,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
           );
           toast.success(liked ? "پلی‌لیست لایک شد" : "لایک حذف شد");
         } else {
-          if (resp.status === 401) toast.error("برای لایک کردن لطفا وارد شوید");
+          if (resp.status === 401) requestAuth("برای لایک‌کردن این پلی‌لیست وارد شوید.");
           else toast.error("خطا در بروزرسانی لایک");
         }
       }
@@ -151,7 +151,6 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
   const content = (
     <div
       className={`bg-[#121212] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)] ${isDesktop ? "rounded-[32px] overflow-hidden" : "rounded-t-[28px]"}`}
-      dir="rtl"
     >
       {!isDesktop && (
         <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/20 mt-3 mb-2" />
@@ -167,7 +166,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
         {isDesktop && (
           <button
             onClick={onClose}
-            className="absolute left-4 top-4 text-white/40 hover:text-white transition-all transform hover:scale-110 active:scale-95 bg-white/5 hover:bg-white/10 p-2 rounded-full"
+            className="absolute left-4 sb-inline-end-position top-4 text-white/40 hover:text-white transition-all transform hover:scale-110 active:scale-95 bg-white/5 hover:bg-white/10 p-2 rounded-full"
           >
             <X className="w-4 h-4" />
           </button>
@@ -179,7 +178,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
           <button
             key={option.id}
             onClick={option.onClick}
-            className="relative w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors group text-right hover:bg-white/5 active:bg-white/10"
+            className="relative w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors group text-start hover:bg-white/5 active:bg-white/10"
           >
             <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/70 group-hover:bg-white/10 group-hover:text-white transition-all">
               {option.icon}
@@ -211,7 +210,6 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
             <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
             <Drawer.Content
               className="fixed bottom-0 left-0 right-0 max-h-[88%] bg-[#121212] rounded-t-[28px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
-              dir="rtl"
             >
               {content}
             </Drawer.Content>

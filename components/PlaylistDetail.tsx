@@ -19,6 +19,7 @@ import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl, slugify } from "../utils/share";
 import { SEO } from "./SEO";
+import { buildUserNavigationParams } from "../lib/userProfileRoute";
 
 // ============== API INTERFACES ==============
 
@@ -216,7 +217,7 @@ const SongRow = memo(
         onMouseLeave={() => setHover(false)}
         className="flex items-center gap-4 py-2 pl-6 pr-2 sm:px-0 -mx-6 sm:mx-0 rounded-md cursor-pointer transition-all duration-300 hover:bg-white/[0.08] active:bg-white/[0.12] bg-black/5"
       >
-        <div className="w-5 text-center text-sm text-neutral-400 tabular-nums">
+        <div className="sb-song-index-gutter w-5 shrink-0 text-center text-sm text-neutral-400 tabular-nums">
           {hover ? (
             <Icon name={current && playing ? "pause" : "play"} size={14} />
           ) : current && playing ? (
@@ -318,6 +319,7 @@ interface PlaylistDetailProps {
   slug?: string;
   generatedBy?: "system" | "admin" | "audience";
   creatorUniqueId?: string | null;
+  initialPlaylist?: PlaylistResponse | null;
 }
 
 const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
@@ -325,14 +327,22 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
   slug,
   generatedBy,
   creatorUniqueId,
+  initialPlaylist,
 }) => {
   const { goBack, scrollY, navigateTo, currentParams } = useNavigation();
-  const { accessToken } = useAuth();
+  const { accessToken, authenticatedFetch, formatErrorMessage } = useAuth();
   const { requestAuth } = useGuestAccess();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
-  const [playlist, setPlaylist] = useState<PlaylistResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const hasHydratedInitialPlaylist = Boolean(
+    initialPlaylist &&
+      String(initialPlaylist.id) === String(id) &&
+      Array.isArray(initialPlaylist.songs),
+  );
+  const [playlist, setPlaylist] = useState<PlaylistResponse | null>(
+    hasHydratedInitialPlaylist ? initialPlaylist || null : null,
+  );
+  const [loading, setLoading] = useState(!hasHydratedInitialPlaylist);
   const [isLiked, setIsLiked] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
 
@@ -355,9 +365,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         ? `https://api.sedabox.com/api/home/playlist-recommendations/${id}/`
         : `https://api.sedabox.com/api/playlists/${id}/`;
 
-      const resp = await fetch(url, {
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-      });
+      const resp = await authenticatedFetch(url);
       if (resp.ok) {
         const data = await resp.json();
         // Fallback to props if generated_by is missing from API response
@@ -403,7 +411,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
     }
   }, [
     id,
-    accessToken,
+    authenticatedFetch,
     generatedBy,
     creatorUniqueId,
     slug,
@@ -412,8 +420,14 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
   ]);
 
   useEffect(() => {
+    if (hasHydratedInitialPlaylist && initialPlaylist) {
+      setPlaylist(initialPlaylist);
+      setIsLiked(!!initialPlaylist.is_liked);
+      setLoading(false);
+      return;
+    }
     fetchPlaylist();
-  }, [fetchPlaylist]);
+  }, [fetchPlaylist, hasHydratedInitialPlaylist, initialPlaylist]);
 
   useEffect(() => {
     const handleSongLikeChanged = (e: any) => {
@@ -454,12 +468,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         ? `https://api.sedabox.com/api/home/playlist-recommendations/${uniqueIdStr}/like/`
         : `https://api.sedabox.com/api/playlists/${playlist.id}/like/`;
 
-      const resp = await fetch(likeUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
+      const resp = await authenticatedFetch(likeUrl, { method: "POST" });
       if (resp.ok) {
         const data = await resp.json();
         // Normalize liked value from possible response shapes
@@ -490,8 +499,9 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
           });
         }
         toast.success(liked ? "پلی‌لیست لایک شد" : "لایک حذف شد");
-      } else {
-        toast.error("خطا در انجام عملیات");
+      } else if (resp.status !== 401) {
+        const body = await resp.json().catch(() => null);
+        toast.error(formatErrorMessage(body));
       }
     } catch (err) {
       console.error("Like error:", err);
@@ -551,12 +561,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         }
         try {
           const url = `https://api.sedabox.com/api/songs/${song.id}/like/`;
-          const resp = await fetch(url, {
-            method: "POST",
-            headers: accessToken
-              ? { Authorization: `Bearer ${accessToken}` }
-              : {},
-          });
+          const resp = await authenticatedFetch(url, { method: "POST" });
           if (resp.ok) {
             const data = await resp.json();
             return data;
@@ -566,7 +571,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         }
       }
     },
-    [accessToken, requestAuth],
+    [accessToken, authenticatedFetch, requestAuth],
   );
 
   const handlePlaySong = (idx: number) => {
@@ -596,7 +601,6 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
   const PlaylistSkeleton = memo(() => (
     <div
       className="min-h-screen bg-[#0a0a0a] text-white animate-pulse"
-      dir="rtl"
     >
       <div className="relative w-full h-96 md:h-[500px] bg-zinc-900 mb-6" />
 
@@ -657,7 +661,6 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
   return (
     <div
       className="min-h-screen bg-linear-to-b from-neutral-900 via-neutral-950 to-black text-white pb-24"
-      dir="rtl"
     >
       <SEO
         title={playlist.title}
@@ -693,7 +696,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
             onClick={goBack}
             className="w-10 h-10 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center transition-all"
           >
-            <Icon name="arrowLeft" className="w-5 h-5 text-white" />
+            <Icon name="arrowLeft" className="w-5 h-5 text-white sb-back-icon" />
           </button>
         </div>
         <div className="flex-1 text-center">
@@ -724,18 +727,18 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
           })`,
         }}
       >
-        <div className="absolute top-4 left-4 z-20">
+        <div className="absolute top-4 left-4 z-20 sb-back-position">
           <button
             type="button"
             onClick={goBack}
             className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-all duration-300 hover:scale-105"
           >
-            <Icon name="arrowLeft" className="w-6 h-6 text-white" />
+            <Icon name="arrowLeft" className="w-6 h-6 text-white sb-back-icon" />
           </button>
         </div>
 
-        <div className="absolute inset-y-0 right-0 flex items-end pr-6 md:pr-12 pl-6 pb-8">
-          <div className="text-right max-w-lg">
+        <div className="sb-playlist-hero-info absolute inset-y-0 flex items-end pb-8">
+          <div className="text-start max-w-lg">
             <p className="text-sm font-semibold text-green-400 mb-2 uppercase tracking-wide">
               پلی‌لیست
             </p>
@@ -766,8 +769,8 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
               playlist.generated_by === "admin") && (
               <button
                 type="button"
-                onClick={() => navigateTo("user-detail", { id: "sedabox" })}
-                className="mt-3 text-sm text-green-400 transition-colors text-right flex items-center gap-2"
+                onClick={() => navigateTo("user-detail", buildUserNavigationParams({ unique_id: "sedabox", is_official: true }))}
+                className="mt-3 text-sm text-green-400 transition-colors text-start flex items-center gap-2"
               >
                 <span className="hover:underline cursor-pointer">صداباکس</span>
                 <Icon name="verified" className="w-4 h-4 text-green-400" />
@@ -778,11 +781,14 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
                 <button
                   type="button"
                   onClick={() =>
-                    navigateTo("user-detail", {
-                      id: playlist.creator_unique_id!,
-                    })
+                    navigateTo(
+                      "user-detail",
+                      buildUserNavigationParams({
+                        unique_id: playlist.creator_unique_id!,
+                      }),
+                    )
                   }
-                  className="mt-3 text-sm text-blue-400 hover:underline transition-colors text-right"
+                  className="mt-3 text-sm text-blue-400 hover:underline transition-colors text-start"
                 >
                   <span className="cursor-pointer">
                     {playlist.creator_unique_id}

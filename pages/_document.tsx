@@ -29,6 +29,22 @@ export default function Document() {
           content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover"
         />
 
+        {/* Start both splash assets before the client bundle executes. */}
+        <link
+          rel="preload"
+          href="/logo-mark.svg"
+          as="image"
+          type="image/svg+xml"
+          fetchPriority="high"
+        />
+        <link
+          rel="preload"
+          href="/logo-text.png"
+          as="image"
+          type="image/png"
+          fetchPriority="high"
+        />
+
         {/* Preload the primary font weight used on every page */}
         <link
           rel="preload"

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import OverflowMarquee from "./OverflowMarquee";
 import { SEO } from "./SEO";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
@@ -12,8 +13,23 @@ import { useDiscovery } from "./DiscoveryContext";
 import { usePlayer } from "./PlayerContext";
 import { useResponsiveLayout } from "./ResponsiveLayout";
 import type { Track } from "./PlayerContext";
+import { useI18n } from "./I18nContext";
+import { useNotifications } from "./NotificationContext";
+import {
+  buildHomeSummaryRequestKey,
+  HOME_SUMMARY_URL,
+  invalidateHomeSummaryRequest,
+  requestHomeSummary,
+} from "../lib/homeSummaryPrefetch";
+import { clientTrace } from "../lib/clientDebug";
+import { getUserFacingErrorMessage } from "../lib/clientError";
 
 // API Interfaces
+interface ApiGenreLink {
+  id: number;
+  name: string;
+}
+
 interface ApiSong {
   id: number;
   title: string;
@@ -23,6 +39,8 @@ interface ApiSong {
   stream_url: string;
   duration_seconds: number;
   is_liked: boolean;
+  genres?: ApiGenreLink[];
+  genre_ids?: number[];
   genre_names: string[];
   tag_names: string[];
   mood_names: string[];
@@ -45,6 +63,7 @@ interface ApiAlbum {
   artist_name: string;
   cover_image: string;
   is_liked: boolean;
+  genres?: ApiGenreLink[];
   genre_names: string[];
   mood_names: string[];
   sub_genre_names: string[];
@@ -60,21 +79,34 @@ interface ApiPlaylist {
   covers?: string[];
   songs_count: number;
   is_liked: boolean;
+  genres?: ApiGenreLink[];
+  genre_ids?: number[];
+  genre_names?: string[];
 }
 
-interface ApiNotification {
-  id: number;
-  text: string;
-  has_read: boolean;
-  created_at: string;
-  removing?: boolean;
-}
+const HOME_GENRE_ACCENT_HEX: Record<number, string> = {
+  1: "#E91E63",
+  2: "#6A1B9A",
+  3: "#F57F17",
+  4: "#212121",
+  5: "#E65100",
+  6: "#1565C0",
+  7: "#4E342E",
+  8: "#37474F",
+  9: "#2E7D32",
+  10: "#006064",
+  11: "#B71C1C",
+  12: "#F9A825",
+  13: "#33691E",
+  14: "#880E4F",
+};
 
 interface HomeSummaryResponse {
   _audience?: string;
   songs_recommendations: {
     type: string;
     message: string;
+    error?: string;
     count?: number;
     next?: string | null;
     songs: ApiSong[];
@@ -106,8 +138,181 @@ interface HomeSummaryResponse {
     next: string | null;
     results: ApiSong[];
   };
+  trending?: {
+    count: number;
+    window_days: number | null;
+    is_all_time: boolean;
+    minimum_met: boolean;
+    results: ApiSong[];
+  };
   sections: number;
 }
+
+const normalizeGenreLinks = (item: any): ApiGenreLink[] => {
+  const byId = new Map<number, ApiGenreLink>();
+  const add = (idValue: unknown, nameValue: unknown) => {
+    const id = Number(idValue);
+    const name = typeof nameValue === "string" ? nameValue.trim() : "";
+    if (!Number.isFinite(id) || id <= 0 || !name || byId.has(id)) return;
+    byId.set(id, { id, name });
+  };
+
+  if (Array.isArray(item?.genres)) {
+    item.genres.forEach((genre: any) =>
+      add(genre?.id, genre?.name ?? genre?.title),
+    );
+  }
+  if (Array.isArray(item?.genre_ids)) {
+    item.genre_ids.forEach((genre: any, index: number) => {
+      if (genre && typeof genre === "object") {
+        add(genre.id, genre.name ?? genre.title ?? item?.genre_names?.[index]);
+      } else {
+        add(genre, item?.genre_names?.[index]);
+      }
+    });
+  }
+
+  return Array.from(byId.values());
+};
+
+const normalizeSongPayload = (song: any): ApiSong => {
+  const genres = normalizeGenreLinks(song);
+  return {
+    ...(song || {}),
+    genres,
+    genre_ids: genres.length
+      ? genres.map((genre) => genre.id)
+      : Array.isArray(song?.genre_ids)
+        ? song.genre_ids
+            .map((genre: any) => Number(genre?.id ?? genre))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        : [],
+    genre_names: genres.length
+      ? genres.map((genre) => genre.name)
+      : Array.isArray(song?.genre_names)
+        ? song.genre_names.filter((name: unknown): name is string => typeof name === "string")
+        : [],
+    tag_names: Array.isArray(song?.tag_names) ? song.tag_names : [],
+    mood_names: Array.isArray(song?.mood_names) ? song.mood_names : [],
+    sub_genre_names: Array.isArray(song?.sub_genre_names)
+      ? song.sub_genre_names
+      : [],
+  } as ApiSong;
+};
+
+
+const normalizePlaylistPayload = (playlist: any): ApiPlaylist => {
+  const genres = normalizeGenreLinks(playlist);
+  return {
+    ...(playlist || {}),
+    genres,
+    genre_ids: genres.length
+      ? genres.map((genre) => genre.id)
+      : Array.isArray(playlist?.genre_ids)
+        ? playlist.genre_ids
+            .map((genre: any) => Number(genre?.id ?? genre))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        : [],
+    genre_names: genres.length
+      ? genres.map((genre) => genre.name)
+      : Array.isArray(playlist?.genre_names)
+        ? playlist.genre_names.filter(
+            (name: unknown): name is string =>
+              typeof name === "string" && Boolean(name.trim()),
+          )
+        : [],
+  } as ApiPlaylist;
+};
+
+const normalizeResultsSection = <T,>(section: any, mapItem: (item: any) => T) => {
+  const rawResults = Array.isArray(section)
+    ? section
+    : Array.isArray(section?.results)
+      ? section.results
+      : [];
+  return {
+    ...(section && !Array.isArray(section) ? section : {}),
+    count: Number.isFinite(Number(section?.count))
+      ? Number(section.count)
+      : rawResults.length,
+    next: typeof section?.next === "string" ? section.next : null,
+    results: rawResults.map(mapItem),
+  };
+};
+
+const normalizeHomeSummaryPayload = (
+  payload: any,
+  audience: string,
+): HomeSummaryResponse => {
+  const source = payload && typeof payload === "object" ? payload : {};
+  const recommendationSection = source.songs_recommendations || {};
+  const recommendationSongs = Array.isArray(recommendationSection.songs)
+    ? recommendationSection.songs
+    : Array.isArray(recommendationSection.results)
+      ? recommendationSection.results
+      : [];
+
+  return {
+    ...source,
+    _audience: audience,
+    songs_recommendations: {
+      ...recommendationSection,
+      type: recommendationSection.type || "",
+      message: recommendationSection.message || recommendationSection.error || "",
+      count: Number.isFinite(Number(recommendationSection.count))
+        ? Number(recommendationSection.count)
+        : recommendationSongs.length,
+      next:
+        typeof recommendationSection.next === "string"
+          ? recommendationSection.next
+          : null,
+      songs: recommendationSongs.map(normalizeSongPayload),
+    },
+    latest_releases: normalizeResultsSection(
+      source.latest_releases,
+      normalizeSongPayload,
+    ),
+    popular_artists: normalizeResultsSection(
+      source.popular_artists,
+      (artist) => artist as ApiArtist,
+    ),
+    popular_albums: normalizeResultsSection(source.popular_albums, (album) => {
+      const genres = normalizeGenreLinks(album);
+      return {
+        ...album,
+        genres,
+        genre_names: genres.length
+          ? genres.map((genre) => genre.name)
+          : Array.isArray(album?.genre_names)
+            ? album.genre_names
+            : [],
+        mood_names: Array.isArray(album?.mood_names) ? album.mood_names : [],
+        sub_genre_names: Array.isArray(album?.sub_genre_names)
+          ? album.sub_genre_names
+          : [],
+      } as ApiAlbum;
+    }),
+    playlist_recommendations: normalizeResultsSection(
+      source.playlist_recommendations,
+      normalizePlaylistPayload,
+    ),
+    discoveries: normalizeResultsSection(
+      source.discoveries,
+      normalizeSongPayload,
+    ),
+    trending: source.trending
+      ? {
+          ...normalizeResultsSection(source.trending, normalizeSongPayload),
+          window_days: source.trending.window_days ?? null,
+          is_all_time: Boolean(source.trending.is_all_time),
+          minimum_met: Boolean(source.trending.minimum_met),
+        }
+      : undefined,
+    sections: Number.isFinite(Number(source.sections))
+      ? Number(source.sections)
+      : 0,
+  };
+};
 
 interface PaginatedResponse<T> {
   count: number;
@@ -157,20 +362,6 @@ const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
-};
-
-const getTimeAgo = (dateStr: string) => {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (seconds < 60) return "لحظاتی پیش";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} دقیقه پیش`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} ساعت پیش`;
-  const days = Math.floor(hours / 24);
-  return `${days} روز پیش`;
 };
 
 // Utility function to convert ApiSong to Track
@@ -265,6 +456,8 @@ type HeroHighlight = {
   metaRight: string;
   type?: "song" | "playlist" | "album";
   item?: any;
+  sourceSectionKey: string;
+  sourceLabel: string;
 };
 
 export function createSlug(title: string): string {
@@ -275,7 +468,18 @@ export function createSlug(title: string): string {
 }
 
 export default function Home() {
-  const { logout, accessToken, user, authenticatedFetch } = useAuth();
+  const { direction, language } = useI18n();
+  const { logout, accessToken, user, authenticatedFetch, isInitializing } = useAuth();
+  const {
+    notifications,
+    hasUnread,
+    markingReadIds,
+    isMarkingAll,
+    refreshNotifications,
+    markAsRead,
+    markAllAsRead,
+    formatTimeAgo,
+  } = useNotifications();
   const { setCurrentPage, navigateTo, homeCache, setHomeCache } =
     useNavigation();
   const {
@@ -288,24 +492,14 @@ export default function Home() {
   const { setQueue } = usePlayer();
   const isGuest = !accessToken;
   const audienceKey = isGuest
-    ? "guest"
-    : `member:${user?.id ?? "loading"}`;
+    ? `guest:${language}`
+    : `member:${user?.id ?? "loading"}:${language}`;
   const cachedHomeData =
     homeCache?._audience === audienceKey
-      ? (homeCache as HomeSummaryResponse)
+      ? normalizeHomeSummaryPayload(homeCache, audienceKey)
       : null;
 
-  const isPremium = Boolean(
-    user &&
-    // explicit plan field (newer API responses)
-    (user.plan === "premium" ||
-      // legacy / alternate fields
-      user.is_premium ||
-      user.isPremium ||
-      user.subscription?.is_active ||
-      user.is_premium === "true" ||
-      user.is_premium === 1),
-  );
+  const isPremium = user?.plan === "premium";
 
   const [homeData, setHomeData] = useState<HomeSummaryResponse | null>(
     cachedHomeData,
@@ -338,36 +532,54 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(() =>
     cachedHomeData ? false : true,
   );
+  const [homeError, setHomeError] = useState<string | null>(null);
+  const [homeReloadKey, setHomeReloadKey] = useState(0);
   const [showBrandText, setShowBrandText] = useState(true);
-  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
-  const [markingReadIds, setMarkingReadIds] = useState<Set<number>>(new Set());
   const [activeIndex, setActiveIndex] = useState(0);
   const isInitialMount = useRef(true);
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
   const navRef = useRef<HTMLDivElement>(null);
   const desktopNavRef = useRef<HTMLDivElement>(null);
-  const lastFetchedToken = useRef<string | null>(null);
+  const homeRequestSequenceRef = useRef(0);
+  const homeCacheRef = useRef(homeCache);
+  homeCacheRef.current = homeCache;
   const { isDesktop } = useResponsiveLayout();
   const isMobileView = !isDesktop;
 
   const authenticatedFetchRef = useRef(authenticatedFetch);
   authenticatedFetchRef.current = authenticatedFetch;
+  const accessTokenRef = useRef(accessToken);
+  accessTokenRef.current = accessToken;
 
   const fetchPublicHome = useCallback(
     async (input: RequestInfo | URL): Promise<Response> => {
-      if (!accessToken) return fetch(input);
+      const url = typeof input === "string" ? input : String(input);
+      const authenticated = Boolean(accessTokenRef.current);
+      clientTrace("HOME", "fetch:dispatch", { url, authenticated });
 
-      const response = await authenticatedFetchRef.current(input);
-      return response.status === 401 ? fetch(input) : response;
+      const startedAt = performance.now();
+      const response = authenticated
+        ? await authenticatedFetchRef.current(input)
+        : await fetch(input);
+
+      clientTrace("HOME", "fetch:response", {
+        url,
+        authenticated,
+        status: response.status,
+        ok: response.ok,
+        elapsedMs: Math.round(performance.now() - startedAt),
+      });
+      return response;
     },
-    [accessToken],
+    [],
   );
 
   const sectionTitles = [
-    "برای شما",
+    isGuest ? "منتخب‌های امروز" : "برای شما",
     "جدیدترین ریلیز ها ",
     "هنرمندان محبوب",
     "آلبوم‌های محبوب",
+    "در حال رشد",
     "پلی لیست‌های جدید برای شما",
     "برترین آهنگ‌های روز",
     "برترین آلبوم‌های روز",
@@ -378,72 +590,224 @@ export default function Home() {
   ];
 
   useEffect(() => {
-    if (audienceKey === lastFetchedToken.current) return;
-    lastFetchedToken.current = audienceKey;
+    clientTrace("HOME", "component:mounted", {
+      audienceKey,
+      isGuest,
+      isInitializing,
+      hasCachedHomeData: Boolean(cachedHomeData),
+      language,
+    });
+    return () => {
+      clientTrace("HOME", "component:unmounted", { audienceKey }, "warn");
+    };
+    // Mount/unmount only. Audience changes are logged separately below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    const audienceCache =
-      homeCache?._audience === audienceKey
-        ? (homeCache as HomeSummaryResponse)
+  useEffect(() => {
+    clientTrace("HOME", "auth-and-audience-state", {
+      audienceKey,
+      isGuest,
+      isInitializing,
+      hasAccessToken: Boolean(accessToken),
+      userId: user?.id ?? null,
+      language,
+    });
+  }, [accessToken, audienceKey, isGuest, isInitializing, language, user?.id]);
+
+  useEffect(() => {
+    // Authentication determines the Home audience. Waiting here avoids a
+    // transient guest request while an existing member session is restored.
+    if (isInitializing) {
+      clientTrace("HOME", "summary-effect:skipped-auth-initializing", {
+        audienceKey,
+      });
+      return;
+    }
+
+    // Every mounted effect instance subscribes to requestHomeSummary(). The
+    // request helper performs network-level deduplication, while this local
+    // sequence only prevents an obsolete/unmounted consumer from committing.
+    // This is intentionally StrictMode-safe: the development remount attaches
+    // a fresh consumer to the same in-flight promise instead of skipping it.
+    const requestId = ++homeRequestSequenceRef.current;
+    let active = true;
+    const requestedAudience = audienceKey;
+    const cachedForAudience =
+      homeCacheRef.current?._audience === requestedAudience
+        ? normalizeHomeSummaryPayload(homeCacheRef.current, requestedAudience)
         : null;
+    const isBackground = Boolean(cachedForAudience);
+    const requestKey = buildHomeSummaryRequestKey(
+      accessTokenRef.current,
+      language,
+    );
+    const isCurrentRequest = () =>
+      active && homeRequestSequenceRef.current === requestId;
 
-    // Never reuse another audience's home payload during login/logout transitions.
-    const isBackground = Boolean(audienceCache);
-    if (audienceCache) {
-      setHomeData(audienceCache);
+    clientTrace("HOME", "summary-effect:start", {
+      requestId,
+      requestedAudience,
+      isBackground,
+      reloadKey: homeReloadKey,
+      cacheAudience: homeCacheRef.current?._audience ?? null,
+    });
+
+    setHomeError(null);
+    if (cachedForAudience) {
+      clientTrace("HOME", "state:using-audience-cache", {
+        requestId,
+        requestedAudience,
+      });
+      setHomeData(cachedForAudience);
       setIsLoading(false);
     } else {
+      clientTrace("HOME", "state:reset-for-request", {
+        requestId,
+        requestedAudience,
+      });
       setHomeData(null);
       setIsLoading(true);
     }
 
-    const fetchHomeData = async (background: boolean) => {
+    const fetchHomeData = async (): Promise<void> => {
+      const startedAt = performance.now();
+      clientTrace("HOME", "summary-request:start", {
+        requestId,
+        requestedAudience,
+        background: isBackground,
+      });
+
       try {
-        const response = await fetchPublicHome(
-          "https://api.sedabox.com/api/home/summary/",
+        const data = await requestHomeSummary(requestKey, () =>
+          fetchPublicHome(HOME_SUMMARY_URL),
         );
-        if (response.ok) {
-          const data = await response.json();
-          data._audience = audienceKey;
+        const current = isCurrentRequest();
 
-          // Ensure songs_recommendations always has a songs array
-          if (!data.songs_recommendations) {
-            data.songs_recommendations = { type: "", message: "", songs: [] };
-          } else if (!Array.isArray(data.songs_recommendations.songs)) {
-            // If API returns an error field instead, set empty songs and preserve error/message
-            data.songs_recommendations.songs = [];
-            if (
-              !data.songs_recommendations.message &&
-              data.songs_recommendations.error
-            ) {
-              data.songs_recommendations.message =
-                data.songs_recommendations.error;
-            }
-          }
+        clientTrace("HOME", "summary-request:promise-resolved", {
+          requestId,
+          requestedAudience,
+          background: isBackground,
+          hasData: Boolean(data),
+          current,
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
 
-          // Only update if data is actually different to avoid unnecessary re-renders
-          const hasChanged =
-            JSON.stringify(data) !== JSON.stringify(audienceCache);
+        if (!current) {
+          clientTrace(
+            "HOME",
+            "summary-request:ignored-obsolete-consumer",
+            { requestId, requestedAudience, hasData: Boolean(data) },
+            "warn",
+          );
+          return;
+        }
+        if (!data) {
+          throw new Error("Home summary returned an empty response body.");
+        }
 
-          if (!background || hasChanged) {
-            setHomeData(data);
-            try {
-              setHomeCache(data);
-            } catch (e) {
-              /* noop if context setter unavailable */
-            }
+        const nextData = normalizeHomeSummaryPayload(data, requestedAudience);
+        clientTrace("HOME", "summary:normalized", {
+          requestId,
+          requestedAudience,
+          recommendations: nextData.songs_recommendations.songs.length,
+          latest: nextData.latest_releases.results.length,
+          artists: nextData.popular_artists.results.length,
+          albums: nextData.popular_albums.results.length,
+          playlists: Array.isArray(nextData.playlist_recommendations)
+            ? nextData.playlist_recommendations.length
+            : nextData.playlist_recommendations.results.length,
+          discoveries: nextData.discoveries.results.length,
+          trending: nextData.trending?.results.length ?? 0,
+        });
+
+        const hasChanged =
+          !cachedForAudience ||
+          JSON.stringify(nextData) !== JSON.stringify(cachedForAudience);
+
+        // The active consumer always receives the successful result. Cache
+        // writes are deduplicated separately and must never gate rendering.
+        setHomeData(nextData);
+        setHomeError(null);
+        clientTrace("HOME", "state:set-home-data", {
+          requestId,
+          requestedAudience,
+          background: isBackground,
+          hasChanged,
+        });
+
+        if (hasChanged) {
+          try {
+            setHomeCache(nextData);
+            clientTrace("HOME", "cache:set-home-cache", {
+              requestId,
+              requestedAudience,
+            });
+          } catch (error) {
+            clientTrace("HOME", "cache:set-home-cache-failed", error, "warn");
           }
         }
       } catch (error) {
-        console.error("Error fetching home data:", error);
-      } finally {
-        if (!background) {
-          setIsLoading(false);
+        const current = isCurrentRequest();
+        const message = getUserFacingErrorMessage(error, language, {
+          fa: "بارگذاری صفحه خانه انجام نشد. لطفاً دوباره تلاش کنید.",
+          en: "Home could not be loaded. Please try again.",
+        });
+
+        clientTrace(
+          "HOME",
+          "summary-request:failed",
+          {
+            requestId,
+            requestedAudience,
+            background: isBackground,
+            current,
+            elapsedMs: Math.round(performance.now() - startedAt),
+            error,
+          },
+          "error",
+        );
+
+        if (current) {
+          console.error("Error fetching home data:", error);
+          invalidateHomeSummaryRequest(requestKey);
+          setHomeError(message);
+          // Preserve a valid audience cache during a failed background refresh.
+          if (!cachedForAudience) setHomeData(null);
         }
+      } finally {
+        const current = isCurrentRequest();
+        clientTrace("HOME", "summary-request:finally", {
+          requestId,
+          requestedAudience,
+          background: isBackground,
+          current,
+          willReleaseLoading: current,
+          elapsedMs: Math.round(performance.now() - startedAt),
+        });
+
+        // Never leave the active Home consumer behind the skeleton, regardless
+        // of whether the request succeeded or failed.
+        if (current) setIsLoading(false);
       }
     };
 
-    fetchHomeData(isBackground);
-  }, [audienceKey, fetchPublicHome, homeCache, setHomeCache]);
+    void fetchHomeData();
+    return () => {
+      active = false;
+      clientTrace("HOME", "summary-effect:cancelled", {
+        requestId,
+        requestedAudience,
+      });
+    };
+  }, [
+    audienceKey,
+    fetchPublicHome,
+    homeReloadKey,
+    isInitializing,
+    language,
+    setHomeCache,
+  ]);
 
   // Fetch extra sections
   useEffect(() => {
@@ -487,86 +851,14 @@ export default function Home() {
     fetchExtra("weekly-top-songs-global", setWeeklyTopSongs, "weeklyTopSongs");
   }, [fetchPublicHome]);
 
-  const fetchNotifications = useCallback(async () => {
-    try {
-      const response = await authenticatedFetch(
-        "https://api.sedabox.com/api/notifications/",
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data);
-      }
-    } catch (error) {
-      console.error("Error fetching notifications:", error);
-    }
-  }, [authenticatedFetch]);
-
   useEffect(() => {
-    if (accessToken) {
-      fetchNotifications();
+    // The global provider keeps the socket alive on every route. Landing on
+    // Home still performs an authoritative HTTP reconciliation so missed or
+    // delayed socket events can never leave the badge stale.
+    if (!isInitializing && !isGuest) {
+      void refreshNotifications();
     }
-  }, [accessToken, fetchNotifications]);
-
-  const handleMarkAsRead = async (id: number) => {
-    if (markingReadIds.has(id)) return;
-
-    setMarkingReadIds((prev) => new Set(prev).add(id));
-    try {
-      const response = await authenticatedFetch(
-        `https://api.sedabox.com/api/notifications/${id}/read/`,
-        {
-          method: "POST",
-        },
-      );
-
-      if (response.ok) {
-        // Trigger the animation sequence
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === id ? { ...n, has_read: true } : n)),
-        );
-
-        // Wait a bit for the checkmark animation
-        await new Promise((resolve) => setTimeout(resolve, 300));
-
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === id ? { ...n, removing: true } : n)),
-        );
-
-        // Wait for slide-out animation then remove from state
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
-      }
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-    } finally {
-      setMarkingReadIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    }
-  };
-
-  const handleMarkAllAsRead = async () => {
-    if (notifications.length === 0) return;
-    try {
-      const response = await authenticatedFetch(
-        "https://api.sedabox.com/api/notifications/read/",
-        {
-          method: "POST",
-        },
-      );
-
-      if (response.ok) {
-        // Mark all as removing and fade them out
-        setNotifications((prev) => prev.map((n) => ({ ...n, removing: true })));
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setNotifications([]);
-      }
-    } catch (error) {
-      console.error("Error marking all notifications as read:", error);
-    }
-  };
+  }, [isGuest, isInitializing, refreshNotifications]);
 
   const fetchNextPlaylists = async () => {
     // Use DiscoveryContext's loader for pagination
@@ -716,6 +1008,17 @@ export default function Home() {
             artistId: (song as any).artist_id || (song as any).artist,
             artistSlug: (song as any).artist_slug,
           })),
+        trending: (homeData.trending?.results || []).map((song) => ({
+          id: song.id,
+          title: song.title,
+          subtitle: song.artist_name,
+          img: song.cover_image,
+          duration: formatDuration(song.duration_seconds),
+          isNew: false,
+          type: "song" as const,
+          artistId: (song as any).artist_id || (song as any).artist,
+          artistSlug: (song as any).artist_slug,
+        })),
         top10HipHop: homeData.latest_releases.results
           .slice(10, 20)
           .map((song, index) => ({
@@ -741,6 +1044,41 @@ export default function Home() {
         })),
       }
     : null;
+
+  useEffect(() => {
+    const hasTerminalError = !isLoading && Boolean(homeError) && !homeData;
+    const isRenderBlocked =
+      isLoading ||
+      (!homeData && !hasTerminalError) ||
+      (Boolean(homeData) && !sectionData);
+    const snapshot = {
+      isLoading,
+      hasHomeData: Boolean(homeData),
+      hasSectionData: Boolean(sectionData),
+      audienceKey,
+      homeError,
+      recommendations: homeData?.songs_recommendations?.songs?.length ?? null,
+      latest: homeData?.latest_releases?.results?.length ?? null,
+      discoveries: homeData?.discoveries?.results?.length ?? null,
+    };
+
+    clientTrace(
+      "HOME",
+      hasTerminalError
+        ? "render:error-state"
+        : isRenderBlocked
+          ? "render:skeleton"
+          : "render:data-ready",
+      snapshot,
+      hasTerminalError || isRenderBlocked ? "warn" : "info",
+    );
+
+    if (!isRenderBlocked) return;
+    const watchdog = window.setTimeout(() => {
+      clientTrace("HOME", "render:still-blocked-after-8s", snapshot, "error");
+    }, 8000);
+    return () => window.clearTimeout(watchdog);
+  }, [audienceKey, homeData, homeError, isLoading, sectionData]);
 
   useEffect(() => {
     const delay = isInitialMount.current ? 2700 : 700;
@@ -809,23 +1147,52 @@ export default function Home() {
     }
   }, [activeIndex]);
 
+  if (!isLoading && homeError && !homeData) {
+    return (
+      <>
+        <SEO />
+        <main
+          className="flex min-h-[70vh] items-center justify-center px-6 text-white"
+          role="alert"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950/80 p-6 text-center shadow-2xl">
+            <h1 className="text-xl font-bold">
+              {language === "fa"
+                ? "صفحه اصلی بارگذاری نشد"
+                : "Home could not load"}
+            </h1>
+            <p className="mt-3 break-words text-sm leading-6 text-zinc-400">
+              {homeError}
+            </p>
+            <button
+              type="button"
+              className="mt-6 rounded-full bg-white px-6 py-2.5 text-sm font-semibold text-black transition hover:bg-zinc-200"
+              onClick={() => setHomeReloadKey((value) => value + 1)}
+            >
+              {language === "fa" ? "تلاش دوباره" : "Try again"}
+            </button>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   if (isLoading || !sectionData || !homeData) {
     return (
       <>
         <SEO />
         <div
-          dir="rtl"
           className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
           style={{ minHeight: "calc(var(--vh, 1vh) * 100)" }}
         >
           <div className="pt-4">
-            <div className="px-4 text-right">
+            <div className="px-4 text-start">
               <div className="h-8 w-48 rounded bg-zinc-800 animate-pulse" />
             </div>
             <div className="flex flex-col gap-8 mt-4">
               {/* Four placeholder sections */}
               <div className="flex flex-col gap-3">
-                <div className="px-4 text-right">
+                <div className="px-4 text-start">
                   <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
                 </div>
                 <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
@@ -843,7 +1210,7 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-3">
-                <div className="px-4 text-right">
+                <div className="px-4 text-start">
                   <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
                 </div>
                 <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
@@ -861,7 +1228,7 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-3">
-                <div className="px-4 text-right">
+                <div className="px-4 text-start">
                   <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
                 </div>
                 <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
@@ -879,7 +1246,7 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-3">
-                <div className="px-4 text-right">
+                <div className="px-4 text-start">
                   <div className="h-6 w-40 rounded bg-zinc-800 animate-pulse" />
                 </div>
                 <div className="flex overflow-x-auto gap-4 px-4 pb-4 no-scrollbar">
@@ -922,7 +1289,7 @@ export default function Home() {
       key: "songs_recommendations",
       title: isGuest ? "منتخب‌های امروز" : "برای شما",
       subtitle: isGuest
-        ? "ترکیبی تازه از صداهای شنیدنی"
+        ? "بر اساس پخش‌های ۲۴ ساعت گذشته؛ با محبوب‌ها به‌عنوان جایگزین"
         : homeData.songs_recommendations.type === "personalized"
           ? "بر اساس شنیده‌ها و انتخاب‌های اخیر شما"
           : "پیشنهادهایی برای شروع یک کشف تازه",
@@ -954,7 +1321,6 @@ export default function Home() {
       content: (
         <div
           className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4"
-          style={{ direction: "rtl" }}
         >
           {sectionData.hottestDrops.map((item) => (
             <button
@@ -963,7 +1329,7 @@ export default function Home() {
                 handlePlaySong(item.id, homeData.latest_releases.results)
               }
               aria-label={`پخش ${item.title} از ${item.subtitle}`}
-              className="snap-center shrink-0 w-[85vw] sm:w-80 relative group cursor-pointer text-right focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl outline-none"
+              className="snap-center shrink-0 w-[85vw] sm:w-80 relative group cursor-pointer text-start focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl outline-none"
             >
               <div className="relative aspect-video bg-zinc-800 rounded-lg overflow-hidden shadow-lg">
                 <ImageWithPlaceholder
@@ -977,16 +1343,16 @@ export default function Home() {
                 </div>
               </div>
               <h3
-                className="mt-2 font-bold text-lg truncate hover:underline decoration-zinc-500"
+                className="mt-2 min-w-0 overflow-hidden text-lg font-bold hover:underline decoration-zinc-500"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigateTo("song-detail", { id: item.id });
                 }}
               >
-                {item.title}
+                <OverflowMarquee text={item.title} />
               </h3>
               <p
-                className="text-zinc-400 text-sm truncate hover:text-white transition-colors"
+                className="min-w-0 overflow-hidden text-sm text-zinc-400 hover:text-white transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (item.artistId) {
@@ -997,14 +1363,13 @@ export default function Home() {
                   }
                 }}
               >
-                {item.subtitle}
+                <OverflowMarquee text={item.subtitle} />
               </p>
             </button>
           ))}
         </div>
       ),
-      showMore:
-        !!homeData.latest_releases.next && sectionData.hottestDrops.length > 0,
+      showMore: sectionData.hottestDrops.length > 0,
       onShowMore: () => navigateTo("latest-releases"),
       onTitleClick: () => navigateTo("latest-releases"),
     });
@@ -1030,9 +1395,7 @@ export default function Home() {
           }
         />
       ),
-      showMore:
-        !!homeData.popular_artists.next &&
-        sectionData.popularArtists.length > 0,
+      showMore: sectionData.popularArtists.length > 0,
       onShowMore: () => navigateTo("popular-artists"),
       onTitleClick: () => navigateTo("popular-artists"),
     });
@@ -1061,8 +1424,7 @@ export default function Home() {
           overlayHeight="75%"
         />
       ),
-      showMore:
-        !!homeData.popular_albums.next && sectionData.popularAlbums.length > 0,
+      showMore: sectionData.popularAlbums.length > 0,
       onShowMore: () => navigateTo("popular-albums"),
       onTitleClick: () => navigateTo("popular-albums"),
     });
@@ -1084,10 +1446,28 @@ export default function Home() {
           }
         />
       ),
-      showMore:
-        !!homeData.discoveries.next && sectionData.newDiscoveries.length > 0,
+      showMore: sectionData.newDiscoveries.length > 0,
       onShowMore: () => navigateTo("new-discoveries"),
       onTitleClick: () => navigateTo("new-discoveries"),
+    });
+  }
+
+  if (
+    homeData.trending &&
+    Array.isArray(homeData.trending.results) &&
+    homeData.trending.results.length > 0
+  ) {
+    availableSections.push({
+      key: "trending",
+      title: "در حال رشد",
+      content: (
+        <HorizontalList
+          items={sectionData.trending}
+          onPlay={(item: ItemType) =>
+            handlePlaySong(item.id, homeData.trending?.results || [])
+          }
+        />
+      ),
     });
   }
 
@@ -1488,6 +1868,8 @@ export default function Home() {
       metaRight: formatDuration(firstRec.duration_seconds),
       type: "song",
       item: firstRec,
+      sourceSectionKey: "songs_recommendations",
+      sourceLabel: language === "fa" ? "برای تو" : "For You",
     });
   }
 
@@ -1505,6 +1887,8 @@ export default function Home() {
       metaRight: formatDuration(latest.duration_seconds),
       type: "song",
       item: latest,
+      sourceSectionKey: "latest_releases",
+      sourceLabel: language === "fa" ? "تازه‌ترین انتشارها" : "New Releases",
     });
   }
 
@@ -1527,12 +1911,44 @@ export default function Home() {
       metaRight: formatDuration(discovery.duration_seconds),
       type: "song",
       item: discovery,
+      sourceSectionKey: "discoveries",
+      sourceLabel: language === "fa" ? "کشف‌های تازه" : "New Discoveries",
     });
   }
 
-  const playlistForHero = Array.isArray(playlistRecommendations)
+  const homePlaylistResults = Array.isArray(homeData.playlist_recommendations)
+    ? homeData.playlist_recommendations
+    : homeData.playlist_recommendations.results;
+  const discoveryPlaylistForHero = Array.isArray(playlistRecommendations)
     ? playlistRecommendations[0]
     : undefined;
+  const matchingHomePlaylist = discoveryPlaylistForHero
+    ? homePlaylistResults.find(
+        (playlist) =>
+          String(playlist.unique_id || playlist.id) ===
+          String(discoveryPlaylistForHero.unique_id || discoveryPlaylistForHero.id),
+      )
+    : homePlaylistResults[0];
+  const playlistForHero = discoveryPlaylistForHero
+    ? normalizePlaylistPayload({
+        ...(matchingHomePlaylist || {}),
+        ...discoveryPlaylistForHero,
+        genres:
+          discoveryPlaylistForHero.genres?.length
+            ? discoveryPlaylistForHero.genres
+            : matchingHomePlaylist?.genres,
+        genre_ids:
+          discoveryPlaylistForHero.genre_ids?.length
+            ? discoveryPlaylistForHero.genre_ids
+            : matchingHomePlaylist?.genre_ids,
+        genre_names:
+          discoveryPlaylistForHero.genre_names?.length
+            ? discoveryPlaylistForHero.genre_names
+            : matchingHomePlaylist?.genre_names,
+      })
+    : matchingHomePlaylist
+      ? normalizePlaylistPayload(matchingHomePlaylist)
+      : undefined;
   if (playlistForHero) {
     const idx = heroHighlights.length % meshGradients.length;
     heroHighlights.push({
@@ -1546,10 +1962,15 @@ export default function Home() {
           : "منتخب صداباکس برای حال تو"),
       image: playlistForHero.cover_image || "/default-cover.jpg",
       meshGradient: meshGradients[idx],
-      highlight: `${playlistForHero.songs_count} ترک`,
-      metaRight: "لیست پخش آماده پخش",
+      highlight:
+        playlistForHero.genre_names?.slice(0, 2).join(" • ") ||
+        `${playlistForHero.songs_count} ترک`,
+      metaRight: `${playlistForHero.songs_count} ترک`,
       type: "playlist",
       item: playlistForHero,
+      sourceSectionKey: "playlist_recommendations",
+      sourceLabel:
+        language === "fa" ? "پلی‌لیست‌های پیشنهادی" : "Recommended Playlists",
     });
   }
 
@@ -1588,44 +2009,116 @@ export default function Home() {
     }
   };
 
-  const handleHeroPrimaryPlay = () => {
-    const sources: ApiSong[][] = [];
-    if (homeData.songs_recommendations.songs.length) {
-      sources.push(homeData.songs_recommendations.songs);
+  const getHeroSongSource = (item: HeroHighlight): ApiSong[] => {
+    switch (item.sourceSectionKey) {
+      case "songs_recommendations":
+        return homeData.songs_recommendations.songs;
+      case "latest_releases":
+        return homeData.latest_releases.results;
+      case "discoveries":
+        return homeData.discoveries.results;
+      default:
+        return [];
     }
-    if (homeData.discoveries.results.length) {
-      sources.push(homeData.discoveries.results);
-    }
-    if (homeData.latest_releases.results.length) {
-      sources.push(homeData.latest_releases.results);
-    }
-    const list = sources[0];
-    if (!list || !list.length) return;
-    handlePlaySong(list[0].id, list);
   };
 
-  const handleHeroCardPlay = (item: HeroHighlight) => {
-    if (item.type === "song" && item.item) {
-      if (item.key.startsWith("personal-")) {
-        handlePlaySong(item.item.id, homeData.songs_recommendations.songs);
-      } else if (item.key.startsWith("latest-")) {
-        handlePlaySong(item.item.id, homeData.latest_releases.results);
-      } else if (item.key.startsWith("discovery-")) {
-        handlePlaySong(item.item.id, homeData.discoveries.results);
-      }
-    } else if (item.type === "playlist" && item.item) {
-      navigateTo("playlist-detail", {
-        id: item.item.unique_id || item.item.id,
-        slug: createSlug(item.item.title),
-      });
+  const handleHeroPrimaryPlay = (item: HeroHighlight) => {
+    if (item.type !== "song") {
+      void handleHeroCardPlay(item);
+      return;
     }
+    const source = getHeroSongSource(item);
+    if (!source.length || !item.item?.id) return;
+    handlePlaySong(item.item.id, source);
+  };
+
+  const handleHeroCardPlay = async (item: HeroHighlight) => {
+    if (!item.item) return;
+
+    if (item.type === "song") {
+      const source = getHeroSongSource(item);
+      if (source.length) handlePlaySong(item.item.id, source);
+      return;
+    }
+
+    const isPlaylist = item.type === "playlist";
+    const detailId = item.item.unique_id || item.item.id;
+    const endpoint = isPlaylist
+      ? `https://api.sedabox.com/api/home/playlist-recommendations/${detailId}/`
+      : `https://api.sedabox.com/api/albums/${detailId}/`;
+
+    try {
+      const embedded = Array.isArray(item.item.songs) ? item.item.songs : [];
+      const songs = embedded.some((song: any) => song?.stream_url || song?.preview_url)
+        ? embedded
+        : await authenticatedFetch(endpoint).then(async (response) => {
+            if (!response.ok) throw new Error("Unable to load collection");
+            const detail = await response.json();
+            return Array.isArray(detail.songs) ? detail.songs : [];
+          });
+
+      const tracks = songs.map(apiSongToTrack).filter((track: Track) => track.src);
+      if (tracks.length) setQueue(tracks, 0);
+    } catch (error) {
+      console.error("Failed to start hero collection:", error);
+    }
+  };
+
+  const handleHeroItemNavigate = (
+    item: HeroHighlight,
+    target: "song" | "artist" | "album" | "playlist",
+  ) => {
+    const data = item.item || {};
+    if (target === "artist") {
+      const id = data.artist_id || data.artist?.id || data.artist;
+      if (id) navigateTo("artist-detail", { id, slug: data.artist_slug || createSlug(data.artist_name || "") });
+      return;
+    }
+    if (target === "album") {
+      const id = data.album_id || data.album?.id || data.album;
+      if (id) navigateTo("album-detail", { id, slug: createSlug(data.album_title || data.title || "") });
+      return;
+    }
+    if (target === "playlist") {
+      navigateTo("playlist-detail", { id: data.unique_id || data.id, slug: createSlug(data.title || "") });
+      return;
+    }
+    navigateTo("song-detail", {
+      id: data.id,
+      artistSlug: data.artist_slug || createSlug(data.artist_name || ""),
+      songSlug: createSlug(data.title || ""),
+    });
+  };
+
+  const handleHeroSourceNavigate = (item: HeroHighlight) => {
+    const sourcePages: Record<string, string> = {
+      songs_recommendations: "for-you",
+      latest_releases: "latest-releases",
+      discoveries: "new-discoveries",
+      playlist_recommendations: "recommended-playlists",
+    };
+    const page = sourcePages[item.sourceSectionKey];
+    if (page) {
+      navigateTo(page);
+      return;
+    }
+    scrollToSectionByKey(item.sourceSectionKey);
+  };
+
+  const handleHeroGenreNavigate = (genre: ApiGenreLink) => {
+    if (!Number.isFinite(Number(genre.id))) return;
+    navigateTo("genre-detail", {
+      id: Number(genre.id),
+      name: genre.name,
+      color: HOME_GENRE_ACCENT_HEX[Number(genre.id)] ?? "#1a1a2e",
+    });
   };
 
   return (
     <>
       <SEO />
       <div
-        dir="rtl"
+        dir={direction}
         className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
         style={{ minHeight: "calc(var(--vh, 1vh) * 100)" }}
       >
@@ -1646,7 +2139,7 @@ export default function Home() {
                     src={user.image_profile.image}
                     alt="Profile"
                     className="w-full h-full object-cover"
-                    type="artist"
+                    type="user"
                   />
                 ) : (
                   <UserIcon className="w-6 h-6 text-zinc-400" />
@@ -1673,17 +2166,20 @@ export default function Home() {
                   صداباکس
                 </div>
               </div>
-              <NotificationPopover
-                notifications={notifications}
-                setNotifications={setNotifications}
-                markingReadIds={markingReadIds}
-                setMarkingReadIds={setMarkingReadIds}
-                onMarkAsRead={handleMarkAsRead}
-                onMarkAllAsRead={handleMarkAllAsRead}
-                getTimeAgo={getTimeAgo}
-                isMobile={true}
-              />
-              {!isPremium && (
+              {!isGuest && (
+                <NotificationPopover
+                  notifications={notifications}
+                  hasUnread={hasUnread}
+                  markingReadIds={markingReadIds}
+                  onMarkAsRead={markAsRead}
+                  onMarkAllAsRead={markAllAsRead}
+                  isMarkingAll={isMarkingAll || markingReadIds.size > 0}
+                  onOpen={() => void refreshNotifications()}
+                  getTimeAgo={formatTimeAgo}
+                  isMobile={true}
+                />
+              )}
+              {!isGuest && !isPremium && (
                 <button
                   onClick={() => navigateTo("premium")}
                   className="text-emerald-500 px-4 py-1.5 rounded-full font-semibold shadow-md hover:brightness-95 transition-transform transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
@@ -1697,7 +2193,6 @@ export default function Home() {
           <div
             ref={navRef}
             className="flex gap-3 overflow-x-auto no-scrollbar pb-2 items-center will-change-transform"
-            style={{ direction: "rtl" }}
             aria-label="بخش‌های خانه"
           >
             {availableSections.map((s, i) => (
@@ -1743,7 +2238,7 @@ export default function Home() {
                 aria-label="بخش قبلی"
               >
                 <svg
-                  className="w-4 h-4"
+                  className="w-4 h-4 sb-back-icon-right"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -1774,7 +2269,7 @@ export default function Home() {
                 aria-label="بخش بعدی"
               >
                 <svg
-                  className="w-4 h-4"
+                  className="w-4 h-4 sb-forward-icon-left"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -1794,7 +2289,6 @@ export default function Home() {
             <div
               ref={desktopNavRef}
               className="flex-1 flex gap-2 overflow-x-auto no-scrollbar items-center py-1"
-              style={{ direction: "rtl" }}
               aria-label="بخش‌های خانه"
             >
               {availableSections.map((s, i) => {
@@ -1828,7 +2322,7 @@ export default function Home() {
 
             {/* Right side controls – fixed max width so they don't crowd the nav */}
             <div className="flex items-center gap-3 shrink-0 max-w-xs">
-              {!isPremium && (
+              {!isGuest && !isPremium && (
                 <button
                   onClick={() => navigateTo("premium")}
                   className="text-emerald-500 px-3 py-1.5 rounded-full font-semibold text-sm whitespace-nowrap hover:text-emerald-400 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
@@ -1836,16 +2330,19 @@ export default function Home() {
                   ارتقا پلن +
                 </button>
               )}
-              <NotificationPopover
-                notifications={notifications}
-                setNotifications={setNotifications}
-                markingReadIds={markingReadIds}
-                setMarkingReadIds={setMarkingReadIds}
-                onMarkAsRead={handleMarkAsRead}
-                onMarkAllAsRead={handleMarkAllAsRead}
-                getTimeAgo={getTimeAgo}
-                isMobile={false}
-              />
+              {!isGuest && (
+                <NotificationPopover
+                  notifications={notifications}
+                  hasUnread={hasUnread}
+                  markingReadIds={markingReadIds}
+                  onMarkAsRead={markAsRead}
+                  onMarkAllAsRead={markAllAsRead}
+                  isMarkingAll={isMarkingAll || markingReadIds.size > 0}
+                  onOpen={() => void refreshNotifications()}
+                  getTimeAgo={formatTimeAgo}
+                  isMobile={false}
+                />
+              )}
               <button
                 onClick={() => navigateTo("profile")}
                 className="shrink-0 w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-white/10 transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
@@ -1856,7 +2353,7 @@ export default function Home() {
                     src={user.image_profile.image}
                     alt="Profile"
                     className="w-full h-full object-cover"
-                    type="artist"
+                    type="user"
                   />
                 ) : (
                   <UserIcon className="w-5 h-5 text-zinc-400" />
@@ -1874,15 +2371,19 @@ export default function Home() {
             stats={heroStats}
             isGuest={isGuest}
             onPrimaryPlay={handleHeroPrimaryPlay}
-            onGoToDiscover={() => scrollToSectionByKey("discoveries")}
+            onGoToSource={handleHeroSourceNavigate}
             onCardPlay={handleHeroCardPlay}
+            onItemNavigate={handleHeroItemNavigate}
+            onGenreNavigate={handleHeroGenreNavigate}
           />
           {availableSections.map((s, i) => (
             <Section
               key={s.key}
               title={s.title}
               subtitle={s.subtitle}
-              sectionRef={(el) => (sectionRefs.current[i] = el)}
+              sectionRef={(el) => {
+                sectionRefs.current[i] = el;
+              }}
               dataIndex={i}
               showMore={s.showMore}
               onShowMore={s.onShowMore}
@@ -2083,7 +2584,68 @@ const Section = ({
     data-index={dataIndex}
     className="flex flex-col gap-3 fade-in scroll-mt-[135px] md:scroll-mt-24"
   >
-    <div className="px-4 text-right relative">
+    {/* Mobile only: title on row one, subtitle and action on one compact row below. */}
+    <div className="px-4 text-start md:hidden">
+      {onTitleClick ? (
+        <h2 className="w-full text-start text-2xl font-bold leading-none tracking-tight">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onTitleClick();
+            }}
+            className="w-full rounded text-start text-2xl font-bold leading-none tracking-tight transition-colors hover:text-white hover:underline decoration-zinc-500 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          >
+            {title}
+          </button>
+        </h2>
+      ) : (
+        <h2 className="w-full text-start text-2xl font-bold leading-none tracking-tight">
+          {title}
+        </h2>
+      )}
+
+      {(subtitle || showMore) && (
+        <div className="mt-1.5 flex min-h-5 w-full items-center justify-between gap-3">
+          {subtitle ? (
+            <p className="min-w-0 flex-1 truncate text-start text-xs font-medium leading-5 text-zinc-400">
+              {subtitle}
+            </p>
+          ) : (
+            <span className="min-w-0 flex-1" aria-hidden="true" />
+          )}
+
+          {showMore && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowMore?.();
+              }}
+              aria-label="نمایش بیشتر"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded bg-transparent px-1 py-1 text-xs font-medium leading-none text-zinc-400 transition hover:text-white outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            >
+              <span className="leading-none">نمایش بیشتر</span>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                className="h-3.5 w-3.5 text-zinc-400 transition-transform duration-150 sb-forward-icon-left"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 18l-6-6 6-6"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+
+    {/* Desktop/tablet markup intentionally preserved exactly. */}
+    <div className="px-4 text-start relative hidden md:block">
       {showMore && (
         <button
           onClick={(e) => {
@@ -2091,7 +2653,7 @@ const Section = ({
             onShowMore?.();
           }}
           aria-label="نمایش بیشتر"
-          className="absolute left-4 top-1/2 -translate-y-1/2 inline-flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-medium bg-transparent px-2 py-1 rounded transition focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+          className="absolute left-4 sb-inline-end-position top-1/2 -translate-y-1/2 inline-flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-medium bg-transparent px-2 py-1 rounded transition focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
         >
           <span className="flex items-center gap-2">
             <span className="leading-none">نمایش بیشتر</span>
@@ -2100,7 +2662,7 @@ const Section = ({
               fill="none"
               stroke="currentColor"
               strokeWidth={2}
-              className="w-4 h-4 text-zinc-400 transition-transform duration-150"
+              className="w-4 h-4 text-zinc-400 transition-transform duration-150 sb-forward-icon-left"
               aria-hidden="true"
             >
               <path
@@ -2114,24 +2676,24 @@ const Section = ({
       )}
       <div className="w-full flex flex-col items-end">
         {onTitleClick ? (
-          <h2 className="text-2xl font-bold tracking-tight leading-none text-right w-full">
+          <h2 className="text-2xl font-bold tracking-tight leading-none text-start w-full">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onTitleClick();
               }}
-              className="text-2xl font-bold tracking-tight leading-none text-right w-full text-left md:text-right hover:text-white transition-colors hover:underline decoration-zinc-500 focus-visible:ring-2 focus-visible:ring-emerald-500 rounded outline-none"
+              className="text-2xl font-bold tracking-tight leading-none text-start w-full text-left md:text-start hover:text-white transition-colors hover:underline decoration-zinc-500 focus-visible:ring-2 focus-visible:ring-emerald-500 rounded outline-none"
             >
               {title}
             </button>
           </h2>
         ) : (
-          <h2 className="text-2xl font-bold tracking-tight leading-none text-right w-full">
+          <h2 className="text-2xl font-bold tracking-tight leading-none text-start w-full">
             {title}
           </h2>
         )}
         {subtitle && (
-          <p className="text-zinc-400 text-xs font-medium text-right w-full mt-1">
+          <p className="text-zinc-400 text-xs font-medium text-start w-full mt-1">
             {subtitle}
           </p>
         )}
@@ -2196,14 +2758,21 @@ const HorizontalList = ({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4 will-change-transform"
-      style={{ direction: "rtl" }}
     >
       {items.map((item, index) => (
-        <button
+        <div
           key={item.id}
+          role="button"
+          tabIndex={0}
           onClick={() => (onPlay ? onPlay(item) : onItemClick?.(item))}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onPlay ? onPlay(item) : onItemClick?.(item);
+            }
+          }}
           aria-label={`${item.title} از ${item.subtitle}`}
-          className={`snap-start shrink-0 flex flex-col gap-2 group cursor-pointer text-right focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl outline-none ${
+          className={`snap-start shrink-0 flex flex-col gap-2 group cursor-pointer text-start focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-xl outline-none ${
             variant === "circle"
               ? "w-28"
               : variant === "layered"
@@ -2374,7 +2943,7 @@ const HorizontalList = ({
             }`}
           >
             <h3
-              className={`font-semibold text-white truncate w-full hover:underline decoration-zinc-500 ${
+              className={`w-full min-w-0 overflow-hidden font-semibold text-white hover:underline decoration-zinc-500 ${
                 variant === "circle" ? "text-sm" : "text-sm"
               }`}
               onClick={(e) => {
@@ -2398,10 +2967,17 @@ const HorizontalList = ({
                 }
               }}
             >
-              {item.title}
+              {item.type === "song" || item.type === "artist" ? (
+                <OverflowMarquee
+                  text={item.title}
+                  align={item.type === "artist" ? "center" : "start"}
+                />
+              ) : (
+                <span className="block truncate">{item.title}</span>
+              )}
             </h3>
             <p
-              className="text-zinc-400 text-xs truncate w-full hover:text-white transition-colors"
+              className="w-full min-w-0 overflow-hidden text-xs text-zinc-400 hover:text-white transition-colors"
               onClick={(e) => {
                 const isDesktop =
                   typeof window !== "undefined" &&
@@ -2420,10 +2996,17 @@ const HorizontalList = ({
                 }
               }}
             >
-              {item.subtitle}
+              {item.type === "song" || item.type === "album" ? (
+                <OverflowMarquee
+                  text={item.subtitle}
+                  align={variant === "circle" ? "center" : "start"}
+                />
+              ) : (
+                <span className="block truncate">{item.subtitle}</span>
+              )}
             </p>
           </div>
-        </button>
+        </div>
       ))}
     </div>
   );
@@ -2485,7 +3068,7 @@ const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
         >
           <button
             onClick={() => onPlay?.(item)}
-            className="flex flex-row-reverse items-center gap-4 bg-zinc-900/50 p-2 pr-4 rounded-md group active:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-white transition-colors relative cursor-pointer hover:bg-zinc-800/70 text-right w-full"
+            className="flex flex-row-reverse items-center gap-4 bg-zinc-900/50 p-2 pr-4 rounded-md group active:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-white transition-colors relative cursor-pointer hover:bg-zinc-800/70 text-start w-full"
             aria-label={`پخش ${item.title} از ${item.subtitle}`}
           >
             <span
@@ -2503,17 +3086,17 @@ const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
                 type="song"
               />
             </div>
-            <div className="flex flex-col overflow-hidden flex-1 min-w-0 text-right">
-              <span className="font-bold truncate text-white flex items-center gap-2">
-                {item.title}
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden text-start">
+              <span className="flex min-w-0 items-center gap-2 font-bold text-white">
+                <OverflowMarquee text={item.title} className="min-w-0 flex-1" />
                 {item.isNew && (
-                  <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg z-20 ml-2">
+                  <span className="z-20 shrink-0 rounded bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-lg">
                     جدید
                   </span>
                 )}
               </span>
-              <span className="text-zinc-400 text-xs truncate">
-                {item.subtitle}
+              <span className="min-w-0 overflow-hidden text-xs text-zinc-400">
+                <OverflowMarquee text={item.subtitle} />
               </span>
             </div>
             <MoreHorizontal className="w-5 h-5 text-zinc-400 shrink-0" />
@@ -2574,13 +3157,12 @@ const PremiumChartList = ({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       className="flex overflow-x-auto gap-6 px-4 snap-x snap-mandatory no-scrollbar pb-6"
-      style={{ direction: "rtl" }}
     >
       {items.map((item, index) => (
         <button
           key={item.id}
           onClick={() => onPlay?.(item)}
-          className="snap-start shrink-0 w-[75vw] sm:w-80 group cursor-pointer relative text-right"
+          className="snap-start shrink-0 w-[75vw] sm:w-80 group cursor-pointer relative text-start"
           aria-label={`پخش ${item.title} از ${item.subtitle}`}
         >
           <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur opacity-0 group-hover:opacity-20 transition duration-500" />
@@ -2603,7 +3185,7 @@ const PremiumChartList = ({
             </div>
             <div className="flex-1 min-w-0">
               <h4
-                className="text-white font-bold truncate text-base hover:underline decoration-zinc-500"
+                className="min-w-0 overflow-hidden text-base font-bold text-white hover:underline decoration-zinc-500"
                 onClick={(e) => {
                   const isDesktop =
                     typeof window !== "undefined" &&
@@ -2621,10 +3203,14 @@ const PremiumChartList = ({
                   }
                 }}
               >
-                {item.title}
+                {item.type === "song" ? (
+                  <OverflowMarquee text={item.title} />
+                ) : (
+                  <span className="block truncate">{item.title}</span>
+                )}
               </h4>
               <p
-                className="text-zinc-400 text-xs truncate mt-0.5 hover:text-white transition-colors"
+                className="mt-0.5 min-w-0 overflow-hidden text-xs text-zinc-400 hover:text-white transition-colors"
                 onClick={(e) => {
                   const isDesktop =
                     typeof window !== "undefined" &&
@@ -2643,7 +3229,11 @@ const PremiumChartList = ({
                   }
                 }}
               >
-                {item.subtitle}
+                {item.type === "song" || item.type === "album" ? (
+                  <OverflowMarquee text={item.subtitle} />
+                ) : (
+                  <span className="block truncate">{item.subtitle}</span>
+                )}
               </p>
               <div className="flex items-center justify-end gap-2 mt-2">
                 <span className="text-[10px] text-emerald-500 font-medium px-2 py-0.5 bg-emerald-500/10 rounded-full">
@@ -2691,7 +3281,7 @@ const GlassAlbumGrid = ({
           <button
             key={item.id}
             onClick={() => onItemClick?.(item)}
-            className="group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-2xl p-1 text-right"
+            className="group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-2xl p-1 text-start"
             aria-label={`آلبوم ${item.title} از ${item.subtitle}`}
           >
             <div className="relative aspect-square rounded-2xl overflow-hidden mb-3 shadow-xl">
@@ -2727,7 +3317,7 @@ const GlassAlbumGrid = ({
               {item.title}
             </h4>
             <p
-              className="text-zinc-400 text-[11px] truncate px-1 mt-0.5 hover:text-white transition-colors"
+              className="mt-0.5 min-w-0 overflow-hidden px-1 text-[11px] text-zinc-400 hover:text-white transition-colors"
               onClick={(e) => {
                 const isDesktop =
                   typeof window !== "undefined" &&
@@ -2743,7 +3333,7 @@ const GlassAlbumGrid = ({
                 }
               }}
             >
-              {item.subtitle}
+              <OverflowMarquee text={item.subtitle} />
             </p>
           </button>
         ))}
@@ -2816,7 +3406,6 @@ const SpotlightArtistList = ({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       className="flex overflow-x-auto gap-8 px-6 no-scrollbar pb-4"
-      style={{ direction: "rtl" }}
     >
       {items.map((item) => (
         <button
@@ -2837,7 +3426,7 @@ const SpotlightArtistList = ({
             </div>
           </div>
           <h4
-            className="text-white font-bold text-sm group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
+            className="w-32 min-w-0 overflow-hidden text-sm font-bold text-white transition-colors group-hover:text-emerald-400 hover:underline decoration-zinc-500 sm:w-40"
             onClick={(e) => {
               const isDesktop =
                 typeof window !== "undefined" &&
@@ -2848,7 +3437,7 @@ const SpotlightArtistList = ({
               navigateTo("artist-detail", { id: item.id, slug: item.slug });
             }}
           >
-            {item.title}
+            <OverflowMarquee text={item.title} align="center" />
           </h4>
           <p className="text-zinc-400 text-[10px] mt-1 uppercase tracking-widest font-medium">
             Artist

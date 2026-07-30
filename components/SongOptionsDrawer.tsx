@@ -18,7 +18,7 @@ import {
 import Image from "next/image";
 import { useAuth } from "./AuthContext";
 import { usePlayer } from "./PlayerContext";
-import { useNavigation } from "./NavigationContext";
+import { pushNavigationEntry, useNavigation } from "./NavigationContext";
 import { createSlug } from "./home";
 import { toast } from "react-hot-toast";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
@@ -69,8 +69,7 @@ export const SongOptionsDrawer = ({
   const { download, playTrack, queue, setQueue, isVisible, currentIndex } =
     usePlayer();
 
-  const isPremium =
-    !!user?.plan && String(user.plan).toLowerCase().includes("premium");
+  const isPremium = user?.plan === "premium";
   const { navigateTo } = useNavigation();
   const [processing, setProcessing] = useState<string | null>(null);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
@@ -238,14 +237,16 @@ export const SongOptionsDrawer = ({
           // fallback: push state and dispatch popstate so NavigationContext picks it up
           try {
             if (typeof window !== "undefined") {
-              const state = { page: "song-detail", params: { id: song.id } };
               const path = `/track/${song.id}`;
-              console.log("SongOptionsDrawer: fallback pushState", {
-                state,
+              const state = pushNavigationEntry(
+                "song-detail",
+                { id: song.id, title: song.title },
                 path,
-              });
-              window.history.pushState(state, "", path);
-              window.dispatchEvent(new PopStateEvent("popstate", { state }));
+              );
+              console.log("SongOptionsDrawer: fallback pushState", { state, path });
+              if (state) {
+                window.dispatchEvent(new PopStateEvent("popstate", { state }));
+              }
             }
           } catch (e) {
             console.error("SongOptionsDrawer: Navigation fallback failed:", e);
@@ -323,7 +324,7 @@ export const SongOptionsDrawer = ({
                   console.warn("Like request failed", resp.status);
                   if (resp.status === 401) {
                     try {
-                      toast.error("برای لایک کردن لطفا وارد شوید");
+                      requestAuth("برای لایک‌کردن آهنگ وارد شوید.");
                     } catch (e) {}
                   } else {
                     try {
@@ -464,7 +465,6 @@ export const SongOptionsDrawer = ({
   const content = (
     <div
       className={`bg-[#121212] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)] ${isDesktop ? "rounded-[32px] overflow-hidden" : "rounded-t-[32px]"}`}
-      dir="rtl"
     >
       {/* Handle */}
       {!isDesktop && (
@@ -479,6 +479,7 @@ export const SongOptionsDrawer = ({
             src={song.cover_image}
             alt={song.title}
             fill
+            sizes="100vw"
             className="object-cover"
           />
         </div>
@@ -524,7 +525,7 @@ export const SongOptionsDrawer = ({
         {isDesktop && (
           <button
             onClick={onClose}
-            className="absolute left-4 top-4 text-white/40 hover:text-white transition-all transform hover:scale-110 active:scale-95 bg-white/5 hover:bg-white/10 p-2 rounded-full"
+            className="absolute left-4 sb-inline-end-position top-4 text-white/40 hover:text-white transition-all transform hover:scale-110 active:scale-95 bg-white/5 hover:bg-white/10 p-2 rounded-full"
           >
             <X className="w-4 h-4" />
           </button>
@@ -542,7 +543,7 @@ export const SongOptionsDrawer = ({
                 optionDisabled ? undefined : () => handleActionClick(option.id)
               }
               disabled={optionDisabled}
-              className={`relative w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors group text-right ${
+              className={`relative w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors group text-start ${
                 optionDisabled
                   ? "opacity-60 cursor-not-allowed"
                   : "hover:bg-white/5 active:bg-white/10"
@@ -592,7 +593,6 @@ export const SongOptionsDrawer = ({
             <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
             <Drawer.Content
               className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
-              dir="rtl"
             >
               {content}
             </Drawer.Content>

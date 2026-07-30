@@ -236,7 +236,7 @@ const MainContent = memo(
     return (
       <div
         className={`
-        flex-1 flex flex-col
+        sb-content-adjacent-sidebar flex-1 flex flex-col
         min-h-screen
         bg-linear-to-b from-zinc-900 via-zinc-900 to-black
         md:rounded-lg md:m-2 md:mr-0

@@ -15,8 +15,10 @@ import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
 import { usePlayer, Track } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { ResponsiveSheet } from "./ResponsiveSheet";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
+import { buildUserNavigationParams } from "../lib/userProfileRoute";
 
 // ============== API INTERFACES ==============
 
@@ -44,12 +46,15 @@ interface UserPlaylistResponse {
   songs_count: number;
   likes_count: number;
   is_liked: boolean;
+  is_owner?: boolean;
   songs: ApiSong[];
   top_three_song_covers: string[];
   created_at: string;
   updated_at: string;
   generated_by?: "system" | "admin" | "audience";
   creator_unique_id?: string | null;
+  creator_user_id?: number | null;
+  creator_name?: string | null;
   order?: any[];
 }
 
@@ -92,7 +97,9 @@ type IconName =
   | "arrowDown"
   | "order"
   | "check"
-  | "close";
+  | "close"
+  | "pencil"
+  | "trash";
 
 const ICON_PATHS: Record<
   IconName,
@@ -154,6 +161,14 @@ const ICON_PATHS: Record<
   },
   close: {
     d: "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z",
+    fill: true,
+  },
+  pencil: {
+    d: "M4 20h4l10.5-10.5-4-4L4 16v4zm12.9-12.9l1.4-1.4a1.4 1.4 0 0 1 2 0l.7.7a1.4 1.4 0 0 1 0 2l-1.4 1.4-2.7-2.7z",
+    fill: true,
+  },
+  trash: {
+    d: "M6 7h12l-1 14H7L6 7zm3-4h6l1 2h4v2H4V5h4l1-2zm1 6v9h2V9h-2zm4 0v9h2V9h-2z",
     fill: true,
   },
 };
@@ -221,6 +236,8 @@ const SongRow = memo(
     isEditingOrder,
     onMoveUp,
     onMoveDown,
+    onRemove,
+    isRemoving,
     isFirst,
     isLast,
   }: {
@@ -235,6 +252,8 @@ const SongRow = memo(
     isEditingOrder?: boolean;
     onMoveUp?: () => void;
     onMoveDown?: () => void;
+    onRemove?: () => void;
+    isRemoving?: boolean;
     isFirst?: boolean;
     isLast?: boolean;
   }) => {
@@ -256,7 +275,7 @@ const SongRow = memo(
             : "cursor-pointer hover:bg-white/[0.08] active:bg-white/[0.12]"
         } bg-black/5`}
       >
-        <div className="w-5 text-center text-sm text-neutral-400 tabular-nums">
+        <div className="sb-song-index-gutter w-5 shrink-0 text-center text-sm text-neutral-400 tabular-nums">
           {hover && !isEditingOrder ? (
             <Icon name={current && playing ? "pause" : "play"} size={14} />
           ) : current && playing ? (
@@ -355,15 +374,33 @@ const SongRow = memo(
                   e.stopPropagation();
                   onMoveDown?.();
                 }}
-                disabled={isLast}
+                disabled={isLast || isRemoving}
                 className={`w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-all ${
-                  isLast
+                  isLast || isRemoving
                     ? "opacity-10 cursor-not-allowed"
                     : "text-white/60 hover:text-green-500 hover:scale-110"
                 }`}
                 title="حرکت به پایین"
+                aria-label="حرکت آهنگ به پایین"
               >
                 <Icon name="arrowDown" size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove?.();
+                }}
+                disabled={isRemoving}
+                className="w-10 h-10 flex items-center justify-center rounded-full text-red-300/80 hover:text-red-300 hover:bg-red-500/10 transition-all disabled:opacity-40 disabled:cursor-wait"
+                title="حذف از پلی‌لیست"
+                aria-label={`حذف ${song.title} از پلی‌لیست`}
+              >
+                {isRemoving ? (
+                  <span className="w-4 h-4 rounded-full border-2 border-red-300/70 border-t-transparent animate-spin" />
+                ) : (
+                  <Icon name="trash" size={18} />
+                )}
               </button>
             </div>
           ) : (
@@ -399,10 +436,10 @@ interface UserPlaylistDetailProps {
 
 const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   id,
-  isOwner,
+  isOwner: ownerHint,
 }) => {
   const { goBack, scrollY, navigateTo } = useNavigation();
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { accessToken, authenticatedFetch, user } = useAuth();
   const { requestAuth } = useGuestAccess();
   const { setQueue, currentTrack, isPlaying } = usePlayer();
 
@@ -415,6 +452,11 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   const [isEditingOrder, setIsEditingOrder] = useState(false);
   const [displaySongs, setDisplaySongs] = useState<ApiSong[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [removingSongId, setRemovingSongId] = useState<number | null>(null);
+  const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editPublic, setEditPublic] = useState(false);
+  const [isSavingInfo, setIsSavingInfo] = useState(false);
 
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -422,6 +464,14 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
 
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
   const showHeader = scrollY > 50;
+  const isOwner = useMemo(() => {
+    if (!playlist || !accessToken) return false;
+    if (playlist.is_owner === true) return true;
+    if (user?.id && Number(playlist.creator_user_id) === Number(user.id)) return true;
+    // Compatibility fallback for older API responses. The backend still
+    // enforces ownership for every write endpoint.
+    return Boolean(ownerHint && !playlist.creator_user_id);
+  }, [playlist, accessToken, user?.id, ownerHint]);
 
   const fetchPlaylist = useCallback(async () => {
     if (!id) return;
@@ -470,6 +520,8 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
 
         setPlaylist({ ...data, songs: sortedSongs, order: orderData });
         setDisplaySongs(sortedSongs);
+        setEditTitle(String(data.title || ""));
+        setEditPublic(Boolean(data.public));
         setIsLiked(!!data.is_liked);
       } else {
         toast.error("خطا در بارگذاری پلی‌لیست");
@@ -532,30 +584,29 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   }, []);
 
   const handleSaveOrder = useCallback(async () => {
-    if (!playlist) return;
+    if (!playlist || !isOwner) return;
     setIsSaving(true);
     try {
-      // Create new order as array of objects [{id: 123, cover: 'url'}, ...]
-      const newOrder = displaySongs.map((s) => ({
-        id: s.id,
-        cover: s.cover_image,
-      }));
+      // The canonical backend contract is a plain, duplicate-free ID array.
+      // Older object-shaped entries are still accepted server-side.
+      const newOrder = displaySongs.map((song) => Number(song.id));
 
       const resp = await authenticatedFetch(
         `https://api.sedabox.com/api/profile/user-playlists/${id}/`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: playlist.title,
-            public: playlist.public,
-            order: newOrder,
-          }),
+          body: JSON.stringify({ order: newOrder }),
         },
       );
 
       if (resp.ok) {
-        setPlaylist({ ...playlist, songs: [...displaySongs], order: newOrder });
+        const updated = await resp.json();
+        const nextSongs = Array.isArray(updated.songs)
+          ? updated.songs
+          : [...displaySongs];
+        setPlaylist({ ...updated, songs: nextSongs, order: newOrder });
+        setDisplaySongs(nextSongs);
         setIsEditingOrder(false);
         toast.success("ترتیب آهنگ‌ها ذخیره شد");
       } else {
@@ -567,7 +618,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
     } finally {
       setIsSaving(false);
     }
-  }, [id, displaySongs, playlist, authenticatedFetch]);
+  }, [id, displaySongs, playlist, authenticatedFetch, isOwner]);
 
   const handleCancelOrder = useCallback(() => {
     if (playlist) {
@@ -575,6 +626,94 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
       setIsEditingOrder(false);
     }
   }, [playlist]);
+
+  const handleRemoveSong = useCallback(
+    async (song: ApiSong) => {
+      if (!playlist || !isOwner || removingSongId !== null) return;
+      setRemovingSongId(song.id);
+      try {
+        const resp = await authenticatedFetch(
+          `https://api.sedabox.com/api/profile/user-playlists/${playlist.id}/remove-song/${song.id}/`,
+          { method: "DELETE" },
+        );
+        if (!resp.ok) {
+          toast.error("حذف آهنگ از پلی‌لیست انجام نشد");
+          return;
+        }
+
+        const updated = await resp.json();
+        const nextSongs = Array.isArray(updated.songs)
+          ? updated.songs
+          : displaySongs.filter((item) => Number(item.id) !== Number(song.id));
+        const nextOrder = nextSongs.map((item) => Number(item.id));
+        setPlaylist({ ...updated, songs: nextSongs, order: nextOrder });
+        setDisplaySongs(nextSongs);
+        toast.success("آهنگ از پلی‌لیست حذف شد");
+      } catch (err) {
+        console.error("Remove playlist song error:", err);
+        toast.error("حذف آهنگ از پلی‌لیست انجام نشد");
+      } finally {
+        setRemovingSongId(null);
+      }
+    },
+    [playlist, isOwner, removingSongId, authenticatedFetch, displaySongs],
+  );
+
+  const openEditSheet = useCallback(() => {
+    if (!playlist || !isOwner) return;
+    setEditTitle(playlist.title);
+    setEditPublic(Boolean(playlist.public));
+    setIsEditSheetOpen(true);
+  }, [playlist, isOwner]);
+
+  const handleSaveInfo = useCallback(async () => {
+    if (!playlist || !isOwner || isSavingInfo) return;
+    const title = editTitle.trim();
+    if (!title) {
+      toast.error("نام پلی‌لیست نمی‌تواند خالی باشد");
+      return;
+    }
+
+    setIsSavingInfo(true);
+    try {
+      const resp = await authenticatedFetch(
+        `https://api.sedabox.com/api/profile/user-playlists/${playlist.id}/`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, public: editPublic }),
+        },
+      );
+      if (!resp.ok) {
+        toast.error("ویرایش پلی‌لیست انجام نشد");
+        return;
+      }
+
+      const updated = await resp.json();
+      const nextSongs = Array.isArray(updated.songs)
+        ? updated.songs
+        : displaySongs;
+      setPlaylist({ ...updated, songs: nextSongs });
+      setDisplaySongs(nextSongs);
+      setEditTitle(String(updated.title || title));
+      setEditPublic(Boolean(updated.public));
+      setIsEditSheetOpen(false);
+      toast.success("اطلاعات پلی‌لیست ذخیره شد");
+    } catch (err) {
+      console.error("Save playlist info error:", err);
+      toast.error("ویرایش پلی‌لیست انجام نشد");
+    } finally {
+      setIsSavingInfo(false);
+    }
+  }, [
+    playlist,
+    isOwner,
+    isSavingInfo,
+    editTitle,
+    editPublic,
+    authenticatedFetch,
+    displaySongs,
+  ]);
 
   const handleToggleLike = async () => {
     if (!playlist) return;
@@ -700,7 +839,6 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
     return (
       <div
         className="min-h-screen bg-[#0a0a0a] text-white animate-pulse"
-        dir="rtl"
       >
         <div className="relative w-full h-96 md:h-[500px] bg-zinc-900 mb-6" />
         <div className="px-6 md:px-12 pb-12">
@@ -740,7 +878,6 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   return (
     <div
       className="min-h-screen bg-linear-to-b from-neutral-900 via-neutral-950 to-black text-white pb-24"
-      dir="rtl"
     >
       {/* Desktop glass header */}
       <header
@@ -753,7 +890,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
             onClick={goBack}
             className="w-10 h-10 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center transition-all"
           >
-            <Icon name="arrowLeft" className="w-5 h-5 text-white" />
+            <Icon name="arrowLeft" className="w-5 h-5 text-white sb-back-icon-logical" />
           </button>
         </div>
         <div className="flex-1 text-center">
@@ -778,7 +915,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
             onClick={goBack}
             className="w-10 h-10 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center transition-all"
           >
-            <Icon name="arrowLeft" className="w-5 h-5 text-white" />
+            <Icon name="arrowLeft" className="w-5 h-5 text-white sb-back-icon" />
           </button>
         </div>
         <div className="flex-1 text-center">
@@ -807,18 +944,18 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
           })`,
         }}
       >
-        <div className="absolute top-4 left-4 z-20">
+        <div className="absolute top-4 left-4 z-20 sb-back-position">
           <button
             type="button"
             onClick={goBack}
             className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-all duration-300 hover:scale-105"
           >
-            <Icon name="arrowLeft" className="w-6 h-6 text-white" />
+            <Icon name="arrowLeft" className="w-6 h-6 text-white sb-back-icon" />
           </button>
         </div>
 
-        <div className="absolute inset-y-0 right-0 flex items-end pr-6 md:pr-12 pl-6 pb-8">
-          <div className="text-right max-w-lg">
+        <div className="sb-playlist-hero-info absolute inset-y-0 flex items-end pb-8">
+          <div className="text-start max-w-lg">
             <div className="flex items-center justify-end gap-2 mb-2 flex-row-reverse">
               <Icon
                 name={playlist.public ? "globe" : "lock"}
@@ -853,8 +990,8 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
               playlist.generated_by === "admin") && (
               <button
                 type="button"
-                onClick={() => navigateTo("user-detail", { id: "sedabox" })}
-                className="mt-3 text-sm text-green-400 transition-colors text-right flex items-center gap-2"
+                onClick={() => navigateTo("user-detail", buildUserNavigationParams({ unique_id: "sedabox", is_official: true }))}
+                className="mt-3 text-sm text-green-400 transition-colors text-start flex items-center gap-2"
               >
                 ایجاد شده توسط صداباکس
               </button>
@@ -864,11 +1001,16 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
                 <button
                   type="button"
                   onClick={() =>
-                    navigateTo("user-detail", {
-                      id: playlist.creator_unique_id!,
-                    })
+                    navigateTo(
+                      "user-detail",
+                      buildUserNavigationParams({
+                        id: playlist.creator_user_id,
+                        unique_id: playlist.creator_unique_id!,
+                        name: playlist.creator_name,
+                      }),
+                    )
                   }
-                  className="mt-3 text-sm text-blue-400 hover:underline transition-colors text-right"
+                  className="mt-3 text-sm text-blue-400 hover:underline transition-colors text-start"
                 >
                   ایجاد شده توسط {playlist.creator_unique_id}
                 </button>
@@ -946,15 +1088,27 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
                 <Icon name="more" className="w-7 h-7" />
               </button>
 
-              {isOwner && displaySongs.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setIsEditingOrder(true)}
-                  className="mr-auto text-sm bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-4 py-2 rounded-full flex items-center gap-2 transition-all"
-                >
-                  <Icon name="order" size={18} />
-                  <span>تغییر ترتیب</span>
-                </button>
+              {isOwner && (
+                <div className="sb-owner-playlist-actions flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={openEditSheet}
+                    className="text-sm bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-4 py-2 rounded-full flex items-center gap-2 transition-all"
+                  >
+                    <Icon name="pencil" size={17} />
+                    <span>ویرایش پلی‌لیست</span>
+                  </button>
+                  {displaySongs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingOrder(true)}
+                      className="text-sm bg-white/5 hover:bg-white/10 text-white/70 hover:text-white px-4 py-2 rounded-full flex items-center gap-2 transition-all"
+                    >
+                      <Icon name="order" size={18} />
+                      <span>مدیریت آهنگ‌ها</span>
+                    </button>
+                  )}
+                </div>
               )}
             </>
           )}
@@ -987,12 +1141,108 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
               isEditingOrder={isEditingOrder}
               onMoveUp={() => handleMoveUp(index)}
               onMoveDown={() => handleMoveDown(index)}
+              onRemove={() => handleRemoveSong(song)}
+              isRemoving={removingSongId === song.id}
               isFirst={index === 0}
               isLast={index === displaySongs.length - 1}
             />
           ))
         )}
       </main>
+
+      <ResponsiveSheet
+        isOpen={isEditSheetOpen}
+        onClose={() => !isSavingInfo && setIsEditSheetOpen(false)}
+        desktopWidth="w-[460px]"
+      >
+        <div className="flex h-full flex-col">
+          <div className="border-b border-white/10 px-6 pb-5 pt-6">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-400">
+              <Icon name="pencil" size={24} />
+            </div>
+            <h2 className="text-center text-xl font-bold text-white">
+              ویرایش پلی‌لیست
+            </h2>
+            <p className="mt-1 text-center text-sm text-white/45">
+              نام و وضعیت نمایش پلی‌لیست را تغییر دهید
+            </p>
+          </div>
+
+          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-white/60">
+                نام پلی‌لیست
+              </span>
+              <input
+                value={editTitle}
+                onChange={(event) => setEditTitle(event.target.value)}
+                maxLength={255}
+                autoFocus
+                className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-white outline-none transition-colors placeholder:text-white/25 focus:border-emerald-500/60"
+                placeholder="نام پلی‌لیست"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => setEditPublic((current) => !current)}
+              className="flex w-full items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.035] p-4 text-start transition-colors hover:bg-white/[0.055]"
+              aria-pressed={editPublic}
+            >
+              <div className="flex items-center gap-3">
+                <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                  editPublic
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "bg-white/[0.06] text-white/50"
+                }`}>
+                  <Icon name={editPublic ? "globe" : "lock"} size={20} />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold text-white">
+                    {editPublic ? "پلی‌لیست عمومی" : "پلی‌لیست شخصی"}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-white/40">
+                    {editPublic
+                      ? "همه کاربران می‌توانند این پلی‌لیست را ببینند"
+                      : "فقط خودتان به این پلی‌لیست دسترسی دارید"}
+                  </span>
+                </span>
+              </div>
+              <span className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                editPublic ? "bg-emerald-500" : "bg-white/15"
+              }`}>
+                <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                  editPublic ? "translate-x-1" : "translate-x-6"
+                }`} />
+              </span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 border-t border-white/10 p-6">
+            <button
+              type="button"
+              onClick={() => setIsEditSheetOpen(false)}
+              disabled={isSavingInfo}
+              className="rounded-xl border border-white/10 bg-white/[0.04] py-3 font-medium text-white/65 transition-colors hover:bg-white/[0.08] disabled:opacity-50"
+            >
+              انصراف
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveInfo}
+              disabled={isSavingInfo || !editTitle.trim()}
+              className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 font-bold text-black transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSavingInfo ? (
+                <span className="h-5 w-5 rounded-full border-2 border-black/70 border-t-transparent animate-spin" />
+              ) : (
+                <Icon name="check" size={19} />
+              )}
+              <span>ذخیره</span>
+            </button>
+          </div>
+        </div>
+      </ResponsiveSheet>
 
       <SongOptionsDrawer
         isOpen={isDrawerOpen}

@@ -138,10 +138,9 @@ const SongItem = memo(
       <div
         onClick={onPlay}
         className="group flex items-center justify-between p-3 hover:bg-white/5 rounded-lg cursor-pointer transition-all duration-200"
-        dir="rtl"
       >
         <div className="flex items-center gap-4 flex-1 min-w-0">
-          <span className="text-zinc-500 w-8 text-right font-medium group-hover:text-white transition-colors">
+          <span className="text-zinc-500 w-8 text-start font-medium group-hover:text-white transition-colors">
             {idx + 1}
           </span>
           <div className="relative w-12 h-12 flex-shrink-0 rounded shadow-lg overflow-hidden">
@@ -149,6 +148,7 @@ const SongItem = memo(
               src={song.cover_image}
               alt={song.title}
               fill
+              sizes="100vw"
               className="object-cover transition-transform group-hover:scale-110"
             />
             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -294,7 +294,6 @@ export default function ArtistSubPage({
         return (
           <div
             className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6"
-            dir="rtl"
           >
             {artistData.albums.items.map((album) => (
               <div
@@ -312,6 +311,7 @@ export default function ArtistSubPage({
                     src={album.cover_image}
                     alt={album.title}
                     fill
+                    sizes="100vw"
                     className="object-cover transition-transform duration-500 group-hover:scale-110"
                   />
                   <div className="absolute inset-x-0 bottom-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-gradient-to-t from-black/80 to-transparent">
@@ -345,7 +345,6 @@ export default function ArtistSubPage({
         return (
           <div
             className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6"
-            dir="rtl"
           >
             {artistData.discovered_on?.map((playlist) => (
               <div
@@ -363,6 +362,7 @@ export default function ArtistSubPage({
                     src={playlist.image}
                     alt={playlist.title}
                     fill
+                    sizes="100vw"
                     className="object-cover transition-transform duration-500 group-hover:scale-110"
                   />
                 </div>

@@ -17,6 +17,9 @@ import {
 } from "lucide-react";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { SEO } from "./SEO";
+import UserAvatar from "./UserAvatar";
+import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
+import { buildUserNavigationParams } from "../lib/userProfileRoute";
 
 function ensureHttps(u?: string | null): string | undefined {
   if (!u) return undefined;
@@ -24,6 +27,12 @@ function ensureHttps(u?: string | null): string | undefined {
     return u.replace("http://", "https://");
   }
   return u;
+}
+
+function validHistoryEntries(entries: unknown): any[] {
+  return Array.isArray(entries)
+    ? entries.filter((entry: any) => entry && entry.item)
+    : [];
 }
 
 const LibraryItem = ({
@@ -66,22 +75,30 @@ const LibraryItem = ({
         animate={{ opacity: 1, scale: 1 }}
         onClick={onClick}
         className="flex flex-col items-start w-full gap-2 group focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg outline-none"
-        dir="rtl"
         aria-label={itemAriaLabel}
         role="listitem"
       >
         <div
           className={`relative aspect-square w-full bg-[#181818] ${
-            type === "artist" ? "rounded-full" : "rounded-md"
+            (type === "artist" || type === "user") ? "rounded-full" : "rounded-md"
           } overflow-hidden group-hover:bg-[#282828] transition-all duration-300 shadow-lg`}
         >
           {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt=""
-              aria-hidden="true"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
+            type === "user" ? (
+              <UserAvatar
+                src={imageUrl}
+                alt={title}
+                sizes="(max-width: 768px) 44vw, 220px"
+                className="w-full h-full rounded-full group-hover:scale-105 transition-transform duration-500"
+              />
+            ) : (
+              <img
+                src={imageUrl}
+                alt=""
+                aria-hidden="true"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+            )
           ) : (
             <div
               className="w-full h-full flex items-center justify-center"
@@ -92,7 +109,7 @@ const LibraryItem = ({
             </div>
           )}
         </div>
-        <div className="flex flex-col items-start overflow-hidden text-right w-full px-0.5">
+        <div className="flex flex-col items-start overflow-hidden text-start w-full px-0.5">
           {typeof window !== "undefined" &&
           window.matchMedia &&
           window.matchMedia("(min-width: 768px)").matches ? (
@@ -264,23 +281,31 @@ const LibraryItem = ({
       <button
         onClick={onClick}
         className="flex items-center w-full py-2 gap-4 transition-colors rounded-lg group focus-visible:bg-white/5 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 px-2"
-        dir="rtl"
         aria-label={itemAriaLabel}
       >
         <div
           className={`flex-shrink-0 flex items-center justify-center w-16 h-16 bg-[#181818] ${
-            type === "artist" ? "rounded-full" : "rounded-md"
+            (type === "artist" || type === "user") ? "rounded-full" : "rounded-md"
           } overflow-hidden group-hover:bg-[#282828] transition-colors`}
           aria-hidden="true"
         >
           {imageUrl ? (
-            <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+            type === "user" ? (
+              <UserAvatar
+                src={imageUrl}
+                alt={title}
+                sizes="64px"
+                className="w-full h-full rounded-full"
+              />
+            ) : (
+              <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+            )
           ) : (
             icon || <User className="w-6 h-6 text-zinc-400" />
           )}
         </div>
 
-        <div className="flex flex-col items-start overflow-hidden text-right flex-1">
+        <div className="flex flex-col items-start overflow-hidden text-start flex-1">
           {typeof window !== "undefined" &&
           window.matchMedia &&
           window.matchMedia("(min-width: 768px)").matches ? (
@@ -450,7 +475,7 @@ const LibraryItem = ({
             e.stopPropagation();
             onOptionsClick();
           }}
-          className="absolute left-0 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+          className="absolute left-0 sb-inline-end-position top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
           aria-label={`گزینه‌های بیشتر برای ${title}`}
         >
           <MoreHorizontal className="w-5 h-5 text-white/70" />
@@ -467,7 +492,6 @@ const LibrarySkeletonItem: React.FC<{ viewMode?: "list" | "grid" }> = ({
     return (
       <div
         className="flex flex-col w-full gap-2 animate-pulse"
-        dir="rtl"
         aria-hidden="true"
         role="status"
       >
@@ -482,12 +506,11 @@ const LibrarySkeletonItem: React.FC<{ viewMode?: "list" | "grid" }> = ({
   return (
     <div
       className="flex items-center w-full py-2 gap-4 rounded-lg animate-pulse"
-      dir="rtl"
       aria-hidden="true"
       role="status"
     >
       <div className="flex-shrink-0 flex items-center justify-center w-16 h-16 bg-zinc-900 rounded-md" />
-      <div className="flex flex-col items-start overflow-hidden text-right flex-1">
+      <div className="flex flex-col items-start overflow-hidden text-start flex-1">
         <div className="h-4 bg-zinc-900 rounded w-3/4 mb-2" />
         <div className="h-3 bg-zinc-900 rounded w-1/2" />
       </div>
@@ -563,7 +586,7 @@ const LibraryScreen: React.FC = () => {
 
         if (response.ok) {
           const data = await response.json();
-          const results = data.results || [];
+          const results = validHistoryEntries(data.results);
           setHistory((prev) =>
             pageNum === 1 ? results : [...prev, ...results],
           );
@@ -606,7 +629,7 @@ const LibraryScreen: React.FC = () => {
         });
         if (response.ok) {
           const data = await response.json();
-          const results = data.results || [];
+          const results = validHistoryEntries(data.results);
           setSearchResults((prev) =>
             pageNum === 1 ? results : [...prev, ...results],
           );
@@ -763,13 +786,49 @@ const LibraryScreen: React.FC = () => {
     }
   };
 
-  const filteredHistory = history.filter((item) => {
-    const title = item.item.title || item.item.name || "";
-    return title.toLowerCase().includes(searchQuery.toLowerCase());
+  const navigateToLibraryItem = useCallback(
+    (type: string, item: any) => {
+      if (type === "user") {
+        navigateTo("user-detail", buildUserNavigationParams(item));
+        return;
+      }
+
+      const pageMap: Record<string, string> = {
+        artist: "artist-detail",
+        song: "song-detail",
+        playlist: "playlist-detail",
+        album: "album-detail",
+      };
+      const page = pageMap[type];
+      if (!page) return;
+
+      const isRecommendedPlaylist =
+        type === "playlist" &&
+        item.type === "recommended" &&
+        Boolean(item.unique_id);
+      const identifier = isRecommendedPlaylist ? item.unique_id : item.id;
+
+      navigateTo(page, {
+        id: identifier,
+        uniqueId: item.unique_id || undefined,
+        slug: item.unique_id || item.id,
+        generatedBy: item.generated_by,
+        creatorUniqueId: item.creator_unique_id,
+      });
+    },
+    [navigateTo],
+  );
+
+  const filteredHistory = history.filter((historyItem) => {
+    const item = historyItem?.item;
+    if (!item) return false;
+    const title = item.title || item.name || item.unique_id || "";
+    return String(title).toLowerCase().includes(searchQuery.toLowerCase());
   });
 
-  const displayItems =
-    searchQuery.trim().length > 0 ? searchResults : filteredHistory;
+  const displayItems = validHistoryEntries(
+    searchQuery.trim().length > 0 ? searchResults : filteredHistory,
+  );
   const noMoreResults =
     searchQuery.trim().length > 0 ? !searchHasNextPage : !hasNextPage;
 
@@ -808,7 +867,6 @@ const LibraryScreen: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   className="w-full flex items-center justify-between"
-                  dir="rtl"
                 >
                   <div className="flex items-center gap-3">
                     <button
@@ -817,10 +875,11 @@ const LibraryScreen: React.FC = () => {
                       aria-label="مشاهده پروفایل"
                     >
                       {user?.image_profile && user.image_profile.image ? (
-                        <img
-                          src={ensureHttps(user.image_profile.image)}
+                        <UserAvatar
+                          src={user.image_profile.image}
                           alt="Profile"
-                          className="w-full h-full object-cover"
+                          sizes="40px"
+                          className="w-full h-full rounded-full"
                         />
                       ) : user?.first_name ? (
                         <span className="text-white font-bold">
@@ -869,11 +928,10 @@ const LibraryScreen: React.FC = () => {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                   className="w-full h-full flex items-center gap-2"
-                  dir="rtl"
                 >
                   <div className="relative flex-1 h-10">
                     <Search
-                      className="absolute right-3  top-1/2 -translate-y-1/2 w-5 h-5 text-white"
+                      className="absolute right-3 sb-field-leading-position top-1/2 -translate-y-1/2 w-5 h-5 text-white"
                       aria-hidden="true"
                     />
                     <label htmlFor="library-search-input" className="sr-only">
@@ -902,7 +960,7 @@ const LibraryScreen: React.FC = () => {
                         setIsSearchActive(false);
                         setSearchQuery("");
                       }}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-zinc-700 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                      className="absolute left-3 sb-inline-end-position top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-zinc-700 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                       aria-label="بستن جستجو"
                     >
                       <X className="w-5 h-5 text-white" />
@@ -916,7 +974,6 @@ const LibraryScreen: React.FC = () => {
           {/* Header Second Row: Chips */}
           <div
             className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 no-scrollbar"
-            dir="rtl"
             role="group"
             aria-label="فیلترهای کتابخانه"
           >
@@ -987,6 +1044,7 @@ const LibraryScreen: React.FC = () => {
               <AnimatePresence mode="popLayout">
                 {displayItems.map((historyItem) => {
                   const { type, item } = historyItem;
+                  if (!item) return null;
                   let title = item.title || item.name || "";
                   let imageUrl = item.cover_image || item.profile_image || "";
                   let subtitle = getTranslatedType(type);
@@ -996,7 +1054,9 @@ const LibraryScreen: React.FC = () => {
                       `${item.first_name || ""} ${item.last_name || ""}`.trim();
                     title = name || item.unique_id || `کاربر ${item.id}`;
                     subtitle = item.unique_id || "";
-                    imageUrl = item.image_profile?.image || imageUrl || "";
+                    imageUrl = normalizeUserAvatarUrl(
+                      item.image_profile?.image || imageUrl || "",
+                    );
                   } else if (type === "artist") {
                     title = item.name || title;
                     imageUrl = item.profile_image || imageUrl || "";
@@ -1022,53 +1082,8 @@ const LibraryScreen: React.FC = () => {
                       type={type}
                       meta={item}
                       viewMode={viewMode}
-                      onClick={() => {
-                        // Special-case users: prefer navigating using unique_id when available
-                        if (type === "user") {
-                          const uid = item.unique_id || item.id.toString();
-                          navigateTo("user-detail", { id: uid });
-                          return;
-                        }
-
-                        const pageMap: Record<string, string> = {
-                          user: "user-detail",
-                          artist: "artist-detail",
-                          song: "song-detail",
-                          playlist: "playlist-detail",
-                          album: "album-detail",
-                        };
-                        const page = pageMap[type];
-                        if (page) {
-                          navigateTo(page, {
-                            id: item.id,
-                            uniqueId: item.unique_id || undefined,
-                            slug: item.unique_id || item.id,
-                          });
-                        }
-                      }}
-                      onTitleClick={() => {
-                        if (type === "user") {
-                          const uid = item.unique_id || item.id.toString();
-                          navigateTo("user-detail", { id: uid });
-                          return;
-                        }
-
-                        const pageMap: Record<string, string> = {
-                          user: "user-detail",
-                          artist: "artist-detail",
-                          song: "song-detail",
-                          playlist: "playlist-detail",
-                          album: "album-detail",
-                        };
-                        const page = pageMap[type];
-                        if (page) {
-                          navigateTo(page, {
-                            id: item.id,
-                            uniqueId: item.unique_id || undefined,
-                            slug: item.unique_id || item.id,
-                          });
-                        }
-                      }}
+                      onClick={() => navigateToLibraryItem(type, item)}
+                      onTitleClick={() => navigateToLibraryItem(type, item)}
                       onSubtitleClick={() => {
                         // for songs/albums, subtitle is artist name -> go to artist detail
                         if (type === "song" || type === "album") {
@@ -1076,8 +1091,7 @@ const LibraryScreen: React.FC = () => {
                             navigateTo("artist-detail", { id: item.artist_id });
                           }
                         } else if (type === "user") {
-                          const uid = item.unique_id || item.id.toString();
-                          navigateTo("user-detail", { id: uid });
+                          navigateTo("user-detail", buildUserNavigationParams(item));
                         }
                       }}
                     />

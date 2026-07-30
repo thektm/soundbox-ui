@@ -1,26 +1,38 @@
-import React, { useCallback, useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAuth } from "./AuthContext";
-
-interface ApiNotification {
-  id: number;
-  text: string;
-  has_read: boolean;
-  created_at: string;
-  removing?: boolean;
-}
+import { useI18n } from "./I18nContext";
+import type { ApiNotification } from "./NotificationContext";
 
 interface NotificationPopoverProps {
   notifications: ApiNotification[];
-  setNotifications: React.Dispatch<React.SetStateAction<ApiNotification[]>>;
+  hasUnread?: boolean;
   markingReadIds: Set<number>;
-  setMarkingReadIds: React.Dispatch<React.SetStateAction<Set<number>>>;
   onMarkAsRead: (id: number) => void;
   onMarkAllAsRead: () => void;
+  isMarkingAll?: boolean;
+  onOpen?: () => void;
   getTimeAgo: (dateStr: string) => string;
   trigger?: React.ReactNode;
   isMobile?: boolean;
 }
+
+const useNotificationLabels = () => {
+  const { language, direction } = useI18n();
+  return {
+    language,
+    direction,
+    title: language === "fa" ? "اعلان‌ها" : "Notifications",
+    close: language === "fa" ? "بستن" : "Close",
+    markAll: language === "fa" ? "همه خوانده شد" : "Mark all as read",
+    working: language === "fa" ? "در حال انجام..." : "Working...",
+    empty: language === "fa" ? "اعلان جدیدی وجود ندارد" : "No new notifications",
+    markOne: language === "fa" ? "خوانده‌شده علامت بزن" : "Mark as read",
+    text: (notification: ApiNotification) =>
+      language === "en"
+        ? notification.text_en || notification.text
+        : notification.text,
+  };
+};
 
 const Bell = ({ className }: { className?: string }) => (
   <svg
@@ -40,15 +52,17 @@ const Bell = ({ className }: { className?: string }) => (
 
 export default function NotificationPopover({
   notifications,
-  setNotifications,
+  hasUnread,
   markingReadIds,
-  setMarkingReadIds,
   onMarkAsRead,
   onMarkAllAsRead,
+  isMarkingAll = false,
+  onOpen,
   getTimeAgo,
   trigger,
   isMobile = false,
 }: NotificationPopoverProps) {
+  const labels = useNotificationLabels();
   const [open, setOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -68,7 +82,7 @@ export default function NotificationPopover({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
-      const dialog = document.querySelector('[aria-label="اعلان‌ها"]');
+      const dialog = document.querySelector('[data-notification-dialog]');
       if (
         popoverRef.current &&
         !popoverRef.current.contains(target) &&
@@ -91,7 +105,7 @@ export default function NotificationPopover({
     <div ref={popoverRef} className="relative">
       {trigger || (
         <button
-          aria-label="اعلان‌ها"
+          aria-label={labels.title}
           className="text-white/90 p-2 rounded-md hover:bg-white/5 transition relative"
           onClick={(e) => {
             // Capture desktop click coords so popover can appear to the right and below cursor
@@ -99,11 +113,19 @@ export default function NotificationPopover({
               const ev = e as React.MouseEvent;
               setAnchor({ x: ev.clientX, y: ev.clientY });
             }
-            setOpen((v) => !v);
+            // Keep provider-side effects out of React state updater functions.
+            // Calling onOpen() from inside setOpen(current => ...) causes React to
+            // update NotificationProvider while NotificationPopover is calculating
+            // its own state, which triggers the cross-component render warning.
+            const nextOpen = !open;
+            setOpen(nextOpen);
+            if (nextOpen) {
+              onOpen?.();
+            }
           }}
         >
           <Bell className="w-6 h-6" />
-          {notifications.some((n) => !n.has_read) && (
+          {(hasUnread ?? notifications.some((n) => !n.has_read)) && (
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-black shadow-sm animate-pulse" />
           )}
         </button>
@@ -116,6 +138,7 @@ export default function NotificationPopover({
             markingReadIds={markingReadIds}
             onMarkAsRead={onMarkAsRead}
             onMarkAllAsRead={onMarkAllAsRead}
+            isMarkingAll={isMarkingAll}
             getTimeAgo={getTimeAgo}
             onClose={() => setOpen(false)}
             anchor={!isMobile ? (anchor ?? undefined) : undefined}
@@ -131,6 +154,7 @@ interface ContentProps {
   markingReadIds: Set<number>;
   onMarkAsRead: (id: number) => void;
   onMarkAllAsRead: () => void;
+  isMarkingAll: boolean;
   getTimeAgo: (dateStr: string) => string;
   onClose: () => void;
   anchor?: { x: number; y: number } | undefined;
@@ -142,9 +166,11 @@ function MobileContent({
   markingReadIds,
   onMarkAsRead,
   onMarkAllAsRead,
+  isMarkingAll,
   getTimeAgo,
   onClose,
 }: ContentProps) {
+  const labels = useNotificationLabels();
   return (
     <>
       {/* Backdrop */}
@@ -177,7 +203,9 @@ function MobileContent({
           opacity: { duration: 0.2 },
         }}
         role="dialog"
-        aria-label="اعلان‌ها"
+        data-notification-dialog
+        aria-label={labels.title}
+        dir={labels.direction}
         className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-101"
         style={{
           // Performance optimizations
@@ -190,21 +218,22 @@ function MobileContent({
         <div className="bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-            <div className="font-bold text-base text-zinc-100">اعلان‌ها</div>
+            <div className="font-bold text-base text-zinc-100">{labels.title}</div>
             <div className="flex gap-3 items-center">
               {notifications.length > 0 && (
                 <button
-                  className="text-xs text-emerald-400 hover:text-emerald-300 font-medium transition-colors active:scale-95"
+                  className="text-xs text-emerald-400 hover:text-emerald-300 disabled:text-zinc-600 disabled:cursor-wait font-medium transition-colors active:scale-95"
                   onClick={onMarkAllAsRead}
+                  disabled={isMarkingAll}
                 >
-                  همه خوانده شد
+                  {isMarkingAll ? labels.working : labels.markAll}
                 </button>
               )}
               <button
                 className="text-xs text-zinc-400 hover:text-white transition-colors active:scale-95"
                 onClick={onClose}
               >
-                بستن
+                {labels.close}
               </button>
             </div>
           </div>
@@ -216,7 +245,7 @@ function MobileContent({
                 <div className="w-12 h-12 rounded-full bg-zinc-800/50 flex items-center justify-center">
                   <Bell className="w-6 h-6 text-zinc-500" />
                 </div>
-                اعلان جدیدی وجود ندارد
+                {labels.empty}
               </div>
             ) : (
               <AnimatePresence mode="popLayout">
@@ -249,7 +278,7 @@ function MobileContent({
                     />
                     <div className="flex-1 flex flex-col gap-1 min-w-0">
                       <div className="text-sm text-zinc-200 leading-relaxed font-medium line-clamp-2">
-                        {n.text}
+                        {labels.text(n)}
                       </div>
                       <div className="text-xs text-zinc-400 font-medium">
                         {getTimeAgo(n.created_at)}
@@ -272,10 +301,12 @@ function DesktopContent({
   markingReadIds,
   onMarkAsRead,
   onMarkAllAsRead,
+  isMarkingAll,
   getTimeAgo,
   onClose,
   anchor,
 }: ContentProps) {
+  const labels = useNotificationLabels();
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
@@ -307,7 +338,9 @@ function DesktopContent({
         ease: [0.32, 0.72, 0, 1],
       }}
       role="dialog"
-      aria-label="اعلان‌ها"
+      data-notification-dialog
+      aria-label={labels.title}
+      dir={labels.direction}
       className="z-100"
       style={{
         position: pos ? "fixed" : "absolute",
@@ -324,21 +357,22 @@ function DesktopContent({
       <div className="bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-          <div className="font-bold text-sm text-zinc-100">اعلان‌ها</div>
+          <div className="font-bold text-sm text-zinc-100">{labels.title}</div>
           <div className="flex gap-3 items-center">
             {notifications.length > 0 && (
               <button
-                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
+                className="text-[10px] text-emerald-400 hover:text-emerald-300 disabled:text-zinc-600 disabled:cursor-wait font-medium transition-colors"
                 onClick={onMarkAllAsRead}
+                disabled={isMarkingAll}
               >
-                همه خوانده شد
+                {isMarkingAll ? labels.working : labels.markAll}
               </button>
             )}
             <button
               className="text-[10px] text-zinc-400 hover:text-white transition-colors"
               onClick={onClose}
             >
-              بستن
+              {labels.close}
             </button>
           </div>
         </div>
@@ -350,7 +384,7 @@ function DesktopContent({
               <div className="w-10 h-10 rounded-full bg-zinc-800/50 flex items-center justify-center">
                 <Bell className="w-5 h-5 text-zinc-500" />
               </div>
-              اعلان جدیدی وجود ندارد
+              {labels.empty}
             </div>
           ) : (
             <AnimatePresence mode="popLayout">
@@ -379,9 +413,9 @@ function DesktopContent({
                     isMarking={markingReadIds.has(n.id)}
                     onMarkAsRead={onMarkAsRead}
                   />
-                  <div className="flex-1 flex flex-col gap-0.5 min-w-0 text-right">
+                  <div className="flex-1 flex flex-col gap-0.5 min-w-0 text-start">
                     <div className="text-xs text-zinc-200 leading-relaxed font-medium line-clamp-2">
-                      {n.text}
+                      {labels.text(n)}
                     </div>
                     <div className="text-[10px] text-zinc-400 font-medium">
                       {getTimeAgo(n.created_at)}
@@ -407,9 +441,11 @@ function NotificationCheckbox({
   isMarking: boolean;
   onMarkAsRead: (id: number) => void;
 }) {
+  const labels = useNotificationLabels();
   return (
     <button
       role="checkbox"
+      aria-label={labels.markOne}
       aria-checked={notification.has_read}
       disabled={isMarking}
       onClick={() => onMarkAsRead(notification.id)}

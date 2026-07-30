@@ -7,6 +7,8 @@ import { useResponsiveLayout } from "./ResponsiveLayout";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { GuestBottomNav, GuestSidebar, GuestTopActions } from "./GuestNavigation";
+import { useI18n } from "./I18nContext";
+import { useSplashVisibility } from "./SplashVisibilityContext";
 
 interface Props {
   children: React.ReactNode;
@@ -14,7 +16,9 @@ interface Props {
 
 const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
   const { isMobile } = useResponsiveLayout();
+  const { direction } = useI18n();
   const { isLoggedIn } = useAuth();
+  const { splashVisible } = useSplashVisibility();
   const { registerScrollContainer, restoreScroll, navigationKey } =
     useNavigation();
 
@@ -48,6 +52,7 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
     return (
       <>
         <div
+          dir={direction}
           className="w-full overflow-y-auto overflow-x-hidden"
           ref={registerScrollContainer}
           style={{
@@ -62,8 +67,8 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
         </div>
 
         {/* Bottom Navbar - only visible on mobile via its own classes */}
-        {isLoggedIn ? <BottomNavbar /> : <GuestBottomNav />}
-        {!isLoggedIn && <GuestTopActions />}
+        {!splashVisible && (isLoggedIn ? <BottomNavbar /> : <GuestBottomNav />)}
+        {!splashVisible && !isLoggedIn && <GuestTopActions />}
 
         <div id="music-player-root" />
       </>
@@ -73,13 +78,13 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
   // Tablet / Desktop: use the responsive layout shell (sidebar + rounded content)
   return (
     <>
-      <div dir="rtl" className="flex min-h-screen">
+      <div dir={direction} className="sb-app-shell flex min-h-screen">
         {/* Sidebar - Hidden on mobile, visible on tablet/desktop when logged in */}
         {isLoggedIn ? <Sidebar /> : <GuestSidebar />}
 
         {/* Main Content Area */}
         <div
-          className={`flex-1 flex flex-col min-h-screen md:max-h-screen md:overflow-hidden ${
+          className={`sb-content-adjacent-sidebar flex-1 flex flex-col min-h-screen md:max-h-screen md:overflow-hidden ${
             "md:m-2 md:mr-0 md:bg-linear-to-b md:from-zinc-900 md:via-zinc-900/95 md:to-black md:rounded-lg"
           }`}
           style={{ contain: "layout style", overscrollBehavior: "contain" }}
@@ -98,8 +103,8 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
       </div>
 
       {/* Bottom Navbar */}
-      {isLoggedIn ? <BottomNavbar /> : <GuestBottomNav />}
-      {!isLoggedIn && <GuestTopActions />}
+      {!splashVisible && (isLoggedIn ? <BottomNavbar /> : <GuestBottomNav />)}
+      {!splashVisible && !isLoggedIn && <GuestTopActions />}
 
       {/* Music Player */}
       {/* <MusicPlayer /> - not implemented */}

@@ -302,7 +302,6 @@ export const InitialModal: React.FC = () => {
   return (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 overflow-hidden"
-      dir="rtl"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -433,7 +432,7 @@ export const InitialModal: React.FC = () => {
                     <button
                       key={genre.id}
                       onClick={() => toggleGenre(genre.id)}
-                      className={`relative h-28 md:h-32 rounded-xl overflow-hidden p-4 text-right transition-all group shadow-lg ${
+                      className={`relative h-28 md:h-32 rounded-xl overflow-hidden p-4 text-start transition-all group shadow-lg ${
                         isSelected
                           ? "ring-4 ring-white scale-[0.98]"
                           : "hover:scale-105"
@@ -543,7 +542,7 @@ export const InitialModal: React.FC = () => {
                   onClick={handleBack}
                   className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center text-white hover:bg-white/5 transition-colors"
                 >
-                  <ArrowRight size={20} />
+                  <ArrowRight size={20} className="sb-back-icon-right" />
                 </button>
               )}
 
@@ -561,7 +560,7 @@ export const InitialModal: React.FC = () => {
                       : step === 2
                         ? "اتمام"
                         : "مرحله بعد"}
-                    <ArrowLeft size={20} />
+                    <ArrowLeft size={20} className="sb-forward-icon-left" />
                   </>
                 )}
               </button>

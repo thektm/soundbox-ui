@@ -10,6 +10,12 @@ import React, {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
+import { useI18n } from "./I18nContext";
+
+export interface ApiGenreLink {
+  id: number;
+  name: string;
+}
 
 export interface ApiPlaylist {
   id: number;
@@ -21,7 +27,57 @@ export interface ApiPlaylist {
   covers?: string[];
   songs_count: number;
   is_liked: boolean;
+  genres: ApiGenreLink[];
+  genre_ids: number[];
+  genre_names: string[];
 }
+
+const normalizePlaylistGenres = (playlist: any): ApiGenreLink[] => {
+  const byId = new Map<number, ApiGenreLink>();
+  const add = (idValue: unknown, nameValue: unknown) => {
+    const id = Number(idValue);
+    const name = typeof nameValue === "string" ? nameValue.trim() : "";
+    if (!Number.isFinite(id) || id <= 0 || !name || byId.has(id)) return;
+    byId.set(id, { id, name });
+  };
+
+  if (Array.isArray(playlist?.genres)) {
+    playlist.genres.forEach((genre: any) =>
+      add(genre?.id, genre?.name ?? genre?.title),
+    );
+  }
+  if (Array.isArray(playlist?.genre_ids)) {
+    playlist.genre_ids.forEach((genre: any, index: number) => {
+      if (genre && typeof genre === "object") {
+        add(
+          genre.id,
+          genre.name ?? genre.title ?? playlist?.genre_names?.[index],
+        );
+        return;
+      }
+      add(genre, playlist?.genre_names?.[index]);
+    });
+  }
+
+  return Array.from(byId.values());
+};
+
+const normalizePlaylist = (playlist: any): ApiPlaylist => {
+  const genres = normalizePlaylistGenres(playlist);
+  return {
+    ...(playlist || {}),
+    genres,
+    genre_ids: genres.map((genre) => genre.id),
+    genre_names: genres.length
+      ? genres.map((genre) => genre.name)
+      : Array.isArray(playlist?.genre_names)
+        ? playlist.genre_names.filter(
+            (name: unknown): name is string =>
+              typeof name === "string" && Boolean(name.trim()),
+          )
+        : [],
+  } as ApiPlaylist;
+};
 
 interface DiscoveryContextType {
   recommendedPlaylists: ApiPlaylist[];
@@ -48,15 +104,16 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const { accessToken, user, authenticatedFetch } = useAuth();
   const { homeCache } = useNavigation();
+  const { language } = useI18n();
   const audienceKey = accessToken
-    ? `member:${user?.id ?? "loading"}`
-    : "guest";
+    ? `member:${user?.id ?? "loading"}:${language}`
+    : `guest:${language}`;
   const [recommendedPlaylists, setRecommendedPlaylists] = useState<
     ApiPlaylist[]
   >([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasInitialFetched, setHasInitialFetched] = useState(false);
+  const hasInitialFetchedRef = useRef(false);
   const lastAudienceRef = useRef<string | null>(null);
 
   const authenticatedFetchRef = useRef(authenticatedFetch);
@@ -75,23 +132,13 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
   const setRecommendedData = useCallback((data: any) => {
     if (!data) return;
     const results = Array.isArray(data) ? data : data.results || [];
-    setRecommendedPlaylists(results);
+    setRecommendedPlaylists(results.map(normalizePlaylist));
     setNextUrl(data.next || null);
   }, []);
 
-  useEffect(() => {
-    if (
-      homeCache?._audience === audienceKey &&
-      homeCache?.playlist_recommendations &&
-      !hasInitialFetched
-    ) {
-      setRecommendedData(homeCache.playlist_recommendations);
-    }
-  }, [audienceKey, homeCache, hasInitialFetched, setRecommendedData]);
-
   const refreshRecommended = useCallback(
     async (force = false) => {
-      if (hasInitialFetched && !force) return;
+      if (hasInitialFetchedRef.current && !force) return;
       setIsLoading(true);
       try {
         const response = await fetchPublicRecommendations(
@@ -100,7 +147,7 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
         if (response.ok) {
           const data = await response.json();
           setRecommendedData(data);
-          setHasInitialFetched(true);
+          hasInitialFetchedRef.current = true;
         }
       } catch (error) {
         console.error("Error fetching recommended playlists:", error);
@@ -108,7 +155,7 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
         setIsLoading(false);
       }
     },
-    [fetchPublicRecommendations, hasInitialFetched, setRecommendedData],
+    [fetchPublicRecommendations, setRecommendedData],
   );
 
   const loadMoreRecommended = useCallback(async () => {
@@ -120,9 +167,21 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
       );
       if (response.ok) {
         const data = await response.json();
-        const results = Array.isArray(data) ? data : data.results || [];
-        setRecommendedPlaylists((prev) => [...prev, ...results]);
-        setNextUrl(data.next || null);
+        const section = data.playlist_recommendations || data;
+        const results = (Array.isArray(section)
+          ? section
+          : section.results || []
+        ).map(normalizePlaylist);
+        setRecommendedPlaylists((prev) => {
+          const seen = new Set(prev.map((playlist) => playlist.unique_id));
+          return [
+            ...prev,
+            ...results.filter(
+              (playlist: ApiPlaylist) => !seen.has(playlist.unique_id),
+            ),
+          ];
+        });
+        setNextUrl(section.next || null);
       }
     } catch (error) {
       console.error("Error loading more recommended playlists:", error);
@@ -132,16 +191,32 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [fetchPublicRecommendations, isLoading, nextUrl]);
 
   useEffect(() => {
-    if (lastAudienceRef.current === audienceKey) return;
+    const cached =
+      homeCache?._audience === audienceKey
+        ? homeCache.playlist_recommendations
+        : null;
+
+    if (lastAudienceRef.current === audienceKey) {
+      if (cached && !hasInitialFetchedRef.current) {
+        setRecommendedData(cached);
+        hasInitialFetchedRef.current = true;
+      }
+      return;
+    }
     lastAudienceRef.current = audienceKey;
 
-    // Clear the previous audience immediately so personalized playlists never
-    // flash during login/logout transitions.
     setRecommendedPlaylists([]);
     setNextUrl(null);
-    setHasInitialFetched(false);
+    hasInitialFetchedRef.current = false;
+
+    if (cached) {
+      setRecommendedData(cached);
+      hasInitialFetchedRef.current = true;
+      return;
+    }
+
     void refreshRecommended(true);
-  }, [audienceKey, refreshRecommended]);
+  }, [audienceKey, homeCache, refreshRecommended, setRecommendedData]);
 
   return (
     <DiscoveryContext.Provider

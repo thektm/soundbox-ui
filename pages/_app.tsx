@@ -4,12 +4,21 @@ import React from "react";
 import dynamic from "next/dynamic";
 import { AppRouter } from "@/components/AppRouter";
 import ResponsiveAppShell from "../components/ResponsiveAppShell";
-import toast, { Toaster, ToastBar } from "react-hot-toast";
+import toast, { Toaster, ToastBar, type Toast } from "react-hot-toast";
 import { SEO } from "@/components/SEO";
+import { I18nProvider, useI18n } from "@/components/I18nContext";
+import {
+  installClientFetchGuard,
+  sanitizeUserFacingErrorText,
+} from "@/lib/clientError";
 
 const AppContainer = dynamic(() => import("../components/AppContainer"), {
   ssr: false,
 });
+
+// Install before React renders so even the earliest child effects never receive
+// browser-specific messages such as "Failed to fetch" or Safari "Load failed".
+if (typeof window !== "undefined") installClientFetchGuard();
 
 // Shared toast style object (avoids re-creating on every render)
 const toastStyle = {
@@ -33,9 +42,22 @@ const toastOptions = {
 
 const containerStyle = { zIndex: 100000 } as const;
 
+function LocalizedToastBar({ toastItem }: { toastItem: Toast }) {
+  const { language } = useI18n();
+  const message =
+    typeof toastItem.message === "string"
+      ? sanitizeUserFacingErrorText(toastItem.message, language, {
+          fa: "خطایی رخ داد. لطفاً دوباره تلاش کنید.",
+          en: "Something went wrong. Please try again.",
+        })
+      : toastItem.message;
+
+  return <ToastBar toast={{ ...toastItem, message }} />;
+}
+
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <>
+    <I18nProvider>
       <SEO />
       <AppContainer>
         <Toaster
@@ -43,9 +65,9 @@ export default function App({ Component, pageProps }: AppProps) {
           containerStyle={containerStyle}
           toastOptions={toastOptions}
         >
-          {(t) => (
-            <div onClick={() => toast.dismiss(t.id)}>
-              <ToastBar toast={t} />
+          {(toastItem) => (
+            <div onClick={() => toast.dismiss(toastItem.id)}>
+              <LocalizedToastBar toastItem={toastItem} />
             </div>
           )}
         </Toaster>
@@ -53,6 +75,6 @@ export default function App({ Component, pageProps }: AppProps) {
           <AppRouter />
         </ResponsiveAppShell>
       </AppContainer>
-    </>
+    </I18nProvider>
   );
 }

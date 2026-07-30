@@ -13,7 +13,7 @@ import React, {
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { MOCK_ARTISTS, MOCK_SONGS, Song, createSlug } from "./mockData";
-import { useNavigation } from "./NavigationContext";
+import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { ArtistOptionsDrawer } from "./ArtistOptionsDrawer";
@@ -22,6 +22,7 @@ import { useGuestAccess } from "./GuestAccessContext";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
 import { SEO } from "./SEO";
+import { useI18n } from "./I18nContext";
 
 
 interface ApiArtist {
@@ -222,6 +223,7 @@ const LazyImg = memo(
             src={src}
             alt={alt}
             fill
+            sizes="100vw"
             className="object-cover"
             priority={!!priority}
           />
@@ -235,6 +237,7 @@ LazyImg.displayName = "LazyImg";
 // ============== ANIMATED NUMBER ==============
 const AnimNum = memo(
   ({ value, dur = 1500 }: { value: number; dur?: number }) => {
+    const { locale } = useI18n();
     const [n, setN] = useState(0);
     const { ref, visible } = useVisible();
 
@@ -253,7 +256,7 @@ const AnimNum = memo(
 
     return (
       <span ref={ref as React.RefObject<HTMLSpanElement>}>
-        {n.toLocaleString("fa-IR")}
+        {n.toLocaleString(locale)}
       </span>
     );
   },
@@ -328,6 +331,7 @@ const SongRow = memo(
     artistName?: string;
     delay: number;
   }) => {
+    const { locale } = useI18n();
     const [liked, setLiked] = useState(song.is_liked);
     const [hover, setHover] = useState(false);
     const { ref, visible } = useVisible();
@@ -403,7 +407,7 @@ const SongRow = memo(
               </div>
               <div className="text-[13px] text-white/60 truncate mt-0.5">
                 {song.plays
-                  ? `${song.plays.toLocaleString("fa-IR")} پخش`
+                  ? `${song.plays.toLocaleString(locale)} پخش`
                   : song.artist_name || artistName}
               </div>
             </>
@@ -545,7 +549,7 @@ interface ArtistDetailProps {
 }
 
 const ArtistSkeleton = () => (
-  <div className="min-h-screen bg-[#0a0a0a] text-white animate-pulse" dir="rtl">
+  <div className="min-h-screen bg-[#0a0a0a] text-white animate-pulse">
     {/* Hero Skeleton */}
     <div className="relative h-[45vh] min-h-[340px] bg-zinc-900" />
 
@@ -595,6 +599,7 @@ const ArtistSkeleton = () => (
 );
 
 export default function ArtistDetail({ id }: ArtistDetailProps) {
+  const { locale, language } = useI18n();
   const { goBack, currentParams, scrollY, navigateTo } = useNavigation();
   const { playTrack, setQueue, currentTrack, isPlaying } = usePlayer();
   const { accessToken, authenticatedFetch } = useAuth();
@@ -649,12 +654,13 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
               .replace(/^-+|-+$/g, "");
             const targetPath = `/artist/${artistId}${slug ? `-${slug}` : ""}`;
             if (window.location.pathname !== targetPath) {
-              window.history.replaceState(
+              replaceCurrentNavigationEntry(
+                "artist-detail",
                 {
-                  page: "artist-detail",
-                  params: { id: artistId },
+                  ...(window.history.state?.params || {}),
+                  id: artistId,
+                  name: artistName,
                 },
-                "",
                 targetPath,
               );
             }
@@ -890,7 +896,6 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
       <div
         ref={containerRef}
         className="min-h-screen bg-transparent text-white overflow-x-hidden pb-24 md:pb-4"
-        dir="rtl"
       >
         {/* Desktop Header */}
         <header className="hidden flex-row-reverse md:flex sticky top-0 z-50 h-16 items-center justify-between px-6 bg-zinc-900/80 backdrop-blur-xl">
@@ -900,7 +905,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
               className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
             >
               <svg
-                className="w-5 h-5"
+                className="w-5 h-5 sb-back-icon"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -948,7 +953,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
             onClick={goBack}
             className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition"
           >
-            <Icon name="back" size={24} className="text-white" />
+            <Icon name="back" size={24} className="text-white sb-back-icon" />
           </button>
           <span
             className="flex-1 px-4 text-base font-bold transition-opacity"
@@ -973,13 +978,13 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         {/* Mobile Back */}
         <button
           onClick={goBack}
-          className="fixed top-4 left-4 w-10 h-10 bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
+          className="fixed top-4 left-4 w-10 h-10 sb-back-position bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
           style={{
             opacity: showHeader ? 0 : 1,
             pointerEvents: showHeader ? "none" : "auto",
           }}
         >
-          <Icon name="back" size={24} className="text-white" />
+          <Icon name="back" size={24} className="text-white sb-back-icon" />
         </button>
 
         {/* Hero */}
@@ -1010,13 +1015,19 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
               {artist.name}
             </h1>
             <p className="text-white/70 text-sm">
-              {artist.monthly_listeners_count.toLocaleString("fa-IR")} شنونده
+              {artist.monthly_listeners_count.toLocaleString(locale)} شنونده
               ماهانه
             </p>
           </div>
 
           {/* Circular profile overlay: 40% bigger than main play button (w-14 -> ~w-20) */}
-          <div className="absolute z-40 bottom-5 left-5 pointer-events-auto">
+          <div
+            className={`absolute z-40 bottom-5 pointer-events-auto ${
+              language === "en"
+                ? "right-5 left-auto md:left-5 md:right-auto"
+                : "left-5 right-auto"
+            }`}
+          >
             <div
               className="w-30 h-30 md:w-24 md:h-24 rounded-full overflow-hidden bg-neutral-900 shadow-[0_12px_30px_rgba(2,6,23,0.6)]"
               style={{
@@ -1292,7 +1303,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                   {artist.monthly_listeners_count > 1000 ? (
                     <AnimNum value={artist.monthly_listeners_count} />
                   ) : (
-                    artist.monthly_listeners_count.toLocaleString("fa-IR")
+                    artist.monthly_listeners_count.toLocaleString(locale)
                   )}
                 </span>
                 <span className="text-xs text-white/60 mt-0.5">
@@ -1522,10 +1533,10 @@ const PlaylistSnippetCard = ({
         />
         <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
       </div>
-      <h3 className="font-bold text-[13px] sm:text-sm truncate mb-1 text-right">
+      <h3 className="font-bold text-[13px] sm:text-sm truncate mb-1 text-start">
         {playlist.title}
       </h3>
-      <p className="text-[11px] text-white/50 truncate uppercase tracking-wider text-right">
+      <p className="text-[11px] text-white/50 truncate uppercase tracking-wider text-start">
         {playlist.source === "admin" ? "پلی‌لیست رسمی" : "پلی‌لیست"}
       </p>
     </div>
@@ -1634,7 +1645,7 @@ const ArtistBioModal = memo(function ArtistBioModal({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="absolute right-4 top-4 w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition z-20"
+            className="absolute right-4 sb-inline-end-position top-4 w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition z-20"
           >
             <svg
               className="w-5 h-5"
@@ -1649,12 +1660,11 @@ const ArtistBioModal = memo(function ArtistBioModal({
 
           {/* Scrollable Bio Text Overlay */}
           <div className="absolute inset-x-0 bottom-0 top-16 px-8 pb-8 overflow-y-auto custom-scrollbar z-10">
-            <h2 className="text-3xl font-bold mb-4 drop-shadow-lg text-right">
+            <h2 className="text-3xl font-bold mb-4 drop-shadow-lg text-start">
               {artist.name}
             </h2>
             <p
               className="text-lg leading-relaxed text-white/90 font-medium drop-shadow-md text-justify"
-              dir="rtl"
             >
               {bioText}
             </p>
@@ -1664,7 +1674,6 @@ const ArtistBioModal = memo(function ArtistBioModal({
         {/* Footer Section: Avatar & Socials */}
         <div
           className="bg-neutral-900 p-6 flex items-center justify-between border-t border-white/5"
-          dir="rtl"
         >
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/10 shadow-lg">
@@ -1675,7 +1684,7 @@ const ArtistBioModal = memo(function ArtistBioModal({
                 type="artist"
               />
             </div>
-            <div className="hidden sm:block text-right">
+            <div className="hidden sm:block text-start">
               <div className="text-sm text-white/50">دنبال کنید در</div>
               <div className="font-semibold">شبکه‌های اجتماعی</div>
             </div>

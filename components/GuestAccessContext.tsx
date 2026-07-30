@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import React, {
   createContext,
   useCallback,
@@ -10,6 +11,8 @@ import React, {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
+import { X } from "lucide-react";
+import { useI18n } from "./I18nContext";
 
 type AuthReason = {
   title?: string;
@@ -44,6 +47,7 @@ export const GuestAccessProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const { isLoggedIn } = useAuth();
+  const { t, direction } = useI18n();
   const { currentPage, currentParams, navigateTo } = useNavigation();
   const [reason, setReason] = useState<Required<AuthReason> | null>(null);
 
@@ -134,8 +138,8 @@ export const GuestAccessProvider: React.FC<{ children: React.ReactNode }> = ({
       {reason && !isLoggedIn && (
         <div
           className="fixed inset-0 z-[120000] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"
-          dir="rtl"
           role="dialog"
+          dir={direction}
           aria-modal="true"
           aria-labelledby="guest-auth-title"
           onMouseDown={(event) => {
@@ -146,22 +150,33 @@ export const GuestAccessProvider: React.FC<{ children: React.ReactNode }> = ({
             <div className="pointer-events-none absolute -left-16 -top-20 h-52 w-52 rounded-full bg-emerald-500/20 blur-3xl" />
             <button
               type="button"
-              onClick={closeAuthPrompt}
-              className="absolute left-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/5 text-zinc-400 transition hover:bg-white/10 hover:text-white"
-              aria-label="بستن"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                closeAuthPrompt();
+              }}
+              className="absolute left-4 sb-inline-end-position top-4 z-20 grid h-11 w-11 touch-manipulation place-items-center rounded-full border border-white/10 bg-black/45 text-white transition hover:bg-white/10 active:scale-95"
+              aria-label={t("بستن پنجره")}
             >
-              ×
+              <X className="h-5 w-5" strokeWidth={2.4} />
             </button>
 
             <div className="relative">
-              <div className="mb-5 grid h-14 w-14 place-items-center rounded-2xl bg-emerald-400 text-2xl font-black text-black shadow-lg shadow-emerald-500/20">
-                S
+              <div className="mb-5 h-14 w-14 overflow-hidden rounded-2xl shadow-lg shadow-emerald-500/20">
+                <Image
+                  src="/logo.png"
+                  alt="Sedabox"
+                  width={56}
+                  height={56}
+                  className="h-full w-full object-contain"
+                  priority
+                />
               </div>
               <h2 id="guest-auth-title" className="text-2xl font-black text-white">
-                {reason.title}
+                {t(reason.title)}
               </h2>
               <p className="mt-3 text-sm leading-7 text-zinc-400">
-                {reason.description}
+                {t(reason.description)}
               </p>
 
               <div className="mt-7 grid gap-3">
@@ -170,21 +185,21 @@ export const GuestAccessProvider: React.FC<{ children: React.ReactNode }> = ({
                   onClick={() => continueTo("login")}
                   className="h-12 rounded-full bg-emerald-400 px-6 font-black text-black transition hover:bg-emerald-300 active:scale-[0.99]"
                 >
-                  ورود به حساب
+                  {t("ورود به حساب")}
                 </button>
                 <button
                   type="button"
                   onClick={() => continueTo("register")}
                   className="h-12 rounded-full border border-white/15 bg-white/5 px-6 font-bold text-white transition hover:bg-white/10 active:scale-[0.99]"
                 >
-                  ساخت حساب رایگان
+                  {t("ساخت حساب رایگان")}
                 </button>
                 <button
                   type="button"
                   onClick={closeAuthPrompt}
                   className="h-10 text-sm font-medium text-zinc-500 transition hover:text-zinc-300"
                 >
-                  ادامه به‌صورت مهمان
+                  {t("ادامه به‌صورت مهمان")}
                 </button>
               </div>
             </div>
@@ -207,10 +222,11 @@ export const GuestProtectedPage: React.FC<{
   title?: string;
   description?: string;
 }> = ({
-  title = "این بخش برای حساب شماست",
-  description = "برای دسترسی به کتابخانه، پلی‌لیست‌های شخصی، دانلودها و تنظیمات وارد حساب شوید.",
+  title = "برای دسترسی به این بخش باید ابتدا وارد شوید",
+  description = "پس از ورود می‌توانید به امکانات شخصی این بخش دسترسی داشته باشید.",
 }) => {
   const { currentPage, currentParams, navigateTo } = useNavigation();
+  const { t, direction } = useI18n();
 
   const go = (page: "login" | "register") => {
     if (typeof window !== "undefined") {
@@ -224,17 +240,24 @@ export const GuestProtectedPage: React.FC<{
 
   return (
     <main
+      dir={direction}
       className="flex min-h-[calc(100vh-5rem)] items-center justify-center bg-gradient-to-b from-zinc-900 via-zinc-950 to-black px-5 py-20 text-white"
-      dir="rtl"
     >
       <section className="relative w-full max-w-xl overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.04] p-7 text-center shadow-2xl backdrop-blur-xl sm:p-10">
         <div className="absolute inset-x-20 -top-20 h-40 rounded-full bg-emerald-500/20 blur-3xl" />
-        <div className="relative mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-emerald-400 text-3xl font-black text-black">
-          S
+        <div className="relative mx-auto mb-6 h-20 w-20 overflow-hidden rounded-3xl shadow-lg shadow-emerald-500/20">
+          <Image
+            src="/logo.png"
+            alt="Sedabox"
+            width={80}
+            height={80}
+            className="h-full w-full object-contain"
+            priority
+          />
         </div>
-        <h1 className="relative text-3xl font-black">{title}</h1>
+        <h1 className="relative text-3xl font-black">{t(title)}</h1>
         <p className="relative mx-auto mt-4 max-w-md text-sm leading-7 text-zinc-400">
-          {description}
+          {t(description)}
         </p>
         <div className="relative mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <button
@@ -242,14 +265,14 @@ export const GuestProtectedPage: React.FC<{
             onClick={() => go("login")}
             className="h-12 rounded-full bg-emerald-400 px-8 font-black text-black transition hover:bg-emerald-300"
           >
-            ورود
+            {t("ورود")}
           </button>
           <button
             type="button"
             onClick={() => go("register")}
             className="h-12 rounded-full border border-white/15 bg-white/5 px-8 font-bold transition hover:bg-white/10"
           >
-            ثبت‌نام رایگان
+            {t("ثبت‌نام رایگان")}
           </button>
         </div>
       </section>

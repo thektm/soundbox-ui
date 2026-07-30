@@ -18,12 +18,14 @@ import {
   Trash,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useI18n } from "./I18nContext";
 
 const API_ROOT = "https://api.sedabox.com/api";
 
 export default function DownloadsHistory() {
   const { goBack, navigateTo } = useNavigation();
-  const { playTrack, currentTrack, isPlaying, togglePlay } = usePlayer();
+  const { locale, direction } = useI18n();
+  const { playTrack, currentTrack, isPlaying, togglePlay, download } = usePlayer();
   const { accessToken, authenticatedFetch } = useAuth();
 
   const [downloads, setDownloads] = useState<any[]>([]);
@@ -53,6 +55,41 @@ export default function DownloadsHistory() {
     fetchDownloads();
   }, [fetchDownloads]);
 
+  useEffect(() => {
+    const handleCompletedDownload = (event: Event) => {
+      const detail = (event as CustomEvent)?.detail;
+      if (!detail?.songId || !detail?.quality) return;
+      setDownloads((current) => {
+        const existingIndex = current.findIndex(
+          (item) => String(item?.song?.id) === String(detail.songId),
+        );
+        if (existingIndex === -1 && detail.historyItem?.song) {
+          return [detail.historyItem, ...current];
+        }
+        return current.map((item) =>
+          String(item?.song?.id) === String(detail.songId)
+            ? {
+                ...item,
+                ...(detail.historyItem || {}),
+                updated_at:
+                  detail.historyItem?.updated_at || new Date().toISOString(),
+                last_download_quality: String(detail.quality),
+              }
+            : item,
+        );
+      });
+    };
+    window.addEventListener(
+      "sedabox:download-complete",
+      handleCompletedDownload as EventListener,
+    );
+    return () =>
+      window.removeEventListener(
+        "sedabox:download-complete",
+        handleCompletedDownload as EventListener,
+      );
+  }, []);
+
   const handlePlay = (songData: any) => {
     const track: Track = {
       id: String(songData.id),
@@ -66,6 +103,31 @@ export default function DownloadsHistory() {
         `${API_ROOT}/songs/${songData.id}/stream/`,
     };
     playTrack(track);
+  };
+
+  const handleRedownload = (item: any) => {
+    const songData = item?.song;
+    if (!songData) return;
+    download(
+      {
+        id: String(songData.id),
+        title: songData.title,
+        artist: songData.artist_name,
+        artistId: songData.artist_id,
+        artistUniqueId: songData.artist_unique_id,
+        featuredArtists: Array.isArray(songData.featured_artists)
+          ? songData.featured_artists.map((artist: any) => ({
+              id: artist.id,
+              name: artist.artistic_name || artist.name,
+              uniqueId: artist.unique_id,
+            }))
+          : [],
+        image: songData.cover_image,
+        duration: "0:00",
+        src: songData.stream_url || songData.audio_file || "",
+      },
+      item.last_download_quality === "320" ? "320" : "128",
+    );
   };
 
   const handleOpenOptions = (songData: any) => {
@@ -104,8 +166,8 @@ export default function DownloadsHistory() {
 
   return (
     <div
+      dir={direction}
       className="min-h-screen bg-[#030303] text-white pb-32 font-sans overflow-x-hidden"
-      dir="rtl"
     >
       {/* Noise Texture */}
       <div
@@ -120,7 +182,9 @@ export default function DownloadsHistory() {
       <div className="fixed bottom-[-10%] right-[20%] w-[400px] h-[400px] bg-blue-900/10 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Sticky Header */}
-      <header className="sticky top-0 z-[60] backdrop-blur-2xl bg-black/60 border-b border-white/5 h-20 flex items-center px-6 justify-between transition-all duration-300">
+      <header
+        className={`sticky top-0 z-[60] backdrop-blur-2xl bg-black/60 border-b border-white/5 h-20 flex items-center px-6 justify-between transition-all duration-300 ${direction === "ltr" ? "flex-row-reverse" : "flex-row"}`}
+      >
         <div className="flex items-center gap-5">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-900/40 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
             <History className="w-6 h-6 text-emerald-400" />
@@ -138,7 +202,7 @@ export default function DownloadsHistory() {
           onClick={goBack}
           className="w-11 h-11 flex items-center justify-center bg-white/5 hover:bg-white/10 active:scale-90 rounded-2xl transition-all border border-white/5"
         >
-          <ArrowLeft className="w-6 h-6" />
+          <ArrowLeft className="w-6 h-6 sb-back-icon" />
         </button>
       </header>
 
@@ -194,6 +258,7 @@ export default function DownloadsHistory() {
                       src={song.cover_image}
                       alt={song.title}
                       fill
+                      sizes="80px"
                       className="object-cover"
                     />
                     <div
@@ -230,17 +295,27 @@ export default function DownloadsHistory() {
                     <div className="flex items-center gap-3">
                       <span className="flex items-center gap-1.5 text-[10px] text-gray-500 font-medium bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
                         <History className="w-3 h-3 text-emerald-500/60" />
-                        {new Date(item.updated_at).toLocaleDateString("fa-IR", {
+                        {new Date(item.updated_at).toLocaleDateString(locale, {
                           day: "numeric",
                           month: "short",
                         })}
                       </span>
                       <span className="w-1 h-1 rounded-full bg-white/10" />
                       <span className="text-[10px] text-emerald-500/80 font-bold uppercase tracking-wider">
-                        Downloaded
+                        {item.last_download_quality
+                          ? `${item.last_download_quality} kbps`
+                          : "Downloaded"}
                       </span>
                     </div>
                   </div>
+
+                  <button
+                    onClick={() => handleRedownload(item)}
+                    className="w-10 h-10 flex items-center justify-center text-emerald-400 hover:text-white hover:bg-white/10 rounded-full transition-all active:scale-90"
+                    aria-label="دانلود دوباره"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
 
                   <button
                     onClick={() => handleDeleteClick(item)}
@@ -293,7 +368,6 @@ export default function DownloadsHistory() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               className="relative w-full max-w-md bg-[#0f1112] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl flex flex-col"
-              dir="rtl"
             >
               <div className="px-6 pt-6 pb-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -320,7 +394,7 @@ export default function DownloadsHistory() {
                 </button>
               </div>
 
-              <div className="px-6 pb-6 pt-2 text-right">
+              <div className="px-6 pb-6 pt-2 text-start">
                 <p className="text-sm text-white/60 mb-6">
                   آیا از حذف این آیتم از تاریخچه دانلودها مطمئن هستید؟ این عمل
                   قابل بازگشت نیست.

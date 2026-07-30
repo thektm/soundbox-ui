@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
@@ -27,6 +27,7 @@ interface ApiSong {
   duration_display: string;
   plays: number;
   likes_count: number;
+  songs_count?: number;
   is_liked: boolean;
   status: string;
   release_date: string | null;
@@ -264,7 +265,7 @@ const SongRow: React.FC<SongRowProps> = ({
 };
 
 const AlbumSkeleton = () => (
-  <div className="min-h-screen bg-[#0a0a0a] text-white animate-pulse" dir="rtl">
+  <div className="min-h-screen bg-[#0a0a0a] text-white animate-pulse">
     {/* Hero Skeleton */}
     <div className="relative h-96 md:h-[500px] bg-zinc-900" />
 
@@ -298,6 +299,59 @@ const AlbumSkeleton = () => (
   </div>
 );
 
+const unwrapAlbumPayload = (value: any) =>
+  value?.data?.album ?? value?.data ?? value?.album ?? value;
+
+const hasCompleteAlbumPayload = (value: any) => {
+  const payload = unwrapAlbumPayload(value);
+  return Boolean(
+    payload?.id &&
+      Array.isArray(payload?.songs) &&
+      Array.isArray(payload?.song_genre_names) &&
+      Array.isArray(payload?.song_mood_names) &&
+      Object.prototype.hasOwnProperty.call(payload, "is_liked") &&
+      Object.prototype.hasOwnProperty.call(payload, "artist_id"),
+  );
+};
+
+const normalizeAlbumPayload = (value: any): ApiAlbumResponse | null => {
+  const payload = unwrapAlbumPayload(value);
+  const id = Number(payload?.id);
+  if (!Number.isFinite(id) || id <= 0) return null;
+
+  return {
+    ...payload,
+    id,
+    title: String(payload?.title || ""),
+    artist_id: Number(payload?.artist_id || 0),
+    artist_name: String(payload?.artist_name || ""),
+    cover_image: String(payload?.cover_image || ""),
+    release_date: payload?.release_date || null,
+    description: String(payload?.description || ""),
+    created_at: String(payload?.created_at || ""),
+    likes_count: Number(payload?.likes_count || 0),
+    songs_count: Number(
+      payload?.songs_count ??
+        (Array.isArray(payload?.songs) ? payload.songs.length : 0),
+    ),
+    is_liked: Boolean(payload?.is_liked),
+    genre_ids: Array.isArray(payload?.genre_ids) ? payload.genre_ids : [],
+    sub_genre_ids: Array.isArray(payload?.sub_genre_ids)
+      ? payload.sub_genre_ids
+      : [],
+    mood_ids: Array.isArray(payload?.mood_ids) ? payload.mood_ids : [],
+    songs: Array.isArray(payload?.songs)
+      ? payload.songs.filter((song: any) => Number(song?.id) > 0)
+      : [],
+    song_genre_names: Array.isArray(payload?.song_genre_names)
+      ? payload.song_genre_names
+      : [],
+    song_mood_names: Array.isArray(payload?.song_mood_names)
+      ? payload.song_mood_names
+      : [],
+  } as ApiAlbumResponse;
+};
+
 interface AlbumDetailProps {
   id?: string | number;
   slug?: string;
@@ -311,6 +365,8 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
 }) => {
   const { goBack, currentParams, navigateTo } = useNavigation();
   const { accessToken, authenticatedFetch } = useAuth();
+  const authenticatedFetchRef = useRef(authenticatedFetch);
+  authenticatedFetchRef.current = authenticatedFetch;
   const { requestAuth } = useGuestAccess();
   const { setQueue, currentTrack, isPlaying: isPlayerPlaying } = usePlayer();
 
@@ -324,65 +380,97 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+  const albumSongs = useMemo(
+    () => (Array.isArray(albumData?.songs) ? albumData.songs : []),
+    [albumData],
+  );
+
   useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+
     const fetchAlbum = async () => {
       if (!albumId) {
-        setLoading(false);
+        if (active) {
+          setAlbumData(null);
+          setLoading(false);
+        }
         return;
       }
 
-      // Optimization: if we already have the album data in params (e.g. from nav or from ourselves), just use it
-      if (
-        currentParams?.album &&
-        String(currentParams.album.id) === String(albumId)
-      ) {
-        if (!albumData) {
-          setAlbumData(currentParams.album);
-          setIsLiked(currentParams.album.is_liked);
+      const navigationPayload = currentParams?.album ?? albumProp;
+      const navigationAlbum = normalizeAlbumPayload(navigationPayload);
+      const navigationMatches =
+        navigationAlbum && String(navigationAlbum.id) === String(albumId);
+
+      // Only a genuine detail payload may bypass the detail endpoint. Card/list
+      // payloads are intentionally partial and must never be treated as complete.
+      if (navigationMatches && hasCompleteAlbumPayload(navigationPayload)) {
+        if (active) {
+          setAlbumData(navigationAlbum);
+          setIsLiked(Boolean(navigationAlbum.is_liked));
+          setLoading(false);
         }
-        setLoading(false);
         return;
+      }
+
+      if (active) {
+        setLoading(true);
+        setAlbumData((previous) =>
+          previous && String(previous.id) === String(albumId) ? previous : null,
+        );
       }
 
       try {
-        setLoading(true);
-        const response = await authenticatedFetch(
+        const response = await authenticatedFetchRef.current(
           `https://api.sedabox.com/api/albums/${albumId}/`,
+          { signal: controller.signal },
         );
-        if (response.ok) {
-          const data: ApiAlbumResponse = await response.json();
-          setAlbumData(data);
-          setIsLiked(data.is_liked);
+        if (!response.ok) {
+          throw new Error(`Album request failed with status ${response.status}`);
+        }
 
-          // Fix URL if slug is missing or does not match
-          const hasSlug =
-            currentParams?.title ||
-            currentParams?.slug ||
-            (typeof window !== "undefined" &&
-              window.location.pathname.includes(`-${slugify(data.title)}`));
+        const data = normalizeAlbumPayload(await response.json());
+        if (!data) throw new Error("Album response is malformed");
+        if (!active) return;
 
-          if (data && data.title && !hasSlug) {
-            navigateTo(
-              "album-detail",
-              {
-                ...currentParams,
-                id: data.id,
-                title: data.title,
-                album: data,
-              },
-              "replace",
-            );
-          }
+        setAlbumData(data);
+        setIsLiked(data.is_liked);
+
+        const hasSlug =
+          currentParams?.title ||
+          currentParams?.slug ||
+          (typeof window !== "undefined" &&
+            window.location.pathname.includes(`-${slugify(data.title)}`));
+
+        if (data.title && !hasSlug) {
+          navigateTo(
+            "album-detail",
+            {
+              ...currentParams,
+              id: data.id,
+              title: data.title,
+              album: data,
+            },
+            "replace",
+          );
         }
       } catch (error) {
+        if (controller.signal.aborted || !active) return;
         console.error("Error fetching album:", error);
+        setAlbumData(null);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
-    fetchAlbum();
-  }, [albumId, accessToken, currentParams, navigateTo]);
+    void fetchAlbum();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [albumId, albumProp, accessToken, currentParams, navigateTo]);
+
 
   const handleMore = useCallback((song: ApiSong) => {
     setSelectedSong(song);
@@ -458,9 +546,9 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   };
 
   const handlePlayAll = () => {
-    if (!albumData || albumData.songs.length === 0) return;
+    if (!albumData || albumSongs.length === 0) return;
 
-    const tracks: Track[] = albumData.songs.map((song) => ({
+    const tracks: Track[] = albumSongs.map((song) => ({
       id: String(song.id),
       title: song.title,
       artist: song.artist_name,
@@ -478,7 +566,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   const handlePlaySong = (index: number) => {
     if (!albumData) return;
 
-    const tracks: Track[] = albumData.songs.map((song) => ({
+    const tracks: Track[] = albumSongs.map((song) => ({
       id: String(song.id),
       title: song.title,
       artist: song.artist_name,
@@ -506,7 +594,6 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
     return (
       <div
         className="min-h-screen bg-linear-to-b from-neutral-900 to-neutral-950 text-white"
-        dir="rtl"
       >
         <SEO title="آلبوم پیدا نشد" />
         <div className="max-w-7xl mx-auto px-4 py-20">
@@ -523,7 +610,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
               onClick={goBack}
               className="inline-flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-400 text-black font-semibold rounded-full transition-colors"
             >
-              <Icon name="arrowLeft" className="w-5 h-5" />
+              <Icon name="arrowLeft" className="w-5 h-5 sb-back-icon" />
               بازگشت به خانه
             </button>
           </div>
@@ -535,7 +622,6 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   return (
     <div
       className="min-h-screen bg-linear-to-b from-neutral-900 via-neutral-950 to-black text-white pb-24"
-      dir="rtl"
     >
       <SEO
         title={albumData.title}
@@ -549,17 +635,17 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
           backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.8) 100%), url(${albumData.cover_image})`,
         }}
       >
-        <div className="absolute top-4 left-4 z-20">
+        <div className="absolute top-4 left-4 z-20 sb-back-position">
           <button
             onClick={goBack}
             className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-all duration-300 hover:scale-105"
           >
-            <Icon name="arrowLeft" className="w-6 h-6 text-white" />
+            <Icon name="arrowLeft" className="w-6 h-6 text-white sb-back-icon" />
           </button>
         </div>
 
         <div className="absolute inset-0 flex items-end justify-end px-6 md:px-12 pb-8">
-          <div className="text-right max-w-lg w-full">
+          <div className="text-start max-w-lg w-full">
             <p className="text-sm font-semibold text-green-400 mb-2 uppercase tracking-wide">
               آلبوم
             </p>
@@ -590,12 +676,12 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
                 </>
               )}
               <span>•</span>
-              <span>{albumData.songs.length} آهنگ</span>
+              <span>{albumSongs.length} آهنگ</span>
             </div>
           </div>
         </div>
 
-        <div className="absolute top-4 right-4 z-20 flex gap-2">
+        <div className="absolute top-4 right-4 sb-inline-end-position z-20 flex gap-2">
           <div className="px-3 py-1 text-xs font-bold bg-green-500 text-black rounded-full shadow-lg">
             آلبوم
           </div>
@@ -609,7 +695,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
             className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-400 hover:scale-110 flex items-center justify-center shadow-2xl transition-all duration-300"
           >
             {isPlayerPlaying &&
-            albumData.songs.some((s) => String(s.id) === currentTrack?.id) ? (
+            albumSongs.some((s) => String(s.id) === currentTrack?.id) ? (
               <Icon name="pause" className="w-7 h-7 text-black" />
             ) : (
               <Icon name="play" className="w-7 h-7 text-black ml-1" />
@@ -658,7 +744,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
         </div>
 
         <div className="mt-4 space-y-1">
-          {albumData.songs.map((song, index) => (
+          {albumSongs.map((song, index) => (
             <SongRow
               key={song.id}
               song={song}
@@ -682,6 +768,12 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
               }
             />
           ))}
+          {albumSongs.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center text-neutral-500">
+              <Icon name="music" className="mb-3 h-10 w-10 opacity-50" />
+              <p className="text-sm font-medium">هنوز آهنگی برای این آلبوم منتشر نشده است.</p>
+            </div>
+          )}
         </div>
       </main>
 

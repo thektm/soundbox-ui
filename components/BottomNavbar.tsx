@@ -195,7 +195,7 @@ export default function BottomNavbar() {
       <nav
         className="fixed bottom-0 left-0 right-0 z-50 bg-[#121212] border-t border-white/8 md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-        dir="ltr"
+        dir="ltr" data-direction-fixed="ltr"
       >
         {/* Safe area spacer for iOS */}
         <div

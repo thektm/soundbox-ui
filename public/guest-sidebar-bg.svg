@@ -1,0 +1,16 @@
+<svg width="720" height="1600" viewBox="0 0 720 1600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="720" height="1600" fill="#09090B"/>
+  <circle cx="590" cy="150" r="350" fill="url(#a)" fill-opacity=".8"/>
+  <circle cx="70" cy="860" r="310" fill="url(#b)" fill-opacity=".55"/>
+  <path d="M-80 420C130 270 320 570 760 300" stroke="url(#c)" stroke-width="2" stroke-opacity=".35"/>
+  <path d="M-100 470C150 330 360 630 780 360" stroke="url(#c)" stroke-width="1" stroke-opacity=".18"/>
+  <g opacity=".14" fill="#fff">
+    <circle cx="92" cy="184" r="2"/><circle cx="155" cy="140" r="1.5"/><circle cx="231" cy="212" r="1"/>
+    <circle cx="526" cy="520" r="1.5"/><circle cx="604" cy="578" r="2"/><circle cx="470" cy="640" r="1"/>
+  </g>
+  <defs>
+    <radialGradient id="a"><stop stop-color="#34D399" stop-opacity=".56"/><stop offset="1" stop-color="#34D399" stop-opacity="0"/></radialGradient>
+    <radialGradient id="b"><stop stop-color="#06B6D4" stop-opacity=".3"/><stop offset="1" stop-color="#06B6D4" stop-opacity="0"/></radialGradient>
+    <linearGradient id="c" x1="0" y1="0" x2="720" y2="0"><stop stop-color="#34D399" stop-opacity="0"/><stop offset=".5" stop-color="#6EE7B7"/><stop offset="1" stop-color="#22D3EE" stop-opacity="0"/></linearGradient>
+  </defs>
+</svg>

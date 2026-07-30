@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigation } from "./NavigationContext";
+import { useI18n } from "./I18nContext";
 
 // Confetti particle
 interface Particle {
@@ -227,6 +228,7 @@ interface PaymentSuccessProps {
 
 export default function PaymentSuccess({ onComplete }: PaymentSuccessProps) {
   const { navigateTo } = useNavigation();
+  const { locale } = useI18n();
   const [countdown, setCountdown] = useState(3);
   const [showContent, setShowContent] = useState(false);
 
@@ -243,7 +245,7 @@ export default function PaymentSuccess({ onComplete }: PaymentSuccessProps) {
           if (onComplete) {
             onComplete();
           } else {
-            navigateTo("profile", { planUpgraded: true });
+            navigateTo("profile");
           }
           return 0;
         }
@@ -260,7 +262,6 @@ export default function PaymentSuccess({ onComplete }: PaymentSuccessProps) {
   return (
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white overflow-hidden font-sans flex flex-col items-center justify-center"
-      dir="rtl"
     >
       {/* Confetti */}
       <Confetti />
@@ -369,7 +370,7 @@ export default function PaymentSuccess({ onComplete }: PaymentSuccessProps) {
             <span className="text-gray-300 text-sm">
               {new Date(
                 Date.now() + 30 * 24 * 60 * 60 * 1000
-              ).toLocaleDateString("fa-IR")}
+              ).toLocaleDateString(locale)}
             </span>
           </div>
         </div>
@@ -387,7 +388,7 @@ export default function PaymentSuccess({ onComplete }: PaymentSuccessProps) {
 
         {/* Manual Navigate Button */}
         <button
-          onClick={() => navigateTo("profile", { planUpgraded: true })}
+          onClick={() => navigateTo("profile")}
           className="mt-6 text-emerald-400 hover:text-emerald-300 text-sm underline underline-offset-4 transition-colors"
         >
           رفتن به پروفایل

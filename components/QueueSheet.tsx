@@ -191,7 +191,6 @@ const QueueTrack = memo<QueueTrackProps>(
         {/* Track Info */}
         <div
           className="flex-1 min-w-0 cursor-pointer"
-          dir="rtl"
           onClick={() => !isAdPlaying && onPlay(track)}
         >
           <h4
@@ -367,7 +366,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
           <div className="flex flex-row-reverse items-center justify-between px-5 py-3 border-b border-white/5 flex-shrink-0">
             <div className="flex items-center gap-3">
               
-              <div dir="rtl">
+              <div>
                 <Drawer.Title className="text-lg font-bold text-white">
                   صف پخش
                 </Drawer.Title>

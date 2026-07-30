@@ -2,10 +2,12 @@ import React, { useState, useRef } from "react";
 import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { useI18n } from "./I18nContext";
 import toast from "react-hot-toast";
 import { Loader2 } from "lucide-react";
 
 const ForgotPassword: React.FC = () => {
+  const { direction, t } = useI18n();
   const { setCurrentPage } = useNavigation();
   const {
     setPhone,
@@ -98,10 +100,10 @@ const ForgotPassword: React.FC = () => {
     const promise = requestPasswordReset(phone);
 
     toast.promise(promise, {
-      loading: "در حال ارسال کد بازیابی...",
+      loading: t("در حال ارسال کد بازیابی..."),
       success: () => {
         setStep("verify");
-        return "کد بازیابی برای شما ارسال شد";
+        return t("کد بازیابی برای شما ارسال شد");
       },
       error: (e) => {
         const msg = formatErrorMessage(e);
@@ -118,14 +120,14 @@ const ForgotPassword: React.FC = () => {
     if (code.length === 4) {
       setOtp(code);
       setStep("reset");
-      toast.success("کد تایید شد. رمز عبور جدید خود را وارد کنید");
+      toast.success(t("کد تایید شد. رمز عبور جدید خود را وارد کنید"));
     }
   };
 
   const handleReset = () => {
     if (!newPassword) return;
     if (newPassword !== password) {
-      toast.error("رمز عبور و تکرار آن مطابقت ندارند");
+      toast.error(t("رمز عبور و تکرار آن مطابقت ندارند"));
       return;
     }
     setError(null);
@@ -133,10 +135,10 @@ const ForgotPassword: React.FC = () => {
     const promise = resetPassword(newPassword);
 
     toast.promise(promise, {
-      loading: "در حال تغییر رمز عبور...",
+      loading: t("در حال تغییر رمز عبور..."),
       success: () => {
         setCurrentPage("login");
-        return "رمز عبور با موفقیت تغییر کرد. اکنون می‌توانید وارد شوید";
+        return t("رمز عبور با موفقیت تغییر کرد. اکنون می‌توانید وارد شوید");
       },
       error: (e) => {
         const msg = formatErrorMessage(e);
@@ -174,6 +176,7 @@ const ForgotPassword: React.FC = () => {
               src="/logo-text.png"
               alt="SedaBox Logo"
               fill
+              sizes="100vw"
               className="object-contain transform transition-transform duration-300"
             />
           </div>
@@ -181,9 +184,9 @@ const ForgotPassword: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full mt-8 lg:w-[45%] flex flex-col justify-center items-center relative z-10 p-4 lg:p-12 order-2 lg:order-1">
+      <div dir={direction} className="w-full mt-8 lg:w-[45%] flex flex-col justify-center items-center relative z-10 p-4 lg:p-12 order-2 lg:order-1">
         <div className="w-full max-w-md">
-          <div className="mb-2 text-center lg:text-right" dir="rtl">
+          <div className="mb-2 text-center lg:text-start">
             <div className="flex items-center justify-center lg:justify-start gap-2 mb-2 group cursor-default"></div>
             <h2 className="text-3xl font-medium text-white mb-3 leading-tight">
               بازیابی رمز عبور
@@ -201,7 +204,6 @@ const ForgotPassword: React.FC = () => {
               else handleReset();
             }}
             className="relative group rounded-2xl bg-white/2 border border-white/10 p-1 backdrop-blur-md transition-all duration-500 hover:bg-white/4 hover:border-white/20 hover:shadow-[0_20px_80px_-20px_rgba(0,0,0,0.5)]"
-            dir="rtl"
           >
             <div className="p-6 lg:p-8">
               {step === "phone" && (
@@ -220,7 +222,7 @@ const ForgotPassword: React.FC = () => {
                             : "border-white/10 hover:border-white/20"
                         }
                       `}
-                      dir="ltr"
+                      dir="ltr" data-direction-fixed="ltr"
                     >
                       <div className="flex items-center justify-center h-14 w-14 bg-white/5 border-r border-white/10 text-gray-400 font-mono text-lg select-none">
                         09
@@ -268,7 +270,7 @@ const ForgotPassword: React.FC = () => {
                       ) : (
                         <>
                           ارسال کد بازیابی
-                          <span className="mr-2 rotate-180 transform group-hover/btn:-translate-x-1 transition-transform">
+                          <span className="mr-2 transition-transform sb-forward-icon">
                             →
                           </span>
                         </>
@@ -287,7 +289,7 @@ const ForgotPassword: React.FC = () => {
 
                   <div
                     className="flex items-center justify-center gap-3 mb-6"
-                    dir="ltr"
+                    dir="ltr" data-direction-fixed="ltr"
                   >
                     {digits.map((d, i) => (
                       <input
@@ -299,7 +301,8 @@ const ForgotPassword: React.FC = () => {
                         onChange={(e) => handleChange(e, i)}
                         onKeyDown={(e) => handleKeyDown(e, i)}
                         onPaste={handlePaste}
-                        className="w-14 h-14 text-center text-xl font-mono bg-transparent border rounded-xl border-white/10 focus:border-emerald-500/60 focus:shadow-[0_0_20px_rgba(16,185,129,0.12)]"
+                        className="sb-otp-digit w-14 h-14 appearance-none !p-0 !text-center text-xl font-mono font-semibold leading-[3.5rem] tabular-nums bg-transparent border rounded-xl border-white/10 focus:border-emerald-500/60 focus:shadow-[0_0_20px_rgba(16,185,129,0.12)]"
+                        style={{ lineHeight: "3.5rem", textAlign: "center", direction: "ltr", unicodeBidi: "isolate" }}
                         inputMode="numeric"
                         pattern="[0-9]*"
                         maxLength={1}
@@ -400,7 +403,7 @@ const ForgotPassword: React.FC = () => {
             </div>
           </form>
 
-          <div dir="rtl" className="mt-8 text-center lg:text-right">
+          <div className="mt-8 text-center lg:text-start">
             <p className="text-xs text-gray-600">
               با ورود به سیستم،{" "}
               <a
@@ -415,12 +418,13 @@ const ForgotPassword: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full lg:w-[55%] h-[40vh] lg:h-auto relative order-1 lg:order-2">
+      <div dir={direction} className="w-full lg:w-[55%] h-[40vh] lg:h-auto relative order-1 lg:order-2">
         <div className="absolute inset-0 w-full h-full relative">
           <Image
             src="/music-listen.webp"
             alt="Music Background"
             fill
+            sizes="100vw"
             className="object-cover"
           />
           <div className="absolute inset-0 bg-black/30 mix-blend-multiply" />
@@ -429,8 +433,7 @@ const ForgotPassword: React.FC = () => {
         </div>
 
         <div
-          className="absolute bottom-10 right-10 hidden lg:block text-right"
-          dir="rtl"
+          className="absolute bottom-10 right-10 hidden lg:block text-start"
         >
           <div className="text-6xl font-bold text-white/5 tracking-tighter select-none">
             MUSIC

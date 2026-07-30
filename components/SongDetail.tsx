@@ -8,7 +8,7 @@ import React, {
   useRef,
   memo,
 } from "react";
-import { useNavigation } from "./NavigationContext";
+import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
@@ -20,6 +20,12 @@ import { AddToPlaylistModal } from "./AddToPlaylistModal";
 
 import { getFullShareUrl } from "../utils/share";
 import { SEO } from "./SEO";
+import { useI18n } from "./I18nContext";
+
+interface ApiGenreLink {
+  id: number;
+  name: string;
+}
 
 interface ApiSong {
   id: number;
@@ -28,6 +34,12 @@ interface ApiSong {
   artist_id?: number;
   artist_name: string;
   artist_unique_id?: string;
+  genres?: ApiGenreLink[];
+  genre_names?: string[];
+  genre_ids?: Array<
+    | number
+    | { id: number; title?: string; name?: string }
+  >;
   cover_image: string;
   duration_display: string;
   is_liked: boolean;
@@ -78,6 +90,23 @@ interface Song {
   image: string;
   src: string;
 }
+
+const SONG_GENRE_ACCENT_HEX: Record<number, string> = {
+  1: "#E91E63",
+  2: "#6A1B9A",
+  3: "#F57F17",
+  4: "#212121",
+  5: "#E65100",
+  6: "#1565C0",
+  7: "#4E342E",
+  8: "#37474F",
+  9: "#2E7D32",
+  10: "#006064",
+  11: "#B71C1C",
+  12: "#F9A825",
+  13: "#33691E",
+  14: "#880E4F",
+};
 
 type IconName =
   | "play"
@@ -610,7 +639,7 @@ const ContextMenu: React.FC<{
           key={idx}
           onClick={item.onClick}
           className={cn(
-            "w-full flex items-center gap-3 px-4 py-2.5 text-sm text-right",
+            "w-full flex items-center gap-3 px-4 py-2.5 text-sm text-start",
             "text-neutral-200 hover:bg-white/10 transition-colors",
           )}
         >
@@ -657,6 +686,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     usePlayer();
   const { accessToken, authenticatedFetch } = useAuth();
   const { requestAuth } = useGuestAccess();
+  const { direction, language } = useI18n();
 
   const idOrSlug = useMemo(() => {
     if (propId) return propId;
@@ -727,12 +757,13 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             if (trackId) {
               const targetPath = `/track/${trackId}${slug ? `-${slug}` : ""}`;
               if (window.location.pathname !== targetPath) {
-                window.history.replaceState(
+                replaceCurrentNavigationEntry(
+                  "song-detail",
                   {
-                    page: "song-detail",
-                    params: { id: trackId },
+                    ...(window.history.state?.params || {}),
+                    id: trackId,
+                    title: data.title,
                   },
-                  "",
                   targetPath,
                 );
               }
@@ -780,6 +811,45 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     }
     return [];
   }, [idOrSlug, fullSongData]);
+
+  const genreLinks = useMemo<ApiGenreLink[]>(() => {
+    if (!fullSongData) return [];
+
+    const byId = new Map<number, ApiGenreLink>();
+    const addGenre = (idValue: unknown, nameValue: unknown) => {
+      const id = Number(idValue);
+      const name = typeof nameValue === "string" ? nameValue.trim() : "";
+      if (!Number.isFinite(id) || id <= 0 || !name || byId.has(id)) return;
+      byId.set(id, { id, name });
+    };
+
+    fullSongData.genres?.forEach((genre) =>
+      addGenre(genre.id, genre.name || (genre as any).title),
+    );
+    fullSongData.genre_ids?.forEach((genre, index) => {
+      if (typeof genre === "number" || typeof genre === "string") {
+        addGenre(genre, fullSongData.genre_names?.[index]);
+        return;
+      }
+      addGenre(
+        genre?.id,
+        genre?.name || genre?.title || fullSongData.genre_names?.[index],
+      );
+    });
+
+    return Array.from(byId.values());
+  }, [fullSongData]);
+
+  const handleGenreNavigate = useCallback(
+    (genre: ApiGenreLink) => {
+      navigateTo("genre-detail", {
+        id: genre.id,
+        name: genre.name,
+        color: SONG_GENRE_ACCENT_HEX[genre.id] ?? "#1a1a2e",
+      });
+    },
+    [navigateTo],
+  );
 
   const apiLyrics = useMemo((): LyricLine[] => {
     if (!fullSongData?.lyrics) return [];
@@ -947,7 +1017,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-white pb-28" dir="rtl">
+      <div className="min-h-screen bg-neutral-950 text-white pb-28">
         <SEO title="در حال بارگذاری..." />
         <header className="fixed top-0 left-0 right-0 z-40 h-16 flex flex-row-reverse items-center justify-between px-4 md:px-6">
           <Skeleton className="w-10 h-10 rounded-full" />
@@ -958,7 +1028,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         <section className="relative pt-20 pb-8 px-6 md:px-12">
           <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-10">
             <Skeleton className="w-52 h-52 md:w-64 md:h-64 rounded-lg" />
-            <div className="flex-1 space-y-4 text-center md:text-right w-full">
+            <div className="flex-1 space-y-4 text-center md:text-start w-full">
               <Skeleton className="h-4 w-20 mx-auto md:mr-0" />
               <Skeleton className="h-12 w-3/4 mx-auto md:mr-0" />
               <Skeleton className="h-6 w-1/2 mx-auto md:mr-0" />
@@ -989,7 +1059,6 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     return (
       <div
         className="min-h-screen bg-gradient-to-b from-neutral-900 to-neutral-950 text-white flex items-center justify-center"
-        dir="rtl"
       >
         <SEO title="آهنگ پیدا نشد" />
         <div className="text-center px-6">
@@ -1008,7 +1077,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
               "hover:scale-105 active:scale-100 transition-transform",
             )}
           >
-            <Icon name="arrowLeft" size={20} />
+            <Icon name="arrowLeft" size={20} className="sb-back-icon" />
             بازگشت
           </button>
         </div>
@@ -1026,8 +1095,8 @@ export default function SongDetail({ id: propId }: { id?: string }) {
       />
       <div
         ref={containerRef}
+        dir={direction}
         className="relative min-h-screen bg-neutral-950 text-white pb-28"
-        dir="rtl"
         onContextMenu={handleContextMenu}
       >
         <div
@@ -1039,18 +1108,21 @@ export default function SongDetail({ id: propId }: { id?: string }) {
 
         {/* Desktop Header */}
         <header className="hidden md:flex sticky top-0 z-50 h-16 items-center px-6 bg-zinc-900/80 backdrop-blur-xl">
-          <div className="flex-1 flex justify-center overflow-hidden px-4">
+          <div
+            className={`flex-1 flex justify-center overflow-hidden px-4 ${direction === "ltr" ? "order-2" : "order-1"}`}
+            dir={direction}
+          >
             <h2 className="text-lg font-bold text-white truncate">
               {song.title}
             </h2>
           </div>
           <button
             onClick={goBack}
-            className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors shrink-0"
+            className={`w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors shrink-0 ${direction === "ltr" ? "order-1" : "order-2"}`}
           >
-            <Icon name="arrowLeft" size={24} />
+            <Icon name="arrowLeft" size={24} className="sb-back-icon" />
           </button>
-          <div className="w-10 shrink-0" />{" "}
+          <div className="w-10 shrink-0 order-3" />{" "}
           {/* Spacer to balance the back button */}
         </header>
 
@@ -1067,7 +1139,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             onClick={goBack}
             className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition shrink-0"
           >
-            <Icon name="arrowLeft" size={24} className="text-white" />
+            <Icon name="arrowLeft" size={24} className="text-white sb-back-icon" />
           </button>
           <div className="flex-1 flex justify-center overflow-hidden px-4">
             <span className="text-base font-bold text-white truncate">
@@ -1095,7 +1167,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
               />
             </div>
 
-            <div className="flex-1 text-center md:text-right">
+            <div className="flex-1 text-center md:text-start">
               <span className="text-xs font-medium text-white/80 uppercase tracking-widest">
                 آهنگ
               </span>
@@ -1132,6 +1204,61 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                   پخش
                 </span>
               </div>
+
+              {genreLinks.length > 0 && (
+                <nav
+                  className="mt-5 flex flex-col items-center gap-2.5 md:items-start"
+                  aria-label={
+                    language === "fa" ? "ژانرهای آهنگ" : "Song genres"
+                  }
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-400">
+                    {language === "fa" ? "ژانرها" : "Genres"}
+                  </span>
+                  <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+                    {genreLinks.map((genre) => (
+                      <button
+                        key={genre.id}
+                        type="button"
+                        onClick={() => handleGenreNavigate(genre)}
+                        className={cn(
+                          "group inline-flex min-h-9 items-center gap-2 rounded-full",
+                          "border border-white/10 bg-white/[0.06] px-3.5 py-1.5",
+                          "text-xs font-semibold text-neutral-200 shadow-sm shadow-black/20",
+                          "transition-[background-color,border-color,color,transform] duration-200",
+                          "hover:-translate-y-0.5 hover:border-emerald-400/45 hover:bg-emerald-400/10 hover:text-white",
+                          "active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80",
+                        )}
+                        aria-label={
+                          language === "fa"
+                            ? `مشاهده ژانر ${genre.name}`
+                            : `Open ${genre.name} genre`
+                        }
+                      >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.55)]"
+                          aria-hidden="true"
+                        />
+                        <span className="max-w-[12rem] truncate">{genre.name}</span>
+                        <svg
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          className="h-3.5 w-3.5 text-neutral-500 transition group-hover:text-emerald-300"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M7 4.5 12.5 10 7 15.5"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
+                </nav>
+              )}
             </div>
           </div>
         </section>

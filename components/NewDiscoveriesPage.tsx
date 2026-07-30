@@ -96,7 +96,6 @@ const NewDiscoveriesPage: React.FC = () => {
     >
       <div
         className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-        style={{ direction: "rtl" }}
       >
         {songs.map((song, index) => (
           <div

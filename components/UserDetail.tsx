@@ -9,13 +9,16 @@ import React, {
   useMemo,
 } from "react";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
-import { useNavigation } from "./NavigationContext";
+import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { usePlayer } from "./PlayerContext";
 import { toast } from "react-hot-toast";
 import { slugify } from "../utils/share";
+import { buildUserNavigationParams, getCanonicalUserPath, isSedaboxUser } from "../lib/userProfileRoute";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import { ReportModal } from "./ReportModal";
+import { useI18n } from "./I18nContext";
+import { openAuthPrompt } from "./authPrompt";
 
 interface UserPlaylist {
   id: number;
@@ -39,6 +42,7 @@ interface UserProfile {
   is_following: boolean;
   is_yours?: boolean;
   plan?: string;
+  is_official?: boolean;
   user_playlists:
     | UserPlaylist[]
     | { count?: number; total?: number; next?: any; results?: UserPlaylist[] };
@@ -140,6 +144,7 @@ const UserPlaylistCard = memo(
     index: number;
     layout?: "grid" | "list";
   }) => {
+    const { locale } = useI18n();
     const cardRef = useRef<HTMLDivElement>(null);
     const [isVisible, setIsVisible] = useState(false);
     const [isPressed, setIsPressed] = useState(false);
@@ -228,7 +233,7 @@ const UserPlaylistCard = memo(
                     >
                       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                     </svg>
-                    <span>{playlist.likes_count.toLocaleString("fa-IR")}</span>
+                    <span>{playlist.likes_count.toLocaleString(locale)}</span>
                   </div>
                 )}
               </div>
@@ -349,7 +354,7 @@ const UserPlaylistCard = memo(
                   >
                     <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                   </svg>
-                  <span>{playlist.likes_count.toLocaleString("fa-IR")}</span>
+                  <span>{playlist.likes_count.toLocaleString(locale)}</span>
                 </div>
               )}
             </div>
@@ -394,7 +399,7 @@ const ShowMoreButton = memo(({ onClick }: { onClick: () => void }) => {
 
         <div className="relative flex items-center justify-center w-12 h-12 rounded-full bg-zinc-900/80 text-emerald-500 transition-all duration-700 group-hover:bg-emerald-500 group-hover:text-black group-hover:rotate-12">
           <svg
-            className="w-6 h-6 transition-transform duration-500 group-hover:-translate-x-1"
+            className="w-6 h-6 transition-transform duration-500 group-hover:-translate-x-1 sb-forward-icon-left"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -408,7 +413,7 @@ const ShowMoreButton = memo(({ onClick }: { onClick: () => void }) => {
           </svg>
         </div>
 
-        <div className="relative text-right">
+        <div className="relative text-start">
           <div className="font-black text-white text-lg md:text-xl tracking-tight leading-tight">
             مشاهده همه پلی‌لیست‌ها
           </div>
@@ -617,7 +622,8 @@ FloatingParticle.displayName = "FloatingParticle";
 /* ───────────────────────────────────────────
    Main Component
    ─────────────────────────────────────────── */
-export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
+export default function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId?: string }) {
+  const { locale } = useI18n();
   const { navigateTo, goBack } = useNavigation();
   const { accessToken, authenticatedFetch } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -670,11 +676,30 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
         const profileUrl =
           uniqueId === "sedabox"
             ? `https://api.sedabox.com/api/profile/sedabox`
-            : `https://api.sedabox.com/api/profile/u/${uniqueId}/`;
+            : dbId
+              ? `https://api.sedabox.com/api/profile/u/${encodeURIComponent(dbId)}/?lookup=pk`
+              : `https://api.sedabox.com/api/profile/u/${encodeURIComponent(uniqueId)}/`;
         const response = await authenticatedFetch(profileUrl);
         if (response.ok) {
           const data = await response.json();
           setProfile(data);
+
+          const canonicalParams = buildUserNavigationParams({
+            ...data,
+            is_official: data.is_official || isSedaboxUser(data),
+          });
+          const canonicalPath = getCanonicalUserPath(canonicalParams);
+          if (
+            canonicalPath &&
+            typeof window !== "undefined" &&
+            window.location.pathname !== canonicalPath
+          ) {
+            replaceCurrentNavigationEntry(
+              "user-detail",
+              canonicalParams,
+              canonicalPath,
+            );
+          }
         } else {
           toast.error("خطا در دریافت پروفایل");
         }
@@ -686,11 +711,11 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
     };
 
     fetchProfile();
-  }, [uniqueId, accessToken]);
+  }, [uniqueId, dbId, accessToken]);
 
   const handleFollow = useCallback(async () => {
     if (!accessToken) {
-      toast.error("ابتدا وارد شوید");
+      openAuthPrompt("برای دنبال‌کردن این کاربر وارد شوید.");
       return;
     }
     if (!profile || profile.is_yours) return;
@@ -756,7 +781,6 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
         background: "linear-gradient(180deg, #0d0d0d 0%, #0a0a0a 100%)",
         WebkitOverflowScrolling: "touch",
       }}
-      dir="rtl"
     >
       {/* Desktop Header */}
       <header className="hidden md:flex sticky relative top-0 z-50 h-16 items-center justify-center px-6 bg-zinc-900/80 backdrop-blur-xl">
@@ -782,10 +806,10 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
         {/* Back button positioned absolutely to ensure it's at the far left */}
         <button
           onClick={goBack}
-          className="absolute left-4 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+          className="absolute left-4 top-1/2 transform -translate-y-1/2 w-8 h-8 sb-back-position rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors"
         >
           <svg
-            className="w-5 h-5"
+            className="w-5 h-5 sb-back-icon"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -816,7 +840,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition"
         >
           <svg
-            className="w-6 h-6 text-white"
+            className="w-6 h-6 text-white sb-back-icon"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -865,14 +889,14 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
       {/* Mobile Back (shows when header hidden) */}
       <button
         onClick={goBack}
-        className="fixed top-4 left-4 w-10 h-10 bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
+        className="fixed top-4 left-4 w-10 h-10 sb-back-position bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
         style={{
           opacity: headerScrolled ? 0 : 1,
           pointerEvents: headerScrolled ? "none" : "auto",
         }}
       >
         <svg
-          className="w-6 h-6 text-white"
+          className="w-6 h-6 text-white sb-back-icon"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -912,7 +936,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
           particles.map((p) => <FloatingParticle key={p.id} {...p} />)}
 
         {/* Layout: centered on mobile, Spotify style on desktop */}
-        <div className="relative flex flex-col items-center text-center md:grid md:grid-cols-[auto_1fr] md:items-end md:text-right md:gap-8">
+        <div className="relative flex flex-col items-center text-center md:grid md:grid-cols-[auto_1fr] md:items-end md:text-start md:gap-8">
           {/* Avatar Section */}
           <div className="relative mb-6 md:mb-0 shrink-0 md:justify-self-end md:mr-8">
             {/* Glow ring (mobile & non-sedabox) */}
@@ -983,7 +1007,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
               <span className="w-1 h-1 rounded-full bg-[#1db954]" />
               <span
                 className="text-[11px] md:text-xs text-zinc-400 font-medium"
-                dir="ltr"
+                dir="ltr" data-direction-fixed="ltr"
               >
                 @{profile.unique_id}
               </span>
@@ -1031,7 +1055,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                   className="flex items-center gap-1.5 bg-transparent border-0 p-0"
                 >
                   <span className="text-white font-bold">
-                    {profile.followers_count.toLocaleString("fa-IR")}
+                    {profile.followers_count.toLocaleString(locale)}
                   </span>
                   <span>دنبال‌کننده</span>
                 </button>
@@ -1046,7 +1070,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                   className="flex items-center gap-1.5 bg-transparent border-0 p-0"
                 >
                   <span className="text-white font-bold">
-                    {profile.following_count.toLocaleString("fa-IR")}
+                    {profile.following_count.toLocaleString(locale)}
                   </span>
                   <span>دنبال‌شونده</span>
                 </button>
@@ -1062,7 +1086,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                 >
                   <span className="text-white font-bold">
                     {getPlaylistsCount(profile.user_playlists).toLocaleString(
-                      "fa-IR",
+                      locale,
                     )}
                   </span>
                   <span>پلی‌لیست</span>
@@ -1133,7 +1157,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     const shareUrl =
                       typeof window !== "undefined" && window.location
                         ? window.location.href
-                        : `${typeof window !== "undefined" ? window.location.origin : "https://sedabox.com"}/u/${profile.unique_id}/${slugify(fullName)}`;
+                        : `${typeof window !== "undefined" ? window.location.origin : "https://sedabox.com"}${getCanonicalUserPath(profile) || "/user/" + encodeURIComponent(profile.unique_id)}`;
                     try {
                       if (
                         typeof navigator !== "undefined" &&
@@ -1201,7 +1225,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
               <div className="flex items-center gap-3 md:gap-4 mb-8">
                 <StatBox
                   label="دنبال‌کننده"
-                  value={profile.followers_count.toLocaleString("fa-IR")}
+                  value={profile.followers_count.toLocaleString(locale)}
                   delay={500}
                   onClick={() =>
                     navigateTo("followers-following", {
@@ -1212,7 +1236,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                 />
                 <StatBox
                   label="دنبال‌شونده"
-                  value={profile.following_count.toLocaleString("fa-IR")}
+                  value={profile.following_count.toLocaleString(locale)}
                   delay={600}
                   onClick={() =>
                     navigateTo("followers-following", {
@@ -1225,7 +1249,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                   label="پلی‌لیست"
                   value={getPlaylistsCount(
                     profile.user_playlists,
-                  ).toLocaleString("fa-IR")}
+                  ).toLocaleString(locale)}
                   delay={700}
                   onClick={() =>
                     navigateTo("other-user-playlists", {
@@ -1331,7 +1355,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     const shareUrl =
                       typeof window !== "undefined" && window.location
                         ? window.location.href
-                        : `${window.location.origin}/u/${profile.unique_id}/${slugify(fullName)}`;
+                        : `${window.location.origin}${getCanonicalUserPath(profile) || "/user/" + encodeURIComponent(profile.unique_id)}`;
                     try {
                       if (
                         typeof navigator !== "undefined" &&
@@ -1486,7 +1510,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
               }}
             >
               {getPlaylistsCount(profile.user_playlists).toLocaleString(
-                "fa-IR",
+                locale,
               )}
             </span>
           </div>
@@ -1607,7 +1631,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     const shareUrl =
                       typeof window !== "undefined" && window.location
                         ? window.location.href
-                        : `${window.location.origin}/u/${profile.unique_id}/${slugify(fullName)}`;
+                        : `${window.location.origin}${getCanonicalUserPath(profile) || "/user/" + encodeURIComponent(profile.unique_id)}`;
                     try {
                       if (
                         typeof navigator !== "undefined" &&
@@ -1670,7 +1694,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     setOptionsOpen(false);
                   }}
                   disabled={isFollowLoading || profile.is_yours}
-                  className="w-full text-right px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed truncate"
+                  className="w-full text-start px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed truncate"
                 >
                   {profile.is_yours
                     ? "این پروفایل خودتان است"
@@ -1684,7 +1708,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     const shareUrl =
                       typeof window !== "undefined" && window.location
                         ? window.location.href
-                        : `${window.location.origin}/u/${profile.unique_id}/${slugify(fullName)}`;
+                        : `${window.location.origin}${getCanonicalUserPath(profile) || "/user/" + encodeURIComponent(profile.unique_id)}`;
                     try {
                       if (
                         typeof navigator !== "undefined" &&
@@ -1714,7 +1738,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     }
                     setOptionsOpen(false);
                   }}
-                  className="w-full text-right px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 truncate"
+                  className="w-full text-start px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 truncate"
                 >
                   اشتراک گذاری پروفایل
                 </button>
@@ -1725,7 +1749,7 @@ export default function UserDetail({ uniqueId }: { uniqueId?: string }) {
                     setOptionsOpen(false);
                   }}
                   disabled={profile.is_yours}
-                  className="w-full text-right px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full text-start px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   گزارش کاربر
                 </button>

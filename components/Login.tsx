@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { useI18n } from "./I18nContext";
 import toast from "react-hot-toast";
 import { Loader2 } from "lucide-react";
 
@@ -63,6 +64,7 @@ const EyeIcon = ({ open }: { open: boolean }) => (
 );
 
 const Login: React.FC = () => {
+  const { direction, t } = useI18n();
   const { setCurrentPage } = useNavigation();
   const {
     login,
@@ -87,11 +89,11 @@ const Login: React.FC = () => {
     const promise = requestLoginOtp(phone);
 
     toast.promise(promise, {
-      loading: "در حال ارسال کد تایید...",
+      loading: t("در حال ارسال کد تایید..."),
       success: () => {
         setVerificationContext("login");
         setCurrentPage("verify");
-        return "کد تایید با موفقیت ارسال شد";
+        return t("کد تایید با موفقیت ارسال شد");
       },
       error: (e) => {
         const msg = formatErrorMessage(e);
@@ -110,10 +112,10 @@ const Login: React.FC = () => {
     const promise = login(phone, password);
 
     toast.promise(promise, {
-      loading: "در حال ورود به حساب کاربری...",
+      loading: t("در حال ورود به حساب کاربری..."),
       success: () => {
         setCurrentPage("home");
-        return "خوش آمدید!";
+        return t("خوش آمدید!");
       },
       error: (e) => {
         const msg = formatErrorMessage(e);
@@ -156,21 +158,22 @@ const Login: React.FC = () => {
         aria-hidden="true"
       >
         <div className="relative">
-          <div className="w-35 h-35 lg:w-44 lg:h-44 rounded-full md:rounded-none lg:rounded-none flex items-center justify-center overflow-hidden md:overflow-visible lg:overflow-visible relative">
+          <div className="w-35 h-35 lg:w-44 lg:h-44 rounded-none flex items-center justify-center overflow-visible relative">
             <Image
               src="/logo-text.png"
               alt="SedaBox Logo"
               fill
+              sizes="100vw"
               className="object-contain transform transition-transform duration-300"
             />
           </div>
-          <div className="absolute inset-0 rounded-full md:rounded-none lg:rounded-none" />
+          <div className="absolute inset-0 rounded-none" />
         </div>
       </div>
 
-      <div className="w-full mt-8 lg:w-[45%] flex flex-col justify-center items-center relative z-10 p-6 lg:p-12 order-2 lg:order-1">
+      <div dir={direction} className="w-full mt-8 lg:w-[45%] flex flex-col justify-center items-center relative z-10 p-6 lg:p-12 order-2 lg:order-1">
         <div className="w-full max-w-md">
-          <div className="mb-12 text-center lg:text-right" dir="rtl">
+          <div className="mb-12 text-center lg:text-start">
             <div className="flex items-center justify-center lg:justify-start gap-2 mb-4 group cursor-default"></div>
             <h2 className="text-4xl font-medium text-white mb-3 leading-tight">
               خوش آمدید{" "}
@@ -192,7 +195,6 @@ const Login: React.FC = () => {
               else handlePasswordLogin();
             }}
             className="relative group rounded-2xl bg-white/2 border border-white/10 p-1 backdrop-blur-md transition-all duration-500 hover:bg-white/4 hover:border-white/20 hover:shadow-[0_20px_80px_-20px_rgba(0,0,0,0.5)]"
-            dir="rtl"
           >
             <div className="p-6 lg:p-8">
               {/* Login Mode Toggle */}
@@ -235,7 +237,7 @@ const Login: React.FC = () => {
                         : "border-white/10 hover:border-white/20"
                     }
                   `}
-                  dir="ltr"
+                  dir="ltr" data-direction-fixed="ltr"
                 >
                   <div className="flex items-center justify-center h-14 w-14 bg-white/5 border-r border-white/10 text-gray-400 font-mono text-lg select-none">
                     09
@@ -308,7 +310,7 @@ const Login: React.FC = () => {
                   ) : (
                     <>
                       {loginMethod === "otp" ? "دریافت کد ورود" : "ورود"}
-                      <span className="mr-2 rotate-180 transform group-hover/btn:-translate-x-1 transition-transform">
+                      <span className="mr-2 transition-transform sb-forward-icon">
                         <ArrowIcon />
                       </span>
                     </>
@@ -349,7 +351,7 @@ const Login: React.FC = () => {
             </div>
           </form>
 
-          <div className="mt-8 text-center lg:text-right">
+          <div className="mt-8 text-center lg:text-start">
             <p className="text-xs text-gray-600">
               با ورود به سیستم،{" "}
               <a
@@ -364,12 +366,13 @@ const Login: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full lg:w-[55%] h-[40vh] lg:h-auto relative order-1 lg:order-2">
+      <div dir={direction} className="w-full lg:w-[55%] h-[40vh] lg:h-auto relative order-1 lg:order-2">
         <div className="absolute inset-0 w-full h-full relative">
           <Image
             src="/music-listen.webp"
             alt="Music Background"
             fill
+            sizes="100vw"
             className="object-cover"
           />
           <div className="absolute inset-0 bg-black/30 mix-blend-multiply" />
@@ -378,8 +381,7 @@ const Login: React.FC = () => {
         </div>
 
         <div
-          className="absolute bottom-10 right-10 hidden lg:block text-right"
-          dir="rtl"
+          className="absolute bottom-10 right-10 hidden lg:block text-start"
         >
           <div className="text-6xl font-bold text-white/10 tracking-tighter select-none">
             MUSIC

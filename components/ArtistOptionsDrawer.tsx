@@ -134,7 +134,6 @@ export const ArtistOptionsDrawer = ({
   const content = (
     <div
       className={`bg-[#121212] flex flex-col outline-none ${isDesktop ? "rounded-[32px] overflow-hidden" : "rounded-t-[32px]"}`}
-      dir="rtl"
     >
       {!isDesktop && (
         <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-white/10 mt-3 mb-2" />
@@ -148,6 +147,7 @@ export const ArtistOptionsDrawer = ({
             src={artist.profile_image}
             alt={artist.name}
             fill
+            sizes="100vw"
             className="object-cover"
           />
         </div>
@@ -162,7 +162,7 @@ export const ArtistOptionsDrawer = ({
         {isDesktop && (
           <button
             onClick={onClose}
-            className="absolute left-4 top-4 text-white/40 hover:text-white transition-all transform hover:scale-110 active:scale-95 bg-white/5 hover:bg-white/10 p-2 rounded-full"
+            className="absolute left-4 sb-inline-end-position top-4 text-white/40 hover:text-white transition-all transform hover:scale-110 active:scale-95 bg-white/5 hover:bg-white/10 p-2 rounded-full"
           >
             <X className="w-4 h-4" />
           </button>
@@ -176,7 +176,7 @@ export const ArtistOptionsDrawer = ({
             key={option.id}
             onClick={option.onClick}
             disabled={!!isActionLoading}
-            className="w-full flex items-center gap-5 px-5 py-4 rounded-3xl hover:bg-white/[0.04] active:bg-white/[0.08] transition-all group text-right disabled:opacity-50"
+            className="w-full flex items-center gap-5 px-5 py-4 rounded-3xl hover:bg-white/[0.04] active:bg-white/[0.08] transition-all group text-start disabled:opacity-50"
           >
             <div className="w-11 h-11 rounded-2xl bg-white/[0.03] flex items-center justify-center text-white/70 group-hover:bg-emerald-500/10 group-hover:text-emerald-500 transition-all duration-300">
               {isActionLoading === option.id ? (
@@ -188,7 +188,7 @@ export const ArtistOptionsDrawer = ({
             <span className="flex-1 text-[17px] font-bold text-white/90 group-hover:text-white">
               {option.label}
             </span>
-            <ChevronLeft className="w-5 h-5 text-white/10 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0" />
+            <ChevronLeft className="w-5 h-5 text-white/10 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 sb-forward-icon-left" />
           </button>
         ))}
       </div>
@@ -212,7 +212,6 @@ export const ArtistOptionsDrawer = ({
             <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
             <Drawer.Content
               className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none border-t border-white/5"
-              dir="rtl"
             >
               {content}
             </Drawer.Content>

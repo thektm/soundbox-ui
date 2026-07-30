@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import Image from "next/image";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
-import { useNavigation } from "./NavigationContext";
+import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
@@ -30,11 +30,16 @@ import {
   Flame,
   Star,
   Film,
+  BadgeCheck,
 } from "lucide-react";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getFullShareUrl } from "../utils/share";
 import { createSlug } from "./mockData";
 import { SEO } from "./SEO";
+import { useI18n } from "./I18nContext";
+import { getUserFacingErrorMessage } from "../lib/clientError";
+import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
+import { buildUserNavigationParams, isSedaboxUser } from "../lib/userProfileRoute";
 
 // ============ TYPES & MOCKS ============
 interface Song {
@@ -90,10 +95,12 @@ interface Playlist {
 interface User {
   id: string;
   username: string;
+  uniqueId: string;
   fullName: string;
   image: string;
   is_following?: boolean;
   plan?: string;
+  isOfficial?: boolean;
 }
 
 interface SearchResults {
@@ -104,6 +111,33 @@ interface SearchResults {
   users: User[];
 }
 
+type SearchFilter =
+  | "all"
+  | "songs"
+  | "artists"
+  | "albums"
+  | "playlists"
+  | "users";
+
+const SEARCH_FILTERS = new Set<SearchFilter>([
+  "all",
+  "songs",
+  "artists",
+  "albums",
+  "playlists",
+  "users",
+]);
+
+const readInitialSearchState = (): { query: string; filter: SearchFilter } => {
+  if (typeof window === "undefined") return { query: "", filter: "all" };
+  const params = new URLSearchParams(window.location.search);
+  const rawFilter = params.get("type") as SearchFilter | null;
+  return {
+    query: params.get("q") || "",
+    filter: rawFilter && SEARCH_FILTERS.has(rawFilter) ? rawFilter : "all",
+  };
+};
+
 interface EventPlaylist {
   id: number;
   title: string;
@@ -111,6 +145,8 @@ interface EventPlaylist {
   cover_image: string;
   generated_by?: "system" | "admin" | "audience";
   creator_unique_id?: string | null;
+  top_song_covers?: string[];
+  songs?: any[];
 }
 
 interface EventPlaylistEntry {
@@ -139,15 +175,6 @@ interface SearchHistory {
   type: "song" | "artist" | "query";
 }
 
-interface EventPlaylistSong {
-  id: number;
-  cover_image?: string;
-}
-
-interface EventPlaylistDetail {
-  id: number;
-  songs: EventPlaylistSong[];
-}
 
 interface Genre {
   id: number;
@@ -358,43 +385,72 @@ const useGenres = (
 };
 
 // Hook: Handle API Logic
+const createEmptySearchResults = (): SearchResults => ({
+  songs: [],
+  artists: [],
+  albums: [],
+  playlists: [],
+  users: [],
+});
+
+const readSearchItems = (payload: any): any[] => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data?.results)) return payload.data.results;
+  if (Array.isArray(payload?.data?.items)) return payload.data.items;
+  return [];
+};
+
 const useSearch = (
   query: string,
-  filter: "all" | "songs" | "artists" | "albums" | "playlists" | "users",
+  filter: SearchFilter,
   authenticatedFetch: (
     input: RequestInfo | URL,
     init?: RequestInit,
   ) => Promise<Response>,
   enabled = true,
 ) => {
-  const [results, setResults] = useState<SearchResults>({
-    songs: [],
-    artists: [],
-    albums: [],
-    playlists: [],
-    users: [],
-  });
+  const { language } = useI18n();
+  const [results, setResults] = useState<SearchResults>(createEmptySearchResults);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryVersion, setRetryVersion] = useState(0);
+  const requestSequenceRef = useRef(0);
+  const authenticatedFetchRef = useRef(authenticatedFetch);
+
+  useEffect(() => {
+    authenticatedFetchRef.current = authenticatedFetch;
+  }, [authenticatedFetch]);
+
+  const retry = useCallback(() => {
+    setRetryVersion((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
-    if (!query.trim()) {
-      setResults({
-        songs: [],
-        artists: [],
-        albums: [],
-        playlists: [],
-        users: [],
-      });
+
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) {
+      requestSequenceRef.current += 1;
+      setResults(createEmptySearchResults());
+      setError(null);
+      setIsLoading(false);
       return;
     }
 
+    const requestId = ++requestSequenceRef.current;
     const abortController = new AbortController();
 
     const fetchResults = async () => {
       setIsLoading(true);
+      setError(null);
+      // Never leave results from the previous query/filter visible underneath
+      // a new request. This also makes the final empty state authoritative.
+      setResults(createEmptySearchResults());
+
       try {
-        const typeMapping: Record<string, string> = {
+        const typeMapping: Record<SearchFilter, string> = {
           all: "",
           songs: "song",
           artists: "artist",
@@ -403,120 +459,195 @@ const useSearch = (
           users: "user",
         };
 
-        const typeParam = typeMapping[filter];
         const params = new URLSearchParams({
-          q: query,
+          q: normalizedQuery,
           page_size: "40",
         });
-        if (typeParam) params.append("type", typeParam);
+        const typeParam = typeMapping[filter];
+        if (typeParam) params.set("type", typeParam);
 
-        const response = await authenticatedFetch(
+        const response = await authenticatedFetchRef.current(
           `https://api.sedabox.com/api/search/?${params.toString()}`,
-          {
-            signal: abortController.signal,
-          },
+          { signal: abortController.signal },
         );
 
-        if (!response.ok) throw new Error("Search failed");
+        if (!response.ok) {
+          const requestFailure = new Error("SEARCH_REQUEST_FAILED") as Error & {
+            status?: number;
+          };
+          requestFailure.status = response.status;
+          throw requestFailure;
+        }
 
-        const data = await response.json();
+        const payload = response.status === 204 ? null : await response.json();
+        const items = readSearchItems(payload);
+        const nextResults = createEmptySearchResults();
+        const seen = {
+          song: new Set<string>(),
+          artist: new Set<string>(),
+          album: new Set<string>(),
+          playlist: new Set<string>(),
+          user: new Set<string>(),
+        };
 
-        // Standardize the results from SearchResultSerializer
-        const songs: Song[] = [];
-        const artists: Artist[] = [];
-        const albums: Album[] = [];
-        const playlists: Playlist[] = [];
-        const users: User[] = [];
+        items.forEach((rawItem: any) => {
+          if (!rawItem || typeof rawItem !== "object") return;
 
-        (data.results || []).forEach((item: any) => {
-          switch (item.type) {
-            case "song":
-              const durationSeconds = item.data?.duration_seconds || 0;
+          const rawType = String(rawItem.type || rawItem.data?.type || "")
+            .trim()
+            .toLowerCase();
+          const itemType = rawType.endsWith("s")
+            ? rawType.slice(0, -1)
+            : rawType;
+          if (!(itemType in seen)) return;
+
+          const rawId = rawItem.id ?? rawItem.data?.id;
+          if (rawId === null || rawId === undefined || rawId === "") return;
+          const id = String(rawId);
+          const typeSeen = seen[itemType as keyof typeof seen];
+          if (typeSeen.has(id)) return;
+          typeSeen.add(id);
+
+          const data =
+            rawItem.data && typeof rawItem.data === "object"
+              ? rawItem.data
+              : rawItem;
+          const title = String(
+            rawItem.title ?? data.title ?? data.name ?? "",
+          ).trim();
+          const image =
+            rawItem.image ||
+            data.image ||
+            data.cover_image ||
+            data.profile_image ||
+            data.image_profile?.image ||
+            "https://picsum.photos/200";
+
+          switch (itemType) {
+            case "song": {
+              const durationSeconds = Math.max(
+                0,
+                Number(data.duration_seconds ?? data.duration ?? 0) || 0,
+              );
               const minutes = Math.floor(durationSeconds / 60);
-              const seconds = durationSeconds % 60;
-              const formattedDuration = `${minutes}:${seconds.toString().padStart(2, "0")}`;
-              songs.push({
-                id: item.id.toString(),
-                title: item.title,
-                artist: item.data?.artist_name || "Unknown Artist",
-                artistId: item.data?.artist_id,
-                album: item.data?.album_name || "",
-                duration: formattedDuration,
-                image: item.image || "https://picsum.photos/200",
-                src: item.data?.stream_url || item.data?.preview_url || "",
-                explicit: false, // Not provided in response
-                plays: item.data?.plays || 0,
+              const seconds = Math.floor(durationSeconds % 60);
+              nextResults.songs.push({
+                id,
+                title: title || "Untitled",
+                artist: String(
+                  data.artist_name ?? data.artist?.name ?? rawItem.subtitle ?? "Unknown Artist",
+                ),
+                artistId: data.artist_id ?? data.artist?.id,
+                album: String(data.album_name ?? data.album?.title ?? ""),
+                duration: `${minutes}:${seconds.toString().padStart(2, "0")}`,
+                image,
+                src: data.stream_url || data.preview_url || data.src || "",
+                explicit: Boolean(data.explicit),
+                plays: Number(data.plays || 0) || 0,
               });
               break;
+            }
             case "artist":
-              artists.push({
-                id: item.id.toString(),
-                name: item.title,
-                slug: item.data?.unique_id,
-                image: item.image || "https://picsum.photos/200",
-                followers: "", // Not provided in this response
-                verified: item.data?.verified || false,
-                is_following: item.is_following || false,
+              nextResults.artists.push({
+                id,
+                name: title || String(data.name || "Unknown Artist"),
+                slug: data.unique_id || data.slug,
+                image,
+                profileImage: data.profile_image || image,
+                followers: String(data.followers_count ?? data.followers ?? ""),
+                verified: Boolean(data.verified ?? data.is_verified),
+                is_following: Boolean(
+                  rawItem.is_following ?? data.is_following,
+                ),
               });
               break;
             case "album":
-              albums.push({
-                id: item.id.toString(),
-                title: item.title,
-                artist: item.data?.artist_name || "",
-                artistId: item.data?.artist_id,
-                slug: item.data?.slug || createSlug(item.title),
-                image: item.image || "https://picsum.photos/200",
-                year: item.data?.release_date
-                  ? new Date(item.data.release_date).getFullYear().toString()
-                  : "",
+              nextResults.albums.push({
+                id,
+                title: title || "Untitled",
+                artist: String(
+                  data.artist_name ?? data.artist?.name ?? rawItem.subtitle ?? "",
+                ),
+                artistId: data.artist_id ?? data.artist?.id,
+                slug: data.slug || createSlug(title || `album-${id}`),
+                image,
+                year: data.release_date
+                  ? new Date(data.release_date).getFullYear().toString()
+                  : String(data.year || ""),
                 type: "Album",
-                description: "",
+                description: String(data.description || ""),
               });
               break;
             case "playlist":
-              playlists.push({
-                id: item.id.toString(),
-                title: item.title,
-                image: item.image || "https://picsum.photos/200",
-                songsCount: 0, // Not provided
-                description: "",
-                gradient: "",
-                duration: "",
+              nextResults.playlists.push({
+                id,
+                title: title || "Untitled",
+                image,
+                songsCount: Number(
+                  data.songs_count ?? data.song_count ?? data.songs?.length ?? 0,
+                ) || 0,
+                description: String(data.description || ""),
+                gradient: String(data.gradient || ""),
+                duration: String(data.duration || ""),
               });
               break;
-            case "user":
-              users.push({
-                id: item.id.toString(),
-                username: item.title,
-                fullName:
-                  `${item.data?.first_name || ""} ${item.data?.last_name || ""}`.trim() ||
-                  item.title,
-                image: item.image || "https://picsum.photos/200",
-                is_following: item.is_following || false,
-                plan: item.data?.plan || "free",
+            case "user": {
+              const uniqueId = String(
+                data.unique_id || rawItem.title || `user-${id}`,
+              );
+              const fullName =
+                `${data.first_name || ""} ${data.last_name || ""}`.trim() ||
+                uniqueId;
+              nextResults.users.push({
+                id,
+                username: uniqueId,
+                uniqueId,
+                fullName,
+                image: normalizeUserAvatarUrl(
+                  data.image_profile?.image || data.profile_image || image,
+                ),
+                is_following: Boolean(
+                  rawItem.is_following ?? data.is_following,
+                ),
+                plan: data.plan || "free",
+                isOfficial: Boolean(data.is_official) || isSedaboxUser(data),
               });
               break;
+            }
           }
         });
 
-        setResults({ songs, artists, albums, playlists, users });
-      } catch (error: any) {
-        if (error.name !== "AbortError") {
-          console.error("Search API Error:", error);
+        if (requestId !== requestSequenceRef.current) return;
+        setResults(nextResults);
+      } catch (requestError: any) {
+        if (
+          requestError?.name === "AbortError" ||
+          requestId !== requestSequenceRef.current
+        ) {
+          return;
         }
+        console.error("Search API Error:", requestError);
+        setResults(createEmptySearchResults());
+        setError(
+          getUserFacingErrorMessage(requestError, language, {
+            fa: "جستجو انجام نشد. لطفاً دوباره تلاش کنید.",
+            en: "Search could not be completed. Please try again.",
+          }),
+        );
       } finally {
-        setIsLoading(false);
+        if (requestId === requestSequenceRef.current) {
+          setIsLoading(false);
+        }
       }
     };
 
-    fetchResults();
+    void fetchResults();
     return () => {
       abortController.abort();
     };
-  }, [query, filter, authenticatedFetch, enabled]);
+  }, [enabled, filter, language, query, retryVersion]);
 
-  return { results, isLoading };
+  return { results, isLoading, error, retry };
 };
 
 // ============ ICONS (Static) ============
@@ -592,6 +723,7 @@ const SongCard = memo(
     onTitleClick?: () => void;
     onArtistClick?: () => void;
   }) => {
+    const { locale } = useI18n();
     const [isHovered, setIsHovered] = useState(false);
 
     const isDesktop =
@@ -679,7 +811,7 @@ const SongCard = memo(
           {song.plays !== undefined && song.plays > 0 && (
             <span className="text-sm text-[#a7a7a7]">
               <ICONS.Play className="inline w-3 h-3 mr-1" aria-hidden="true" />{" "}
-              {song.plays.toLocaleString()}
+              {song.plays.toLocaleString(locale)}
             </span>
           )}
           <span className="text-sm text-[#a7a7a7] tabular-nums">
@@ -722,8 +854,16 @@ const ArtistCard = memo(
       window.matchMedia("(min-width: 768px)").matches;
 
     return (
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onClick();
+          }
+        }}
         className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] focus-visible:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300 cursor-pointer h-full flex flex-col items-center text-center w-full"
         aria-label={`مشاهده هنرمند ${artist.name}`}
       >
@@ -781,18 +921,20 @@ const ArtistCard = memo(
             )}
           </button>
         </div>
-      </button>
+      </div>
     );
   },
 );
 
 const UserCard = memo(
   ({ user, onClick }: { user: User; onClick: () => void }) => {
+    const { language } = useI18n();
+    const official = user.isOfficial || isSedaboxUser(user);
     return (
       <button
         onClick={onClick}
         className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] focus-visible:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300 cursor-pointer h-full flex flex-col items-center text-center w-full"
-        aria-label={`مشاهده پروفایل ${user.username}`}
+        aria-label={`مشاهده پروفایل ${user.fullName || user.username}`}
       >
         <div className="relative mb-4 w-full aspect-square px-2">
           <div className="w-full h-full rounded-full overflow-hidden shadow-2xl bg-zinc-800 relative">
@@ -808,11 +950,23 @@ const UserCard = memo(
           </div>
         </div>
         <div className="flex flex-col items-center gap-1 w-full px-2">
-          <span className="font-bold text-white truncate max-w-full">
-            {user.username}
+          <span className="inline-flex max-w-full items-center justify-center gap-1.5 font-bold text-white">
+            <span className="truncate">{user.fullName || user.username}</span>
+            {official && (
+              <span
+                className="shrink-0 text-[#3D91F4]"
+                title={language === "fa" ? "حساب رسمی صداباکس" : "Official SedaBox account"}
+                aria-label={language === "fa" ? "حساب رسمی صداباکس" : "Official SedaBox account"}
+              >
+                <BadgeCheck className="h-4 w-4" strokeWidth={2.4} />
+              </span>
+            )}
           </span>
-          <div className="text-sm text-[#a7a7a7] truncate w-full">
-            {user.fullName}
+          <div
+            dir="ltr"
+            className="text-sm text-[#a7a7a7] truncate w-full"
+          >
+            @{user.uniqueId}
           </div>
           <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-zinc-800 text-[10px] text-zinc-400 mt-1">
             کاربر
@@ -834,7 +988,7 @@ const AlbumCard = memo(
     return (
       <button
         onClick={onClick}
-        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] focus-visible:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300 cursor-pointer w-full text-right"
+        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] focus-visible:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300 cursor-pointer w-full text-start"
         aria-label={`مشاهده آلبوم ${album.title} از ${album.artist}`}
       >
         <div className="relative mb-4 aspect-square">
@@ -877,7 +1031,7 @@ const PlaylistCard = memo(
     return (
       <button
         onClick={onClick}
-        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] focus-visible:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300 cursor-pointer w-full text-right"
+        className="group p-4 rounded-lg bg-[#181818] hover:bg-[#282828] focus-visible:bg-[#282828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-300 cursor-pointer w-full text-start"
         aria-label={`مشاهده لیست پخش ${playlist.title}`}
       >
         <div className="relative mb-4 aspect-square">
@@ -975,7 +1129,7 @@ const EventSkeleton = memo(() => (
         key={i}
         className="w-full flex items-center justify-between gap-4 p-3 rounded-lg bg-[#101010] border border-white/5"
       >
-        <div className="flex-1 space-y-2 text-right">
+        <div className="flex-1 space-y-2 text-start">
           <div className="h-5 bg-zinc-800 rounded w-1/3 ml-auto" />
           <div className="h-4 bg-zinc-800 rounded w-1/4 ml-auto" />
         </div>
@@ -1154,6 +1308,7 @@ const SectionCard = memo(
                       src={stackImages[2]}
                       alt=""
                       fill
+                      sizes="100vw"
                       className="object-cover"
                     />
                   </div>
@@ -1167,6 +1322,7 @@ const SectionCard = memo(
                       src={stackImages[1]}
                       alt=""
                       fill
+                      sizes="100vw"
                       className="object-cover"
                     />
                   </div>
@@ -1331,7 +1487,10 @@ export default function Search() {
   const { playTrack } = usePlayer();
   const { accessToken, authenticatedFetch } = useAuth();
   const { requestAuth } = useGuestAccess();
-  const [query, setQuery] = useState("");
+  const { locale } = useI18n();
+  const isEnglish = locale === "en";
+  const [initialSearchState] = useState(readInitialSearchState);
+  const [query, setQuery] = useState(initialSearchState.query);
   const debouncedQuery = useDebounce(query, 300);
   // Remove Persian/Arabic diacritics and special mark characters from input
   const FORBIDDEN_PERSIAN_REGEX =
@@ -1341,6 +1500,7 @@ export default function Search() {
     setQuery(sanitized);
   };
   const [isFocused, setIsFocused] = useState(false);
+  const [openingEventPlaylistId, setOpeningEventPlaylistId] = useState<number | null>(null);
 
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -1371,14 +1531,43 @@ export default function Search() {
     }
   };
 
-  const [activeFilter, setActiveFilter] = useState<
-    "all" | "songs" | "artists" | "albums" | "playlists" | "users"
-  >("all");
+  const [activeFilter, setActiveFilter] = useState<SearchFilter>(
+    initialSearchState.filter,
+  );
   const [followedStatus, setFollowedStatus] = useState<Record<string, boolean>>(
     {},
   );
   const [followingId, setFollowingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const syncSearchUrl = useCallback(
+    (rawQuery: string, filter: SearchFilter) => {
+      if (typeof window === "undefined") return;
+      const normalizedQuery = rawQuery.trim();
+      const params = new URLSearchParams();
+      if (normalizedQuery) params.set("q", normalizedQuery);
+      if (filter !== "all") params.set("type", filter);
+
+      const stateParams = { q: normalizedQuery, filter };
+      const suffix = params.toString();
+      replaceCurrentNavigationEntry(
+        "search",
+        stateParams,
+        suffix ? `/search?${suffix}` : "/search",
+      );
+    },
+    [],
+  );
+
+  const navigateFromSearch = useCallback(
+    (page: string, params?: Record<string, unknown>) => {
+      // Commit the current search URL before pushing the result route so the
+      // browser Back action restores the exact query and selected filter.
+      syncSearchUrl(query, activeFilter);
+      navigateTo(page, params);
+    },
+    [activeFilter, navigateTo, query, syncSearchUrl],
+  );
 
   const handleFollow = useCallback(
     (artistId: string, currentlyFollowing: boolean) => {
@@ -1431,8 +1620,13 @@ export default function Search() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // Keep the address bar shareable without adding one history entry per key.
+  useEffect(() => {
+    syncSearchUrl(debouncedQuery, activeFilter);
+  }, [activeFilter, debouncedQuery, syncSearchUrl]);
+
   // Custom Hooks
-  const { results, isLoading } = useSearch(
+  const { results, isLoading, error: searchError, retry: retrySearch } = useSearch(
     debouncedQuery,
     activeFilter,
     authenticatedFetch,
@@ -1460,73 +1654,6 @@ export default function Search() {
     isReady,
   );
 
-  const [playlistDetails, setPlaylistDetails] = useState<
-    Record<number, EventPlaylistDetail>
-  >({});
-  const fetchedPlaylistIdsRef = useRef<Set<number>>(new Set());
-  const prevEventIdRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const newEventId = currentEvent?.id ?? null;
-    if (newEventId === prevEventIdRef.current) return;
-    prevEventIdRef.current = newEventId;
-    fetchedPlaylistIdsRef.current.clear();
-    setPlaylistDetails({});
-  }, [currentEvent?.id]);
-
-  useEffect(() => {
-    if (!isReady || !currentEvent) {
-      fetchedPlaylistIdsRef.current.clear();
-      setPlaylistDetails({});
-      return;
-    }
-
-    const toFetch = currentEvent.playlists.filter(
-      (playlist) => !fetchedPlaylistIdsRef.current.has(playlist.id),
-    );
-
-    if (toFetch.length === 0) return;
-
-    const controllers: Record<number, AbortController> = {};
-
-    toFetch.forEach((playlist) => {
-      const controller = new AbortController();
-      controllers[playlist.id] = controller;
-
-      authenticatedFetch(
-        `https://api.sedabox.com/api/playlists/${playlist.id}/`,
-        {
-          signal: controller.signal,
-        },
-      )
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error("Failed to fetch playlist detail");
-          }
-          return response.json();
-        })
-        .then((data) => {
-          const songs = Array.isArray(data?.songs) ? data.songs : [];
-          fetchedPlaylistIdsRef.current.add(playlist.id);
-          setPlaylistDetails((prev) => ({
-            ...prev,
-            [playlist.id]: {
-              id: playlist.id,
-              songs,
-            },
-          }));
-        })
-        .catch((error) => {
-          if (error.name !== "AbortError") {
-            console.error("Failed to load playlist detail", error);
-          }
-        });
-    });
-
-    return () => {
-      Object.values(controllers).forEach((controller) => controller.abort());
-    };
-  }, [currentEvent, accessToken, isReady]);
 
   // Handlers (Memoized)
   const handleSearch = useCallback(
@@ -1540,6 +1667,7 @@ export default function Search() {
     if (e.key === "Enter" && query.trim()) handleSearch(query);
     if (e.key === "Escape") {
       setQuery("");
+      syncSearchUrl("", activeFilter);
       inputRef.current?.blur();
     }
   };
@@ -1555,12 +1683,12 @@ export default function Search() {
   const handleArtistClick = useCallback(
     (artist: Artist) => {
       addToHistory(artist.name, "artist");
-      navigateTo("artist-detail", {
+      navigateFromSearch("artist-detail", {
         id: artist.id,
         slug: (artist as any).unique_id || createSlug(artist.name),
       });
     },
-    [addToHistory, navigateTo],
+    [addToHistory, navigateFromSearch],
   );
 
   const handleHistorySelect = useCallback(
@@ -1572,15 +1700,37 @@ export default function Search() {
   );
 
   const handleEventPlaylistPress = useCallback(
-    (eventId: number, playlist: any) => {
-      // Immediately navigate to the playlist detail and let that screen fetch data.
-      navigateTo("playlist-detail", {
-        id: String(playlist.id),
-        generatedBy: playlist.generated_by,
-        creatorUniqueId: playlist.creator_unique_id,
-      });
+    async (playlist: EventPlaylist) => {
+      if (openingEventPlaylistId === playlist.id) return;
+      setOpeningEventPlaylistId(playlist.id);
+
+      try {
+        // Fetch only the selected child playlist. This keeps the search list
+        // lightweight while making its songs available immediately on open.
+        const response = await authenticatedFetch(
+          `https://api.sedabox.com/api/playlists/${playlist.id}/`,
+        );
+        const hydratedPlaylist = response.ok ? await response.json() : null;
+
+        navigateFromSearch("playlist-detail", {
+          id: String(playlist.id),
+          generatedBy: playlist.generated_by,
+          creatorUniqueId: playlist.creator_unique_id,
+          initialPlaylist: hydratedPlaylist || undefined,
+        });
+      } catch (error) {
+        console.error("Failed to fetch event playlist details", error);
+        // Preserve the previous behavior as a network-error fallback.
+        navigateFromSearch("playlist-detail", {
+          id: String(playlist.id),
+          generatedBy: playlist.generated_by,
+          creatorUniqueId: playlist.creator_unique_id,
+        });
+      } finally {
+        setOpeningEventPlaylistId(null);
+      }
     },
-    [navigateTo],
+    [authenticatedFetch, navigateFromSearch, openingEventPlaylistId],
   );
 
   // Derived State
@@ -1590,7 +1740,7 @@ export default function Search() {
     results.albums.length > 0 ||
     results.playlists.length > 0 ||
     results.users.length > 0;
-  const showResults = debouncedQuery.trim() && !isLoading;
+  const showResults = Boolean(debouncedQuery.trim()) && !isLoading;
 
   const showSongs =
     (activeFilter === "all" || activeFilter === "songs") &&
@@ -1608,10 +1758,20 @@ export default function Search() {
     (activeFilter === "all" || activeFilter === "users") &&
     results.users.length > 0;
 
+  // In the All tab the first artist is promoted as the top result, but it must
+  // never make songs or artists disappear when one side is missing.
+  const topArtist =
+    activeFilter === "all" && showArtists ? results.artists[0] : undefined;
+  const visibleArtists =
+    activeFilter === "all" && topArtist
+      ? results.artists.slice(1)
+      : results.artists;
+  const showAllPrimaryResults =
+    activeFilter === "all" && (Boolean(topArtist) || showSongs);
+
   return (
     <div
       className="relative min-h-screen bg-transparent text-white pb-24 md:pb-4"
-      dir="rtl"
     >
       <SEO title={query.trim() ? `جستجو: ${query}` : "جستجو"} />
       {!query.trim() && <ModernBackground />}
@@ -1651,7 +1811,7 @@ export default function Search() {
             />
             {query && (
               <button
-                onClick={() => setQuery("")}
+                onClick={() => { setQuery(""); syncSearchUrl("", activeFilter); }}
                 className="pr-4 pl-2 py-2 text-zinc-400 hover:text-white outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-full"
                 aria-label="پاک کردن جستجو"
               >
@@ -1723,6 +1883,7 @@ export default function Search() {
                   <button
                     onClick={() => {
                       setQuery("");
+                      syncSearchUrl("", activeFilter);
                       inputRef.current?.focus();
                     }}
                     className="pr-4 pl-2 py-2 text-[#a7a7a7] hover:text-white outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-full"
@@ -1756,7 +1917,11 @@ export default function Search() {
               <button
                 key={f.k}
                 role="tab"
-                onClick={() => setActiveFilter(f.k as any)}
+                onClick={() => {
+                  const nextFilter = f.k as SearchFilter;
+                  setActiveFilter(nextFilter);
+                  syncSearchUrl(query, nextFilter);
+                }}
                 aria-selected={activeFilter === f.k}
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
                   activeFilter === f.k
@@ -1778,33 +1943,46 @@ export default function Search() {
       >
         {isLoading && <LoadingSkeleton />}
 
-        {showResults && hasResults && (
+        {showResults && !searchError && hasResults && (
           <div className="space-y-8">
-            {/* Top Result Block */}
-            {showArtists &&
-              showSongs &&
-              activeFilter === "all" &&
-              results.artists[0] && (
-                <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-6">
-                  <section>
-                    <h2 className="text-2xl font-bold ">نتیجه برتر</h2>
+            {/* All-filter primary results. Either side can render independently. */}
+            {showAllPrimaryResults && (
+              <div
+                className={
+                  topArtist && showSongs
+                    ? "grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-6"
+                    : "w-full"
+                }
+              >
+                {topArtist && (
+                  <section className={showSongs ? undefined : "max-w-xl"}>
+                    <h2 className="text-2xl font-bold mb-4">نتیجه برتر</h2>
                     <ArtistCard
-                      key={results.artists[0].id}
-                      artist={results.artists[0]}
-                      onClick={() => handleArtistClick(results.artists[0])}
+                      key={topArtist.id}
+                      artist={topArtist}
+                      onClick={() => handleArtistClick(topArtist)}
                       onFollow={handleFollow}
                       isFollowing={
-                        (followedStatus[results.artists[0].id] ??
-                          results.artists[0].is_following) ||
+                        (followedStatus[topArtist.id] ??
+                          topArtist.is_following) ||
                         false
                       }
-                      isFollowLoading={followingId === results.artists[0].id}
+                      isFollowLoading={followingId === topArtist.id}
                     />
                   </section>
-                  <section>
-                    <h2 className="text-2xl font-bold mb-4 mt-6">آهنگ‌ها</h2>
+                )}
+
+                {showSongs && (
+                  <section className={topArtist ? undefined : "w-full"}>
+                    <h2
+                      className={`text-2xl font-bold mb-4 ${
+                        topArtist ? "mt-6 lg:mt-0" : ""
+                      }`}
+                    >
+                      آهنگ‌ها
+                    </h2>
                     <div className="space-y-1">
-                      {results.songs.slice(0, 4).map((song, i) => (
+                      {results.songs.map((song, i) => (
                         <SongCard
                           key={song.id}
                           song={song}
@@ -1812,14 +1990,14 @@ export default function Search() {
                           onPlay={() => handlePlaySong(song)}
                           onMore={handleMore}
                           onTitleClick={() =>
-                            navigateTo("song-detail", {
+                            navigateFromSearch("song-detail", {
                               id: song.id,
                               title: song.title,
                             })
                           }
                           onArtistClick={() =>
                             song.artistId &&
-                            navigateTo("artist-detail", {
+                            navigateFromSearch("artist-detail", {
                               id: song.artistId,
                             })
                           }
@@ -1827,35 +2005,31 @@ export default function Search() {
                       ))}
                     </div>
                   </section>
-                </div>
-              )}
+                )}
+              </div>
+            )}
 
             {/* Artists Grid */}
-            {showArtists &&
-              (activeFilter === "artists" ||
-                (activeFilter === "all" && results.artists.length > 1)) && (
-                <section>
-                  <h2 className="text-2xl font-bold mb-4">هنرمندان</h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-                    {(activeFilter === "all"
-                      ? results.artists.slice(1)
-                      : results.artists
-                    ).map((artist) => (
-                      <ArtistCard
-                        key={artist.id}
-                        artist={artist}
-                        onClick={() => handleArtistClick(artist)}
-                        onFollow={handleFollow}
-                        isFollowing={
-                          (followedStatus[artist.id] ?? artist.is_following) ||
-                          false
-                        }
-                        isFollowLoading={followingId === artist.id}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
+            {showArtists && visibleArtists.length > 0 && (
+              <section>
+                <h2 className="text-2xl font-bold mb-4">هنرمندان</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                  {visibleArtists.map((artist) => (
+                    <ArtistCard
+                      key={artist.id}
+                      artist={artist}
+                      onClick={() => handleArtistClick(artist)}
+                      onFollow={handleFollow}
+                      isFollowing={
+                        (followedStatus[artist.id] ?? artist.is_following) ||
+                        false
+                      }
+                      isFollowLoading={followingId === artist.id}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Albums Grid */}
             {showAlbums && (
@@ -1867,7 +2041,7 @@ export default function Search() {
                       key={album.id}
                       album={album}
                       onClick={() =>
-                        navigateTo("album-detail", { id: album.id })
+                        navigateFromSearch("album-detail", { id: album.id, title: album.title })
                       }
                     />
                   ))}
@@ -1885,7 +2059,7 @@ export default function Search() {
                       key={playlist.id}
                       playlist={playlist}
                       onClick={() =>
-                        navigateTo("playlist-detail", { id: playlist.id })
+                        navigateFromSearch("playlist-detail", { id: playlist.id, title: playlist.title })
                       }
                     />
                   ))}
@@ -1903,7 +2077,15 @@ export default function Search() {
                       key={user.id}
                       user={user}
                       onClick={() =>
-                        navigateTo("user-detail", { id: user.username })
+                        navigateFromSearch(
+                          "user-detail",
+                          buildUserNavigationParams({
+                            id: user.id,
+                            unique_id: user.uniqueId,
+                            fullName: user.fullName,
+                            is_official: user.isOfficial,
+                          }),
+                        )
                       }
                     />
                   ))}
@@ -1924,14 +2106,14 @@ export default function Search() {
                       onPlay={() => handlePlaySong(song)}
                       onMore={handleMore}
                       onTitleClick={() =>
-                        navigateTo("song-detail", {
+                        navigateFromSearch("song-detail", {
                           id: song.id,
                           title: song.title,
                         })
                       }
                       onArtistClick={() =>
                         song.artistId &&
-                        navigateTo("artist-detail", {
+                        navigateFromSearch("artist-detail", {
                           id: song.artistId,
                         })
                       }
@@ -1943,27 +2125,60 @@ export default function Search() {
           </div>
         )}
 
+        {/* Request Error: distinct from a genuine empty result. */}
+        {showResults && searchError && (
+          <div
+            className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-300"
+            role="alert"
+          >
+            <div className="bg-red-500/10 border border-red-400/20 p-7 rounded-full mb-7">
+              <ICONS.Search className="w-11 h-11 text-red-300" />
+            </div>
+            <h2 className="text-2xl font-bold mb-3">
+              {isEnglish
+                ? "Search could not be completed"
+                : "جستجو انجام نشد"}
+            </h2>
+            <p className="text-[#a7a7a7] max-w-md mx-auto leading-7">
+              {isEnglish
+                ? "Check your connection and try again. Your query has been kept."
+                : "اتصال اینترنت را بررسی کنید و دوباره تلاش کنید. عبارت جستجو حفظ شده است."}
+            </p>
+            <button
+              type="button"
+              onClick={retrySearch}
+              className="mt-7 px-7 py-3 bg-white text-black rounded-full font-bold hover:scale-105 active:scale-95 transition-transform outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            >
+              {isEnglish ? "Try again" : "تلاش دوباره"}
+            </button>
+          </div>
+        )}
+
         {/* Not Found */}
-        {showResults && !hasResults && debouncedQuery.trim() && (
+        {showResults && !searchError && !hasResults && debouncedQuery.trim() && (
           <div className="flex flex-col items-center justify-center py-24 text-center animate-in fade-in duration-700">
             <div className="bg-zinc-800 p-8 rounded-full mb-8">
               <ICONS.Search className="w-12 h-12 text-zinc-400" />
             </div>
             <h2 className="text-2xl font-bold mb-3">
-              نتیجه‌ای برای «{debouncedQuery}» یافت نشد
+              {isEnglish
+                ? `No results found for “${debouncedQuery}”`
+                : `نتیجه‌ای برای «${debouncedQuery}» یافت نشد`}
             </h2>
             <p className="text-[#a7a7a7] max-w-md mx-auto">
-              لطفاً املای کلمات را بررسی کنید یا از کلمات کلیدی متفاوتی استفاده
-              کنید.
+              {isEnglish
+                ? "Check the spelling or try a different song, artist, album, playlist, or user name."
+                : "املای عبارت را بررسی کنید یا نام آهنگ، هنرمند، آلبوم، لیست پخش یا کاربر دیگری را جستجو کنید."}
             </p>
             <button
               onClick={() => {
                 setQuery("");
+                syncSearchUrl("", activeFilter);
                 inputRef.current?.focus();
               }}
               className="mt-8 px-8 py-3 bg-white text-black rounded-full font-bold hover:scale-105 active:scale-95 transition-all"
             >
-              پاک کردن جستجو
+              {isEnglish ? "Clear search" : "پاک کردن جستجو"}
             </button>
           </div>
         )}
@@ -2002,22 +2217,19 @@ export default function Search() {
                 </h2>
                 <div className="space-y-3">
                   {currentEvent.playlists.map((playlist: EventPlaylist) => {
-                    const playlistDetail = playlistDetails[playlist.id];
-                    const songCoverImages =
-                      playlistDetail?.songs
-                        ?.map((song) => song.cover_image)
-                        .filter((image): image is string => Boolean(image)) ??
-                      [];
-                    const recentCovers = songCoverImages.slice(-2).reverse();
+                    const recentCovers = (playlist.top_song_covers || [])
+                      .filter(Boolean)
+                      .slice(0, 2);
 
                     return (
                       <button
                         key={playlist.id}
                         type="button"
+                        disabled={openingEventPlaylistId === playlist.id}
                         onClick={() =>
-                          handleEventPlaylistPress(currentEvent.id, playlist)
+                          handleEventPlaylistPress(playlist)
                         }
-                        className="w-full flex items-start gap-4 p-4 rounded-2xl bg-[#101010] hover:bg-[#1b1b1b] transition-all duration-200 shadow-[0_10px_30px_rgba(0,0,0,0.45)] border border-white/5"
+                        className="w-full flex items-start gap-4 p-4 rounded-2xl bg-[#101010] hover:bg-[#1b1b1b] disabled:opacity-70 disabled:cursor-wait transition-all duration-200 shadow-[0_10px_30px_rgba(0,0,0,0.45)] border border-white/5"
                       >
                         <div className="w-16 h-16 flex-shrink-0 rounded-2xl overflow-hidden shadow-lg border border-white/10">
                           <ImageWithPlaceholder
@@ -2028,7 +2240,7 @@ export default function Search() {
                           />
                         </div>
                         <div className="flex-1 flex flex-col gap-2">
-                          <div className="flex flex-col text-right gap-1">
+                          <div className="flex flex-col text-start gap-1">
                             <span className="text-white font-bold text-lg leading-tight">
                               {playlist.title}
                             </span>
@@ -2058,6 +2270,7 @@ export default function Search() {
                                           src={cover}
                                           alt={`${playlist.title} cover ${index}`}
                                           fill
+                                          sizes="100vw"
                                           className="object-cover"
                                         />
                                       </div>
@@ -2091,7 +2304,10 @@ export default function Search() {
                   <SectionHorizontalList
                     section={section}
                     onNavigate={(type, id, extraData) =>
-                      navigateTo(type as any, { id: String(id), ...extraData })
+                      navigateFromSearch(type as any, {
+                        id: String(id),
+                        ...extraData,
+                      })
                     }
                     onPlayTrack={(song) =>
                       handlePlaySong({
@@ -2118,7 +2334,7 @@ export default function Search() {
                       genre={genre}
                       index={i}
                       onClick={() =>
-                        navigateTo("genre-detail", {
+                        navigateFromSearch("genre-detail", {
                           id: genre.id,
                           name: genre.name,
                           color: GENRE_ACCENT_HEX[genre.id] ?? "#1a1a2e",

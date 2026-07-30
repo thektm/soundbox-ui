@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigation } from "./NavigationContext";
+import { useI18n } from "./I18nContext";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -283,6 +284,7 @@ export default function UpgradePlans({
   onUpgrade,
 }: UpgradePlansProps) {
   const { navigateTo, goBack } = useNavigation();
+  const { direction } = useI18n();
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -318,8 +320,8 @@ export default function UpgradePlans({
 
   return (
     <div
+      dir={direction}
       className="relative w-full h-fit bg-[#030303] text-white overflow-visible font-sans"
-      dir="rtl"
     >
       {/* Noise Texture */}
       <div
@@ -335,7 +337,9 @@ export default function UpgradePlans({
 
       {/* Header */}
       <div className="sticky top-0 z-50 bg-[#030303]/80 backdrop-blur-xl border-b border-white/5">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+        <div
+          className={`max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between ${direction === "ltr" ? "flex-row-reverse" : "flex-row"}`}
+        >
           <div className="flex items-center gap-4">
             <div className="h-10 w-10">
               <img
@@ -355,7 +359,7 @@ export default function UpgradePlans({
             onClick={goBack}
             className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md flex items-center justify-center transition-all duration-300 hover:scale-105 border border-white/10"
           >
-            <Icon d={ICONS.back} className="w-5 h-5 text-white" />
+            <Icon d={ICONS.back} className="w-5 h-5 text-white sb-back-icon" />
           </button>
         </div>
       </div>

@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
+import { useI18n } from "./I18nContext";
 import toast from "react-hot-toast";
 import { Loader2 } from "lucide-react";
 
 const Verify: React.FC = () => {
+  const { direction, t } = useI18n();
   const { setCurrentPage } = useNavigation();
   const {
     verifyOtp,
@@ -44,8 +46,8 @@ const Verify: React.FC = () => {
     const promise = requestLoginOtp(phone);
 
     toast.promise(promise, {
-      loading: "در حال ارسال مجدد کد...",
-      success: "کد تایید مجدداً ارسال شد",
+      loading: t("در حال ارسال مجدد کد..."),
+      success: t("کد تایید مجدداً ارسال شد"),
       error: (e) => {
         const msg = formatErrorMessage(e);
         setError(msg);
@@ -122,30 +124,15 @@ const Verify: React.FC = () => {
       const verifyMethod =
         verificationContext === "login" ? verifyLoginOtp : verifyOtp;
 
-      const endpoint =
-        verificationContext === "login"
-          ? "/auth/login/otp/verify/"
-          : "/auth/verify/";
-      console.log(
-        "Sending OTP verification request to:",
-        `https://api.sedabox.com/api${endpoint}`,
-      );
-      console.log("Sending OTP verification request with body:", {
-        otp: code,
-        phone: "09" + phone,
-      });
-
       const promise = verifyMethod(code);
 
       toast.promise(promise, {
-        loading: "در حال تایید کد...",
-        success: (data) => {
-          console.log("OTP verification successful, response:", data);
+        loading: t("در حال تایید کد..."),
+        success: () => {
           setCurrentPage("home");
-          return "خوش آمدید!";
+          return t("خوش آمدید!");
         },
         error: (e) => {
-          console.log("OTP verification failed, full response:", e);
           const msg = formatErrorMessage(e);
           setError(msg);
           return msg;
@@ -177,20 +164,20 @@ const Verify: React.FC = () => {
         aria-hidden="true"
       >
         <div className="relative">
-          <div className="w-35 h-35 lg:w-44 lg:h-44 rounded-full md:rounded-none lg:rounded-none flex items-center justify-center overflow-hidden md:overflow-visible lg:overflow-visible">
+          <div className="w-35 h-35 lg:w-44 lg:h-44 rounded-none flex items-center justify-center overflow-visible">
             <img
               src="/logo-text.png"
               alt="SedaBox Logo"
               className="w-28 lg:w-44 object-contain transform transition-transform duration-300"
             />
           </div>
-          <div className="absolute inset-0 rounded-full md:rounded-none lg:rounded-none" />
+          <div className="absolute inset-0 rounded-none" />
         </div>
       </div>
 
-      <div className="w-full mt-8 lg:w-[45%] flex flex-col justify-center items-center relative z-10 p-4 lg:p-12 order-2 lg:order-1">
+      <div dir={direction} className="w-full mt-8 lg:w-[45%] flex flex-col justify-center items-center relative z-10 p-4 lg:p-12 order-2 lg:order-1">
         <div className="w-full max-w-md">
-          <div className="mb-2 text-center lg:text-right" dir="rtl">
+          <div className="mb-2 text-center lg:text-start">
             <div className="flex items-center justify-center lg:justify-start gap-2 mb-2 group cursor-default"></div>
             <h2 className="text-3xl font-medium text-white mb-3 leading-tight">
               تایید شماره موبایل{" "}
@@ -211,7 +198,6 @@ const Verify: React.FC = () => {
               handleVerify();
             }}
             className="relative group rounded-2xl bg-white/2 border border-white/10 p-1 backdrop-blur-md transition-all duration-500 hover:bg-white/4 hover:border-white/20 hover:shadow-[0_20px_80px_-20px_rgba(0,0,0,0.5)]"
-            dir="rtl"
           >
             <div className="p-6 lg:p-8">
               <div className="mb-6 text-sm text-gray-400">
@@ -220,7 +206,7 @@ const Verify: React.FC = () => {
 
               <div
                 className="flex items-center justify-center gap-3 mb-6"
-                dir="ltr"
+                dir="ltr" data-direction-fixed="ltr"
               >
                 {digits.map((d, i) => (
                   <input
@@ -232,7 +218,8 @@ const Verify: React.FC = () => {
                     onChange={(e) => handleChange(e, i)}
                     onKeyDown={(e) => handleKeyDown(e, i)}
                     onPaste={handlePaste}
-                    className="w-14 h-14 text-center text-xl font-mono bg-transparent border rounded-xl border-white/10 focus:border-emerald-500/60 focus:shadow-[0_0_20px_rgba(16,185,129,0.12)]"
+                    className="sb-otp-digit w-14 h-14 appearance-none !p-0 !text-center align-middle text-xl font-mono font-semibold leading-[3.5rem] tabular-nums bg-transparent border rounded-xl border-white/10 focus:border-emerald-500/60 focus:shadow-[0_0_20px_rgba(16,185,129,0.12)]"
+                    style={{ lineHeight: "3.5rem", textAlign: "center", direction: "ltr", unicodeBidi: "isolate" }}
                     inputMode="numeric"
                     pattern="[0-9]*"
                     maxLength={1}
@@ -291,7 +278,7 @@ const Verify: React.FC = () => {
             </div>
           </form>
 
-          <div dir="rtl" className="mt-8 text-center lg:text-right">
+          <div className="mt-8 text-center lg:text-start">
             <p className="text-xs text-gray-600">
               با ورود به سیستم،{" "}
               <a
@@ -306,7 +293,7 @@ const Verify: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full lg:w-[55%] h-[40vh] lg:h-auto relative order-1 lg:order-2">
+      <div dir={direction} className="w-full lg:w-[55%] h-[40vh] lg:h-auto relative order-1 lg:order-2">
         <div className="absolute inset-0 w-full h-full">
           <img
             src="/music-listen2.webp"
@@ -321,8 +308,7 @@ const Verify: React.FC = () => {
         </div>
 
         <div
-          className="absolute bottom-10 right-10 hidden lg:block text-right"
-          dir="rtl"
+          className="absolute bottom-10 right-10 hidden lg:block text-start"
         >
           <div className="text-6xl font-bold text-white/10 tracking-tighter select-none">
             MUSIC

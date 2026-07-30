@@ -83,7 +83,7 @@ export const AddToPlaylistModal = ({
         onClose();
       } else {
         if (response.status === 401) {
-          toast.error("لطفا ابتدا وارد حساب خود شوید");
+          requestAuth("برای افزودن آهنگ به پلی‌لیست وارد شوید.");
         } else if (response.status === 409) {
           toast.error("این آهنگ قبلاً در این پلی‌لیست وجود دارد");
         } else if (response.status === 404) {
@@ -110,7 +110,6 @@ export const AddToPlaylistModal = ({
     <ResponsiveSheet isOpen={isOpen} onClose={onClose} desktopWidth="w-[450px]">
       <div
         className="flex flex-col h-full bg-[#121212] overflow-hidden"
-        dir="rtl"
       >
         {/* Header */}
         <div className="p-4 border-b border-white/10 flex items-center justify-between">
@@ -138,7 +137,7 @@ export const AddToPlaylistModal = ({
         {/* Search */}
         <div className="p-4">
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <Search className="absolute right-3 sb-field-leading-position top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               type="text"
               value={searchQuery}
@@ -175,7 +174,7 @@ export const AddToPlaylistModal = ({
                 key={playlist.id}
                 onClick={() => handleAddToPlaylist(playlist.id)}
                 disabled={addingToId !== null}
-                className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 active:bg-white/10 transition-all duration-200 group text-right"
+                className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 active:bg-white/10 transition-all duration-200 group text-start"
               >
                 {/* Playlist Image */}
                 <div className="relative w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-zinc-800 shadow-md">
@@ -184,6 +183,7 @@ export const AddToPlaylistModal = ({
                       src={playlist.top_three_song_covers[0]}
                       alt={playlist.title}
                       fill
+                      sizes="100vw"
                       className="object-cover"
                     />
                   ) : (

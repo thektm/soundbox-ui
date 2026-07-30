@@ -8,6 +8,7 @@ import { createSlug } from "./mockData";
 import {
   LayoutGrid,
   List,
+  ChevronLeft,
   ChevronRight,
   Loader2,
   Music,
@@ -15,6 +16,7 @@ import {
   Share2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useI18n } from "./I18nContext";
 
 interface ApiArtist {
   id: number;
@@ -34,6 +36,7 @@ interface PaginatedResponse<T> {
 }
 
 const FollowingArtistsPage: React.FC = () => {
+  const { locale, direction } = useI18n();
   const { accessToken, authenticatedFetch } = useAuth();
   const { navigateTo, goBack, registerScrollContainer, restoreScroll } =
     useNavigation();
@@ -107,7 +110,6 @@ const FollowingArtistsPage: React.FC = () => {
       ref={containerRef}
       onScroll={handleScroll}
       className="relative w-full h-[100dvh] lg:h-full overflow-y-auto bg-[#030303] text-white custom-scrollbar pb-32"
-      dir="rtl"
     >
       {/* Background Glows */}
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
@@ -116,7 +118,7 @@ const FollowingArtistsPage: React.FC = () => {
       </div>
 
       {/* Header - Hidden on Desktop */}
-      <div className="sticky top-0 z-50 bg-[#030303]/80 backdrop-blur-xl border-b border-white/5 px-4 sm:px-6 py-4 flex items-center justify-between lg:hidden">
+      <div className={`sticky top-0 z-50 bg-[#030303]/80 backdrop-blur-xl border-b border-white/5 px-4 sm:px-6 py-4 flex items-center justify-between lg:hidden ${direction === "ltr" ? "flex-row-reverse" : "flex-row"}`}>
         <div className="flex items-center gap-4">
           <button
             onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
@@ -145,7 +147,7 @@ const FollowingArtistsPage: React.FC = () => {
             onClick={goBack}
             className="p-2 -mr-2 rounded-full hover:bg-white/10 transition-colors"
           >
-            <ChevronRight className="w-6 h-6 rotate-180" />
+            <ChevronLeft className="w-6 h-6" />
           </button>
         </div>
       </div>
@@ -302,6 +304,8 @@ const ArtistItem: React.FC<ArtistItemProps> = ({
   index,
   onClick,
 }) => {
+  const { locale } = useI18n();
+
   if (viewMode === "grid") {
     return (
       <motion.div
@@ -386,13 +390,13 @@ const ArtistItem: React.FC<ArtistItemProps> = ({
           <span>هنرمند</span>
           <span className="w-1 h-1 rounded-full bg-zinc-700" />
           <span>
-            {artist.followers_count?.toLocaleString("fa-IR")} دنبال کننده
+            {artist.followers_count?.toLocaleString(locale)} دنبال کننده
           </span>
         </div>
       </div>
 
       <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 border border-white/5 opacity-0 group-hover:opacity-100 transition-all group-hover:bg-emerald-500 group-hover:border-emerald-500">
-        <ChevronRight className="w-5 h-5 text-white rotate-180" />
+        <ChevronRight className="w-5 h-5 text-white sb-forward-icon" />
       </div>
     </motion.div>
   );

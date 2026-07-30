@@ -637,7 +637,6 @@ const Playlists: React.FC = () => {
   return (
     <div
       className="min-h-screen bg-transparent text-white selection:bg-green-500/30 pb-24 md:pb-4"
-      dir="rtl"
     >
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_left,var(--tw-gradient-stops))] from-neutral-800/20 via-neutral-950 to-neutral-950 pointer-events-none md:rounded-lg" />
 

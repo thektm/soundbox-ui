@@ -13,6 +13,7 @@ import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
 import Image from "next/image";
+import { useI18n } from "./I18nContext";
 
 // ============================================================================
 // Types
@@ -25,6 +26,8 @@ interface ApiPlaylist {
   cover_image: string;
   top_three_song_covers: string[];
   songs_count: number;
+  songs?: unknown[];
+  song_ids?: unknown[];
   is_liked: boolean;
   genre_names: string[];
   mood_names: string[];
@@ -47,8 +50,37 @@ interface LikedPlaylistsResponse {
 const ensureHttps = (u?: string | null) =>
   u?.startsWith("http://") ? u.replace("http://", "https://") : u;
 
-const formatNumber = (num: number) => {
-  return new Intl.NumberFormat("fa-IR").format(num);
+const formatNumber = (num: number, locale: string) => {
+  return new Intl.NumberFormat(locale).format(num);
+};
+
+
+const normalizePlaylist = (value: any): ApiPlaylist => {
+  const explicitCount = Number(
+    value?.songs_count ?? value?.song_count ?? value?.tracks_count,
+  );
+  const fallbackCount = Array.isArray(value?.songs)
+    ? value.songs.length
+    : Array.isArray(value?.song_ids)
+      ? value.song_ids.length
+      : 0;
+
+  return {
+    ...value,
+    id: Number(value?.id),
+    title: String(value?.title || ""),
+    description: String(value?.description || ""),
+    cover_image: String(value?.cover_image || ""),
+    top_three_song_covers: Array.isArray(value?.top_three_song_covers)
+      ? value.top_three_song_covers.filter(Boolean)
+      : [],
+    songs_count:
+      Number.isFinite(explicitCount) && explicitCount >= 0
+        ? explicitCount
+        : fallbackCount,
+    genre_names: Array.isArray(value?.genre_names) ? value.genre_names : [],
+    mood_names: Array.isArray(value?.mood_names) ? value.mood_names : [],
+  } as ApiPlaylist;
 };
 
 // ============================================================================
@@ -163,6 +195,7 @@ const PlaylistCardGrid = memo(
               src={covers[2] || covers[1] || covers[0]}
               alt=""
               fill
+              sizes="100vw"
               className="object-cover blur-[0.5px]"
             />
           </motion.div>
@@ -180,6 +213,7 @@ const PlaylistCardGrid = memo(
               src={covers[1] || covers[0]}
               alt=""
               fill
+              sizes="100vw"
               className="object-cover"
             />
           </motion.div>
@@ -196,6 +230,7 @@ const PlaylistCardGrid = memo(
               src={covers[0]}
               alt={playlist.title}
               fill
+              sizes="100vw"
               className="object-cover"
             />
 
@@ -303,6 +338,7 @@ const PlaylistCard = memo(
               src={covers[2] || covers[1] || covers[0]}
               alt=""
               fill
+              sizes="100vw"
               className="object-cover blur-[0.5px]"
             />
           </motion.div>
@@ -318,6 +354,7 @@ const PlaylistCard = memo(
               src={covers[1] || covers[0]}
               alt=""
               fill
+              sizes="100vw"
               className="object-cover"
             />
           </motion.div>
@@ -331,6 +368,7 @@ const PlaylistCard = memo(
               src={covers[0]}
               alt={playlist.title}
               fill
+              sizes="100vw"
               className="object-cover"
             />
 
@@ -414,6 +452,7 @@ SkeletonPlaylistCard.displayName = "SkeletonPlaylistCard";
 // Main Component
 // ============================================================================
 export default function LikedPlaylists() {
+  const { locale } = useI18n();
   const { navigateTo, goBack, scrollToTop } = useNavigation();
   const { accessToken, authenticatedFetch } = useAuth();
 
@@ -484,11 +523,14 @@ export default function LikedPlaylists() {
 
         if (res.ok) {
           const data: LikedPlaylistsResponse = await res.json();
+          const normalizedResults = Array.isArray(data.results)
+            ? data.results.map(normalizePlaylist).filter((item) => item.id > 0)
+            : [];
 
           const updateFn = (prev: any) => ({
             playlists: isPagination
-              ? [...prev.playlists, ...data.results]
-              : data.results,
+              ? [...prev.playlists, ...normalizedResults]
+              : normalizedResults,
             next: data.next,
             count: data.count,
           });
@@ -722,7 +764,6 @@ export default function LikedPlaylists() {
   return (
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white overflow-hidden font-sans"
-      dir="rtl"
     >
       {/* Gradient Header Background */}
       <div
@@ -741,7 +782,7 @@ export default function LikedPlaylists() {
             onClick={handleBack}
             className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
           >
-            <Icon d={ICONS.back} className="w-5 h-5 text-white" />
+            <Icon d={ICONS.back} className="w-5 h-5 text-white sb-back-icon" />
           </button>
           <div className="flex items-center gap-2">
             <button
@@ -798,7 +839,7 @@ export default function LikedPlaylists() {
             transition={{ delay: 0.1 }}
             className="text-zinc-500 text-sm text-center font-medium bg-white/5 w-fit mx-auto px-4 py-1.5 rounded-full border border-white/5 lg:text-base lg:px-6"
           >
-            {formatNumber(activeTotal)} پلی‌لیست
+            {formatNumber(activeTotal, locale)} پلی‌لیست
           </motion.p>
 
           {/* Desktop Search & Controls */}
@@ -806,7 +847,7 @@ export default function LikedPlaylists() {
             <div className="relative w-full">
               <Icon
                 d={ICONS.search}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
+                className="absolute right-4 sb-field-leading-position top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
               />
               <input
                 type="text"
@@ -846,7 +887,7 @@ export default function LikedPlaylists() {
             <div className="relative">
               <Icon
                 d={ICONS.search}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
+                className="absolute right-3 sb-field-leading-position top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
               />
               <input
                 type="text"

@@ -190,7 +190,7 @@ const CreatePlaylistModal = memo(
         onClose={onClose}
         desktopWidth="w-[450px]"
       >
-        <div className="h-full flex flex-col" dir="rtl">
+        <div className="h-full flex flex-col">
           {/* Header */}
           <div className="relative p-6 pb-4 flex-shrink-0">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
@@ -331,7 +331,7 @@ const EditPlaylistModal = memo(
         onClose={onClose}
         desktopWidth="w-[450px]"
       >
-        <div className="h-full flex flex-col" dir="rtl">
+        <div className="h-full flex flex-col">
           {/* Header */}
           <div className="relative p-6 pb-4 flex-shrink-0">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
@@ -533,6 +533,7 @@ const PlaylistCardGrid = memo(
               src={playlist.image}
               alt={playlist.title}
               fill
+              sizes="100vw"
               className="object-cover mix-blend-overlay opacity-80 group-hover:scale-105 transition-transform duration-300"
             />
           ) : null}
@@ -684,6 +685,7 @@ const PlaylistCard = memo(
               src={playlist.image}
               alt={playlist.title}
               fill
+              sizes="100vw"
               className="object-cover"
             />
           ) : (
@@ -774,7 +776,7 @@ const PlaylistCard = memo(
                       onEdit();
                       setShowMenu(false);
                     }}
-                    className="w-full px-4 py-2.5 text-right text-sm text-gray-300 hover:bg-white/5 flex items-center gap-3"
+                    className="w-full px-4 py-2.5 text-start text-sm text-gray-300 hover:bg-white/5 flex items-center gap-3"
                   >
                     <Icon d={ICONS.edit} className="w-4 h-4" />
                     ویرایش
@@ -785,7 +787,7 @@ const PlaylistCard = memo(
                       onDelete();
                       setShowMenu(false);
                     }}
-                    className="w-full px-4 py-2.5 text-right text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-3"
+                    className="w-full px-4 py-2.5 text-start text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-3"
                   >
                     <Icon d={ICONS.trash} className="w-4 h-4" />
                     حذف
@@ -816,7 +818,7 @@ const CreatePlaylistCard = memo(({ onClick }: { onClick: () => void }) => (
         className="w-7 h-7 text-gray-500 group-hover:text-emerald-400 transition-colors duration-200"
       />
     </div>
-    <div className="text-right">
+    <div className="text-start">
       <h3 className="text-sm font-medium text-white group-hover:text-emerald-400 transition-colors">
         پلی‌لیست جدید بسازید
       </h3>
@@ -1024,7 +1026,6 @@ export default function MyPlaylists() {
   return (
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white overflow-hidden font-sans"
-      dir="rtl"
     >
       {/* Gradient Header Background */}
       <div
@@ -1043,7 +1044,7 @@ export default function MyPlaylists() {
             onClick={handleBack}
             className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
           >
-            <Icon d={ICONS.back} className="w-5 h-5 text-white" />
+            <Icon d={ICONS.back} className="w-5 h-5 text-white sb-back-icon" />
           </button>
           <div className="flex items-center gap-2">
             <button
@@ -1089,7 +1090,7 @@ export default function MyPlaylists() {
             <div className="relative w-full">
               <Icon
                 d={ICONS.search}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
+                className="absolute right-4 sb-field-leading-position top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
               />
               <input
                 type="text"
@@ -1135,7 +1136,7 @@ export default function MyPlaylists() {
             <div className="relative">
               <Icon
                 d={ICONS.search}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
+                className="absolute right-3 sb-field-leading-position top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
               />
               <input
                 type="text"

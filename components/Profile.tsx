@@ -10,6 +10,9 @@ import { Drawer } from "vaul";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import toast from "react-hot-toast";
 import { createSlug } from "./mockData";
+import { useI18n } from "./I18nContext";
+import UserAvatar from "./UserAvatar";
+import { buildUserNavigationParams } from "../lib/userProfileRoute";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -70,6 +73,7 @@ const ICONS = {
 };
 
 export default function Profile() {
+  const { locale, direction } = useI18n();
   const {
     logout,
     user: authUser,
@@ -79,7 +83,7 @@ export default function Profile() {
     deleteProfileImage,
     formatErrorMessage,
   } = useAuth();
-  const { navigateTo, currentParams, goBack } = useNavigation();
+  const { navigateTo, goBack } = useNavigation();
   const [isFetching, setIsFetching] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -131,31 +135,8 @@ export default function Profile() {
     }
   };
 
-  // --- USER PLAN LOGIC ---
-  // Plan status managed via state - persisted in localStorage for demo
-  const [planStatus, setPlanStatus] = useState<"free" | "premium">(() => {
-    if (authUser?.plan === "premium") return "premium";
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("sedabox_user_plan");
-      return saved === "premium" ? "premium" : "free";
-    }
-    return "free";
-  });
-  const isPremium = planStatus === "premium";
-
-  // Check if we returned from successful payment
-  useEffect(() => {
-    if (currentParams?.planUpgraded) {
-      setPlanStatus("premium");
-      localStorage.setItem("sedabox_user_plan", "premium");
-    }
-  }, [currentParams]);
-
-  useEffect(() => {
-    if (authUser?.plan) {
-      setPlanStatus(authUser.plan === "premium" ? "premium" : "free");
-    }
-  }, [authUser]);
+  // Premium status is derived exclusively from the latest server user snapshot.
+  const isPremium = authUser?.plan === "premium";
 
   useEffect(() => {
     const fetch = async () => {
@@ -165,7 +146,6 @@ export default function Profile() {
     };
     fetch();
   }, []);
-  // -----------------------
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -194,7 +174,7 @@ export default function Profile() {
     email: authUser?.email || "ایمیل ثبت نشده",
     uniqueId: authUser?.unique_id || "شناسه ثبت نشده",
     joinDate: authUser?.date_joined
-      ? new Date(authUser.date_joined).toLocaleDateString("fa-IR", {
+      ? new Date(authUser.date_joined).toLocaleDateString(locale, {
           year: "numeric",
           month: "long",
         })
@@ -265,8 +245,8 @@ export default function Profile() {
 
   return (
     <div
+      dir={direction}
       className="relative w-full pb-20 min-h-screen bg-[#030303] text-white overflow-hidden font-sans"
-      dir="rtl"
     >
       {/* Noise Texture */}
       <div
@@ -282,7 +262,9 @@ export default function Profile() {
 
       {/* Header */}
       <header className="relative z-80 lg:p-12 ">
-        <div className="flex fixed top-0 z-60 w-full bg-black/90  items-center px-4 pt-4 pb-2 justify-between">
+        <div
+          className={`flex fixed top-0 z-60 w-full bg-black/90 items-center px-4 pt-4 pb-2 justify-between ${direction === "ltr" ? "flex-row-reverse" : "flex-row"}`}
+        >
           <div className="flex items-center gap-3 mb-4">
             <div className="h-10 w-10" aria-hidden="true">
               <Image
@@ -297,7 +279,9 @@ export default function Profile() {
               پروفایل
             </h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div
+            className={`flex items-center gap-3 ${direction === "ltr" ? "flex-row-reverse" : "flex-row"}`}
+          >
             <button
               onClick={() => navigateTo("settings")}
               className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70  flex items-center justify-center transition-all duration-300 hover:scale-105 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
@@ -310,7 +294,7 @@ export default function Profile() {
               className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70  flex items-center justify-center transition-all duration-300 hover:scale-105 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
               aria-label="بازگشت"
             >
-              <Icon d={ICONS.back} className="w-6 h-6 text-white" />
+              <Icon d={ICONS.back} className="w-6 h-6 text-white sb-back-icon" />
             </button>
           </div>
         </div>
@@ -335,12 +319,11 @@ export default function Profile() {
                   <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden text-center">
                     {/* Display user profile image if available */}
                     {authUser?.image_profile?.image ? (
-                      <Image
+                      <UserAvatar
                         src={authUser.image_profile.image}
                         alt={user.name}
-                        width={96}
-                        height={96}
-                        className="w-full h-full object-cover rounded-full"
+                        sizes="96px"
+                        className="w-full h-full rounded-full"
                       />
                     ) : (
                       <div className="flex items-center justify-center">
@@ -386,7 +369,7 @@ export default function Profile() {
             {/* Stats */}
             <div
               className="grid grid-cols-3 gap-4 mb-8"
-              dir="ltr"
+              dir="ltr" data-direction-fixed="ltr"
               role="group"
               aria-label="آمار و فعالیت‌ها"
             >
@@ -436,7 +419,6 @@ export default function Profile() {
                   ) : (
                     <>
                       <div
-                        dir="rtl"
                         className="flex items-center justify-center mb-1"
                         aria-hidden="true"
                       >
@@ -445,7 +427,7 @@ export default function Profile() {
                           className="w-5 h-5 text-emerald-400"
                         />
                         <div className="text-2xl p-1 font-bold text-white ml-2">
-                          {stat.value.toLocaleString("fa-IR")}
+                          {stat.value.toLocaleString(locale)}
                         </div>
                       </div>
                       <div className="text-xs text-gray-400">{stat.label}</div>
@@ -472,7 +454,7 @@ export default function Profile() {
                       className="w-6 h-6 text-emerald-400"
                     />
                   </div>
-                  <div className="text-right">
+                  <div className="text-start">
                     <h3 className="text-lg font-bold text-white leading-tight">
                       تاریخچه دانلودها
                     </h3>
@@ -485,7 +467,7 @@ export default function Profile() {
                   className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all"
                   aria-hidden="true"
                 >
-                  <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
+                  <Icon d={ICONS.chevron} className="w-5 h-5 sb-forward-icon" />
                 </div>
               </div>
               {/* Decorative background glow */}
@@ -498,9 +480,7 @@ export default function Profile() {
             {/* View Profile Card */}
             <button
               onClick={() =>
-                navigateTo("user-detail", {
-                  id: authUser?.unique_id || authUser?.id,
-                })
+                navigateTo("user-detail", buildUserNavigationParams(authUser as any))
               }
               aria-label={`مشاهده پروفایل کاربر ${authUser?.unique_id || ""}`}
               className="w-full mb-8 relative group overflow-hidden rounded-2xl p-2 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
@@ -516,7 +496,7 @@ export default function Profile() {
                       className="w-6 h-6 text-emerald-400"
                     />
                   </div>
-                  <div className="text-right">
+                  <div className="text-start">
                     <h3 className="text-lg font-bold text-white leading-tight">
                       مشاهده پروفایل
                     </h3>
@@ -526,7 +506,7 @@ export default function Profile() {
                   className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all"
                   aria-hidden="true"
                 >
-                  <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
+                  <Icon d={ICONS.chevron} className="w-5 h-5 sb-forward-icon" />
                 </div>
               </div>
               <div
@@ -674,7 +654,7 @@ export default function Profile() {
 
                     {/* RIGHT SIDE: UPGRADE PROMO (PREMIUM) */}
                     <button
-                      className="relative flex-1 p-6 overflow-hidden group cursor-pointer text-right outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      className="relative flex-1 p-6 overflow-hidden group cursor-pointer text-start outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                       onClick={() => navigateTo("premium")}
                       aria-label="ارتقا به اشتراک ویژه"
                     >
@@ -788,11 +768,12 @@ export default function Profile() {
                           src={track.cover_image || "/music-listen.webp"}
                           alt=""
                           fill
+                          sizes="100vw"
                           className="object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       </div>
 
-                      <div className="flex-1 text-right overflow-hidden">
+                      <div className="flex-1 text-start overflow-hidden">
                         <h4
                           className="font-semibold text-sm text-white truncate cursor-pointer hover:text-emerald-400 transition-colors"
                           onClick={() =>
@@ -897,17 +878,17 @@ export default function Profile() {
                   aria-label={item.label}
                 >
                   <div
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                    className="absolute left-4 sb-inline-end-position top-1/2 -translate-y-1/2 text-gray-400"
                     aria-hidden="true"
                   >
-                    <Icon d={ICONS.arrow} className="w-4 h-4 rotate-180" />
+                    <Icon d={ICONS.arrow} className="w-4 h-4 sb-forward-icon" />
                   </div>
                   <div className="w-full flex items-center justify-end relative">
-                    <div className="text-sm pr-10 w-fit font-medium text-white text-right flex-1 z-10">
+                    <div className="text-sm pr-10 w-fit font-medium text-white text-start flex-1 z-10">
                       {item.label}
                     </div>
                     <div
-                      className="absolute right-0 p-2 bg-white/3 rounded-md z-0"
+                      className="absolute right-0 sb-inline-start-position p-2 bg-white/3 rounded-md z-0"
                       aria-hidden="true"
                     >
                       <Icon
@@ -925,15 +906,15 @@ export default function Profile() {
                 aria-label="خروج از حساب کاربری"
               >
                 <div
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-red-400"
+                  className="absolute left-4 sb-inline-end-position top-1/2 -translate-y-1/2 text-red-400"
                   aria-hidden="true"
                 ></div>
                 <div className="w-full flex items-center justify-end relative">
-                  <div className="text-sm pr-10 w-fit font-medium text-red-400 text-right flex-1 z-10 group-hover:text-red-500 transition-colors">
+                  <div className="text-sm pr-10 w-fit font-medium text-red-400 text-start flex-1 z-10 group-hover:text-red-500 transition-colors">
                     خروج از حساب کاربری
                   </div>
                   <div
-                    className="absolute right-0 p-2 bg-red-500/10 rounded-md z-0"
+                    className="absolute right-0 sb-inline-start-position p-2 bg-red-500/10 rounded-md z-0"
                     aria-hidden="true"
                   >
                     <Icon d={ICONS.logout} className="w-5 h-5 text-red-400" />
@@ -951,7 +932,7 @@ export default function Profile() {
         onClose={() => setIsSheetOpen(false)}
         desktopWidth="w-[480px]"
       >
-        <div className="flex flex-col h-full overflow-hidden" dir="rtl">
+        <div className="flex flex-col h-full overflow-hidden">
           {/* Header - Sticky */}
           <div className="flex items-center justify-between p-6 border-b border-white/5 flex-shrink-0 bg-black/40 backdrop-blur-md z-10">
             <h3 className="text-xl font-bold text-white">ویرایش پروفایل</h3>
@@ -977,12 +958,11 @@ export default function Profile() {
                 >
                   <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
                     {authUser?.image_profile?.image ? (
-                      <Image
+                      <UserAvatar
                         src={authUser.image_profile.image}
                         alt={user.name}
-                        width={96}
-                        height={96}
-                        className="w-full h-full object-cover rounded-full"
+                        sizes="96px"
+                        className="w-full h-full rounded-full"
                       />
                     ) : (
                       <UserIcon className="w-10 h-10 text-white/40" />
@@ -1068,7 +1048,7 @@ export default function Profile() {
                           i
                         </button>
                         <span
-                          className="absolute z-50 right-0 top-7 w-56 text-xs text-right bg-[#181f1c] text-white rounded-xl shadow-lg border border-emerald-400 px-4 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-200"
+                          className="absolute z-50 right-0 top-7 w-56 text-xs text-start bg-[#181f1c] text-white rounded-xl shadow-lg border border-emerald-400 px-4 py-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-200"
                           style={{ fontFamily: "inherit" }}
                           role="tooltip"
                         >
@@ -1084,7 +1064,6 @@ export default function Profile() {
                     onChange={(e) => handleChange(field.key, e.target.value)}
                     placeholder={field.placeholder}
                     className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus-visible:ring-2 focus-visible:ring-emerald-500/50 transition-colors"
-                    dir="rtl"
                   />
                 </div>
               ))}

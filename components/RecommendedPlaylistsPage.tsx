@@ -67,7 +67,6 @@ const RecommendedPlaylistsPage: React.FC = () => {
     >
       <div
         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8"
-        style={{ direction: "rtl" }}
       >
         {playlists.map((playlist) => (
           <div
@@ -90,7 +89,7 @@ const RecommendedPlaylistsPage: React.FC = () => {
               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
 
-            <div className="space-y-1 text-right">
+            <div className="space-y-1 text-start">
               <h3 className="text-white font-bold text-lg truncate group-hover:text-emerald-400 transition-colors">
                 {playlist.title}
               </h3>

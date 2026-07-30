@@ -14,6 +14,9 @@ import Settings from "./Settings";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import FollowingArtistsPage from "./FollowingArtistsPage";
 import UserIcon from "./UserIcon";
+import { useI18n } from "./I18nContext";
+import UserAvatar from "./UserAvatar";
+import { buildUserNavigationParams } from "../lib/userProfileRoute";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -85,6 +88,7 @@ type Section =
   | "settings";
 
 export default function DesktopProfile() {
+  const { locale } = useI18n();
   const {
     logout,
     user: authUser,
@@ -94,7 +98,7 @@ export default function DesktopProfile() {
     deleteProfileImage,
     formatErrorMessage,
   } = useAuth();
-  const { navigateTo, currentParams } = useNavigation();
+  const { navigateTo } = useNavigation();
 
   const [activeSection, setActiveSection] = useState<Section>("overview");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -144,33 +148,13 @@ export default function DesktopProfile() {
   };
 
   // --- USER PLAN LOGIC ---
-  const [planStatus, setPlanStatus] = useState<"free" | "premium">(() => {
-    if (
-      (typeof window !== "undefined" &&
-        (window as any)?.sedabox_user_plan === "premium") ||
-      false
-    )
-      return "premium";
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("sedabox_user_plan");
-      return saved === "premium" ? "premium" : "free";
-    }
-    return "free";
-  });
-  const isPremium = planStatus === "premium";
+  // Premium status is derived exclusively from the latest server user snapshot.
+  const isPremium = authUser?.plan === "premium";
 
-  useEffect(() => {
-    if (currentParams?.planUpgraded) {
-      setPlanStatus("premium");
-      localStorage.setItem("sedabox_user_plan", "premium");
-    }
-  }, [currentParams]);
-
-  // Navigate when a menu item that points to an external page is selected
+  // Navigate when a menu item that points to an external page is selected.
   useEffect(() => {
     if (activeSection === "downloads-history") {
       navigateTo("downloads-history");
-      // return to overview to avoid staying in this temporary state
       setActiveSection("overview");
     }
   }, [activeSection, navigateTo]);
@@ -191,7 +175,7 @@ export default function DesktopProfile() {
     email: authUser?.email || "ایمیل ثبت نشده",
     uniqueId: authUser?.unique_id || "شناسه ثبت نشده",
     joinDate: authUser?.date_joined
-      ? new Date(authUser.date_joined).toLocaleDateString("fa-IR", {
+      ? new Date(authUser.date_joined).toLocaleDateString(locale, {
           year: "numeric",
           month: "long",
         })
@@ -206,12 +190,6 @@ export default function DesktopProfile() {
         email: authUser.email ?? "",
         uniqueId: authUser.unique_id ?? "",
       });
-    }
-  }, [authUser]);
-
-  useEffect(() => {
-    if (authUser?.plan) {
-      setPlanStatus(authUser.plan === "premium" ? "premium" : "free");
     }
   }, [authUser]);
 
@@ -329,12 +307,11 @@ export default function DesktopProfile() {
                   >
                     <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
                       {authUser?.image_profile?.image ? (
-                        <Image
+                        <UserAvatar
                           src={authUser.image_profile.image}
                           alt={user.name}
-                          width={144}
-                          height={144}
-                          className="w-full h-full object-cover rounded-full"
+                          sizes="144px"
+                          className="w-full h-full rounded-full"
                         />
                       ) : (
                         <UserIcon className="w-16 h-16 text-white/40" />
@@ -387,7 +364,7 @@ export default function DesktopProfile() {
                 <button
                   onClick={() => navigateTo("downloads-history")}
                   aria-label="مشاهده تاریخچه دانلودها"
-                  className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] text-right focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                  className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] text-start focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                 >
                   <div className="relative z-10 flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -407,7 +384,7 @@ export default function DesktopProfile() {
                       </div>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
-                      <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
+                      <Icon d={ICONS.chevron} className="w-5 h-5 sb-forward-icon" />
                     </div>
                   </div>
                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
@@ -418,12 +395,10 @@ export default function DesktopProfile() {
               <section aria-label="مشاهده پروفایل">
                 <button
                   onClick={() =>
-                    navigateTo("user-detail", {
-                      id: authUser?.unique_id || authUser?.id,
-                    })
+                    navigateTo("user-detail", buildUserNavigationParams(authUser as any))
                   }
                   aria-label={`مشاهده پروفایل کاربر ${authUser?.unique_id || ""}`}
-                  className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] text-right focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                  className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] text-start focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                 >
                   <div className="relative z-10 flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -449,7 +424,7 @@ export default function DesktopProfile() {
                       className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all"
                       aria-hidden="true"
                     >
-                      <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
+                      <Icon d={ICONS.chevron} className="w-5 h-5 sb-forward-icon" />
                     </div>
                   </div>
                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
@@ -491,7 +466,7 @@ export default function DesktopProfile() {
                         stat.tab ? { tab: stat.tab } : undefined,
                       )
                     }
-                    aria-label={`${stat.label}: ${stat.value.toLocaleString("fa-IR")}`}
+                    aria-label={`${stat.label}: ${stat.value.toLocaleString(locale)}`}
                     className="text-center py-6 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-500/30 hover:bg-white/8 active:scale-95 transition-all duration-300 will-change-transform focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                   >
                     <div className="flex items-center justify-center mb-3">
@@ -501,7 +476,7 @@ export default function DesktopProfile() {
                       />
                     </div>
                     <div className="text-3xl font-bold text-white mb-2">
-                      {(stat.value || 0).toLocaleString("fa-IR")}
+                      {(stat.value || 0).toLocaleString(locale)}
                     </div>
                     <div className="text-sm text-gray-400">{stat.label}</div>
                   </button>
@@ -610,7 +585,7 @@ export default function DesktopProfile() {
                     </div>
                     <div className="hidden md:block w-px bg-gradient-to-b from-transparent via-white/10 to-transparent"></div>
                     <button
-                      className="relative flex-1 p-8 overflow-hidden group cursor-pointer text-right transition-all hover:bg-white/[0.02] focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                      className="relative flex-1 p-8 overflow-hidden group cursor-pointer text-start transition-all hover:bg-white/[0.02] focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                       onClick={() => navigateTo("upgrade-plans")}
                       aria-label="ارتقا به نسخه پرو"
                     >
@@ -715,11 +690,12 @@ export default function DesktopProfile() {
                               }
                               alt=""
                               fill
+                              sizes="100vw"
                               className="object-cover group-hover:scale-110 transition-transform duration-500"
                             />
                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
                           </div>
-                          <div className="flex-1 min-w-0 text-right">
+                          <div className="flex-1 min-w-0 text-start">
                             <h3
                               className="font-semibold text-lg text-white truncate cursor-pointer hover:text-emerald-400 transition-colors"
                               onClick={() =>
@@ -750,7 +726,7 @@ export default function DesktopProfile() {
                             <p className="text-gray-500 text-xs mt-1">
                               {track.played_at
                                 ? new Date(track.played_at).toLocaleDateString(
-                                    "fa-IR",
+                                    locale,
                                   )
                                 : ""}{" "}
                               •{" "}
@@ -789,7 +765,6 @@ export default function DesktopProfile() {
   return (
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white overflow-hidden font-sans"
-      dir="rtl"
     >
       {/* Noise Texture */}
       <div
@@ -836,7 +811,7 @@ export default function DesktopProfile() {
       <div className="relative z-10 flex min-h-[calc(100vh-120px)]">
         {/* Left Side - Navigation Menu */}
         <nav
-          className="flex-[0_0_30%] border-r border-white/5 p-6"
+          className="sb-inline-end-divider flex-[0_0_30%] border-r border-white/5 p-6"
           aria-label="منوی حساب کاربری"
         >
           <div className="space-y-2">
@@ -851,14 +826,14 @@ export default function DesktopProfile() {
                     : "bg-white/5 border border-white/10 hover:bg-white/8 hover:border-emerald-500/20"
                 }`}
               >
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <Icon d={ICONS.arrow} className="w-4 h-4 rotate-180" />
+                <div className="absolute left-3 sb-inline-end-position top-1/2 -translate-y-1/2 text-gray-400">
+                  <Icon d={ICONS.arrow} className="w-4 h-4 sb-forward-icon" />
                 </div>
                 <div className="w-full flex items-center justify-end relative">
-                  <div className=" text-sm pr-6 w-fit font-medium text-white text-right flex-1 z-10">
+                  <div className=" text-sm pr-6 w-fit font-medium text-white text-start flex-1 z-10">
                     {item.label}
                   </div>
-                  <div className="-mr-3 absolute right-0 p-1 bg-white/5 rounded-lg z-0">
+                  <div className="-mr-3 sb-leading-overlap absolute right-0 sb-inline-start-position p-1 bg-white/5 rounded-lg z-0">
                     <Icon d={item.icon} className="w-5 h-5 text-emerald-400" />
                   </div>
                 </div>
@@ -868,12 +843,10 @@ export default function DesktopProfile() {
             <section aria-label="مشاهده پروفایل">
               <button
                 onClick={() =>
-                  navigateTo("user-detail", {
-                    id: authUser?.unique_id || authUser?.id,
-                  })
+                  navigateTo("user-detail", buildUserNavigationParams(authUser as any))
                 }
                 aria-label={`مشاهده پروفایل کاربر ${authUser?.unique_id || ""}`}
-                className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] text-right focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                className="w-full relative group overflow-hidden rounded-2xl p-4 bg-white/[0.03] border border-white/8 hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all duration-300 active:scale-[0.98] text-start focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
               >
                 <div className="relative z-10 flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -893,7 +866,7 @@ export default function DesktopProfile() {
                     </div>
                   </div>
                   <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-all">
-                    <Icon d={ICONS.chevron} className="w-5 h-5 rotate-180" />
+                    <Icon d={ICONS.chevron} className="w-5 h-5 sb-forward-icon" />
                   </div>
                 </div>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-emerald-500/10 transition-colors" />
@@ -905,12 +878,12 @@ export default function DesktopProfile() {
               onClick={handleLogout}
               aria-label="خروج از حساب کاربری"
             >
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-red-400"></div>
+              <div className="absolute left-3 sb-inline-end-position top-1/2 -translate-y-1/2 text-red-400"></div>
               <div className="w-full flex items-center justify-end relative">
-                <div className="text-sm pr-6 w-fit font-medium text-red-400 text-right flex-1 z-10 group-hover:text-red-500 transition-colors">
+                <div className="text-sm pr-6 w-fit font-medium text-red-400 text-start flex-1 z-10 group-hover:text-red-500 transition-colors">
                   خروج از حساب کاربری
                 </div>
-                <div className="-mr-3 absolute right-0 p-2 bg-red-500/10 rounded-lg z-0">
+                <div className="-mr-3 sb-leading-overlap absolute right-0 sb-inline-start-position p-2 bg-red-500/10 rounded-lg z-0">
                   <Icon d={ICONS.logout} className="w-5 h-5 text-red-400" />
                 </div>
               </div>
@@ -933,7 +906,7 @@ export default function DesktopProfile() {
         onClose={() => setIsSheetOpen(false)}
         desktopWidth="w-[500px]"
       >
-        <div className="p-8 h-full flex flex-col min-h-0" dir="rtl">
+        <div className="p-8 h-full flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-2 flex-shrink-0">
             <h2 className="text-2xl font-bold text-white">ویرایش پروفایل</h2>
             <button
@@ -958,12 +931,11 @@ export default function DesktopProfile() {
                 >
                   <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
                     {authUser?.image_profile?.image ? (
-                      <Image
+                      <UserAvatar
                         src={authUser.image_profile.image}
                         alt={user.name}
-                        width={128}
-                        height={128}
-                        className="w-full h-full object-cover rounded-full"
+                        sizes="128px"
+                        className="w-full h-full rounded-full"
                       />
                     ) : (
                       <UserIcon className="w-12 h-12 text-white/40" />
@@ -1046,7 +1018,6 @@ export default function DesktopProfile() {
                     onChange={(e) => handleChange(field.key, e.target.value)}
                     placeholder={field.placeholder}
                     className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus-visible:ring-2 focus-visible:ring-emerald-500 transition-colors text-lg"
-                    dir="rtl"
                   />
                 </div>
               ))}

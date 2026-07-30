@@ -103,7 +103,8 @@ interface ApiLikedAlbum {
   genre_ids: number[];
   sub_genre_ids: number[];
   mood_ids: number[];
-  songs: ApiSong[];
+  songs?: ApiSong[];
+  songs_count?: number;
   song_genre_names: string[];
   song_mood_names: string[];
 }
@@ -161,6 +162,7 @@ const AlbumCardGrid = memo(
             src={album.image}
             alt={album.title}
             fill
+            sizes="100vw"
             className="object-cover group-hover:scale-105 transition-transform duration-300"
           />
 
@@ -266,6 +268,7 @@ const AlbumCardList = memo(
             src={album.image}
             alt={album.title}
             fill
+            sizes="100vw"
             className="object-cover"
           />
           {/* Play overlay on hover */}
@@ -377,7 +380,9 @@ export default function LikedAlbums() {
 
   const handleAlbumPress = useCallback(
     (album: LikedAlbum) => {
-      navigateTo("album-detail", { id: album.id, album });
+      // List cards are intentionally partial. AlbumDetail owns fetching the
+      // authoritative songs payload and must not receive this card as detail data.
+      navigateTo("album-detail", { id: album.id });
     },
     [navigateTo],
   );
@@ -462,7 +467,9 @@ export default function LikedAlbums() {
             year: album.release_date
               ? new Date(album.release_date).getFullYear().toString()
               : "Unknown",
-            songsCount: album.songs.length,
+            songsCount: Array.isArray(album.songs)
+              ? album.songs.length
+              : Math.max(0, Number(album.songs_count || 0)),
           }));
 
           const updateFn = (prev: any) => ({
@@ -542,7 +549,6 @@ export default function LikedAlbums() {
   return (
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white overflow-hidden font-sans"
-      dir="rtl"
     >
       {/* Gradient Header Background */}
       <div
@@ -561,7 +567,7 @@ export default function LikedAlbums() {
             onClick={handleBack}
             className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"
           >
-            <Icon d={ICONS.back} className="w-5 h-5 text-white" />
+            <Icon d={ICONS.back} className="w-5 h-5 text-white sb-back-icon" />
           </button>
           <div className="flex items-center gap-2">
             <button
@@ -615,7 +621,7 @@ export default function LikedAlbums() {
             <div className="relative w-full">
               <Icon
                 d={ICONS.search}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
+                className="absolute right-4 sb-field-leading-position top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
               />
               <input
                 type="text"
@@ -657,7 +663,7 @@ export default function LikedAlbums() {
             <div className="relative">
               <Icon
                 d={ICONS.search}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
+                className="absolute right-3 sb-field-leading-position top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
               />
               <input
                 type="text"

@@ -93,7 +93,7 @@ const LatestReleasesPage: React.FC = () => {
       isLoading={loading}
       backgroundImage={songs[0]?.cover_image}
     >
-      <div className="flex flex-col gap-6" style={{ direction: "rtl" }}>
+      <div className="flex flex-col gap-6">
         {songs.map((song, index) => (
           <div
             key={song.id}

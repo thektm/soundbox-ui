@@ -6,6 +6,7 @@ import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { useI18n } from "./I18nContext";
 
 interface ChartPageProps {
   title?: string;
@@ -26,6 +27,7 @@ const ChartPage: React.FC<ChartPageProps> = ({
   chartType,
   initialData,
 }) => {
+  const { locale } = useI18n();
   const { accessToken, authenticatedFetch } = useAuth();
   const { navigateTo } = useNavigation();
   const { setQueue } = usePlayer();
@@ -158,7 +160,7 @@ const ChartPage: React.FC<ChartPageProps> = ({
       isLoading={loading}
       backgroundImage={items[0]?.cover_image || items[0]?.profile_image}
     >
-      <div className="space-y-2" style={{ direction: "rtl" }}>
+      <div className="space-y-2">
         {items.map((item, index) => (
           <div
             key={item.id}
@@ -268,7 +270,7 @@ const ChartPage: React.FC<ChartPageProps> = ({
               )}
               {item.followers_count && (
                 <span>
-                  {Number(item.followers_count).toLocaleString()} فالوور
+                  {Number(item.followers_count).toLocaleString(locale)} فالوور
                 </span>
               )}
             </div>

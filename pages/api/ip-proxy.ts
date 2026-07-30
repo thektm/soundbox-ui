@@ -11,7 +11,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: "Failed to fetch from ipnumberia" });
+      return res.status(response.status).json({
+        error: { code: "IP_LOOKUP_UPSTREAM_ERROR" },
+      });
     }
 
     const html = await response.text();
@@ -21,6 +23,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).send(html);
   } catch (error) {
     console.error("Proxy error:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({
+      error: { code: "IP_LOOKUP_UNAVAILABLE" },
+    });
   }
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
+import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
 
 interface ImageWithPlaceholderProps {
   src?: string | string[];
@@ -9,13 +10,18 @@ interface ImageWithPlaceholderProps {
   className?: string;
   type?: "artist" | "song" | "user";
   fill?: boolean;
+  sizes?: string;
 }
+
+const DEFAULT_CARD_SIZES =
+  "(max-width: 480px) 44vw, (max-width: 768px) 30vw, (max-width: 1200px) 22vw, 220px";
 
 const ImageWithPlaceholder: React.FC<ImageWithPlaceholderProps> = ({
   src,
   alt,
   className = "",
   type = "song",
+  sizes = DEFAULT_CARD_SIZES,
 }) => {
   const [error, setError] = useState(false);
 
@@ -24,7 +30,16 @@ const ImageWithPlaceholder: React.FC<ImageWithPlaceholderProps> = ({
   };
 
   // support arrays of covers (e.g. playlists with top_three_song_covers)
-  const resolvedSrc = Array.isArray(src) ? (src[2] ?? src[1] ?? src[0]) : src;
+  const rawResolvedSrc = Array.isArray(src) ? (src[2] ?? src[1] ?? src[0]) : src;
+  const resolvedSrc =
+    type === "user" ? normalizeUserAvatarUrl(rawResolvedSrc) : rawResolvedSrc;
+  const isRemoteImage =
+    typeof resolvedSrc === "string" && /^https?:\/\//i.test(resolvedSrc);
+
+  useEffect(() => {
+    setError(false);
+  }, [resolvedSrc]);
+
   const isPlaceholder =
     !resolvedSrc || String(resolvedSrc).includes("picsum.photos") || error;
 
@@ -63,6 +78,7 @@ const ImageWithPlaceholder: React.FC<ImageWithPlaceholderProps> = ({
               src={secondaryIcon}
               alt=""
               fill
+              sizes="128px"
               className={
                 type === "user" ? "object-contain" : "object-contain grayscale"
               }
@@ -80,6 +96,7 @@ const ImageWithPlaceholder: React.FC<ImageWithPlaceholderProps> = ({
             src="/logo.png"
             alt="Logo"
             fill
+            sizes="128px"
             className="object-contain drop-shadow-2xl"
           />
         </div>
@@ -93,6 +110,9 @@ const ImageWithPlaceholder: React.FC<ImageWithPlaceholderProps> = ({
         src={resolvedSrc as string}
         alt={alt}
         fill
+        sizes={sizes}
+        unoptimized={isRemoteImage}
+        referrerPolicy={isRemoteImage ? "no-referrer" : undefined}
         className="object-cover"
         onError={handleImageError}
       />

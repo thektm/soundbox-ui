@@ -1,5 +1,6 @@
 import Head from "next/head";
 import React from "react";
+import { useI18n } from "./I18nContext";
 
 interface SEOProps {
   title?: string;
@@ -14,66 +15,75 @@ interface SEOProps {
   canonicalUrl?: string;
 }
 
-const DEFAULT_TITLE = "وب اپلیکیشن صداباکس";
-const DEFAULT_DESC =
-  "صداباکس، بزرگترین پلتفرم پخش آنلاین آهنگ و ویدیوهای موسیقی ایرانی. از شنیدن بهترین کارهای هنرمندان مورد علاقه خود لذت ببرید.";
-const DEFAULT_URL = "https://sedabox.com"; // Adjust as needed
-const DEFAULT_IMAGE = "/logo.png"; // use public/logo.png from the app's public folder
+const META = {
+  fa: {
+    siteTitle: "وب اپلیکیشن صداباکس",
+    description:
+      "صداباکس، بزرگترین پلتفرم پخش آنلاین آهنگ و ویدیوهای موسیقی ایرانی. از شنیدن بهترین کارهای هنرمندان مورد علاقه خود لذت ببرید.",
+  },
+  en: {
+    siteTitle: "SedaBox Web App",
+    description:
+      "SedaBox is an online platform for streaming Iranian music and music videos. Enjoy the best releases from the artists you love.",
+  },
+} as const;
+
+const DEFAULT_URL = "https://sedabox.com";
+const DEFAULT_IMAGE = "/logo.png";
 
 export const SEO: React.FC<SEOProps> = ({
   title,
-  description = DEFAULT_DESC,
+  description,
   imageUrl = DEFAULT_IMAGE,
   type = "website",
   canonicalUrl,
 }) => {
-  const fullTitle = title ? `${title} | ${DEFAULT_TITLE}` : DEFAULT_TITLE;
-
-  // Use default image if imageUrl is null or empty
+  const { language, t } = useI18n();
+  const defaults = META[language];
+  const localizedTitle = title ? t(title) : "";
+  const localizedDescription = description ? t(description) : defaults.description;
+  const fullTitle = localizedTitle
+    ? `${localizedTitle} | ${defaults.siteTitle}`
+    : defaults.siteTitle;
   const imgUrl = imageUrl || DEFAULT_IMAGE;
 
-  // Ensure image URLs are absolute (required by many crawlers/social cards)
   const resolvedImageUrl =
     typeof window === "undefined"
-      ? // server: use canonical/default host
-        imgUrl.startsWith("http")
+      ? imgUrl.startsWith("http")
         ? imgUrl
-        : `${DEFAULT_URL}${imgUrl.startsWith("/") ? imgUrl : "/" + imgUrl}`
-      : // client: can use origin when available
-        imgUrl.startsWith("http")
+        : `${DEFAULT_URL}${imgUrl.startsWith("/") ? imgUrl : `/${imgUrl}`}`
+      : imgUrl.startsWith("http")
         ? imgUrl
-        : `${window.location.origin}${imgUrl.startsWith("/") ? imgUrl : "/" + imgUrl}`;
+        : `${window.location.origin}${imgUrl.startsWith("/") ? imgUrl : `/${imgUrl}`}`;
 
   return (
     <Head>
       <title>{fullTitle}</title>
-      <meta name="description" content={description} />
+      <meta name="description" content={localizedDescription} />
       <meta
         name="viewport"
         content="width=device-width, initial-scale=1, viewport-fit=cover"
       />
 
-      {/* Open Graph / Facebook */}
+      <meta property="og:locale" content={language === "fa" ? "fa_IR" : "en_US"} />
       <meta property="og:type" content={type} />
       <meta property="og:title" content={fullTitle} />
-      <meta property="og:description" content={description} />
+      <meta property="og:description" content={localizedDescription} />
       <meta property="og:image" content={resolvedImageUrl} />
       <meta property="og:url" content={canonicalUrl || DEFAULT_URL} />
-      <meta property="og:site_name" content={DEFAULT_TITLE} />
+      <meta property="og:site_name" content={defaults.siteTitle} />
 
-      {/* Twitter */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={fullTitle} />
-      <meta name="twitter:description" content={description} />
+      <meta name="twitter:description" content={localizedDescription} />
       <meta name="twitter:image" content={resolvedImageUrl} />
 
-      {/* Dynamic Canonical Link */}
       {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
 
-      {/* Mobile Meta (Standard SEO) */}
-      <meta name="application-name" content={DEFAULT_TITLE} />
-      <meta name="apple-mobile-web-app-title" content={DEFAULT_TITLE} />
+      <meta name="application-name" content={defaults.siteTitle} />
+      <meta name="apple-mobile-web-app-title" content={defaults.siteTitle} />
       <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="mobile-web-app-capable" content="yes" />
       <meta
         name="apple-mobile-web-app-status-bar-style"
         content="black-translucent"

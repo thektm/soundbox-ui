@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigation } from "./NavigationContext";
 import Image from "next/image";
+import { useI18n } from "./I18nContext";
 
 interface PageHeaderProps {
   title: string;
@@ -17,6 +18,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
   backgroundImage,
   showLogo = true,
 }) => {
+  const { direction } = useI18n();
   return (
     <div className="relative h-[250px] sm:h-[250px] w-full overflow-hidden">
       {/* Background Image with Overlay */}
@@ -26,6 +28,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
             src={backgroundImage}
             alt={title}
             fill
+            sizes="100vw"
             className="object-cover transition-transform duration-700 hover:scale-105"
             priority
           />
@@ -38,7 +41,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
       {/* Content */}
       <div
         className="absolute inset-0 flex flex-col p-6 sm:p-10 justify-end"
-        style={{ direction: "rtl" }}
+        dir={direction}
       >
         {/* Text */}
         <div className="space-y-1">
@@ -79,6 +82,7 @@ const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { registerScrollContainer, restoreScroll, goBack } = useNavigation();
+  const { direction } = useI18n();
 
   useEffect(() => {
     if (containerRef.current) {
@@ -109,8 +113,8 @@ const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
       {/* Top Bar (overlays header image) */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-transparent backdrop-blur-md border-b border-white/10">
         <div
-          className="flex justify-between items-center px-6 py-3"
-          style={{ direction: "rtl" }}
+          className={`flex justify-between items-center px-6 py-3 ${direction === "ltr" ? "flex-row-reverse" : "flex-row"}`}
+          dir={direction}
         >
           <div className="flex items-center gap-2">
             <div className="relative w-8 h-8">
@@ -118,6 +122,7 @@ const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
                 src="/logo.png"
                 alt="Logo"
                 fill
+                sizes="100vw"
                 className="object-contain"
               />
             </div>
@@ -131,6 +136,7 @@ const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
             className="p-2 rounded-full bg-black/20 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors"
           >
             <svg
+              className="sb-back-icon"
               width="24"
               height="24"
               viewBox="0 0 24 24"
