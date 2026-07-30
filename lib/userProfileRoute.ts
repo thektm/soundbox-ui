@@ -1,6 +1,6 @@
 import { slugify } from "../utils/share";
 
-export type UserRouteSource = Record<string, unknown> | null | undefined;
+export type UserRouteSource = object | null | undefined;
 
 const OFFICIAL_UNIQUE_ID = "sedabox";
 const OFFICIAL_NAME_KEYS = new Set([
@@ -24,8 +24,9 @@ function normalizedIdentity(value: unknown): string {
 
 function firstValue(source: UserRouteSource, keys: string[]): string {
   if (!source) return "";
+  const record = source as Record<string, unknown>;
   for (const key of keys) {
-    const value = asText(source[key]);
+    const value = asText(record[key]);
     if (value) return value;
   }
   return "";
@@ -46,7 +47,7 @@ export function getUserDatabaseId(source: UserRouteSource): string {
   const explicit = firstValue(source, ["dbId", "db_id", "user_id", "userId", "creator_user_id"]);
   if (explicit) return explicit;
 
-  const id = asText(source.id);
+  const id = asText((source as Record<string, unknown>).id);
   return /^\d+$/.test(id) ? id : "";
 }
 
@@ -72,7 +73,8 @@ export function isSedaboxUser(source: UserRouteSource | string | number): boolea
     return normalizedIdentity(source) === OFFICIAL_UNIQUE_ID;
   }
   if (!source) return false;
-  if (source.isOfficial === true || source.is_official === true) return true;
+  const record = source as Record<string, unknown>;
+  if (record.isOfficial === true || record.is_official === true) return true;
 
   const uniqueId = normalizedIdentity(getUserUniqueId(source));
   if (uniqueId === OFFICIAL_UNIQUE_ID) return true;
@@ -85,7 +87,7 @@ export function isSedaboxUser(source: UserRouteSource | string | number): boolea
   return names.some((name) => OFFICIAL_NAME_KEYS.has(normalizedIdentity(name)));
 }
 
-export interface CanonicalUserRouteParams {
+export interface CanonicalUserRouteParams extends Record<string, unknown> {
   id: string;
   dbId?: string;
   uniqueId?: string;
@@ -99,7 +101,10 @@ export function buildUserNavigationParams(source: UserRouteSource | string | num
   const uniqueId = getUserUniqueId(objectSource);
   const dbId = getUserDatabaseId(objectSource);
   const name = getUserDisplayName(objectSource);
-  const official = isSedaboxUser(objectSource) || normalizedIdentity(source) === OFFICIAL_UNIQUE_ID;
+  const official =
+    isSedaboxUser(objectSource) ||
+    ((typeof source === "string" || typeof source === "number") &&
+      normalizedIdentity(source) === OFFICIAL_UNIQUE_ID);
 
   if (official) {
     return {

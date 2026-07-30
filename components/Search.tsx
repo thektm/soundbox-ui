@@ -1488,7 +1488,7 @@ export default function Search() {
   const { accessToken, authenticatedFetch } = useAuth();
   const { requestAuth } = useGuestAccess();
   const { locale } = useI18n();
-  const isEnglish = locale === "en";
+  const isEnglish = locale === "en-US";
   const [initialSearchState] = useState(readInitialSearchState);
   const [query, setQuery] = useState(initialSearchState.query);
   const debouncedQuery = useDebounce(query, 300);

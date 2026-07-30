@@ -297,11 +297,11 @@ const SongRow = memo(
           {isDesktop && (onTitleClick || onArtistClick) ? (
             <>
               <div
-                onClick={(e) => {
+                onClick={(e: React.MouseEvent<HTMLDivElement>) => {
                   e.stopPropagation();
                   onTitleClick && onTitleClick();
                 }}
-                onKeyDown={(e) => {
+                onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
                   if (e.key === "Enter") {
                     e.stopPropagation();
                     onTitleClick && onTitleClick();
@@ -316,11 +316,11 @@ const SongRow = memo(
                 {song.title}
               </div>
               <div
-                onClick={(e) => {
+                onClick={(e: React.MouseEvent<HTMLDivElement>) => {
                   e.stopPropagation();
                   onArtistClick && onArtistClick();
                 }}
-                onKeyDown={(e) => {
+                onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
                   if (e.key === "Enter") {
                     e.stopPropagation();
                     onArtistClick && onArtistClick();
@@ -354,7 +354,7 @@ const SongRow = memo(
             <div className="flex items-center gap-1.5 px-2">
               <button
                 type="button"
-                onClick={(e) => {
+                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                   e.stopPropagation();
                   onMoveUp?.();
                 }}
@@ -370,7 +370,7 @@ const SongRow = memo(
               </button>
               <button
                 type="button"
-                onClick={(e) => {
+                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                   e.stopPropagation();
                   onMoveDown?.();
                 }}
@@ -387,7 +387,7 @@ const SongRow = memo(
               </button>
               <button
                 type="button"
-                onClick={(e) => {
+                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                   e.stopPropagation();
                   onRemove?.();
                 }}
@@ -410,7 +410,7 @@ const SongRow = memo(
               </div>
               <button
                 type="button"
-                onClick={(e) => {
+                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                   e.stopPropagation();
                   onMore(song);
                 }}
@@ -601,7 +601,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
       );
 
       if (resp.ok) {
-        const updated = await resp.json();
+        const updated = (await resp.json()) as UserPlaylistResponse;
         const nextSongs = Array.isArray(updated.songs)
           ? updated.songs
           : [...displaySongs];
@@ -641,7 +641,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
           return;
         }
 
-        const updated = await resp.json();
+        const updated = (await resp.json()) as UserPlaylistResponse;
         const nextSongs = Array.isArray(updated.songs)
           ? updated.songs
           : displaySongs.filter((item) => Number(item.id) !== Number(song.id));
@@ -689,7 +689,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
         return;
       }
 
-      const updated = await resp.json();
+      const updated = (await resp.json()) as UserPlaylistResponse;
       const nextSongs = Array.isArray(updated.songs)
         ? updated.songs
         : displaySongs;
@@ -1175,7 +1175,9 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
               </span>
               <input
                 value={editTitle}
-                onChange={(event) => setEditTitle(event.target.value)}
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                  setEditTitle(event.target.value)
+                }
                 maxLength={255}
                 autoFocus
                 className="w-full rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-white outline-none transition-colors placeholder:text-white/25 focus:border-emerald-500/60"

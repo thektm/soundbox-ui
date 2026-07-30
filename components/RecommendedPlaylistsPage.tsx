@@ -44,7 +44,8 @@ const RecommendedPlaylistsPage: React.FC = () => {
       .replace(/[^\w-]+/g, "");
   };
 
-  const getPlaylistCover = (playlist: ApiPlaylist) => {
+  const getPlaylistCover = (playlist?: ApiPlaylist | null) => {
+    if (!playlist) return "";
     const covers = playlist.covers || playlist.top_three_song_covers || [];
     if (Array.isArray(covers) && covers.length > 0) {
       return covers[0];
@@ -63,7 +64,7 @@ const RecommendedPlaylistsPage: React.FC = () => {
       onLoadMore={loadMore}
       hasMore={!!nextUrl}
       isLoading={loading}
-      backgroundImage={getPlaylistCover(playlists[0] || {})}
+      backgroundImage={getPlaylistCover(playlists[0])}
     >
       <div
         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8"
