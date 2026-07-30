@@ -48,6 +48,7 @@ export const InitialModal: React.FC = () => {
     markInitialCheckCompleted,
     authenticatedFetch,
     accessToken,
+    isLoggedIn,
   } = useAuth();
   const [step, setStep] = useState(0); // 0: Artists, 1: Genres, 2: Playlists
   const [loading, setLoading] = useState(false);
@@ -98,12 +99,12 @@ export const InitialModal: React.FC = () => {
   };
 
   useEffect(() => {
-    if (needsInitialCheck && accessToken) {
+    if (needsInitialCheck && isLoggedIn) {
       if (step === 0 && popularArtists.length === 0) fetchArtists();
       if (step === 1 && genres.length === 0) fetchGenres();
       if (step === 2 && recommendedPlaylists.length === 0) fetchPlaylists();
     }
-  }, [needsInitialCheck, step, accessToken]);
+  }, [needsInitialCheck, step, isLoggedIn]);
 
   const fetchArtists = async () => {
     setLoading(true);

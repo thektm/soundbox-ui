@@ -11,10 +11,10 @@ import React, {
 import Image from "next/image";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import PlaylistOptionsDrawer from "./PlaylistOptionsDrawer";
-import { useNavigation } from "./NavigationContext";
+import { replaceCurrentNavigationEntry, useNavigation, useNavigationScroll } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
-import { usePlayer, Track } from "./PlayerContext";
+import { usePlayerPlayback, Track } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl, slugify } from "../utils/share";
@@ -329,10 +329,13 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
   creatorUniqueId,
   initialPlaylist,
 }) => {
-  const { goBack, scrollY, navigateTo, currentParams } = useNavigation();
+  const { goBack, navigateTo, currentParams } = useNavigation();
+  const scrollY = useNavigationScroll();
+  const currentParamsRef = useRef(currentParams);
+  currentParamsRef.current = currentParams;
   const { accessToken, authenticatedFetch, formatErrorMessage } = useAuth();
   const { requestAuth } = useGuestAccess();
-  const { setQueue, currentTrack, isPlaying } = usePlayer();
+  const { setQueue, currentTrack, isPlaying } = usePlayerPlayback();
 
   const hasHydratedInitialPlaylist = Boolean(
     initialPlaylist &&
@@ -381,22 +384,23 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         // Fix URL if slug is missing or does not match
         // Only if not a recommendation
         if (!isRecommended && data && data.title) {
+          const routeParams = currentParamsRef.current;
           const hasSlug =
-            currentParams?.title ||
+            routeParams?.title ||
             slug ||
             (typeof window !== "undefined" &&
               window.location.pathname.includes(`-${slugify(data.title)}`));
 
           if (!hasSlug) {
-            navigateTo(
+            replaceCurrentNavigationEntry(
               "playlist-detail",
               {
-                ...currentParams,
+                ...routeParams,
                 id: data.id,
                 title: data.title,
                 slug: slugify(data.title),
               },
-              "replace",
+              `/playlist/${data.id}-${slugify(data.title)}`,
             );
           }
         }
@@ -415,8 +419,6 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
     generatedBy,
     creatorUniqueId,
     slug,
-    currentParams,
-    navigateTo,
   ]);
 
   useEffect(() => {

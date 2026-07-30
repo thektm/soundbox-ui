@@ -25,7 +25,7 @@ interface PaginatedResponse<T> {
 }
 
 const LatestReleasesPage: React.FC = () => {
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { authenticatedFetch } = useAuth();
   const { setQueue } = usePlayerActions();
   const { navigateTo } = useNavigation();
   const [songs, setSongs] = useState<ApiSong[]>([]);
@@ -51,7 +51,7 @@ const LatestReleasesPage: React.FC = () => {
     };
 
     fetchLatest();
-  }, [accessToken]);
+  }, [authenticatedFetch]);
 
   const loadMore = async () => {
     if (!nextUrl || loading) return;

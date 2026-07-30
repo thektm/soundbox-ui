@@ -495,12 +495,12 @@ export default function LikedAlbums() {
         }));
       }
     },
-    [accessToken],
+    [authenticatedFetch],
   );
 
   useEffect(() => {
     if (accessToken) fetchAlbums("MAIN");
-  }, [accessToken, fetchAlbums]);
+  }, [fetchAlbums]);
 
   // Search logic with debounce
   useEffect(() => {

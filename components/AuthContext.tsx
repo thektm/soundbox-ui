@@ -289,6 +289,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     promise: Promise<User | null>;
   } | null>(null);
   const notificationSettingsQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const languageRef = useRef(language);
+  languageRef.current = language;
+  const authenticatedFetchRef = useRef<AuthContextType["authenticatedFetch"]>(
+    async () => {
+      throw new Error("Authenticated fetch is not ready");
+    },
+  );
+  const tryRefreshTokenRef = useRef<(
+    refreshTokenArg?: string,
+    staleAccessToken?: string | null,
+  ) => Promise<string | null>>(async () => null);
 
   const syncAccessTokenState = (val: string | null) => {
     if (accessTokenRef.current !== val) {
@@ -326,8 +337,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   );
   const [needsInitialCheck, setNeedsInitialCheck] = useState<boolean>(false);
 
-  const formatErrorMessage = (errorArg: any): string =>
-    formatAuthError(errorArg, language);
+  const formatErrorMessage = useCallback(
+    (errorArg: any): string => formatAuthError(errorArg, languageRef.current),
+    [],
+  );
 
 
   async function get(path: string) {
@@ -392,7 +405,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   }
 
-  const fetchUserProfile = async (providedToken?: string) => {
+  const fetchUserProfile = useCallback(async (providedToken?: string) => {
     const requestToken =
       providedToken || accessTokenRef.current || readStoredAccessToken();
     if (!requestToken) return;
@@ -428,7 +441,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         // already guarantee a fresh server-owned profile snapshot.
         const res = providedToken
           ? await fetch(url, requestInit)
-          : await authenticatedFetch(url, requestInit);
+          : await authenticatedFetchRef.current(url, requestInit);
         const body = await res.json().catch(() => null);
         if (!res.ok || !body) return null;
 
@@ -459,7 +472,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         profileRequestRef.current = null;
       }
     }
-  };
+  }, []);
 
   const applyUserSnapshot = useCallback((nextUser: User) => {
     setUser(normalizeServerUser(nextUser));
@@ -770,6 +783,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  tryRefreshTokenRef.current = tryRefreshToken;
+
   const getFreshAccessToken = useCallback(
     async (forceRefresh = false): Promise<string | null> => {
       const currentToken = accessTokenRef.current;
@@ -777,13 +792,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         return currentToken;
       }
 
-      const refreshedToken = await tryRefreshToken(undefined, currentToken);
+      const refreshedToken = await tryRefreshTokenRef.current(
+        undefined,
+        currentToken,
+      );
       return refreshedToken || accessTokenRef.current;
     },
     [],
   );
 
-  const authenticatedFetch = async (
+  const authenticatedFetch = useCallback(async (
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> => {
@@ -881,7 +899,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         }
 
         if (response.status === 401) {
-          const newToken = await tryRefreshToken(undefined, currentToken);
+          const newToken = await tryRefreshTokenRef.current(
+            undefined,
+            currentToken,
+          );
           if (newToken) {
             response = await fetch(input, applyAuth(newToken));
           }
@@ -932,10 +953,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         }
 
         const defaultMsg = response.status >= 500
-          ? language === "fa"
+          ? languageRef.current === "fa"
             ? "در ارتباط با سرور خطایی رخ داد. لطفاً بعداً دوباره تلاش کنید."
             : "The server could not complete the request. Please try again later."
-          : language === "fa"
+          : languageRef.current === "fa"
             ? "درخواست انجام نشد. لطفاً دوباره تلاش کنید."
             : "The request could not be completed. Please try again.";
 
@@ -967,7 +988,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         throw err;
       }
 
-      const netMsg = language === "fa"
+      const netMsg = languageRef.current === "fa"
         ? "ارتباط با سرور برقرار نشد. اتصال اینترنت خود را بررسی کنید و دوباره تلاش کنید."
         : "Could not connect to the server. Check your internet connection and try again.";
       try {
@@ -977,7 +998,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       }
       throw err;
     }
-  };
+  }, []);
+
+  authenticatedFetchRef.current = authenticatedFetch;
 
   const formatPhoneForApi = (phoneArg: string) => {
     if (!phoneArg) return phoneArg;

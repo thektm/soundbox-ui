@@ -541,7 +541,7 @@ const SessionsSheet = ({
   onClose: () => void;
 }) => {
   const { locale, t } = useI18n();
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { accessToken, isLoggedIn, authenticatedFetch } = useAuth();
   const [sessions, setSessions] = useState<Array<any>>([]);
   const [loading, setLoading] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -601,7 +601,7 @@ const SessionsSheet = ({
     return () => {
       mounted = false;
     };
-  }, [isOpen, accessToken]);
+  }, [isOpen, isLoggedIn, authenticatedFetch]);
 
   const revokeSession = async (sessionId: string) => {
     if (!accessToken) {

@@ -8,8 +8,8 @@ import React, {
   useRef,
   memo,
 } from "react";
-import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
-import { usePlayer } from "./PlayerContext";
+import { replaceCurrentNavigationEntry, useNavigation, useNavigationScroll } from "./NavigationContext";
+import { usePlayerPlayback } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
 import { toast } from "react-hot-toast";
@@ -680,10 +680,10 @@ const Skeleton = ({ className }: { className?: string }) => (
 );
 
 export default function SongDetail({ id: propId }: { id?: string }) {
-  const { navigateTo, goBack, currentPage, currentParams, scrollY } =
-    useNavigation();
+  const { navigateTo, goBack, currentPage, currentParams } = useNavigation();
+  const scrollY = useNavigationScroll();
   const { currentTrack, isPlaying, playTrack, togglePlay, download } =
-    usePlayer();
+    usePlayerPlayback();
   const { accessToken, authenticatedFetch } = useAuth();
   const { requestAuth } = useGuestAccess();
   const { direction, language } = useI18n();
@@ -783,7 +783,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     };
 
     fetchSongDetail();
-  }, [idOrSlug, accessToken]);
+  }, [idOrSlug, authenticatedFetch]);
 
   const dominantColor = useImageColor(song?.image || "");
   const isCurrentTrack = currentTrack?.id === song?.id;

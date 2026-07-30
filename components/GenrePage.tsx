@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, memo, useRef } from "react";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useNavigation } from "./NavigationContext";
-import { usePlayer } from "./PlayerContext";
+import { usePlayerPlayback } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
@@ -344,7 +344,7 @@ export default function GenrePage({
   color = "#1a1a2e",
 }: GenrePageProps) {
   const { navigateTo } = useNavigation();
-  const { playTrack, currentTrack } = usePlayer();
+  const { playTrack, currentTrack } = usePlayerPlayback();
   const { authenticatedFetch } = useAuth();
   const { direction } = useI18n();
 

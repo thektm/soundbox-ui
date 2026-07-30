@@ -7,6 +7,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useSyncExternalStore,
 } from "react";
 import { decodeShare, slugify } from "../utils/share";
 import { getCanonicalUserPath } from "../lib/userProfileRoute";
@@ -34,12 +35,6 @@ interface NavigationContextType {
   isResolving: boolean;
   setIsResolving: (v: boolean) => void;
   scrollContainer: HTMLElement | null;
-  /**
-   * Current Y scroll position of the registered scroll container (or window
-   * when no container is registered). This is kept centrally so all pages
-   * read the same value and subscription timing issues are avoided.
-   */
-  scrollY: number;
 }
 
 // ─── URL ↔ Page mapping ────────────────────────────────────────────────────
@@ -544,6 +539,36 @@ const NavigationContext = createContext<NavigationContextType | undefined>(
   undefined,
 );
 
+// Scroll position changes on every animation frame while the user scrolls.
+// Keeping it in the main navigation context forced AppRouter and every screen
+// using navigation helpers to rerender continuously. Only sticky detail headers
+// subscribe to this small dedicated context now.
+interface NavigationScrollStore {
+  getSnapshot: () => number;
+  subscribe: (listener: () => void) => () => void;
+  set: (value: number) => void;
+}
+
+const createNavigationScrollStore = (): NavigationScrollStore => {
+  let value = 0;
+  const listeners = new Set<() => void>();
+
+  return {
+    getSnapshot: () => value,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    set: (nextValue) => {
+      if (Object.is(value, nextValue)) return;
+      value = nextValue;
+      listeners.forEach((listener) => listener());
+    },
+  };
+};
+
+const NavigationScrollContext = createContext<NavigationScrollStore | null>(null);
+
 export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
@@ -555,6 +580,10 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     if (typeof window === "undefined") return null;
     return parseLocation(window.location.pathname, window.location.search).params;
   });
+  const currentPageRef = useRef(currentPage);
+  const currentParamsRef = useRef(currentParams);
+  currentPageRef.current = currentPage;
+  currentParamsRef.current = currentParams;
   const initialBrowserState =
     typeof window !== "undefined" && isNavigationHistoryState(window.history.state)
       ? window.history.state
@@ -584,13 +613,18 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     null,
   );
 
-  // Centralized scrollY so all pages/components can read the same value and
-  // won't miss updates due to timing/order-of-mount issues.
-  const [scrollY, setScrollY] = useState<number>(0);
+  // Scroll is an external store so animation-frame updates never rerender the
+  // navigation provider, router, or unrelated screens. Only components calling
+  // `useNavigationScroll()` subscribe to these updates.
+  const scrollStoreRef = useRef<NavigationScrollStore | null>(null);
+  if (!scrollStoreRef.current) {
+    scrollStoreRef.current = createNavigationScrollStore();
+  }
+  const scrollStore = scrollStoreRef.current;
   // Stable ref to always-current navigateTo – used inside the popstate handler
   // so the effect can be registered only once (empty dep array).
   const navigateToRef = useRef<
-    (page: string, params?: any, pushHistory?: boolean) => void
+    (page: string, params?: any, pushHistory?: boolean | "replace") => void
   >(() => {});
 
   // A unique key per browser-history entry keeps repeated visits to the same
@@ -617,8 +651,8 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     // Initialize scrollY immediately so consumers get correct value as soon
     // as a container is registered (avoids a brief "no-scroll" state).
     try {
-      if (active) setScrollY(active.scrollTop);
-      else if (typeof window !== "undefined") setScrollY(window.scrollY || 0);
+      if (active) scrollStore.set(active.scrollTop);
+      else if (typeof window !== "undefined") scrollStore.set(window.scrollY || 0);
     } catch (err) {
       /* ignore */
     }
@@ -661,11 +695,11 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
         setHistoryEntryKey(nextKey);
       }
 
-      setPreviousPage(currentPage);
+      setPreviousPage(currentPageRef.current);
       setCurrentPage(page);
       setCurrentParams(params || null);
     },
-    [currentPage, currentParams],
+    [],
   );
 
   // Keep the ref pointing at the latest navigateTo so the popstate handler
@@ -693,7 +727,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
             : typeof window !== "undefined"
               ? window.scrollY
               : 0;
-          setScrollY(y);
+          scrollStore.set(y);
         } catch (err) {
           // ignore
         } finally {
@@ -719,7 +753,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
 
     // Immediately update scrollY context state so pages waiting for it
     // (like sticky headers) don't flicker or wait for a scroll event.
-    setScrollY(savedPosition);
+    scrollStore.set(savedPosition);
 
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = savedPosition;
@@ -740,7 +774,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   }, [historyEntryKey]);
 
   const scrollToTop = useCallback(() => {
-    setScrollY(0);
+    scrollStore.set(0);
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
     } else if (typeof window !== "undefined") {
@@ -759,19 +793,19 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
 
     // A cold-started detail/protected page has no prior in-app entry. Keep the
     // user inside the SPA and replace it with Home rather than guessing.
-    if (currentPage !== "home") {
+    if (currentPageRef.current !== "home") {
       navigateTo("home", null, "replace");
     }
-  }, [navigateTo, currentPage]);
+  }, [navigateTo]);
 
   const handleSetCurrentPage = useCallback(
-    (page: string) => navigateTo(page, currentParams),
-    [navigateTo, currentParams],
+    (page: string) => navigateTo(page, currentParamsRef.current),
+    [navigateTo],
   );
 
   const handleSetCurrentParams = useCallback(
-    (params: any) => navigateTo(currentPage, params),
-    [navigateTo, currentPage],
+    (params: any) => navigateTo(currentPageRef.current, params),
+    [navigateTo],
   );
 
   // Register the popstate listener exactly once. URL parsing stays unchanged;
@@ -854,50 +888,82 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     };
   }, []);
 
-  const setComponentVisibility = (component: string, visible: boolean) => {
-    setVisibilityMap((prev) => ({ ...prev, [component]: visible }));
-  };
+  const setComponentVisibility = useCallback(
+    (component: string, visible: boolean) => {
+      setVisibilityMap((prev) =>
+        prev[component] === visible ? prev : { ...prev, [component]: visible },
+      );
+    },
+    [],
+  );
+
+  const navigationValue = useMemo<NavigationContextType>(
+    () => ({
+      currentPage,
+      currentParams,
+      previousPage,
+      setCurrentPage: handleSetCurrentPage,
+      setCurrentParams: handleSetCurrentParams,
+      navigateTo,
+      goBack,
+      visibilityMap,
+      setComponentVisibility,
+      registerScrollContainer,
+      restoreScroll,
+      scrollToTop,
+      navigationKey,
+      homeCache,
+      setHomeCache,
+      isResolving,
+      setIsResolving,
+      scrollContainer,
+    }),
+    [
+      currentPage,
+      currentParams,
+      previousPage,
+      handleSetCurrentPage,
+      handleSetCurrentParams,
+      navigateTo,
+      goBack,
+      visibilityMap,
+      setComponentVisibility,
+      registerScrollContainer,
+      restoreScroll,
+      scrollToTop,
+      navigationKey,
+      homeCache,
+      isResolving,
+      scrollContainer,
+    ],
+  );
 
   return (
-    <NavigationContext.Provider
-      value={{
-        currentPage,
-        currentParams,
-        previousPage,
-        setCurrentPage: handleSetCurrentPage,
-        setCurrentParams: handleSetCurrentParams,
-        navigateTo,
-        goBack,
-        visibilityMap,
-        setComponentVisibility,
-        registerScrollContainer,
-        restoreScroll,
-        scrollToTop,
-        navigationKey,
-        homeCache,
-        setHomeCache,
-        isResolving,
-        setIsResolving,
-        scrollContainer,
-        scrollY,
-      }}
-    >
-      {children}
+    <NavigationContext.Provider value={navigationValue}>
+      <NavigationScrollContext.Provider value={scrollStore}>
+        {children}
+      </NavigationScrollContext.Provider>
     </NavigationContext.Provider>
   );
 };
 
-// useNavigation: access navigation helpers + the centralized `scrollY`.
-// - Prefer `scrollY` from this context instead of local scroll listeners so
-//   components always read the position of the registered app scroll
-//   container (or `window` as fallback). To change which element is watched
-//   call `registerScrollContainer(element)` from your layout/component.
+// Navigation helpers and route state. Scroll updates live in a separate
+// subscription so ordinary screens do not rerender on every scroll frame.
 export const useNavigation = () => {
   const context = useContext(NavigationContext);
   if (!context) {
     throw new Error("useNavigation must be used within a NavigationProvider");
   }
   return context;
+};
+
+
+export const useNavigationScroll = () => {
+  const store = useContext(NavigationScrollContext);
+  if (!store) {
+    throw new Error("useNavigationScroll must be used within a NavigationProvider");
+  }
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, () => 0);
 };
 
 export const useNavComponent = (componentName: string) => {

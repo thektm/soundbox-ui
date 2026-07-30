@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
-import { usePlayer } from "./PlayerContext";
+import { usePlayerPlayback } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import type { Song } from "./mockData";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
@@ -199,7 +199,7 @@ SkeletonSongRow.displayName = "SkeletonSongRow";
 // ============================================================================
 export default function LikedSongs() {
   const { goBack, scrollToTop, navigateTo } = useNavigation();
-  const { currentTrack, isPlaying, playTrack, togglePlay } = usePlayer();
+  const { currentTrack, isPlaying, playTrack, togglePlay } = usePlayerPlayback();
   const { accessToken, authenticatedFetch } = useAuth();
 
   // Combined State Objects to reduce renders
@@ -300,7 +300,7 @@ export default function LikedSongs() {
         }));
       }
     },
-    [accessToken],
+    [authenticatedFetch],
   );
 
   // Initial Load

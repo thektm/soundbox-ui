@@ -102,10 +102,10 @@ export const useDiscovery = () => useContext(DiscoveryContext);
 export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { accessToken, user, authenticatedFetch } = useAuth();
+  const { isLoggedIn, user, authenticatedFetch } = useAuth();
   const { homeCache } = useNavigation();
   const { language } = useI18n();
-  const audienceKey = accessToken
+  const audienceKey = isLoggedIn
     ? `member:${user?.id ?? "loading"}:${language}`
     : `guest:${language}`;
   const [recommendedPlaylists, setRecommendedPlaylists] = useState<
@@ -121,12 +121,12 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const fetchPublicRecommendations = useCallback(
     async (input: RequestInfo | URL): Promise<Response> => {
-      if (!accessToken) return fetch(input);
+      if (!isLoggedIn) return fetch(input);
 
       const response = await authenticatedFetchRef.current(input);
       return response.status === 401 ? fetch(input) : response;
     },
-    [accessToken],
+    [isLoggedIn],
   );
 
   const setRecommendedData = useCallback((data: any) => {

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigation } from "./NavigationContext";
 import Image from "next/image";
-import { usePlayer, Track } from "./PlayerContext";
+import { usePlayerPlayback, Track } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import {
@@ -25,7 +25,7 @@ const API_ROOT = "https://api.sedabox.com/api";
 export default function DownloadsHistory() {
   const { goBack, navigateTo } = useNavigation();
   const { locale, direction } = useI18n();
-  const { playTrack, currentTrack, isPlaying, togglePlay, download } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, togglePlay, download } = usePlayerPlayback();
   const { accessToken, authenticatedFetch } = useAuth();
 
   const [downloads, setDownloads] = useState<any[]>([]);

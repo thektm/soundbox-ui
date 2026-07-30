@@ -10,10 +10,10 @@ import React, {
 } from "react";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import PlaylistOptionsDrawer from "./PlaylistOptionsDrawer";
-import { useNavigation } from "./NavigationContext";
+import { useNavigation, useNavigationScroll } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
-import { usePlayer, Track } from "./PlayerContext";
+import { usePlayerPlayback, Track } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import { toast } from "react-hot-toast";
@@ -438,10 +438,11 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   id,
   isOwner: ownerHint,
 }) => {
-  const { goBack, scrollY, navigateTo } = useNavigation();
+  const { goBack, navigateTo } = useNavigation();
+  const scrollY = useNavigationScroll();
   const { accessToken, authenticatedFetch, user } = useAuth();
   const { requestAuth } = useGuestAccess();
-  const { setQueue, currentTrack, isPlaying } = usePlayer();
+  const { setQueue, currentTrack, isPlaying } = usePlayerPlayback();
 
   const [playlist, setPlaylist] = useState<UserPlaylistResponse | null>(null);
   const [loading, setLoading] = useState(true);

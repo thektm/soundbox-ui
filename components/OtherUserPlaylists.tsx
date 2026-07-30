@@ -76,7 +76,7 @@ const OtherUserPlaylists: React.FC<OtherUserPlaylistsProps> = ({
   fullName: initialFullName,
 }) => {
   const { language, locale } = useI18n();
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { authenticatedFetch } = useAuth();
   const { navigateTo } = useNavigation();
   const authenticatedFetchRef = useRef(authenticatedFetch);
   authenticatedFetchRef.current = authenticatedFetch;
@@ -165,7 +165,7 @@ const OtherUserPlaylists: React.FC<OtherUserPlaylistsProps> = ({
       abortRef.current?.abort();
       abortRef.current = null;
     };
-  }, [accessToken, fetchPage, initialFullName, uniqueId]);
+  }, [fetchPage, initialFullName, uniqueId]);
 
   const loadMore = useCallback(() => {
     if (!nextUrl || isLoading || isLoadingMore) return;

@@ -225,14 +225,32 @@ interface PlayerLayoutContextType {
   hasCollapsedPlayer: boolean;
 }
 
+interface PlayerPlaybackContextType {
+  currentTrack: Track | null;
+  isPlaying: boolean;
+  playTrack: PlayerContextType["playTrack"];
+  setQueue: PlayerContextType["setQueue"];
+  togglePlay: PlayerContextType["togglePlay"];
+  download: PlayerContextType["download"];
+}
+
 const PlayerContext = createContext<PlayerContextType | null>(null);
 const PlayerActionsContext = createContext<PlayerActionsContextType | null>(null);
 const PlayerLayoutContext = createContext<PlayerLayoutContextType | null>(null);
+const PlayerPlaybackContext = createContext<PlayerPlaybackContextType | null>(null);
 
 export function usePlayerLayoutState() {
   const context = useContext(PlayerLayoutContext);
   if (!context) {
     throw new Error("usePlayerLayoutState must be used within a PlayerProvider");
+  }
+  return context;
+}
+
+export function usePlayerPlayback() {
+  const context = useContext(PlayerPlaybackContext);
+  if (!context) {
+    throw new Error("usePlayerPlayback must be used within a PlayerProvider");
   }
   return context;
 }
@@ -2641,6 +2659,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [isExpanded, isVisible],
   );
 
+  const playbackState = useMemo<PlayerPlaybackContextType>(
+    () => ({
+      currentTrack,
+      isPlaying,
+      playTrack,
+      setQueue,
+      togglePlay,
+      download,
+    }),
+    [currentTrack, isPlaying, playTrack, setQueue, togglePlay, download],
+  );
+
   const value: PlayerContextType = {
     currentTrack,
     previousTrack,
@@ -2692,9 +2722,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   return (
     <PlayerActionsContext.Provider value={actions}>
       <PlayerLayoutContext.Provider value={layoutState}>
-        <PlayerContext.Provider value={value}>
-          {children}
-          {downloadTrack && (
+        <PlayerPlaybackContext.Provider value={playbackState}>
+          <PlayerContext.Provider value={value}>
+            {children}
+            {downloadTrack && (
             <DownloadFlowModal
               isOpen
               track={downloadTrack}
@@ -2711,8 +2742,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               onStart={() => void startDownload()}
               onClose={closeDownloadFlow}
             />
-          )}
-        </PlayerContext.Provider>
+            )}
+          </PlayerContext.Provider>
+        </PlayerPlaybackContext.Provider>
       </PlayerLayoutContext.Provider>
     </PlayerActionsContext.Provider>
   );

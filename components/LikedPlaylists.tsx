@@ -552,7 +552,7 @@ export default function LikedPlaylists() {
         }));
       }
     },
-    [accessToken],
+    [authenticatedFetch],
   );
 
   // Initial Load

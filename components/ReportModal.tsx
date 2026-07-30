@@ -38,7 +38,7 @@ export const ReportModal = ({
   targetType,
   targetTitle,
 }: ReportModalProps) => {
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { accessToken, isLoggedIn, authenticatedFetch } = useAuth();
   const { requestAuth } = useGuestAccess();
   const [selectedReason, setSelectedReason] = useState<string>("");
   const [description, setDescription] = useState("");
@@ -68,10 +68,10 @@ export const ReportModal = ({
   }, [onClose, resetForm]);
 
   useEffect(() => {
-    if (!isOpen || accessToken) return;
+    if (!isOpen || isLoggedIn) return;
     requestAuth("برای ثبت گزارش و دریافت نتیجه بررسی وارد شوید.");
     onClose();
-  }, [isOpen, accessToken, onClose, requestAuth]);
+  }, [isOpen, isLoggedIn, onClose, requestAuth]);
 
   const handleSubmit = async () => {
     if (!accessToken) {

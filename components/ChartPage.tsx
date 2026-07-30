@@ -28,7 +28,7 @@ const ChartPage: React.FC<ChartPageProps> = ({
   initialData,
 }) => {
   const { locale } = useI18n();
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { authenticatedFetch } = useAuth();
   const { navigateTo } = useNavigation();
   const { setQueue } = usePlayerActions();
   const [items, setItems] = useState<any[]>(initialData?.results || []);
@@ -90,7 +90,7 @@ const ChartPage: React.FC<ChartPageProps> = ({
     } else {
       fetchChart(endpoint);
     }
-  }, [accessToken, title, chartType, items.length]);
+  }, [authenticatedFetch, title, chartType, items.length]);
 
   const fetchChart = async (endpoint: string) => {
     setLoading(true);

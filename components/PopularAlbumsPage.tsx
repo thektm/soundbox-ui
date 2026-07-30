@@ -21,7 +21,7 @@ interface PaginatedResponse<T> {
 }
 
 const PopularAlbumsPage: React.FC = () => {
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { authenticatedFetch } = useAuth();
   const { navigateTo } = useNavigation();
   const [albums, setAlbums] = useState<ApiAlbum[]>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
@@ -46,7 +46,7 @@ const PopularAlbumsPage: React.FC = () => {
     };
 
     fetchAlbums();
-  }, [accessToken]);
+  }, [authenticatedFetch]);
 
   const loadMore = async () => {
     if (!nextUrl || loading) return;

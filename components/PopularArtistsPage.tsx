@@ -24,7 +24,7 @@ interface PaginatedResponse<T> {
 }
 
 const PopularArtistsPage: React.FC = () => {
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { authenticatedFetch } = useAuth();
   const { navigateTo, currentParams } = useNavigation();
   const [artists, setArtists] = useState<ApiArtist[]>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
@@ -49,7 +49,7 @@ const PopularArtistsPage: React.FC = () => {
     };
 
     fetchArtists();
-  }, [accessToken]);
+  }, [authenticatedFetch]);
 
   const loadMore = async () => {
     if (!nextUrl || loading) return;

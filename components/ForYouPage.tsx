@@ -31,8 +31,8 @@ interface SummaryResponse {
 }
 
 const ForYouPage: React.FC = () => {
-  const { accessToken, authenticatedFetch } = useAuth();
-  const isGuest = !accessToken;
+  const { isLoggedIn, authenticatedFetch } = useAuth();
+  const isGuest = !isLoggedIn;
   const { setQueue } = usePlayerActions();
   const { navigateTo } = useNavigation();
   const [songs, setSongs] = useState<ApiSong[]>([]);
@@ -79,7 +79,7 @@ const ForYouPage: React.FC = () => {
     };
 
     fetchRecommendations();
-  }, [accessToken, authenticatedFetch, isGuest]);
+  }, [authenticatedFetch, isGuest]);
 
   const loadMore = async () => {
     if (!nextUrl || loading) return;

@@ -2,10 +2,10 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
-import { useNavigation } from "./NavigationContext";
+import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
-import { usePlayer, Track } from "./PlayerContext";
+import { usePlayerPlayback, Track } from "./PlayerContext";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getFullShareUrl, slugify } from "../utils/share";
 import toast from "react-hot-toast";
@@ -368,9 +368,11 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   const authenticatedFetchRef = useRef(authenticatedFetch);
   authenticatedFetchRef.current = authenticatedFetch;
   const { requestAuth } = useGuestAccess();
-  const { setQueue, currentTrack, isPlaying: isPlayerPlaying } = usePlayer();
+  const { setQueue, currentTrack, isPlaying: isPlayerPlaying } = usePlayerPlayback();
 
   const albumId = idProp || currentParams?.id;
+  const currentParamsRef = useRef(currentParams);
+  currentParamsRef.current = currentParams;
 
   const [albumData, setAlbumData] = useState<ApiAlbumResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -398,7 +400,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
         return;
       }
 
-      const navigationPayload = currentParams?.album ?? albumProp;
+      const navigationPayload = currentParamsRef.current?.album ?? albumProp;
       const navigationAlbum = normalizeAlbumPayload(navigationPayload);
       const navigationMatches =
         navigationAlbum && String(navigationAlbum.id) === String(albumId);
@@ -437,22 +439,22 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
         setAlbumData(data);
         setIsLiked(data.is_liked);
 
+        const routeParams = currentParamsRef.current;
         const hasSlug =
-          currentParams?.title ||
-          currentParams?.slug ||
+          routeParams?.title ||
+          routeParams?.slug ||
           (typeof window !== "undefined" &&
             window.location.pathname.includes(`-${slugify(data.title)}`));
 
         if (data.title && !hasSlug) {
-          navigateTo(
+          replaceCurrentNavigationEntry(
             "album-detail",
             {
-              ...currentParams,
+              ...routeParams,
               id: data.id,
               title: data.title,
-              album: data,
             },
-            "replace",
+            `/album/${data.id}-${slugify(data.title)}`,
           );
         }
       } catch (error) {
@@ -469,7 +471,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
       active = false;
       controller.abort();
     };
-  }, [albumId, albumProp, accessToken, currentParams, navigateTo]);
+  }, [albumId, albumProp]);
 
 
   const handleMore = useCallback((song: ApiSong) => {

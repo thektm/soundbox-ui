@@ -13,7 +13,7 @@ import {
 import { useGuestAccess } from "./GuestAccessContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useNavigation } from "./NavigationContext";
-import { usePlayer } from "./PlayerContext";
+import { usePlayerLayoutState } from "./PlayerContext";
 import { useI18n } from "./I18nContext";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
 
@@ -236,7 +236,7 @@ export const GuestSidebar = () => {
   const { direction, t } = useI18n();
   const { currentPage, navigateTo } = useNavigation();
   const { requestAuth } = useGuestAccess();
-  const { isVisible, isExpanded } = usePlayer();
+  const { isVisible, isExpanded } = usePlayerLayoutState();
   const playerOpen = isVisible && !isExpanded;
 
   return (

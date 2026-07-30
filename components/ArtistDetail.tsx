@@ -1,6 +1,6 @@
 "use client";
 
-import { usePlayer, Track } from "./PlayerContext";
+import { usePlayerPlayback, Track } from "./PlayerContext";
 
 import React, {
   useState,
@@ -14,7 +14,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import type { Song } from "./mockData";
 import { createSlug } from "../lib/slug";
-import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
+import { replaceCurrentNavigationEntry, useNavigation, useNavigationScroll } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { ArtistOptionsDrawer } from "./ArtistOptionsDrawer";
@@ -602,8 +602,9 @@ const ArtistSkeleton = () => (
 
 export default function ArtistDetail({ id }: ArtistDetailProps) {
   const { locale, language } = useI18n();
-  const { goBack, currentParams, scrollY, navigateTo } = useNavigation();
-  const { playTrack, setQueue, currentTrack, isPlaying } = usePlayer();
+  const { goBack, currentParams, navigateTo } = useNavigation();
+  const scrollY = useNavigationScroll();
+  const { playTrack, setQueue, currentTrack, isPlaying } = usePlayerPlayback();
   const { accessToken, authenticatedFetch } = useAuth();
   const { requestAuth } = useGuestAccess();
 
@@ -677,7 +678,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     };
 
     fetchArtist();
-  }, [artistIdOrSlug, accessToken]);
+  }, [artistIdOrSlug, authenticatedFetch]);
 
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
   const showHeader = scrollY > 50;

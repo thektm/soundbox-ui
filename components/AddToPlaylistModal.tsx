@@ -27,7 +27,7 @@ export const AddToPlaylistModal = ({
   onClose,
   songId,
 }: AddToPlaylistModalProps) => {
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { isLoggedIn, authenticatedFetch } = useAuth();
   const { requestAuth } = useGuestAccess();
   const [playlists, setPlaylists] = useState<APIUserPlaylist[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,14 +53,14 @@ export const AddToPlaylistModal = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    if (!accessToken) {
+    if (!isLoggedIn) {
       requestAuth("برای افزودن آهنگ به پلی‌لیست، ابتدا وارد شوید.");
       onClose();
       return;
     }
     fetchPlaylists();
     setSearchQuery("");
-  }, [isOpen, accessToken, fetchPlaylists, onClose, requestAuth]);
+  }, [isOpen, isLoggedIn, fetchPlaylists, onClose, requestAuth]);
 
   const handleAddToPlaylist = async (playlistId: number) => {
     if (addingToId !== null) return;
