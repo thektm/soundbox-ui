@@ -19,7 +19,6 @@ import { ResponsiveSheet } from "./ResponsiveSheet";
 import { ReportModal } from "./ReportModal";
 import { useI18n } from "./I18nContext";
 import { openAuthPrompt } from "./authPrompt";
-import { readFollowingState } from "../lib/apiActionState";
 
 interface UserPlaylist {
   id: number;
@@ -625,7 +624,6 @@ FloatingParticle.displayName = "FloatingParticle";
    ─────────────────────────────────────────── */
 export default function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId?: string }) {
   const { locale } = useI18n();
-  const isEnglish = locale === "en-US";
   const { navigateTo, goBack } = useNavigation();
   const { accessToken, authenticatedFetch } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -670,17 +668,30 @@ export default function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId
   }, []);
 
   useEffect(() => {
-    if (!uniqueId) return;
+    const publicUniqueId = uniqueId?.trim() || "";
+    const databaseId = dbId?.trim() || "";
+    if (!publicUniqueId && !databaseId) {
+      setProfile(null);
+      setIsLoading(false);
+      return;
+    }
 
     const fetchProfile = async () => {
       setIsLoading(true);
       try {
+        // Prefer the stable public UID whenever navigation supplied one. A
+        // canonical /user/{pk}-{slug} route has the pk in both values, so it
+        // intentionally uses the explicit pk lookup instead.
+        const hasDistinctPublicUid =
+          Boolean(publicUniqueId) && publicUniqueId !== databaseId;
         const profileUrl =
-          uniqueId === "sedabox"
+          publicUniqueId.toLowerCase() === "sedabox"
             ? `https://api.sedabox.com/api/profile/sedabox`
-            : dbId
-              ? `https://api.sedabox.com/api/profile/u/${encodeURIComponent(dbId)}/?lookup=pk`
-              : `https://api.sedabox.com/api/profile/u/${encodeURIComponent(uniqueId)}/`;
+            : hasDistinctPublicUid
+              ? `https://api.sedabox.com/api/profile/u/${encodeURIComponent(publicUniqueId)}/`
+              : databaseId
+                ? `https://api.sedabox.com/api/profile/u/${encodeURIComponent(databaseId)}/?lookup=pk`
+                : `https://api.sedabox.com/api/profile/u/${encodeURIComponent(publicUniqueId)}/`;
         const response = await authenticatedFetch(profileUrl);
         if (response.ok) {
           const data = await response.json();
@@ -722,85 +733,40 @@ export default function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId
     }
     if (!profile || profile.is_yours) return;
 
-    const wasFollowing = profile.is_following;
-    const shouldFollow = !wasFollowing;
-    const profileName =
-      `${profile.first_name || ""} ${profile.last_name || ""}`.trim() ||
-      profile.unique_id;
-
     setIsFollowLoading(true);
     setFollowAnimating(true);
-    setProfile((previous) =>
-      previous
-        ? {
-            ...previous,
-            is_following: shouldFollow,
-            followers_count: Math.max(
-              0,
-              previous.followers_count + (shouldFollow ? 1 : -1),
-            ),
-          }
-        : previous,
-    );
     try {
       const response = await authenticatedFetch(
         `https://api.sedabox.com/api/follow/`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: profile.id, follow: shouldFollow }),
+          body: JSON.stringify({ user_id: profile.id }),
         },
       );
 
-      if (!response.ok) throw new Error(`Follow failed: ${response.status}`);
-
-      const data = await response.json();
-      const isNowFollowing = readFollowingState(data, shouldFollow);
-      setProfile((previous) =>
-        previous
-          ? {
-              ...previous,
-              is_following: isNowFollowing,
-              followers_count:
-                isNowFollowing === shouldFollow
-                  ? previous.followers_count
-                  : Math.max(
-                      0,
-                      previous.followers_count +
-                        Number(isNowFollowing) -
-                        Number(shouldFollow),
-                    ),
-            }
-          : null,
-      );
-      toast.success(
-        isNowFollowing
-          ? isEnglish
-            ? `${profileName} followed`
-            : `${profileName} دنبال شد`
-          : isEnglish
-            ? `${profileName} unfollowed`
-            : `دنبال‌کردن ${profileName} لغو شد`,
-      );
+      if (response.ok) {
+        const data = await response.json();
+        const isNowFollowing = data.message === "followed";
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                is_following: isNowFollowing,
+                followers_count: isNowFollowing
+                  ? prev.followers_count + 1
+                  : prev.followers_count - 1,
+              }
+            : null,
+        );
+        toast.success(isNowFollowing ? "دنبال شد ✨" : "لغو دنبال کردن");
+      }
     } catch (error) {
-      setProfile((previous) =>
-        previous
-          ? {
-              ...previous,
-              is_following: wasFollowing,
-              followers_count: Math.max(
-                0,
-                previous.followers_count + (wasFollowing ? 1 : -1),
-              ),
-            }
-          : previous,
-      );
-      toast.error(isEnglish ? "The action failed" : "عملیات انجام نشد");
+      toast.error("خطا در عملیات");
     } finally {
       setIsFollowLoading(false);
       setTimeout(() => setFollowAnimating(false), 400);
     }
-  }, [accessToken, authenticatedFetch, isEnglish, profile]);
+  }, [accessToken, profile]);
 
   const [reportOpen, setReportOpen] = useState(false);
 
