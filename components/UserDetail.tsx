@@ -11,7 +11,6 @@ import React, {
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
-import { usePlayer } from "./PlayerContext";
 import { toast } from "react-hot-toast";
 import { slugify } from "../utils/share";
 import { buildUserNavigationParams, getCanonicalUserPath, isSedaboxUser } from "../lib/userProfileRoute";
@@ -67,6 +66,103 @@ const getPlaylistsCount = (up: UserProfile["user_playlists"]): number => {
   if ((up as any).results && Array.isArray((up as any).results))
     return (up as any).results.length;
   return 0;
+};
+
+interface UserProfileRequest {
+  key: string;
+  url: string;
+}
+
+const USER_PROFILE_CACHE_TTL_MS = 60_000;
+const userProfileResponseCache = new Map<
+  string,
+  { data: UserProfile; expiresAt: number }
+>();
+const userProfileInFlightRequests = new Map<string, Promise<UserProfile>>();
+
+const createUserProfileRequest = (
+  uniqueId?: string,
+  dbId?: string,
+): UserProfileRequest | null => {
+  const publicUniqueId = uniqueId?.trim() || "";
+  const databaseId = dbId?.trim() || "";
+  if (!publicUniqueId && !databaseId) return null;
+
+  const isOfficial = publicUniqueId.toLowerCase() === "sedabox";
+  const hasDistinctPublicUid =
+    Boolean(publicUniqueId) && publicUniqueId !== databaseId;
+
+  const url = isOfficial
+    ? "https://api.sedabox.com/api/profile/sedabox"
+    : hasDistinctPublicUid
+      ? `https://api.sedabox.com/api/profile/u/${encodeURIComponent(publicUniqueId)}/`
+      : databaseId
+        ? `https://api.sedabox.com/api/profile/u/${encodeURIComponent(databaseId)}/?lookup=pk`
+        : `https://api.sedabox.com/api/profile/u/${encodeURIComponent(publicUniqueId)}/`;
+
+  return {
+    // Prefer the database id when available. Canonical URL replacement may
+    // change the public slug, but it must not create a second profile request.
+    key: databaseId
+      ? `pk:${databaseId}`
+      : `uid:${publicUniqueId.toLowerCase()}`,
+    url,
+  };
+};
+
+const getProfileIdentityKeys = (profile: UserProfile): string[] => {
+  const keys = [`pk:${profile.id}`];
+  const uniqueId = profile.unique_id?.trim().toLowerCase();
+  if (uniqueId) keys.push(`uid:${uniqueId}`);
+  if (profile.is_official || isSedaboxUser(profile)) keys.push("uid:sedabox");
+  return keys;
+};
+
+const readCachedUserProfile = (key: string): UserProfile | null => {
+  const cached = userProfileResponseCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    userProfileResponseCache.delete(key);
+    return null;
+  }
+  return cached.data;
+};
+
+const cacheUserProfile = (profile: UserProfile): void => {
+  const entry = {
+    data: profile,
+    expiresAt: Date.now() + USER_PROFILE_CACHE_TTL_MS,
+  };
+  for (const key of getProfileIdentityKeys(profile)) {
+    userProfileResponseCache.set(key, entry);
+  }
+};
+
+const requestUserProfile = (
+  request: UserProfileRequest,
+  fetcher: typeof fetch,
+): Promise<UserProfile> => {
+  const cached = readCachedUserProfile(request.key);
+  if (cached) return Promise.resolve(cached);
+
+  const existing = userProfileInFlightRequests.get(request.key);
+  if (existing) return existing;
+
+  const pending = fetcher(request.url)
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`Profile request failed with status ${response.status}`);
+      }
+      const data = (await response.json()) as UserProfile;
+      cacheUserProfile(data);
+      return data;
+    })
+    .finally(() => {
+      userProfileInFlightRequests.delete(request.key);
+    });
+
+  userProfileInFlightRequests.set(request.key, pending);
+  return pending;
 };
 
 /* ───────────────────────────────────────────
@@ -622,17 +718,46 @@ FloatingParticle.displayName = "FloatingParticle";
 /* ───────────────────────────────────────────
    Main Component
    ─────────────────────────────────────────── */
-export default function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId?: string }) {
+function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId?: string }) {
   const { locale } = useI18n();
   const { navigateTo, goBack } = useNavigation();
   const { accessToken, authenticatedFetch } = useAuth();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const profileRequest = useMemo(
+    () => createUserProfileRequest(uniqueId, dbId),
+    [uniqueId, dbId],
+  );
+  const initialProfile = profileRequest
+    ? readCachedUserProfile(profileRequest.key)
+    : null;
+  const [profile, setProfile] = useState<UserProfile | null>(initialProfile);
+  const [isLoading, setIsLoading] = useState(
+    Boolean(profileRequest) && !initialProfile,
+  );
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [followAnimating, setFollowAnimating] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const authenticatedFetchRef = useRef(authenticatedFetch);
+  const profileRef = useRef<UserProfile | null>(initialProfile);
+  const loadedIdentityKeysRef = useRef<Set<string>>(
+    new Set(initialProfile ? getProfileIdentityKeys(initialProfile) : []),
+  );
+  const activeRequestRef = useRef(0);
+  const lastCanonicalPathRef = useRef<string | null>(null);
+  const localeRef = useRef(locale);
+
+  useEffect(() => {
+    authenticatedFetchRef.current = authenticatedFetch;
+  }, [authenticatedFetch]);
+
+  useEffect(() => {
+    localeRef.current = locale;
+  }, [locale]);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   // Particles data (memoized so they don't re-create)
   const particles = useMemo(
@@ -668,63 +793,98 @@ export default function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId
   }, []);
 
   useEffect(() => {
-    const publicUniqueId = uniqueId?.trim() || "";
-    const databaseId = dbId?.trim() || "";
-    if (!publicUniqueId && !databaseId) {
+    const request = profileRequest;
+    const requestVersion = ++activeRequestRef.current;
+    let active = true;
+
+    if (!request) {
+      profileRef.current = null;
       setProfile(null);
       setIsLoading(false);
-      return;
+      return () => {
+        active = false;
+      };
     }
 
-    const fetchProfile = async () => {
-      setIsLoading(true);
-      try {
-        // Prefer the stable public UID whenever navigation supplied one. A
-        // canonical /user/{pk}-{slug} route has the pk in both values, so it
-        // intentionally uses the explicit pk lookup instead.
-        const hasDistinctPublicUid =
-          Boolean(publicUniqueId) && publicUniqueId !== databaseId;
-        const profileUrl =
-          publicUniqueId.toLowerCase() === "sedabox"
-            ? `https://api.sedabox.com/api/profile/sedabox`
-            : hasDistinctPublicUid
-              ? `https://api.sedabox.com/api/profile/u/${encodeURIComponent(publicUniqueId)}/`
-              : databaseId
-                ? `https://api.sedabox.com/api/profile/u/${encodeURIComponent(databaseId)}/?lookup=pk`
-                : `https://api.sedabox.com/api/profile/u/${encodeURIComponent(publicUniqueId)}/`;
-        const response = await authenticatedFetch(profileUrl);
-        if (response.ok) {
-          const data = await response.json();
-          setProfile(data);
+    // Canonical URL replacement can change uniqueId/dbId props for the same
+    // loaded user. Never refetch or flash the skeleton for an identity we
+    // already resolved in this mounted screen.
+    const currentProfileMatchesRequest = profileRef.current
+      ? getProfileIdentityKeys(profileRef.current).includes(request.key)
+      : false;
+    if (currentProfileMatchesRequest) {
+      setIsLoading(false);
+      return () => {
+        active = false;
+      };
+    }
 
-          const canonicalParams = buildUserNavigationParams({
-            ...data,
-            is_official: data.is_official || isSedaboxUser(data),
-          });
-          const canonicalPath = getCanonicalUserPath(canonicalParams);
-          if (
-            canonicalPath &&
-            typeof window !== "undefined" &&
-            window.location.pathname !== canonicalPath
-          ) {
-            replaceCurrentNavigationEntry(
-              "user-detail",
-              canonicalParams,
-              canonicalPath,
-            );
-          }
-        } else {
-          toast.error("خطا در دریافت پروفایل");
-        }
-      } catch (error) {
-        console.error("Fetch profile error:", error);
-      } finally {
-        setIsLoading(false);
+    const cached = readCachedUserProfile(request.key);
+    if (cached) {
+      profileRef.current = cached;
+      for (const key of getProfileIdentityKeys(cached)) {
+        loadedIdentityKeysRef.current.add(key);
       }
-    };
+      setProfile(cached);
+      setIsLoading(false);
+    } else {
+      // Show the skeleton only for a genuinely different profile. Token
+      // refreshes and local actions are deliberately not dependencies here.
+      profileRef.current = null;
+      setProfile(null);
+      setIsLoading(true);
+    }
 
-    fetchProfile();
-  }, [uniqueId, dbId, accessToken]);
+    requestUserProfile(request, (input, init) =>
+      authenticatedFetchRef.current(input, init),
+    )
+      .then((data) => {
+        if (!active || activeRequestRef.current !== requestVersion) return;
+
+        profileRef.current = data;
+        for (const key of getProfileIdentityKeys(data)) {
+          loadedIdentityKeysRef.current.add(key);
+        }
+        setProfile(data);
+        setIsLoading(false);
+
+        const canonicalParams = buildUserNavigationParams({
+          ...data,
+          is_official: data.is_official || isSedaboxUser(data),
+        });
+        const canonicalPath = getCanonicalUserPath(canonicalParams);
+        if (
+          canonicalPath &&
+          typeof window !== "undefined" &&
+          window.location.pathname !== canonicalPath &&
+          lastCanonicalPathRef.current !== canonicalPath
+        ) {
+          lastCanonicalPathRef.current = canonicalPath;
+          replaceCurrentNavigationEntry(
+            "user-detail",
+            canonicalParams,
+            canonicalPath,
+          );
+        }
+      })
+      .catch((error) => {
+        if (!active || activeRequestRef.current !== requestVersion) return;
+        loadedIdentityKeysRef.current.delete(request.key);
+        console.error("Fetch profile error:", error);
+        setIsLoading(false);
+        if (!profileRef.current) {
+          toast.error(
+            localeRef.current === "fa-IR"
+              ? "خطا در دریافت پروفایل"
+              : "Could not load profile",
+          );
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [profileRequest?.key, profileRequest?.url]);
 
   const handleFollow = useCallback(async () => {
     if (!accessToken) {
@@ -747,17 +907,19 @@ export default function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId
       if (response.ok) {
         const data = await response.json();
         const isNowFollowing = data.message === "followed";
-        setProfile((prev) =>
-          prev
-            ? {
-                ...prev,
-                is_following: isNowFollowing,
-                followers_count: isNowFollowing
-                  ? prev.followers_count + 1
-                  : prev.followers_count - 1,
-              }
-            : null,
-        );
+        setProfile((prev) => {
+          if (!prev) return null;
+          const next = {
+            ...prev,
+            is_following: isNowFollowing,
+            followers_count: isNowFollowing
+              ? prev.followers_count + 1
+              : Math.max(0, prev.followers_count - 1),
+          };
+          profileRef.current = next;
+          cacheUserProfile(next);
+          return next;
+        });
         toast.success(isNowFollowing ? "دنبال شد ✨" : "لغو دنبال کردن");
       }
     } catch (error) {
@@ -1830,3 +1992,7 @@ export default function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId
     </div>
   );
 }
+
+UserDetail.displayName = "UserDetail";
+
+export default memo(UserDetail);
