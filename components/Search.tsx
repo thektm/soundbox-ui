@@ -11,7 +11,7 @@ import React, {
 import Image from "next/image";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
-import { usePlayer } from "./PlayerContext";
+import { usePlayerActions } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
 import { toast } from "react-hot-toast";
@@ -34,12 +34,13 @@ import {
 } from "lucide-react";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getFullShareUrl } from "../utils/share";
-import { createSlug } from "./mockData";
+import { createSlug } from "../lib/slug";
 import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
 import { getUserFacingErrorMessage } from "../lib/clientError";
 import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
 import { buildUserNavigationParams, isSedaboxUser } from "../lib/userProfileRoute";
+import { readFollowingState } from "../lib/apiActionState";
 
 // ============ TYPES & MOCKS ============
 interface Song {
@@ -1484,7 +1485,7 @@ const ModernBackground = memo(() => (
 // ============ MAIN COMPONENT ============
 export default function Search() {
   const { navigateTo } = useNavigation();
-  const { playTrack } = usePlayer();
+  const { playTrack } = usePlayerActions();
   const { accessToken, authenticatedFetch } = useAuth();
   const { requestAuth } = useGuestAccess();
   const { locale } = useI18n();
@@ -1576,13 +1577,15 @@ export default function Search() {
         return;
       }
       setFollowingId(artistId);
+      const shouldFollow = !currentlyFollowing;
+      setFollowedStatus((prev) => ({ ...prev, [artistId]: shouldFollow }));
 
       authenticatedFetch(`https://api.sedabox.com/api/follow/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ artist_id: artistId }),
+        body: JSON.stringify({ artist_id: artistId, follow: shouldFollow }),
       })
         .then((response) => {
           if (response.ok) {
@@ -1591,23 +1594,38 @@ export default function Search() {
           throw new Error("Follow action failed");
         })
         .then((data) => {
+          const isFollowing = readFollowingState(data, shouldFollow);
           setFollowedStatus((prev) => ({
             ...prev,
-            [artistId]: data.message === "followed",
+            [artistId]: isFollowing,
           }));
           toast.success(
-            data.message === "followed" ? "دنبال شد" : "لغو دنبال کردن",
+            isFollowing
+              ? isEnglish
+                ? "Artist followed"
+                : "هنرمند دنبال شد"
+              : isEnglish
+                ? "Artist unfollowed"
+                : "دنبال‌کردن هنرمند لغو شد",
           );
         })
         .catch((error) => {
           console.error("Follow action failed", error);
-          toast.error("خطا در انجام عملیات");
+          setFollowedStatus((prev) => ({
+            ...prev,
+            [artistId]: currentlyFollowing,
+          }));
+          toast.error(
+            isEnglish
+              ? "The action could not be completed"
+              : "عملیات انجام نشد",
+          );
         })
         .finally(() => {
           setFollowingId(null);
         });
     },
-    [authenticatedFetch, accessToken, requestAuth],
+    [authenticatedFetch, accessToken, isEnglish, requestAuth],
   );
 
   // mark ready after first paint; initial network requests wait for this

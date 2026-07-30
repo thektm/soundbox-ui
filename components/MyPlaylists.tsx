@@ -12,7 +12,8 @@ import Image from "next/image";
 import { createPortal } from "react-dom";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
-import { UserPlaylist, createSlug } from "./mockData";
+import type { UserPlaylist } from "./mockData";
+import { createSlug } from "../lib/slug";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 
 // ============================================================================
@@ -734,14 +735,10 @@ const PlaylistCard = memo(
             </p>
           )}
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center">
             <span className="text-[10px] text-gray-600 flex items-center gap-1">
               <Icon d={ICONS.music} className="w-3 h-3" />
               {playlist.songsCount} آهنگ
-            </span>
-            <span className="text-[10px] text-gray-600">•</span>
-            <span className="text-[10px] text-gray-600">
-              {playlist.duration}
             </span>
           </div>
         </div>

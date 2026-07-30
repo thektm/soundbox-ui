@@ -19,6 +19,7 @@ import { ResponsiveSheet } from "./ResponsiveSheet";
 import { ReportModal } from "./ReportModal";
 import { useI18n } from "./I18nContext";
 import { openAuthPrompt } from "./authPrompt";
+import { readFollowingState } from "../lib/apiActionState";
 
 interface UserPlaylist {
   id: number;
@@ -624,6 +625,7 @@ FloatingParticle.displayName = "FloatingParticle";
    ─────────────────────────────────────────── */
 export default function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId?: string }) {
   const { locale } = useI18n();
+  const isEnglish = locale === "en-US";
   const { navigateTo, goBack } = useNavigation();
   const { accessToken, authenticatedFetch } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -720,40 +722,85 @@ export default function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId
     }
     if (!profile || profile.is_yours) return;
 
+    const wasFollowing = profile.is_following;
+    const shouldFollow = !wasFollowing;
+    const profileName =
+      `${profile.first_name || ""} ${profile.last_name || ""}`.trim() ||
+      profile.unique_id;
+
     setIsFollowLoading(true);
     setFollowAnimating(true);
+    setProfile((previous) =>
+      previous
+        ? {
+            ...previous,
+            is_following: shouldFollow,
+            followers_count: Math.max(
+              0,
+              previous.followers_count + (shouldFollow ? 1 : -1),
+            ),
+          }
+        : previous,
+    );
     try {
       const response = await authenticatedFetch(
         `https://api.sedabox.com/api/follow/`,
         {
           method: "POST",
-          body: JSON.stringify({ user_id: profile.id }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: profile.id, follow: shouldFollow }),
         },
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        const isNowFollowing = data.message === "followed";
-        setProfile((prev) =>
-          prev
-            ? {
-                ...prev,
-                is_following: isNowFollowing,
-                followers_count: isNowFollowing
-                  ? prev.followers_count + 1
-                  : prev.followers_count - 1,
-              }
-            : null,
-        );
-        toast.success(isNowFollowing ? "دنبال شد ✨" : "لغو دنبال کردن");
-      }
+      if (!response.ok) throw new Error(`Follow failed: ${response.status}`);
+
+      const data = await response.json();
+      const isNowFollowing = readFollowingState(data, shouldFollow);
+      setProfile((previous) =>
+        previous
+          ? {
+              ...previous,
+              is_following: isNowFollowing,
+              followers_count:
+                isNowFollowing === shouldFollow
+                  ? previous.followers_count
+                  : Math.max(
+                      0,
+                      previous.followers_count +
+                        Number(isNowFollowing) -
+                        Number(shouldFollow),
+                    ),
+            }
+          : null,
+      );
+      toast.success(
+        isNowFollowing
+          ? isEnglish
+            ? `${profileName} followed`
+            : `${profileName} دنبال شد`
+          : isEnglish
+            ? `${profileName} unfollowed`
+            : `دنبال‌کردن ${profileName} لغو شد`,
+      );
     } catch (error) {
-      toast.error("خطا در عملیات");
+      setProfile((previous) =>
+        previous
+          ? {
+              ...previous,
+              is_following: wasFollowing,
+              followers_count: Math.max(
+                0,
+                previous.followers_count + (wasFollowing ? 1 : -1),
+              ),
+            }
+          : previous,
+      );
+      toast.error(isEnglish ? "The action failed" : "عملیات انجام نشد");
     } finally {
       setIsFollowLoading(false);
       setTimeout(() => setFollowAnimating(false), 400);
     }
-  }, [accessToken, profile]);
+  }, [accessToken, authenticatedFetch, isEnglish, profile]);
 
   const [reportOpen, setReportOpen] = useState(false);
 

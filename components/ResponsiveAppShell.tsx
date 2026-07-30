@@ -1,14 +1,28 @@
 "use client";
 
 import React, { useEffect } from "react";
-import BottomNavbar from "./BottomNavbar";
-import Sidebar from "./Sidebar";
+import dynamic from "next/dynamic";
 import { useResponsiveLayout } from "./ResponsiveLayout";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
-import { GuestBottomNav, GuestSidebar, GuestTopActions } from "./GuestNavigation";
 import { useI18n } from "./I18nContext";
 import { useSplashVisibility } from "./SplashVisibilityContext";
+
+
+const BottomNavbar = dynamic(() => import("./BottomNavbar"), { ssr: false });
+const Sidebar = dynamic(() => import("./Sidebar"), { ssr: false });
+const GuestBottomNav = dynamic(
+  () => import("./GuestNavigation").then((module) => module.GuestBottomNav),
+  { ssr: false },
+);
+const GuestSidebar = dynamic(
+  () => import("./GuestNavigation").then((module) => module.GuestSidebar),
+  { ssr: false },
+);
+const GuestTopActions = dynamic(
+  () => import("./GuestNavigation").then((module) => module.GuestTopActions),
+  { ssr: false },
+);
 
 interface Props {
   children: React.ReactNode;
@@ -60,7 +74,6 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
             maxHeight: "calc(var(--vh, 1vh) * 100)",
             position: "relative",
             overscrollBehavior: "contain",
-            willChange: "scroll-position",
           }}
         >
           {children}
@@ -94,8 +107,7 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
             ref={registerScrollContainer}
             style={{
               overscrollBehavior: "contain",
-              willChange: "scroll-position",
-            }}
+              }}
           >
             {children}
           </div>

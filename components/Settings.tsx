@@ -15,7 +15,7 @@ import toast from "react-hot-toast";
 import UserIcon from "./UserIcon";
 import { AppLanguage, useI18n } from "./I18nContext";
 import { openAuthPrompt } from "./authPrompt";
-import { usePlayer } from "./PlayerContext";
+import { usePlayerActions } from "./PlayerContext";
 import UserAvatar from "./UserAvatar";
 
 // Reusable Icon Component
@@ -965,7 +965,7 @@ const LanguageSheet = ({
 export default function Settings() {
   const { language, setLanguage, t } = useI18n();
   const { navigateTo, goBack } = useNavigation();
-  const { setQuality: setPlayerQuality } = usePlayer();
+  const { setQuality: setPlayerQuality } = usePlayerActions();
   const {
     user: authUser,
     updateProfile,

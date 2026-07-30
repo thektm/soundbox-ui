@@ -11,16 +11,21 @@ import React, {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
+import dynamic from "next/dynamic";
 // hls.js is heavy (~200 KB) — import it lazily the first time HLS playback is needed.
 // import Hls from "hls.js";
-import { scrapeIpInfo } from "./ipScraper";
 import { toast } from "react-hot-toast";
 import { useI18n } from "./I18nContext";
-import DownloadFlowModal, {
+import type {
   DownloadFlowStatus,
   DownloadQuality,
   DownloadQualityOption,
 } from "./DownloadFlowModal";
+
+const DownloadFlowModal = dynamic(() => import("./DownloadFlowModal"), {
+  ssr: false,
+  loading: () => null,
+});
 import {
   clearPlaybackSession,
   compactPlaybackQueue,
@@ -208,7 +213,22 @@ interface PlayerContextType {
   shuffleQueue: () => void;
 }
 
+interface PlayerActionsContextType {
+  playTrack: PlayerContextType["playTrack"];
+  setQueue: PlayerContextType["setQueue"];
+  setQuality: PlayerContextType["setQuality"];
+}
+
 const PlayerContext = createContext<PlayerContextType | null>(null);
+const PlayerActionsContext = createContext<PlayerActionsContextType | null>(null);
+
+export function usePlayerActions() {
+  const context = useContext(PlayerActionsContext);
+  if (!context) {
+    throw new Error("usePlayerActions must be used within a PlayerProvider");
+  }
+  return context;
+}
 
 export function usePlayer() {
   const context = useContext(PlayerContext);
@@ -1202,14 +1222,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           if (requestSequence !== playbackRequestSequenceRef.current) return;
           setIsPlaying(true);
           setIsLoading(false);
-          scrapeIpInfo().then((res) => {
-            if (res) {
-              userLocationRef.current = {
-                country: res.country,
-                city: res.province,
-              };
-            }
-          });
+          void import("./ipScraper")
+            .then(({ scrapeIpInfo }) => scrapeIpInfo())
+            .then((res) => {
+              if (res) {
+                userLocationRef.current = {
+                  country: res.country,
+                  city: res.province,
+                };
+              }
+            })
+            .catch(() => undefined);
         };
 
         // If it's an HLS playlist, use hls.js with Authorization headers for subsequent requests.
@@ -2585,6 +2608,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
   }, [isShuffle]);
 
+  const actions = useMemo<PlayerActionsContextType>(
+    () => ({
+      playTrack,
+      setQueue,
+      setQuality: setQualityValue,
+    }),
+    [playTrack, setQueue, setQualityValue],
+  );
+
   const value: PlayerContextType = {
     currentTrack,
     previousTrack,
@@ -2634,22 +2666,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <PlayerContext.Provider value={value}>
-      {children}
-      <DownloadFlowModal
-        isOpen={Boolean(downloadTrack)}
-        track={downloadTrack}
-        options={downloadOptions}
-        selectedQuality={selectedDownloadQuality}
-        status={downloadStatus}
-        progress={downloadProgress}
-        loadedBytes={downloadLoadedBytes}
-        totalBytes={downloadTotalBytes}
-        error={downloadError}
-        onSelect={(selected) => setSelectedDownloadQuality(selected)}
-        onStart={() => void startDownload()}
-        onClose={closeDownloadFlow}
-      />
-    </PlayerContext.Provider>
+    <PlayerActionsContext.Provider value={actions}>
+      <PlayerContext.Provider value={value}>
+        {children}
+        {downloadTrack && (
+          <DownloadFlowModal
+            isOpen
+            track={downloadTrack}
+            options={downloadOptions}
+            selectedQuality={selectedDownloadQuality}
+            status={downloadStatus}
+            progress={downloadProgress}
+            loadedBytes={downloadLoadedBytes}
+            totalBytes={downloadTotalBytes}
+            error={downloadError}
+            onSelect={(selected) => setSelectedDownloadQuality(selected)}
+            onStart={() => void startDownload()}
+            onClose={closeDownloadFlow}
+          />
+        )}
+      </PlayerContext.Provider>
+    </PlayerActionsContext.Provider>
   );
 }

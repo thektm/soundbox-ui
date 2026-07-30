@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAuth, User } from "./AuthContext";
+import { useAuth } from "./AuthContext";
 import {
   X,
   Check,
@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { toast } from "react-hot-toast";
+import { useI18n } from "./I18nContext";
+import { readFollowingState, readLikedState } from "../lib/apiActionState";
 
 interface Genre {
   id: number;
@@ -40,9 +42,9 @@ interface Playlist {
 }
 
 export const InitialModal: React.FC = () => {
+  const { language } = useI18n();
   const {
     needsInitialCheck,
-    setNeedsInitialCheck,
     markInitialCheckCompleted,
     authenticatedFetch,
     accessToken,
@@ -66,8 +68,34 @@ export const InitialModal: React.FC = () => {
     new Set(),
   );
   const [likedPlaylists, setLikedPlaylists] = useState<Set<string>>(new Set());
+  const [pendingArtists, setPendingArtists] = useState<Set<number>>(new Set());
+  const [pendingPlaylists, setPendingPlaylists] = useState<Set<string>>(
+    new Set(),
+  );
+  const [stepError, setStepError] = useState<string | null>(null);
 
-  const canProceed = step !== 0 || followedArtists.size >= 3;
+  const canProceed =
+    step === 0
+      ? followedArtists.size >= 3
+      : step === 1
+        ? selectedGenres.length >= 1
+        : true;
+
+  const operationError =
+    language === "fa"
+      ? "عملیات انجام نشد. دوباره تلاش کنید."
+      : "The action could not be completed. Please try again.";
+
+  const syncArtistFollowState = (artists: Artist[]) => {
+    setFollowedArtists((previous) => {
+      const next = new Set(previous);
+      artists.forEach((artist) => {
+        if (artist.is_following) next.add(artist.id);
+        else next.delete(artist.id);
+      });
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (needsInitialCheck && accessToken) {
@@ -79,33 +107,43 @@ export const InitialModal: React.FC = () => {
 
   const fetchArtists = async () => {
     setLoading(true);
+    setStepError(null);
     try {
       const resp = await authenticatedFetch(
         "https://api.sedabox.com/api/home/popular-artists/",
       );
-      if (resp.ok) {
-        const data = await resp.json();
-        const results = data.results || [];
-        setPopularArtists(results);
-        setNextArtistsUrl(data.next);
-        // Initialize followedArtists from server-provided is_following
-        try {
-          const serverFollowing = new Set<number>();
-          results.forEach((a: any) => {
-            if (a.is_following) serverFollowing.add(a.id);
-          });
-          if (serverFollowing.size > 0) {
-            setFollowedArtists(
-              (prev) =>
-                new Set([...Array.from(prev), ...Array.from(serverFollowing)]),
-            );
-          }
-        } catch (e) {
-          /* noop */
-        }
-      }
+      if (!resp.ok) throw new Error(`Artists request failed: ${resp.status}`);
+
+      const data = await resp.json();
+      const rawResults = Array.isArray(data) ? data : data?.results;
+      const results: Artist[] = Array.isArray(rawResults)
+        ? rawResults
+            .filter((artist: unknown): artist is Record<string, unknown> =>
+              Boolean(artist && typeof artist === "object"),
+            )
+            .map((artist) => ({
+              id: Number(artist.id),
+              name: String(artist.name ?? ""),
+              profile_image: String(artist.profile_image ?? ""),
+              is_following: Boolean(artist.is_following),
+            }))
+            .filter((artist) => Number.isFinite(artist.id) && artist.id > 0)
+        : [];
+
+      setPopularArtists(results);
+      setNextArtistsUrl(
+        !Array.isArray(data) && typeof data?.next === "string"
+          ? data.next
+          : null,
+      );
+      syncArtistFollowState(results);
     } catch (err) {
-      console.error(err);
+      console.error("Initial artist load failed", err);
+      setStepError(
+        language === "fa"
+          ? "هنرمندان بارگذاری نشدند. دوباره تلاش کنید."
+          : "Artists could not be loaded. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -118,27 +156,35 @@ export const InitialModal: React.FC = () => {
       const resp = await authenticatedFetch(
         nextArtistsUrl.replace("http://", "https://"),
       );
-      if (resp.ok) {
-        const data = await resp.json();
-        const results = data.results || [];
-        setPopularArtists((prev) => [...prev, ...results]);
-        setNextArtistsUrl(data.next);
-        // Merge server-provided following flags
-        try {
-          const serverFollowing = new Set<number>();
-          results.forEach((a: any) => {
-            if (a.is_following) serverFollowing.add(a.id);
-          });
-          if (serverFollowing.size > 0) {
-            setFollowedArtists(
-              (prev) =>
-                new Set([...Array.from(prev), ...Array.from(serverFollowing)]),
-            );
-          }
-        } catch (e) {
-          /* noop */
-        }
-      }
+      if (!resp.ok) throw new Error(`Artists request failed: ${resp.status}`);
+
+      const data = await resp.json();
+      const rawResults = Array.isArray(data) ? data : data?.results;
+      const results: Artist[] = Array.isArray(rawResults)
+        ? rawResults
+            .filter((artist: unknown): artist is Record<string, unknown> =>
+              Boolean(artist && typeof artist === "object"),
+            )
+            .map((artist) => ({
+              id: Number(artist.id),
+              name: String(artist.name ?? ""),
+              profile_image: String(artist.profile_image ?? ""),
+              is_following: Boolean(artist.is_following),
+            }))
+            .filter((artist) => Number.isFinite(artist.id) && artist.id > 0)
+        : [];
+
+      setPopularArtists((previous) => {
+        const byId = new Map(previous.map((artist) => [artist.id, artist]));
+        results.forEach((artist) => byId.set(artist.id, artist));
+        return Array.from(byId.values());
+      });
+      setNextArtistsUrl(
+        !Array.isArray(data) && typeof data?.next === "string"
+          ? data.next
+          : null,
+      );
+      syncArtistFollowState(results);
     } catch (err) {
       console.error("Load more artists Error:", err);
     } finally {
@@ -156,16 +202,22 @@ export const InitialModal: React.FC = () => {
 
   const fetchGenres = async () => {
     setLoading(true);
+    setStepError(null);
     try {
       const resp = await authenticatedFetch(
         "https://api.sedabox.com/api/genres/",
       );
-      if (resp.ok) {
-        const data = await resp.json();
-        setGenres(data);
-      }
+      if (!resp.ok) throw new Error(`Genres request failed: ${resp.status}`);
+      const data = await resp.json();
+      const rawGenres = Array.isArray(data) ? data : data?.results;
+      setGenres(Array.isArray(rawGenres) ? rawGenres : []);
     } catch (err) {
-      console.error(err);
+      console.error("Initial genre load failed", err);
+      setStepError(
+        language === "fa"
+          ? "سبک‌ها بارگذاری نشدند. دوباره تلاش کنید."
+          : "Genres could not be loaded. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -173,99 +225,211 @@ export const InitialModal: React.FC = () => {
 
   const fetchPlaylists = async () => {
     setLoading(true);
+    setStepError(null);
     try {
       const resp = await authenticatedFetch(
         "https://api.sedabox.com/api/home/playlist-recommendations/",
       );
-      if (resp.ok) {
-        const data = await resp.json();
-        setRecommendedPlaylists(
-          Array.isArray(data) ? data : data.results || [],
-        );
-      }
+      if (!resp.ok) throw new Error(`Playlists request failed: ${resp.status}`);
+      const data = await resp.json();
+      const rawPlaylists = Array.isArray(data) ? data : data?.results;
+      const playlists: Playlist[] = Array.isArray(rawPlaylists)
+        ? rawPlaylists.filter(
+            (playlist: unknown): playlist is Playlist =>
+              Boolean(
+                playlist &&
+                  typeof playlist === "object" &&
+                  "unique_id" in playlist,
+              ),
+          )
+        : [];
+      setRecommendedPlaylists(playlists);
+      setLikedPlaylists(
+        new Set(
+          playlists
+            .filter((playlist) => playlist.is_liked)
+            .map((playlist) => playlist.unique_id),
+        ),
+      );
     } catch (err) {
-      console.error(err);
+      console.error("Initial playlist load failed", err);
+      setStepError(
+        language === "fa"
+          ? "پلی‌لیست‌ها بارگذاری نشدند. دوباره تلاش کنید."
+          : "Playlists could not be loaded. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleFollow = async (artistId: number, artistName: string) => {
+    if (pendingArtists.has(artistId)) return;
+
+    const wasFollowing = followedArtists.has(artistId);
+    const shouldFollow = !wasFollowing;
+
+    setPendingArtists((previous) => new Set(previous).add(artistId));
+    setFollowedArtists((previous) => {
+      const next = new Set(previous);
+      if (shouldFollow) next.add(artistId);
+      else next.delete(artistId);
+      return next;
+    });
+    setPopularArtists((previous) =>
+      previous.map((artist) =>
+        artist.id === artistId
+          ? { ...artist, is_following: shouldFollow }
+          : artist,
+      ),
+    );
+
     try {
       const res = await authenticatedFetch(
         "https://api.sedabox.com/api/follow/",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ artist_id: artistId }),
+          body: JSON.stringify({ artist_id: artistId, follow: shouldFollow }),
         },
       );
-      if (res.ok) {
-        const result = await res.json();
-        const isFollowing = result.message === "followed";
+      if (!res.ok) throw new Error(`Follow request failed: ${res.status}`);
 
-        if (isFollowing) {
-          setFollowedArtists((prev) => new Set(prev).add(artistId));
-          toast.success(`دنبال شد: ${artistName}`);
-        } else {
-          setFollowedArtists((prev) => {
-            const next = new Set(prev);
-            next.delete(artistId);
-            return next;
-          });
-          toast.success(`لغو دنبال کردن: ${artistName}`);
-        }
-      } else {
-        toast.error("خطا در انجام عملیات");
-      }
+      const result = (await res.json()) as Record<string, unknown>;
+      const isFollowing = readFollowingState(result, shouldFollow);
+
+      setFollowedArtists((previous) => {
+        const next = new Set(previous);
+        if (isFollowing) next.add(artistId);
+        else next.delete(artistId);
+        return next;
+      });
+      setPopularArtists((previous) =>
+        previous.map((artist) =>
+          artist.id === artistId
+            ? { ...artist, is_following: isFollowing }
+            : artist,
+        ),
+      );
+
+      toast.success(
+        isFollowing
+          ? language === "fa"
+            ? `${artistName} دنبال شد`
+            : `${artistName} followed`
+          : language === "fa"
+            ? `دنبال‌کردن ${artistName} لغو شد`
+            : `${artistName} unfollowed`,
+      );
     } catch (err) {
-      console.error(err);
-      toast.error("خطا در ارتباط با سرور");
+      console.error("Initial artist follow failed", err);
+      setFollowedArtists((previous) => {
+        const next = new Set(previous);
+        if (wasFollowing) next.add(artistId);
+        else next.delete(artistId);
+        return next;
+      });
+      setPopularArtists((previous) =>
+        previous.map((artist) =>
+          artist.id === artistId
+            ? { ...artist, is_following: wasFollowing }
+            : artist,
+        ),
+      );
+      toast.error(operationError);
+    } finally {
+      setPendingArtists((previous) => {
+        const next = new Set(previous);
+        next.delete(artistId);
+        return next;
+      });
     }
   };
 
   const handleLikePlaylist = async (uniqueId: string, title: string) => {
+    if (pendingPlaylists.has(uniqueId)) return;
+
+    const wasLiked = likedPlaylists.has(uniqueId);
+    const shouldLike = !wasLiked;
+    setPendingPlaylists((previous) => new Set(previous).add(uniqueId));
+    setLikedPlaylists((previous) => {
+      const next = new Set(previous);
+      if (shouldLike) next.add(uniqueId);
+      else next.delete(uniqueId);
+      return next;
+    });
+
     try {
       const res = await authenticatedFetch(
         `https://api.sedabox.com/api/home/playlist-recommendations/${uniqueId}/like/`,
         {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ liked: shouldLike }),
         },
       );
-      if (res.ok) {
-        const result = await res.json();
-        const isLiked = result.status === "liked";
+      if (!res.ok) throw new Error(`Playlist like failed: ${res.status}`);
 
-        if (isLiked) {
-          const effectiveId = result.new_unique_id || uniqueId;
-          setLikedPlaylists((prev) => new Set(prev).add(effectiveId));
+      const result = (await res.json()) as Record<string, unknown>;
+      const isLiked = readLikedState(result, shouldLike);
+      const replacementId =
+        typeof result.new_unique_id === "string" && result.new_unique_id
+          ? result.new_unique_id
+          : uniqueId;
 
-          // If identity changed, update the list to avoid stale references
-          if (result.new_unique_id && result.new_unique_id !== uniqueId) {
-            setRecommendedPlaylists((prev) =>
-              prev.map((p) =>
-                p.unique_id === uniqueId
-                  ? { ...p, unique_id: result.new_unique_id }
-                  : p,
-              ),
-            );
-          }
+      setLikedPlaylists((previous) => {
+        const next = new Set(previous);
+        next.delete(uniqueId);
+        if (isLiked) next.add(replacementId);
+        return next;
+      });
 
-          toast.success(`به لایک‌ها اضافه شد: ${title}`);
-        } else {
-          setLikedPlaylists((prev) => {
-            const next = new Set(prev);
-            next.delete(uniqueId);
-            return next;
-          });
-          toast.success(`از لایک‌ها حذف شد: ${title}`);
-        }
+      if (replacementId !== uniqueId) {
+        setRecommendedPlaylists((previous) =>
+          previous.map((playlist) =>
+            playlist.unique_id === uniqueId
+              ? {
+                  ...playlist,
+                  unique_id: replacementId,
+                  is_liked: isLiked,
+                }
+              : playlist,
+          ),
+        );
       } else {
-        toast.error("خطا در بروزرسانی لایک");
+        setRecommendedPlaylists((previous) =>
+          previous.map((playlist) =>
+            playlist.unique_id === uniqueId
+              ? { ...playlist, is_liked: isLiked }
+              : playlist,
+          ),
+        );
       }
+
+      toast.success(
+        isLiked
+          ? language === "fa"
+            ? `${title} پسندیده شد`
+            : `${title} liked`
+          : language === "fa"
+            ? `پسند ${title} لغو شد`
+            : `${title} unliked`,
+      );
     } catch (err) {
-      console.error(err);
-      toast.error("خطا در ارتباط با سرور");
+      console.error("Initial playlist like failed", err);
+      setLikedPlaylists((previous) => {
+        const next = new Set(previous);
+        if (wasLiked) next.add(uniqueId);
+        else next.delete(uniqueId);
+        return next;
+      });
+      toast.error(operationError);
+    } finally {
+      setPendingPlaylists((previous) => {
+        const next = new Set(previous);
+        next.delete(uniqueId);
+        return next;
+      });
     }
   };
 
@@ -276,25 +440,46 @@ export const InitialModal: React.FC = () => {
   };
 
   const handleNext = () => {
-    if (step < 2) setStep(step + 1);
+    if (!canProceed || loading) return;
+    if (step < 2) {
+      setStepError(null);
+      setStep(step + 1);
+    }
     else handleFinish();
   };
 
   const handleBack = () => {
-    if (step > 0) setStep(step - 1);
+    if (step > 0) {
+      setStepError(null);
+      setStep(step - 1);
+    }
   };
 
   const handleFinish = async () => {
     setLoading(true);
-    await markInitialCheckCompleted(selectedGenres);
-    setLoading(false);
-    toast.success("تنظیمات ذخیره شد");
+    try {
+      await markInitialCheckCompleted(selectedGenres);
+      toast.success(
+        language === "fa" ? "تنظیمات ذخیره شد" : "Preferences saved",
+      );
+    } catch (error) {
+      console.error("Initial preferences save failed", error);
+      toast.error(operationError);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancel = async () => {
     setLoading(true);
-    await markInitialCheckCompleted([]); // Send empty list as requested
-    setLoading(false);
+    try {
+      await markInitialCheckCompleted([]);
+    } catch (error) {
+      console.error("Initial preferences skip failed", error);
+      toast.error(operationError);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!needsInitialCheck) return null;
@@ -351,6 +536,24 @@ export const InitialModal: React.FC = () => {
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar"
         >
+          {stepError && (
+            <div className="mb-6 flex flex-col items-center justify-center gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-5 py-6 text-center">
+              <p className="text-sm font-medium text-rose-100">{stepError}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (step === 0) void fetchArtists();
+                  else if (step === 1) void fetchGenres();
+                  else void fetchPlaylists();
+                }}
+                disabled={loading}
+                className="rounded-full bg-white px-5 py-2 text-xs font-bold text-black transition hover:scale-105 disabled:opacity-50"
+              >
+                {language === "fa" ? "تلاش مجدد" : "Try again"}
+              </button>
+            </div>
+          )}
+
           <AnimatePresence mode="wait">
             {step === 0 && (
               <motion.div
@@ -362,6 +565,7 @@ export const InitialModal: React.FC = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
                   {popularArtists.map((artist) => {
                     const isFollowed = followedArtists.has(artist.id);
+                    const isPending = pendingArtists.has(artist.id);
                     return (
                       <div
                         key={artist.id}
@@ -386,13 +590,23 @@ export const InitialModal: React.FC = () => {
                         </span>
                         <button
                           onClick={() => handleFollow(artist.id, artist.name)}
+                          disabled={isPending}
+                          aria-busy={isPending}
                           className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
                             isFollowed
                               ? "bg-zinc-800 text-emerald-500 border border-emerald-500/30"
                               : "bg-white text-black hover:scale-105 active:scale-95"
-                          }`}
+                          } disabled:cursor-wait disabled:opacity-70`}
                         >
-                          {isFollowed ? "دنبال شده" : "دنبال کردن"}
+                          {isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : isFollowed ? (
+                            language === "fa" ? "دنبال شده" : "Following"
+                          ) : language === "fa" ? (
+                            "دنبال کردن"
+                          ) : (
+                            "Follow"
+                          )}
                         </button>
                       </div>
                     );
@@ -465,6 +679,7 @@ export const InitialModal: React.FC = () => {
               >
                 {recommendedPlaylists.map((playlist) => {
                   const isLiked = likedPlaylists.has(playlist.unique_id);
+                  const isPending = pendingPlaylists.has(playlist.unique_id);
                   const p = playlist as any;
                   const imageUrl =
                     p.cover_image ||
@@ -490,16 +705,31 @@ export const InitialModal: React.FC = () => {
                               playlist.title,
                             )
                           }
+                          disabled={isPending}
+                          aria-busy={isPending}
+                          aria-label={
+                            isLiked
+                              ? language === "fa"
+                                ? `لغو پسند ${playlist.title}`
+                                : `Unlike ${playlist.title}`
+                              : language === "fa"
+                                ? `پسندیدن ${playlist.title}`
+                                : `Like ${playlist.title}`
+                          }
                           className={`absolute bottom-3 left-3 w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-all ${
                             isLiked
                               ? "bg-rose-500 text-white"
                               : "bg-black/40 text-white hover:scale-110 hover:bg-black/60"
-                          }`}
+                          } disabled:cursor-wait disabled:opacity-70`}
                         >
-                          <Heart
-                            size={20}
-                            fill={isLiked ? "currentColor" : "none"}
-                          />
+                          {isPending ? (
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          ) : (
+                            <Heart
+                              size={20}
+                              fill={isLiked ? "currentColor" : "none"}
+                            />
+                          )}
                         </button>
                       </div>
                       <span className="text-white font-bold text-sm truncate">

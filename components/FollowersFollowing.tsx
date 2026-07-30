@@ -12,7 +12,7 @@ import React, {
 import { useNavigation } from "./NavigationContext";
 import { useAuth, UserFollowItem } from "./AuthContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
-import { createSlug } from "./mockData";
+import { createSlug } from "../lib/slug";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { clsx, type ClassValue } from "clsx";
@@ -20,6 +20,7 @@ import { twMerge } from "tailwind-merge";
 import { useI18n } from "./I18nContext";
 import { openAuthPrompt } from "./authPrompt";
 import { buildUserNavigationParams, isSedaboxUser } from "../lib/userProfileRoute";
+import { readFollowingState } from "../lib/apiActionState";
 
 // ============================================================================
 // Utils
@@ -84,13 +85,12 @@ const FollowerCard = memo(
   }) => {
     const { locale } = useI18n();
     const { navigateTo } = useNavigation();
-    const [isFollowing, setIsFollowing] = useState(user.is_following);
+    const isFollowing = user.is_following;
 
     const handleFollow = useCallback(
       (e?: React.MouseEvent) => {
         // prevent outer click navigation when pressing follow button
         if (e && typeof e.stopPropagation === "function") e.stopPropagation();
-        setIsFollowing((prev) => !prev);
         onFollow(user.id);
       },
       [user.id, onFollow],
@@ -179,15 +179,14 @@ const FollowingCard = memo(
   }) => {
     const { locale } = useI18n();
     const { navigateTo } = useNavigation();
-    const [isFollowing, setIsFollowing] = useState(artist.is_following);
+    const isFollowing = artist.is_following;
 
     const handleUnfollow = useCallback(
       (e: React.MouseEvent) => {
         e.stopPropagation();
-        setIsFollowing(!isFollowing);
         onUnfollow(artist.id);
       },
-      [isFollowing, artist.id, onUnfollow],
+      [artist.id, onUnfollow],
     );
 
     return (
@@ -269,6 +268,7 @@ export default function FollowersFollowing({
   uniqueId?: string;
 }) {
   const { locale } = useI18n();
+  const isEnglish = locale === "en-US";
   const { navigateTo, goBack } = useNavigation();
   const { user, accessToken, authenticatedFetch } = useAuth();
 
@@ -341,28 +341,30 @@ export default function FollowersFollowing({
         return;
       }
 
-      // store previous follower snapshot to allow revert on failure
-      let prevFollower: UserFollowItem | undefined;
+      const prevFollower = followers.find((u) => u.id === id);
+      const prevFollowing = following.find((u) => u.id === id);
+      const wasFollowing =
+        prevFollower?.is_following ?? prevFollowing?.is_following ?? false;
+      const shouldFollow = !wasFollowing;
 
       // optimistic update: toggle is_following and adjust followers_count if present
-      setFollowers((prev) => {
-        prevFollower = prev.find((u) => u.id === id);
-        return prev.map((u) =>
+      setFollowers((prev) =>
+        prev.map((u) =>
           u.id === id
             ? {
                 ...u,
-                is_following: !u.is_following,
-                followers_count: !u.is_following
+                is_following: shouldFollow,
+                followers_count: shouldFollow
                   ? u.followers_count + 1
                   : Math.max(0, u.followers_count - 1),
               }
             : u,
-        );
-      });
+        ),
+      );
 
       setFollowing((prev) =>
         prev.map((u) =>
-          u.id === id ? { ...u, is_following: !u.is_following } : u,
+          u.id === id ? { ...u, is_following: shouldFollow } : u,
         ),
       );
 
@@ -371,14 +373,15 @@ export default function FollowersFollowing({
           "https://api.sedabox.com/api/follow/",
           {
             method: "POST",
-            body: JSON.stringify({ user_id: id }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: id, follow: shouldFollow }),
           },
         );
 
         if (!res.ok) throw new Error("Network response was not ok");
 
         const data = await res.json();
-        const isNowFollowing = data.message === "followed";
+        const isNowFollowing = readFollowingState(data, shouldFollow);
 
         // reconcile state with server response
         setFollowers((prev) =>
@@ -390,7 +393,12 @@ export default function FollowersFollowing({
                   followers_count:
                     (prevFollower
                       ? prevFollower.followers_count
-                      : u.followers_count) + (isNowFollowing ? 1 : -1),
+                      : u.followers_count) +
+                    (isNowFollowing === wasFollowing
+                      ? 0
+                      : isNowFollowing
+                        ? 1
+                        : -1),
                 }
               : u,
           ),
@@ -402,10 +410,18 @@ export default function FollowersFollowing({
           ),
         );
 
-        toast.success(isNowFollowing ? "دنبال شد" : "لغو دنبال کردن");
+        toast.success(
+          isNowFollowing
+            ? isEnglish
+              ? "User followed"
+              : "کاربر دنبال شد"
+            : isEnglish
+              ? "User unfollowed"
+              : "دنبال‌کردن کاربر لغو شد",
+        );
       } catch (err) {
         console.error("Follow toggle failed", err);
-        toast.error("خطا در عملیات");
+        toast.error(isEnglish ? "The action failed" : "عملیات انجام نشد");
 
         // revert optimistic changes
         if (prevFollower) {
@@ -414,9 +430,16 @@ export default function FollowersFollowing({
           );
           setFollowing((prev) =>
             prev.map((u) =>
-              u.id === id
-                ? { ...u, is_following: prevFollower!.is_following }
-                : u,
+              u.id === id ? { ...u, is_following: wasFollowing } : u,
+            ),
+          );
+        } else if (prevFollowing) {
+          setFollowing((prev) =>
+            prev.map((u) => (u.id === id ? prevFollowing : u)),
+          );
+          setFollowers((prev) =>
+            prev.map((u) =>
+              u.id === id ? { ...u, is_following: wasFollowing } : u,
             ),
           );
         } else {
@@ -429,7 +452,13 @@ export default function FollowersFollowing({
         }
       }
     },
-    [accessToken],
+    [
+      accessToken,
+      authenticatedFetch,
+      followers,
+      following,
+      isEnglish,
+    ],
   );
 
   // Refs

@@ -612,14 +612,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const markInitialCheckCompleted = async (genreIds: number[]) => {
-    try {
-      const r = await post("/profile/initial-check/", { genre_ids: genreIds });
-      if (r.ok) {
-        setNeedsInitialCheck(false);
-      }
-    } catch (err) {
-      console.error("Failed to mark initial check completed", err);
+    const r = await post("/profile/initial-check/", { genre_ids: genreIds });
+    if (!r.ok) {
+      const error =
+        r.body instanceof Error
+          ? r.body
+          : new Error("Failed to save initial preferences");
+      console.error("Failed to mark initial check completed", r.body);
+      throw error;
     }
+
+    setNeedsInitialCheck(false);
   };
 
   const performRefresh = async (

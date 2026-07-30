@@ -10,11 +10,12 @@ import NotificationPopover from "./NotificationPopover";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { useDiscovery } from "./DiscoveryContext";
-import { usePlayer } from "./PlayerContext";
+import { usePlayerActions } from "./PlayerContext";
 import { useResponsiveLayout } from "./ResponsiveLayout";
 import type { Track } from "./PlayerContext";
 import { useI18n } from "./I18nContext";
 import { useNotifications } from "./NotificationContext";
+import { createSlug } from "../lib/slug";
 import {
   buildHomeSummaryRequestKey,
   HOME_SUMMARY_URL,
@@ -460,13 +461,6 @@ type HeroHighlight = {
   sourceLabel: string;
 };
 
-export function createSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/ /g, "-")
-    .replace(/[^\w-]+/g, "");
-}
-
 export default function Home() {
   const { direction, language } = useI18n();
   const { logout, accessToken, user, authenticatedFetch, isInitializing } = useAuth();
@@ -489,7 +483,7 @@ export default function Home() {
     nextUrl: recommendedNextUrl,
     loadMoreRecommended,
   } = useDiscovery();
-  const { setQueue } = usePlayer();
+  const { setQueue } = usePlayerActions();
   const isGuest = !accessToken;
   const audienceKey = isGuest
     ? `guest:${language}`
@@ -2418,9 +2412,13 @@ export default function Home() {
           }
           .fade-in {
             animation: fadeIn 0.5s ease-out forwards;
-            will-change: opacity, transform;
             backface-visibility: hidden;
-            transform: translateZ(0);
+          }
+          @supports (content-visibility: auto) {
+            .sb-home-section {
+              content-visibility: auto;
+              contain-intrinsic-size: auto 420px;
+            }
           }
           .notif-checkbox {
             transition: all 180ms ease-in-out;
@@ -2582,7 +2580,7 @@ const Section = ({
   <section
     ref={sectionRef}
     data-index={dataIndex}
-    className="flex flex-col gap-3 fade-in scroll-mt-[135px] md:scroll-mt-24"
+    className="sb-home-section flex flex-col gap-3 fade-in scroll-mt-[135px] md:scroll-mt-24"
   >
     {/* Mobile only: title on row one, subtitle and action on one compact row below. */}
     <div className="px-4 text-start md:hidden">

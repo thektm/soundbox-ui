@@ -1,11 +1,11 @@
 import React, { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { NavigationProvider } from "./NavigationContext";
-import { AuthProvider } from "./AuthContext";
+import { AuthProvider, useAuth } from "./AuthContext";
 import { NotificationProvider } from "./NotificationContext";
 import { DiscoveryProvider } from "./DiscoveryContext";
 import { ResponsiveLayoutProvider } from "./ResponsiveLayout";
-import { PlayerProvider } from "./PlayerContext";
+import { PlayerProvider, usePlayer } from "./PlayerContext";
 import { GuestAccessProvider } from "./GuestAccessContext";
 import NetworkStatusMonitor from "./NetworkStatusMonitor";
 import SplashScreen from "./SplashScreen";
@@ -16,11 +16,32 @@ import { clientTrace, installGlobalClientDiagnostics } from "../lib/clientDebug"
 // MusicPlayer (3 200+ lines) only matters once a track is played.
 // The splash is imported eagerly so its asset preloading and startup orchestration begin immediately.
 // InitialModal remains lazy because it is not required for the first paint.
-const MusicPlayer = dynamic(() => import("./MusicPlayer"), { ssr: false });
+const MusicPlayer = dynamic(() => import("./MusicPlayer"), {
+  ssr: false,
+  loading: () => null,
+});
 const InitialModal = dynamic(
   () => import("./InitialModal").then((m) => ({ default: m.InitialModal })),
   { ssr: false },
 );
+
+
+const DeferredMusicPlayer: React.FC = () => {
+  const { currentTrack, isVisible } = usePlayer();
+  // Do not download/evaluate the 3,000+ line player UI until a restored or new
+  // playback session actually needs it. PlayerProvider remains available to
+  // every screen, so play actions and session restoration are unchanged.
+  if (!currentTrack && !isVisible) return null;
+  return <MusicPlayer />;
+};
+
+const DeferredInitialModal: React.FC = () => {
+  const { accessToken, isInitializing, needsInitialCheck } = useAuth();
+  // The onboarding chunk (Framer Motion + artwork + all three steps) was being
+  // downloaded for every returning user even when it could never render.
+  if (isInitializing || !accessToken || !needsInitialCheck) return null;
+  return <InitialModal />;
+};
 
 interface AppContainerProps {
   children: React.ReactNode;
@@ -47,9 +68,9 @@ const AppContainer: React.FC<AppContainerProps> = ({ children }) => {
                   <ResponsiveLayoutProvider>
                     {children}
                     <NetworkStatusMonitor />
-                    <MusicPlayer />
+                    <DeferredMusicPlayer />
                     <SplashScreen />
-                    <InitialModal />
+                    <DeferredInitialModal />
                   </ResponsiveLayoutProvider>
                 </PlayerProvider>
               </DiscoveryProvider>

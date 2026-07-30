@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, memo, useMemo } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { useDiscovery } from "./DiscoveryContext";
-import { createSlug } from "./mockData";
+import { createSlug } from "../lib/slug";
 import { CreatePlaylistModal } from "./CreatePlaylistModal";
 import { useI18n } from "./I18nContext";
 

@@ -13,7 +13,7 @@ import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
 import { toast } from "react-hot-toast";
-import { createSlug } from "./mockData";
+import { createSlug } from "../lib/slug";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
@@ -1120,7 +1120,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             onClick={goBack}
             className={`w-10 h-10 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors shrink-0 ${direction === "ltr" ? "order-1" : "order-2"}`}
           >
-            <Icon name="arrowLeft" size={24} className="sb-back-icon" />
+            <Icon name="arrowLeft" size={24} className="sb-song-detail-back-icon" />
           </button>
           <div className="w-10 shrink-0 order-3" />{" "}
           {/* Spacer to balance the back button */}
@@ -1139,7 +1139,11 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             onClick={goBack}
             className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition shrink-0"
           >
-            <Icon name="arrowLeft" size={24} className="text-white sb-back-icon" />
+            <Icon
+              name="arrowLeft"
+              size={24}
+              className="text-white sb-song-detail-back-icon"
+            />
           </button>
           <div className="flex-1 flex justify-center overflow-hidden px-4">
             <span className="text-base font-bold text-white truncate">

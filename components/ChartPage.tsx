@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
-import { usePlayer } from "./PlayerContext";
+import { usePlayerActions } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useI18n } from "./I18nContext";
 
@@ -30,7 +30,7 @@ const ChartPage: React.FC<ChartPageProps> = ({
   const { locale } = useI18n();
   const { accessToken, authenticatedFetch } = useAuth();
   const { navigateTo } = useNavigation();
-  const { setQueue } = usePlayer();
+  const { setQueue } = usePlayerActions();
   const [items, setItems] = useState<any[]>(initialData?.results || []);
   const [nextUrl, setNextUrl] = useState<string | null>(
     initialData?.next || null,

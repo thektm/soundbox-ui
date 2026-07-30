@@ -9,7 +9,7 @@ import Image from "next/image";
 import { Drawer } from "vaul";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import toast from "react-hot-toast";
-import { createSlug } from "./mockData";
+import { createSlug } from "../lib/slug";
 import { useI18n } from "./I18nContext";
 import UserAvatar from "./UserAvatar";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";

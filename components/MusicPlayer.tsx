@@ -29,7 +29,7 @@ import QueueSheet from "./QueueSheet";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import { getFullShareUrl } from "../utils/share";
-import { MOCK_ARTISTS, createSlug } from "./mockData";
+import { createSlug } from "../lib/slug";
 import { Sparkles, User, UserRoundCog } from "lucide-react";
 import { clientTrace } from "../lib/clientDebug";
 

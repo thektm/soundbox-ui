@@ -1,6 +1,5 @@
 import OverflowMarquee from "./OverflowMarquee";
 import React, { memo, useEffect, useRef, useState } from "react";
-import gsap from "gsap";
 import { useI18n } from "./I18nContext";
 import { clientTrace } from "../lib/clientDebug";
 
@@ -190,16 +189,35 @@ function HeroSection({
       target instanceof Element &&
       Boolean(target.closest("button, a, input, select, textarea, [role='button']"));
 
+    let settleAnimation: Animation | null = null;
+
+    const cancelDeckAnimation = () => {
+      settleAnimation?.cancel();
+      settleAnimation = null;
+    };
+
     const resetDeckTransform = (duration = 0.42) => {
-      gsap.killTweensOf(sliderEl);
-      gsap.to(sliderEl, {
-        x: 0,
-        rotateY: 0,
-        duration,
-        ease: "power3.out",
-        overwrite: "auto",
-        force3D: true,
-      });
+      cancelDeckAnimation();
+      const fromTransform = sliderEl.style.transform || "translate3d(0, 0, 0) rotateY(0deg)";
+      settleAnimation = sliderEl.animate(
+        [
+          { transform: fromTransform },
+          { transform: "translate3d(0, 0, 0) rotateY(0deg)" },
+        ],
+        {
+          duration: Math.max(0, duration * 1000),
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+          fill: "forwards",
+        },
+      );
+      settleAnimation.addEventListener(
+        "finish",
+        () => {
+          sliderEl.style.transform = "";
+          settleAnimation = null;
+        },
+        { once: true },
+      );
     };
 
     const clearGesture = () => {
@@ -223,7 +241,7 @@ function HeroSection({
       lastX = event.clientX;
       dragStarted = false;
       draggedRef.current = false;
-      gsap.killTweensOf(sliderEl);
+      cancelDeckAnimation();
 
       try {
         sliderEl.setPointerCapture(event.pointerId);
@@ -294,11 +312,8 @@ function HeroSection({
       }
 
       event.preventDefault();
-      gsap.set(sliderEl, {
-        x: deltaX * 0.25,
-        rotateY: deltaX * 0.05,
-        overwrite: true,
-      });
+      cancelDeckAnimation();
+      sliderEl.style.transform = `translate3d(${deltaX * 0.25}px, 0, 0) rotateY(${deltaX * 0.05}deg)`;
     };
 
     const onPointerUp = (event: PointerEvent) =>
@@ -328,7 +343,7 @@ function HeroSection({
     window.addEventListener("blur", onWindowBlur);
 
     return () => {
-      gsap.killTweensOf(sliderEl);
+      cancelDeckAnimation();
       sliderEl.removeEventListener("pointerdown", onPointerDown);
       sliderEl.removeEventListener("pointermove", onPointerMove);
       sliderEl.removeEventListener("pointerup", onPointerUp);

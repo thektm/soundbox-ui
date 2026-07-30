@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
+import { warmAppScreensDuringSplash, continueAppScreenWarmup } from "../lib/appScreenPreloader";
 import { useI18n } from "./I18nContext";
 import {
   buildHomeSummaryRequestKey,
@@ -45,8 +46,8 @@ type PathAnimationRun = {
  * can rerender this coordinator without touching the SVG/PNG animation nodes.
  */
 const SplashStartupCoordinator: React.FC = () => {
-  const { isInitializing, accessToken, authenticatedFetch } = useAuth();
-  const { isResolving } = useNavigation();
+  const { isInitializing, isLoggedIn, accessToken, authenticatedFetch } = useAuth();
+  const { isResolving, currentPage } = useNavigation();
   const { language } = useI18n();
   const authenticatedFetchRef = useRef(authenticatedFetch);
   authenticatedFetchRef.current = authenticatedFetch;
@@ -69,10 +70,39 @@ const SplashStartupCoordinator: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!visible || isInitializing) return;
+
+    let active = true;
+    const runtime = getSplashRuntime();
+    runtime.setScreensReady(false);
+
+    void warmAppScreensDuringSplash({ currentPage, isLoggedIn })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!active) return;
+        runtime.setScreensReady(true);
+        // Continue filling the browser's immutable chunk cache after the splash
+        // budget on constrained connections. This never blocks interaction.
+        continueAppScreenWarmup({ currentPage, isLoggedIn });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentPage, isInitializing, isLoggedIn, visible]);
+
+  useEffect(() => {
     // Readiness is bookkeeping only. It must never advance or replay the
     // animation timeline; the runtime clock owns all visual phase changes.
     getSplashRuntime().setReadiness(!isInitializing, !isResolving);
   }, [isInitializing, isResolving]);
+
+  useEffect(() => {
+    if (isInitializing) return;
+    // Authentication can change after the one-time splash (login/logout in the
+    // same tab). Warm the newly relevant member/guest chunks during idle time.
+    continueAppScreenWarmup({ currentPage, isLoggedIn });
+  }, [currentPage, isInitializing, isLoggedIn]);
 
   useEffect(() => {
     if (!visible || isInitializing) return;

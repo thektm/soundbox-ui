@@ -19,7 +19,7 @@ import Image from "next/image";
 import { useAuth } from "./AuthContext";
 import { usePlayer } from "./PlayerContext";
 import { pushNavigationEntry, useNavigation } from "./NavigationContext";
-import { createSlug } from "./home";
+import { createSlug } from "../lib/slug";
 import { toast } from "react-hot-toast";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
 import { ReportModal } from "./ReportModal";

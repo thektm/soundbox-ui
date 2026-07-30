@@ -11,6 +11,12 @@ export default function Document() {
           crossOrigin="anonymous"
         />
         <link rel="dns-prefetch" href="https://cdn.sedabox.com" />
+        <link
+          rel="preconnect"
+          href="https://api.sedabox.com"
+          crossOrigin="anonymous"
+        />
+        <link rel="dns-prefetch" href="https://api.sedabox.com" />
 
         {/* Icons and favicon - prefer PNG logo first so modern browsers pick it up */}
         <link rel="icon" href="/logo.png" type="image/png" />

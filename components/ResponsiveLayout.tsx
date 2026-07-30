@@ -29,10 +29,17 @@ const useMediaQuery = (query: string) => {
 
 // Consolidated responsive hook that handles all breakpoints in one hook
 const useResponsiveBreakpoints = () => {
-  const [breakpoints, setBreakpoints] = useState({
-    isMobile: true,
-    isTablet: false,
-    isDesktop: false,
+  const [breakpoints, setBreakpoints] = useState(() => {
+    if (typeof window === "undefined") {
+      return { isMobile: true, isTablet: false, isDesktop: false };
+    }
+    const isMd = window.matchMedia("(min-width: 768px)").matches;
+    const isLg = window.matchMedia("(min-width: 1024px)").matches;
+    return {
+      isMobile: !isMd,
+      isTablet: isMd && !isLg,
+      isDesktop: isLg,
+    };
   });
 
   useEffect(() => {

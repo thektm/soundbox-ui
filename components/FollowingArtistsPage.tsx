@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
-import { createSlug } from "./mockData";
+import { createSlug } from "../lib/slug";
 import {
   LayoutGrid,
   List,

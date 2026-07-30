@@ -12,7 +12,7 @@ import Image from "next/image";
 import { useNavigation } from "./NavigationContext";
 import { usePlayer } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
-import { Song } from "./mockData";
+import type { Song } from "./mockData";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 
 // ============================================================================

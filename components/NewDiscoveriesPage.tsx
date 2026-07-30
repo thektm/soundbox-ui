@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from "react";
 import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
-import { usePlayer } from "./PlayerContext";
+import { usePlayerActions } from "./PlayerContext";
 import { useNavigation } from "./NavigationContext";
-import { createSlug } from "./home";
+import { createSlug } from "../lib/slug";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 
 interface ApiSong {
@@ -27,7 +27,7 @@ interface PaginatedResponse<T> {
 
 const NewDiscoveriesPage: React.FC = () => {
   const { accessToken, authenticatedFetch } = useAuth();
-  const { setQueue } = usePlayer();
+  const { setQueue } = usePlayerActions();
   const { navigateTo } = useNavigation();
   const [songs, setSongs] = useState<ApiSong[]>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);

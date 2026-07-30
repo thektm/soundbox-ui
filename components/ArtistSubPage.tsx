@@ -4,10 +4,10 @@ import React, { useState, useEffect, useMemo, useCallback, memo } from "react";
 import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
-import { usePlayer, Track } from "./PlayerContext";
+import { usePlayerActions, type Track } from "./PlayerContext";
 import Image from "next/image";
 import { createPortal } from "react-dom";
-import { createSlug } from "./mockData";
+import { createSlug } from "../lib/slug";
 
 // Reuse types from ArtistDetail (redefined here for simplicity as they aren't exported)
 interface ApiArtist {
@@ -192,7 +192,7 @@ export default function ArtistSubPage({
 }) {
   const { authenticatedFetch } = useAuth();
   const { navigateTo } = useNavigation();
-  const { playTrack } = usePlayer();
+  const { playTrack } = usePlayerActions();
   const [artistData, setArtistData] = useState<ArtistResponse | null>(null);
   const [loading, setLoading] = useState(true);
 

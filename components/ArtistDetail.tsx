@@ -12,7 +12,8 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { MOCK_ARTISTS, MOCK_SONGS, Song, createSlug } from "./mockData";
+import type { Song } from "./mockData";
+import { createSlug } from "../lib/slug";
 import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
@@ -23,6 +24,7 @@ import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
 import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
+import { readFollowingState } from "../lib/apiActionState";
 
 
 interface ApiArtist {
@@ -354,7 +356,7 @@ const SongRow = memo(
           transitionDelay: `${delay}ms`,
         }}
       >
-        <div className="w-5 text-center text-sm text-neutral-400 tabular-nums">
+        <div className="sb-song-index-gutter w-5 shrink-0 text-center text-sm text-neutral-400 tabular-nums">
           {hover ? (
             <Icon name={current && playing ? "pause" : "play"} size={14} />
           ) : current && playing ? (
@@ -754,35 +756,76 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     }
     const followId = data?.artist?.id || artistIdOrSlug;
     if (!followId) return;
+    const wasFollowing = following;
+    const shouldFollow = !wasFollowing;
+    const artistName = data?.artist?.name || "";
 
     setIsFollowLoading(true);
+    setFollowing(shouldFollow);
+    setData((previous) =>
+      previous
+        ? {
+            ...previous,
+            artist: { ...previous.artist, is_following: shouldFollow },
+          }
+        : previous,
+    );
     try {
       const res = await authenticatedFetch(
         `https://api.sedabox.com/api/follow/`,
         {
           method: "POST",
-          body: JSON.stringify({ artist_id: followId }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ artist_id: followId, follow: shouldFollow }),
         },
       );
 
       if (!res.ok) throw new Error("Follow failed");
 
       const result = await res.json();
-      const isFollowing = result.message === "followed";
+      const isFollowing = readFollowingState(result, shouldFollow);
       setFollowing(isFollowing);
       setData((prev) =>
         prev
           ? { ...prev, artist: { ...prev.artist, is_following: isFollowing } }
           : null,
       );
-      toast.success(isFollowing ? "دنبال شد" : "لغو دنبال کردن");
+      toast.success(
+        isFollowing
+          ? language === "fa"
+            ? `${artistName} دنبال شد`
+            : `${artistName} followed`
+          : language === "fa"
+            ? `دنبال‌کردن ${artistName} لغو شد`
+            : `${artistName} unfollowed`,
+      );
     } catch (err) {
       console.error("Follow error:", err);
-      toast.error("خطا در انجام عملیات");
+      setFollowing(wasFollowing);
+      setData((previous) =>
+        previous
+          ? {
+              ...previous,
+              artist: { ...previous.artist, is_following: wasFollowing },
+            }
+          : previous,
+      );
+      toast.error(
+        language === "fa" ? "عملیات انجام نشد" : "The action failed",
+      );
     } finally {
       setIsFollowLoading(false);
     }
-  }, [accessToken, artistIdOrSlug, data?.artist?.id, authenticatedFetch, requestAuth]);
+  }, [
+    accessToken,
+    artistIdOrSlug,
+    authenticatedFetch,
+    data?.artist?.id,
+    data?.artist?.name,
+    following,
+    language,
+    requestAuth,
+  ]);
 
   const handleAction = async (action: string, song: any) => {
     console.log(`Action ${action} on song ${song.title}`);

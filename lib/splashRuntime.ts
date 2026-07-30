@@ -34,6 +34,7 @@ class SplashRuntime {
   private retryAttempt = 0;
   private authReady = false;
   private routeReady = false;
+  private screensReady = false;
   private lifecycleListenersAttached = false;
   private exitCommitted = false;
 
@@ -79,6 +80,11 @@ class SplashRuntime {
     // visual clock. Only the timeline timer and browser lifecycle events may
     // change drawing/coloring phases. Readiness can merely release an already
     // completed splash into its final exit.
+    this.maybeExit();
+  };
+
+  setScreensReady = (screensReady: boolean): void => {
+    this.screensReady = screensReady;
     this.maybeExit();
   };
 
@@ -172,7 +178,10 @@ class SplashRuntime {
     if (this.exitCommitted || !this.snapshot.visible) return;
 
     const canExit =
-      this.snapshot.phase === "complete" && this.authReady && this.routeReady;
+      this.snapshot.phase === "complete" &&
+      this.authReady &&
+      this.routeReady &&
+      this.screensReady;
     if (!canExit) return;
 
     // Once the exit begins it is intentionally monotonic. A late auth/router

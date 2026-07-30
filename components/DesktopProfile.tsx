@@ -5,7 +5,7 @@ import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import Image from "next/image";
 import toast from "react-hot-toast";
-import { createSlug } from "./mockData";
+import { createSlug } from "../lib/slug";
 import LikedSongs from "./LikedSongs";
 import LikedAlbums from "./LikedAlbums";
 import LikedPlaylists from "./LikedPlaylists";
