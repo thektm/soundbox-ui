@@ -14,8 +14,11 @@ import { useAuth } from "./AuthContext";
 import { useI18n } from "./I18nContext";
 import { clientTrace } from "../lib/clientDebug";
 
+const NOTIFICATION_ROLE = "audience" as const;
+
 export interface ApiNotification {
   id: number;
+  recipient_role: typeof NOTIFICATION_ROLE;
   text: string;
   text_en?: string;
   has_read: boolean;
@@ -45,6 +48,11 @@ const API_ROOT = (
   process.env.NEXT_PUBLIC_API_ROOT || "https://api.sedabox.com/api"
 ).replace(/\/$/, "");
 const NOTIFICATIONS_URL = `${API_ROOT}/notifications/`;
+const roleScopedUrl = (url: string): string => {
+  const parsed = new URL(url, typeof window === "undefined" ? API_ROOT : window.location.href);
+  parsed.searchParams.set("role", NOTIFICATION_ROLE);
+  return parsed.toString();
+};
 const SOCKET_PUBLIC_PROTOCOL = "sedabox.notifications";
 const CONNECTED_RECONCILE_MS = 5 * 60_000;
 const DISCONNECTED_RECONCILE_MS = 60_000;
@@ -58,6 +66,7 @@ function buildNotificationsSocketUrl(): string {
     const url = new URL(configured, window.location.href);
     if (url.protocol === "https:") url.protocol = "wss:";
     if (url.protocol === "http:") url.protocol = "ws:";
+    url.searchParams.set("role", NOTIFICATION_ROLE);
     return url.toString();
   }
 
@@ -66,11 +75,12 @@ function buildNotificationsSocketUrl(): string {
     api.protocol = api.protocol === "https:" ? "wss:" : "ws:";
     api.pathname = "/ws/notifications/";
     api.search = "";
+    api.searchParams.set("role", NOTIFICATION_ROLE);
     api.hash = "";
     return api.toString();
   } catch {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${protocol}//${window.location.host}/ws/notifications/`;
+    return `${protocol}//${window.location.host}/ws/notifications/?role=${NOTIFICATION_ROLE}`;
   }
 }
 
@@ -79,6 +89,7 @@ function normalizeNotification(candidate: unknown): ApiNotification | null {
   const id = Number(value?.id);
   if (
     !Number.isFinite(id) ||
+    value?.recipient_role !== NOTIFICATION_ROLE ||
     typeof value?.text !== "string" ||
     typeof value?.has_read !== "boolean" ||
     typeof value?.created_at !== "string"
@@ -88,6 +99,7 @@ function normalizeNotification(candidate: unknown): ApiNotification | null {
 
   return {
     id,
+    recipient_role: NOTIFICATION_ROLE,
     text: value.text,
     text_en: typeof value.text_en === "string" ? value.text_en : value.text,
     has_read: value.has_read === true,
@@ -142,7 +154,7 @@ function claimCrossTabToast(eventKey: string): boolean {
   // user with multiple open tabs normally sees one toast, while every tab still
   // receives and applies the unread state immediately.
   try {
-    const storageKey = "sedabox.notifications.last-toast";
+    const storageKey = `sedabox.notifications.${NOTIFICATION_ROLE}.last-toast`;
     const now = Date.now();
     const previous = JSON.parse(window.localStorage.getItem(storageKey) || "null") as
       | { key?: string; at?: number }
@@ -246,8 +258,8 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
       toast(
         languageRef.current === "fa"
-          ? "یک اعلان جدید دریافت کرده‌اید"
-          : "You received a new notification",
+          ? notification.text
+          : (notification.text_en || notification.text),
         {
           id: `notification:${eventKey}`,
           icon: "🔔",
@@ -291,7 +303,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     setIsLoading(true);
     const request = (async () => {
       try {
-        const response = await authenticatedFetchRef.current(NOTIFICATIONS_URL, {
+        const response = await authenticatedFetchRef.current(roleScopedUrl(NOTIFICATIONS_URL), {
           cache: "no-store",
           headers: { Accept: "application/json" },
         });
@@ -407,7 +419,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
       try {
         const response = await authenticatedFetchRef.current(
-          `${NOTIFICATIONS_URL}${id}/read/`,
+          roleScopedUrl(`${NOTIFICATIONS_URL}${id}/read/`),
           { method: "POST" },
         );
         if (!response.ok) {
@@ -451,7 +463,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     );
 
     try {
-      const response = await authenticatedFetchRef.current(`${NOTIFICATIONS_URL}read/`, {
+      const response = await authenticatedFetchRef.current(roleScopedUrl(`${NOTIFICATIONS_URL}read/`), {
         method: "POST",
       });
       if (!response.ok) {
@@ -567,6 +579,14 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         message = JSON.parse(event.data);
       } catch {
         clientTrace("NOTIFICATIONS", "socket:invalid-json", event.data, "warn");
+        return;
+      }
+
+      if (
+        message?.type !== "pong" &&
+        message?.recipient_role !== NOTIFICATION_ROLE
+      ) {
+        clientTrace("NOTIFICATIONS", "socket:role-mismatch", message, "error");
         return;
       }
 
