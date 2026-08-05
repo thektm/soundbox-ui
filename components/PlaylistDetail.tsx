@@ -20,12 +20,15 @@ import { toast } from "react-hot-toast";
 import { getFullShareUrl, slugify } from "../utils/share";
 import { SEO } from "./SEO";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
+import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 
 // ============== API INTERFACES ==============
 
 interface ApiSong {
   id: number;
   title: string;
+  display_title?: string;
+  featured_artists?: any[];
   artist_id?: number;
   artist_name: string;
   album_title?: string;
@@ -67,14 +70,20 @@ const formatDuration = (seconds: number): string => {
 
 const apiSongToTrack = (song: ApiSong): Track => ({
   id: String(song.id),
-  title: song.title,
+  title: getSongDisplayTitle(song),
   artist: song.artist_name,
+  featuredArtists: getPlayerFeaturedArtists(song),
   artistId: song.artist_id,
   image: song.cover_image || "/default-cover.jpg",
   duration: formatDuration(song.duration_seconds),
   durationSeconds: song.duration_seconds,
   src: song.stream_url ? song.stream_url.replace("http://", "https://") : "",
   isLiked: song.is_liked,
+});
+
+const normalizePlaylistResponse = (playlist: PlaylistResponse): PlaylistResponse => ({
+  ...playlist,
+  songs: normalizeSongCollection<ApiSong>(playlist?.songs),
 });
 
 // ============== SVG ICON COMPONENT ==============
@@ -230,7 +239,7 @@ const SongRow = memo(
         <div className="w-11 h-11 shrink-0 overflow-hidden rounded relative">
           <ImageWithPlaceholder
             src={song.cover_image}
-            alt={song.title}
+            alt={getSongDisplayTitle(song)}
             className="w-full h-full object-cover"
           />
         </div>
@@ -255,7 +264,7 @@ const SongRow = memo(
                   current ? "text-green-500" : "text-white"
                 } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </div>
               <div
                 onClick={(e) => {
@@ -282,7 +291,7 @@ const SongRow = memo(
                   current ? "text-green-500" : "text-white"
                 }`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </div>
               <div className="text-[13px] text-white/60 truncate mt-0.5">
                 {song.artist_name}
@@ -343,7 +352,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
       Array.isArray(initialPlaylist.songs),
   );
   const [playlist, setPlaylist] = useState<PlaylistResponse | null>(
-    hasHydratedInitialPlaylist ? initialPlaylist || null : null,
+    hasHydratedInitialPlaylist && initialPlaylist ? normalizePlaylistResponse(initialPlaylist) : null,
   );
   const [loading, setLoading] = useState(!hasHydratedInitialPlaylist);
   const [isLiked, setIsLiked] = useState(false);
@@ -378,7 +387,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         if (creatorUniqueId && !data.creator_unique_id) {
           data.creator_unique_id = creatorUniqueId;
         }
-        setPlaylist(data);
+        setPlaylist(normalizePlaylistResponse(data));
         setIsLiked(!!data.is_liked);
 
         // Fix URL if slug is missing or does not match
@@ -423,7 +432,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
 
   useEffect(() => {
     if (hasHydratedInitialPlaylist && initialPlaylist) {
-      setPlaylist(initialPlaylist);
+      setPlaylist(normalizePlaylistResponse(initialPlaylist));
       setIsLiked(!!initialPlaylist.is_liked);
       setLoading(false);
       return;
@@ -544,10 +553,10 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
     async (action: string, song: any) => {
       if (action === "share" && song) {
         try {
-          const url = getFullShareUrl("song", song.id, song.title);
-          const text = `گوش دادن به آهنگ ${song.title} از ${song.artist_name} در سداباکس`;
+          const url = getFullShareUrl("song", song.id, getSongDisplayTitle(song));
+          const text = `گوش دادن به آهنگ ${getSongDisplayTitle(song)} از ${song.artist_name} در سداباکس`;
           if (typeof navigator !== "undefined" && navigator.share) {
-            await navigator.share({ title: song.title, text, url });
+            await navigator.share({ title: getSongDisplayTitle(song), text, url });
           } else {
             await navigator.clipboard.writeText(url);
             toast.success("لینک کپی شد");
@@ -857,7 +866,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
             onTitleClick={() =>
               navigateTo("song-detail", {
                 id: song.id,
-                title: slugify(song.title),
+                title: slugify(getSongDisplayTitle(song)),
               })
             }
             onArtistClick={() =>

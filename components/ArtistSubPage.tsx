@@ -8,6 +8,7 @@ import { usePlayerActions, type Track } from "./PlayerContext";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import { createSlug } from "../lib/slug";
+import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 
 // Reuse types from ArtistDetail (redefined here for simplicity as they aren't exported)
 interface ApiArtist {
@@ -35,6 +36,8 @@ interface ApiArtist {
 interface ApiSong {
   id: number;
   title: string;
+  display_title?: string;
+  featured_artists?: any[];
   artist: number;
   artist_id?: number;
   artist_name: string;
@@ -42,7 +45,6 @@ interface ApiSong {
   duration_display: string;
   likes_count: number;
   is_liked: boolean;
-  display_title: string;
   stream_url: string;
   plays?: number;
 }
@@ -146,7 +148,7 @@ const SongItem = memo(
           <div className="relative w-12 h-12 flex-shrink-0 rounded shadow-lg overflow-hidden">
             <Image
               src={song.cover_image}
-              alt={song.title}
+              alt={getSongDisplayTitle(song)}
               fill
               sizes="100vw"
               className="object-cover transition-transform group-hover:scale-110"
@@ -162,7 +164,7 @@ const SongItem = memo(
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-white font-bold truncate group-hover:text-emerald-400 transition-colors">
-              {song.title}
+              {getSongDisplayTitle(song)}
             </span>
             <span className="text-zinc-400 text-sm truncate">
               {song.artist_name}
@@ -204,7 +206,17 @@ export default function ArtistSubPage({
         );
         if (response.ok) {
           const data = await response.json();
-          setArtistData(data);
+          setArtistData({
+            ...data,
+            top_songs: {
+              ...data.top_songs,
+              items: normalizeSongCollection<ApiSong>(data.top_songs?.items),
+            },
+            latest_songs: {
+              ...data.latest_songs,
+              items: normalizeSongCollection<ApiSong>(data.latest_songs?.items),
+            },
+          });
         }
       } catch (err) {
         console.error("Failed to fetch artist details", err);
@@ -221,8 +233,9 @@ export default function ArtistSubPage({
   const handlePlaySong = (song: ApiSong) => {
     const track: Track = {
       id: String(song.id),
-      title: song.title,
+      title: getSongDisplayTitle(song),
       artist: song.artist_name,
+      featuredArtists: getPlayerFeaturedArtists(song),
       artistId: song.artist_id || song.artist,
       image: song.cover_image,
       duration: song.duration_display,

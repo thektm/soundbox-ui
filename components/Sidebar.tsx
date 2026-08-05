@@ -5,6 +5,7 @@ import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { useDiscovery } from "./DiscoveryContext";
 import { createSlug } from "../lib/slug";
+import { getSongDisplayTitle } from "../lib/songDisplay";
 import { CreatePlaylistModal } from "./CreatePlaylistModal";
 import { useI18n } from "./I18nContext";
 
@@ -794,7 +795,10 @@ function Sidebar() {
         const mapped = list.map((h: any) => {
           const item = h.item;
           const isUser = h.type === "user" || item.type === "user";
-          let displayName = item.title || item.name || item.unique_id || "";
+          let displayName =
+            h.type === "song"
+              ? getSongDisplayTitle(item)
+              : item.title || item.name || item.unique_id || "";
           if (isUser) {
             const name =
               `${item.first_name || ""} ${item.last_name || ""}`.trim();

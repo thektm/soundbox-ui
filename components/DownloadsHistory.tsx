@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useI18n } from "./I18nContext";
+import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
 
 const API_ROOT = "https://api.sedabox.com/api";
 
@@ -93,7 +94,7 @@ export default function DownloadsHistory() {
   const handlePlay = (songData: any) => {
     const track: Track = {
       id: String(songData.id),
-      title: songData.title,
+      title: getSongDisplayTitle(songData),
       artist: songData.artist_name,
       image: songData.cover_image,
       duration: "0:00",
@@ -111,17 +112,11 @@ export default function DownloadsHistory() {
     download(
       {
         id: String(songData.id),
-        title: songData.title,
+        title: getSongDisplayTitle(songData),
         artist: songData.artist_name,
         artistId: songData.artist_id,
         artistUniqueId: songData.artist_unique_id,
-        featuredArtists: Array.isArray(songData.featured_artists)
-          ? songData.featured_artists.map((artist: any) => ({
-              id: artist.id,
-              name: artist.artistic_name || artist.name,
-              uniqueId: artist.unique_id,
-            }))
-          : [],
+        featuredArtists: getPlayerFeaturedArtists(songData),
         image: songData.cover_image,
         duration: "0:00",
         src: songData.stream_url || songData.audio_file || "",
@@ -256,7 +251,7 @@ export default function DownloadsHistory() {
                   <div className="relative shrink-0 w-20 h-20 rounded-2xl overflow-hidden shadow-2xl transition-transform duration-500 group-hover:scale-105">
                     <Image
                       src={song.cover_image}
-                      alt={song.title}
+                      alt={getSongDisplayTitle(song)}
                       fill
                       sizes="80px"
                       className="object-cover"
@@ -286,7 +281,7 @@ export default function DownloadsHistory() {
                     <h3
                       className={`text-lg font-bold truncate leading-tight mb-0.5 ${isCurrent ? "text-emerald-400" : "text-white"}`}
                     >
-                      {song.title}
+                      {getSongDisplayTitle(song)}
                     </h3>
                     <p className="text-[13px] text-gray-400 truncate mb-2">
                       {song.artist_name}
@@ -379,7 +374,7 @@ export default function DownloadsHistory() {
                       حذف از تاریخچه
                     </h3>
                     <p className="text-sm text-white/40 mt-1 truncate max-w-[220px]">
-                      {deletingItem?.song?.title}
+                      {getSongDisplayTitle(deletingItem?.song)}
                     </p>
                   </div>
                 </div>

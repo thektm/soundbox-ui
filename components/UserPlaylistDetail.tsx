@@ -19,12 +19,15 @@ import { ResponsiveSheet } from "./ResponsiveSheet";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
+import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 
 // ============== API INTERFACES ==============
 
 interface ApiSong {
   id: number;
   title: string;
+  display_title?: string;
+  featured_artists?: any[];
   artist_id?: number;
   artist_name: string;
   album_title?: string;
@@ -69,8 +72,9 @@ const formatDuration = (seconds: number): string => {
 
 const apiSongToTrack = (song: ApiSong): Track => ({
   id: String(song.id),
-  title: song.title,
+  title: getSongDisplayTitle(song),
   artist: song.artist_name,
+  featuredArtists: getPlayerFeaturedArtists(song),
   artistId: song.artist_id,
   image: song.cover_image || "/default-cover.jpg",
   duration: formatDuration(song.duration_seconds),
@@ -288,7 +292,7 @@ const SongRow = memo(
         <div className="w-11 h-11 shrink-0 overflow-hidden rounded relative">
           <ImageWithPlaceholder
             src={song.cover_image}
-            alt={song.title}
+            alt={getSongDisplayTitle(song)}
             className="w-full h-full object-cover"
           />
         </div>
@@ -313,7 +317,7 @@ const SongRow = memo(
                   current ? "text-green-500" : "text-white"
                 } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </div>
               <div
                 onClick={(e: React.MouseEvent<HTMLDivElement>) => {
@@ -340,7 +344,7 @@ const SongRow = memo(
                   current ? "text-green-500" : "text-white"
                 }`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </div>
               <div className="text-[13px] text-white/60 truncate mt-0.5">
                 {song.artist_name}
@@ -394,7 +398,7 @@ const SongRow = memo(
                 disabled={isRemoving}
                 className="w-10 h-10 flex items-center justify-center rounded-full text-red-300/80 hover:text-red-300 hover:bg-red-500/10 transition-all disabled:opacity-40 disabled:cursor-wait"
                 title="حذف از پلی‌لیست"
-                aria-label={`حذف ${song.title} از پلی‌لیست`}
+                aria-label={`حذف ${getSongDisplayTitle(song)} از پلی‌لیست`}
               >
                 {isRemoving ? (
                   <span className="w-4 h-4 rounded-full border-2 border-red-300/70 border-t-transparent animate-spin" />
@@ -781,9 +785,9 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
       if (action === "share" && song) {
         try {
           const url = getFullShareUrl("song", song.id);
-          const text = `گوش دادن به آهنگ ${song.title} از ${song.artist_name} در سداباکس`;
+          const text = `گوش دادن به آهنگ ${getSongDisplayTitle(song)} از ${song.artist_name} در سداباکس`;
           if (typeof navigator !== "undefined" && navigator.share) {
-            await navigator.share({ title: song.title, text, url });
+            await navigator.share({ title: getSongDisplayTitle(song), text, url });
           } else {
             await navigator.clipboard.writeText(url);
             toast.success("لینک کپی شد");
@@ -1133,7 +1137,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
               onPlay={() => handlePlaySong(index)}
               onMore={handleMore}
               onTitleClick={() =>
-                navigateTo("song-detail", { id: song.id, title: song.title })
+                navigateTo("song-detail", { id: song.id, title: getSongDisplayTitle(song) })
               }
               onArtistClick={() =>
                 song.artist_id &&

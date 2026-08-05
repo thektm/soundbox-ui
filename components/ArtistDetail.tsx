@@ -25,6 +25,7 @@ import { getFullShareUrl } from "../utils/share";
 import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
 import { readFollowingState } from "../lib/apiActionState";
+import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 
 
 interface ApiArtist {
@@ -52,6 +53,8 @@ interface ApiArtist {
 interface ApiSong {
   id: number;
   title: string;
+  display_title?: string;
+  featured_artists?: any[];
   artist: number;
   artist_id?: number;
   artist_name: string;
@@ -59,7 +62,6 @@ interface ApiSong {
   duration_display: string;
   likes_count: number;
   is_liked: boolean;
-  display_title: string;
   stream_url: string;
   plays?: number;
 }
@@ -369,7 +371,7 @@ const SongRow = memo(
         <div className="w-11 h-11 shrink-0 overflow-hidden rounded relative">
           <ImageWithPlaceholder
             src={song.cover_image}
-            alt={song.title}
+            alt={getSongDisplayTitle(song)}
             className="w-full h-full object-cover"
           />
         </div>
@@ -394,7 +396,7 @@ const SongRow = memo(
                   current ? "text-green-500" : "text-white"
                 } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </div>
               <div>{song.plays}</div>
             </>
@@ -405,7 +407,7 @@ const SongRow = memo(
                   current ? "text-green-500" : "text-white"
                 }`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </div>
               <div className="text-[13px] text-white/60 truncate mt-0.5">
                 {song.plays
@@ -640,7 +642,18 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         }
 
         const json = await res.json();
-        setData(json);
+        const normalizedJson: ArtistResponse = {
+          ...json,
+          top_songs: {
+            ...json.top_songs,
+            items: normalizeSongCollection<ApiSong>(json.top_songs?.items),
+          },
+          latest_songs: {
+            ...json.latest_songs,
+            items: normalizeSongCollection<ApiSong>(json.latest_songs?.items),
+          },
+        };
+        setData(normalizedJson);
         setFollowing(json.artist?.is_following ?? false);
 
         // Update browser URL to canonical format: /artist/{id}-{slug}
@@ -698,8 +711,9 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     (song: ApiSong) => {
       const track: Track = {
         id: String(song.id),
-        title: song.title,
+        title: getSongDisplayTitle(song),
         artist: song.artist_name,
+        featuredArtists: getPlayerFeaturedArtists(song),
         artistId: song.artist_id || song.artist,
         image: song.cover_image,
         duration: song.duration_display,
@@ -716,8 +730,9 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     if (!songs.length) return;
     const tracks: Track[] = songs.map((song) => ({
       id: String(song.id),
-      title: song.title,
+      title: getSongDisplayTitle(song),
       artist: song.artist_name,
+      featuredArtists: getPlayerFeaturedArtists(song),
       artistId: song.artist_id || song.artist,
       image: song.cover_image,
       duration: song.duration_display,
@@ -733,8 +748,9 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     const shuffled = [...songs].sort(() => Math.random() - 0.5);
     const tracks: Track[] = shuffled.map((song) => ({
       id: String(song.id),
-      title: song.title,
+      title: getSongDisplayTitle(song),
       artist: song.artist_name,
+      featuredArtists: getPlayerFeaturedArtists(song),
       artistId: song.artist_id || song.artist,
       image: song.cover_image,
       duration: song.duration_display,
@@ -831,7 +847,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
   ]);
 
   const handleAction = async (action: string, song: any) => {
-    console.log(`Action ${action} on song ${song.title}`);
+    console.log(`Action ${action} on song ${getSongDisplayTitle(song)}`);
     if (action === "toggle-like") {
       if (!song) return;
       if (!accessToken) {
@@ -890,14 +906,14 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     if (action === "share") {
       try {
         // If a specific song is provided, share the song
-        const isSong = song && (song.id || song.title);
+        const isSong = song && (song.id || getSongDisplayTitle(song));
         const url = isSong
-          ? getFullShareUrl("song", song.id, song.title)
+          ? getFullShareUrl("song", song.id, getSongDisplayTitle(song))
           : getFullShareUrl("artist", artist!.id, artist?.name);
 
-        const title = isSong ? song.title : artist?.name;
+        const title = isSong ? getSongDisplayTitle(song) : artist?.name;
         const text = isSong
-          ? `گوش دادن به آهنگ ${song.title} از ${artist?.name} در سداباکس`
+          ? `گوش دادن به آهنگ ${getSongDisplayTitle(song)} از ${artist?.name} در سداباکس`
           : `گوش دادن به آثار ${artist?.name} در سداباکس`;
 
         if (typeof navigator !== "undefined" && navigator.share) {
@@ -1186,7 +1202,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                     onTitleClick={() =>
                       navigateTo("song-detail", {
                         id: song.id,
-                        title: createSlug(song.title),
+                        title: createSlug(getSongDisplayTitle(song)),
                       })
                     }
                     onArtistClick={() =>
@@ -1301,7 +1317,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                   key={song.id}
                   id={song.id}
                   image={song.cover_image}
-                  title={song.title}
+                  title={getSongDisplayTitle(song)}
                   artist={song.artist_name}
                   artistId={song.artist_id || artist.id}
                   artistSlug={artist.unique_id}

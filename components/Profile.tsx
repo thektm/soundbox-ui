@@ -13,6 +13,7 @@ import { createSlug } from "../lib/slug";
 import { useI18n } from "./I18nContext";
 import UserAvatar from "./UserAvatar";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
+import { getSongDisplayTitle } from "../lib/songDisplay";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -760,7 +761,7 @@ export default function Profile() {
                             artistSlug:
                               track.artist_unique_id ||
                               createSlug(track.artist_name || "artist"),
-                            songSlug: createSlug(track.title),
+                            songSlug: createSlug(getSongDisplayTitle(track)),
                           })
                         }
                       >
@@ -782,11 +783,11 @@ export default function Profile() {
                               artistSlug:
                                 track.artist_unique_id ||
                                 createSlug(track.artist_name || "artist"),
-                              songSlug: createSlug(track.title),
+                              songSlug: createSlug(getSongDisplayTitle(track)),
                             })
                           }
                         >
-                          {track.title}
+                          {getSongDisplayTitle(track)}
                         </h4>
                         <p
                           className="text-xs text-gray-400 truncate mt-1 cursor-pointer hover:text-emerald-400 transition-colors"
@@ -810,11 +811,11 @@ export default function Profile() {
                             artistSlug:
                               track.artist_unique_id ||
                               createSlug(track.artist_name || "artist"),
-                            songSlug: createSlug(track.title),
+                            songSlug: createSlug(getSongDisplayTitle(track)),
                           })
                         }
                         className="w-10 h-10 flex items-center justify-center rounded-md bg-white/6 active:scale-95 transition-all"
-                        aria-label={`پخش مجدد ${track.title}`}
+                        aria-label={`پخش مجدد ${getSongDisplayTitle(track)}`}
                       >
                         <Icon
                           d={ICONS.music}

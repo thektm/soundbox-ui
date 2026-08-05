@@ -2,6 +2,7 @@ import OverflowMarquee from "./OverflowMarquee";
 import React, { memo, useEffect, useRef, useState } from "react";
 import { useI18n } from "./I18nContext";
 import { clientTrace } from "../lib/clientDebug";
+import { getSongDisplayTitle } from "../lib/songDisplay";
 
 // --- Interfaces ---
 export interface GenreLink {
@@ -12,6 +13,8 @@ export interface GenreLink {
 export interface ApiSong {
   id: number;
   title: string;
+  display_title?: string;
+  featured_artists?: unknown[];
   artist_name: string;
   album_title?: string;
   cover_image?: string;
@@ -461,7 +464,9 @@ function HeroSection({
   const displayAlbum = isSingleAlbum ? "تک‌آهنگ" : albumRaw;
 
   const displayTitle =
-    activeItem?.title || activeItem?.name || active.title || "—";
+    active.type === "song"
+      ? getSongDisplayTitle(activeItem) || active.title || "—"
+      : activeItem?.title || activeItem?.name || active.title || "—";
 
   const isPlaylist = active.type === "playlist";
   const playlistCount =

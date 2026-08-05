@@ -7,6 +7,7 @@ import { useNavigation } from "./NavigationContext";
 import { usePlayerActions } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useI18n } from "./I18nContext";
+import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 
 interface ChartPageProps {
   title?: string;
@@ -31,7 +32,11 @@ const ChartPage: React.FC<ChartPageProps> = ({
   const { authenticatedFetch } = useAuth();
   const { navigateTo } = useNavigation();
   const { setQueue } = usePlayerActions();
-  const [items, setItems] = useState<any[]>(initialData?.results || []);
+  const [items, setItems] = useState<any[]>(
+    type === "songs"
+      ? normalizeSongCollection(initialData?.results)
+      : initialData?.results || [],
+  );
   const [nextUrl, setNextUrl] = useState<string | null>(
     initialData?.next || null,
   );
@@ -100,7 +105,7 @@ const ChartPage: React.FC<ChartPageProps> = ({
       );
       if (response.ok) {
         const data = await response.json();
-        setItems(data.results);
+        setItems(type === "songs" ? normalizeSongCollection(data.results) : data.results);
         setNextUrl(data.next);
       }
     } catch (error) {
@@ -119,7 +124,10 @@ const ChartPage: React.FC<ChartPageProps> = ({
       );
       if (response.ok) {
         const data = await response.json();
-        setItems((prev) => [...prev, ...data.results]);
+        setItems((prev) => [
+          ...prev,
+          ...(type === "songs" ? normalizeSongCollection(data.results) : data.results),
+        ]);
         setNextUrl(data.next);
       }
     } catch (error) {
@@ -133,8 +141,9 @@ const ChartPage: React.FC<ChartPageProps> = ({
     if (type !== "songs") return;
     const queue = items.map((song) => ({
       id: String(song.id),
-      title: song.title,
+      title: getSongDisplayTitle(song),
       artist: song.artist_name,
+      featuredArtists: getPlayerFeaturedArtists(song),
       image: song.cover_image,
       src: (song.stream_url || "").replace("http://", "https://"),
       duration: song.duration_seconds
@@ -197,7 +206,7 @@ const ChartPage: React.FC<ChartPageProps> = ({
             >
               <ImageWithPlaceholder
                 src={item.cover_image || item.profile_image}
-                alt={item.title || item.name}
+                alt={type === "songs" ? getSongDisplayTitle(item) : item.title || item.name}
                 className="w-full h-full object-cover"
                 type={type === "artists" ? "artist" : "song"}
               />
@@ -240,7 +249,9 @@ const ChartPage: React.FC<ChartPageProps> = ({
                   }
                 }}
               >
-                {item.title || item.name || item.artistic_name}
+                {type === "songs"
+                  ? getSongDisplayTitle(item)
+                  : item.title || item.name || item.artistic_name}
               </h3>
               <p
                 className="text-zinc-500 font-medium truncate hover:text-white transition-all hover:underline decoration-zinc-500"

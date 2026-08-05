@@ -32,6 +32,7 @@ import { getFullShareUrl } from "../utils/share";
 import { createSlug } from "../lib/slug";
 import { Sparkles, User, UserRoundCog } from "lucide-react";
 import { clientTrace } from "../lib/clientDebug";
+import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -577,7 +578,7 @@ const TrackIdentity = memo<{
         track.artistUniqueId ||
         (track as any).artist_unique_id ||
         createSlug(track.artist),
-      songSlug: createSlug(track.title),
+      songSlug: createSlug(getSongDisplayTitle(track)),
     });
   };
 
@@ -604,13 +605,13 @@ const TrackIdentity = memo<{
         type="button"
         onClick={openSong}
         disabled={Boolean(isAdPlaying)}
-        dir={textDirection(track.title)}
+        dir={textDirection(getSongDisplayTitle(track))}
         data-player-no-expand="true"
         className={`block w-fit max-w-full truncate font-bold text-white ${titleAlignment} ${
           compact ? "text-sm" : ""
         } ${isAdPlaying ? "cursor-default" : "hover:underline"} ${titleClassName}`}
       >
-        {track.title}
+        {getSongDisplayTitle(track)}
       </button>
       <div
         dir={artistsDirection}
@@ -711,7 +712,7 @@ const TrackSlide = memo<{
         <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 shadow-lg">
           <ImageWithPlaceholder
             src={ensureHttps(track.image) || track.image}
-            alt={track.title}
+            alt={getSongDisplayTitle(track)}
             className="w-full h-full object-cover"
             type="song"
           />
@@ -915,7 +916,7 @@ const ActionPreview = memo<{
               {label}
             </div>
             <div className="text-xs text-white font-medium truncate">
-              {track.title}
+              {getSongDisplayTitle(track)}
             </div>
           </div>
         )}
@@ -923,7 +924,7 @@ const ActionPreview = memo<{
         <ImageWithPlaceholder
           src={ensureHttps(track.image) || track.image}
           className="w-10 h-10 rounded object-cover flex-shrink-0 shadow-md bg-neutral-800"
-          alt={track.title}
+          alt={getSongDisplayTitle(track)}
           type="song"
         />
 
@@ -933,7 +934,7 @@ const ActionPreview = memo<{
               {label}
             </div>
             <div className="text-xs text-white font-medium truncate">
-              {track.title}
+              {getSongDisplayTitle(track)}
             </div>
           </div>
         )}
@@ -1194,7 +1195,7 @@ const AlbumArtCarousel = memo<{
           >
             <ImageWithPlaceholder
               src={ensureHttps(previousTrack.image) || previousTrack.image}
-              alt={previousTrack.title}
+              alt={getSongDisplayTitle(previousTrack)}
               className="w-full h-full object-cover"
               type="song"
             />
@@ -1216,7 +1217,7 @@ const AlbumArtCarousel = memo<{
           >
             <ImageWithPlaceholder
               src={ensureHttps(nextTrack.image) || nextTrack.image}
-              alt={nextTrack.title}
+              alt={getSongDisplayTitle(nextTrack)}
               className="w-full h-full object-cover"
               type="song"
             />
@@ -1246,7 +1247,7 @@ const AlbumArtCarousel = memo<{
         >
           <ImageWithPlaceholder
             src={ensureHttps(currentTrack.image) || currentTrack.image}
-            alt={currentTrack.title}
+            alt={getSongDisplayTitle(currentTrack)}
             className="w-full h-full object-cover"
             type="song"
           />
@@ -1588,7 +1589,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                   navigateTo("song-detail", {
                     id: displayTrack.id,
                     artistSlug: createSlug(displayTrack.artist),
-                    songSlug: createSlug(displayTrack.title),
+                    songSlug: createSlug(getSongDisplayTitle(displayTrack)),
                   });
                 } else {
                   onExpand();
@@ -1597,7 +1598,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
             >
               <ImageWithPlaceholder
                 src={displayTrack.image}
-                alt={displayTrack.title}
+                alt={getSongDisplayTitle(displayTrack)}
                 className="w-full h-full object-cover"
                 type="song"
               />
@@ -1839,8 +1840,9 @@ const DesktopExpandedPlayer = memo<{
           if (data.similar_songs?.items) {
             const mapped: Track[] = data.similar_songs.items.map((s: any) => ({
               id: s.id.toString(),
-              title: s.title,
+              title: getSongDisplayTitle(s),
               artist: s.artist_name,
+              featuredArtists: getPlayerFeaturedArtists(s),
               artistId: s.artist_id || s.artist,
               image: s.cover_image,
               duration:
@@ -1951,18 +1953,18 @@ const DesktopExpandedPlayer = memo<{
     try {
       if (!displayTrack) return;
       const id = (displayTrack.id as any) ?? "";
-      const name = type === "song" ? displayTrack.title : displayTrack.artist;
+      const name = type === "song" ? getSongDisplayTitle(displayTrack) : displayTrack.artist;
       const url = getFullShareUrl(
         type === "song" ? "song" : "artist",
         id,
         name,
       );
 
-      const shareText = `گوش دادن به ${displayTrack.title || "آهنگ"} از ${displayTrack.artist || "هنرمند"} در سداباکس`;
+      const shareText = `گوش دادن به ${getSongDisplayTitle(displayTrack) || "آهنگ"} از ${displayTrack.artist || "هنرمند"} در سداباکس`;
       if (typeof navigator !== "undefined" && (navigator as any).share) {
         try {
           await (navigator as any).share({
-            title: displayTrack.title || displayTrack.artist || "SedaBox",
+            title: getSongDisplayTitle(displayTrack) || displayTrack.artist || "SedaBox",
             text: shareText,
             url,
           });
@@ -1999,7 +2001,7 @@ const DesktopExpandedPlayer = memo<{
         artistSlug:
           (currentTrack as any).artist_unique_id ||
           createSlug(currentTrack.artist),
-        songSlug: createSlug(currentTrack.title),
+        songSlug: createSlug(getSongDisplayTitle(currentTrack)),
       });
     }
   }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
@@ -2102,7 +2104,7 @@ const DesktopExpandedPlayer = memo<{
                       src={
                         ensureHttps(displayTrack.image) || displayTrack.image
                       }
-                      alt={displayTrack.title}
+                      alt={getSongDisplayTitle(displayTrack)}
                       className="w-full h-full object-cover"
                       type="song"
                     />
@@ -2337,7 +2339,7 @@ const DesktopExpandedPlayer = memo<{
                       <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
                         <ImageWithPlaceholder
                           src={ensureHttps(track.image) || track.image}
-                          alt={track.title}
+                          alt={getSongDisplayTitle(track)}
                           className="w-full h-full object-cover"
                           type="song"
                         />
@@ -2359,7 +2361,7 @@ const DesktopExpandedPlayer = memo<{
                               : "text-white"
                           }`}
                         >
-                          {track.title}
+                          {getSongDisplayTitle(track)}
                         </div>
                         <div className="text-xs text-neutral-500 truncate">
                           {track.artist}
@@ -2497,7 +2499,7 @@ const DesktopExpandedPlayer = memo<{
                           <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
                             <ImageWithPlaceholder
                               src={ensureHttps(track.image) || track.image}
-                              alt={track.title}
+                              alt={getSongDisplayTitle(track)}
                               className="w-full h-full object-cover"
                               type="song"
                             />
@@ -2507,7 +2509,7 @@ const DesktopExpandedPlayer = memo<{
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium truncate text-white">
-                              {track.title}
+                              {getSongDisplayTitle(track)}
                             </div>
                             <div className="text-xs text-neutral-500 truncate">
                               {track.artist}
@@ -3129,7 +3131,7 @@ const MobileExpandedPlayer = memo<{
                         artistSlug:
                           (currentTrack as any).artist_unique_id ||
                           createSlug(currentTrack.artist),
-                        songSlug: createSlug(currentTrack.title),
+                        songSlug: createSlug(getSongDisplayTitle(currentTrack)),
                       });
                     }
                   }}

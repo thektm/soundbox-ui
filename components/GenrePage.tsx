@@ -7,11 +7,14 @@ import { usePlayerPlayback } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
+import { getSongDisplayTitle, getPlayerFeaturedArtists, normalizeSongCollection } from "../lib/songDisplay";
 
 // ============ TYPES ============
 interface GenreSong {
   id: number;
   title: string;
+  display_title?: string;
+  featured_artists?: unknown[];
   artist_id: number;
   artist_name: string;
   artist_unique_id: string | null;
@@ -121,7 +124,7 @@ const SongListItem = memo(
     <div
       role="button"
       tabIndex={0}
-      aria-label={`پخش ${song.title}`}
+      aria-label={`پخش ${getSongDisplayTitle(song)}`}
       onKeyDown={(e) => e.key === "Enter" && onPlay()}
       onClick={onPlay}
       className={`group flex items-center gap-3 md:gap-4 p-3 rounded-xl transition-all duration-200 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
@@ -163,7 +166,7 @@ const SongListItem = memo(
       <div className="relative w-11 h-11 flex-shrink-0 rounded-lg overflow-hidden shadow-md">
         <ImageWithPlaceholder
           src={song.cover_image}
-          alt={song.title}
+          alt={getSongDisplayTitle(song)}
           className="object-cover w-full h-full"
           type="song"
         />
@@ -185,7 +188,7 @@ const SongListItem = memo(
             isPlaying ? "text-emerald-400" : "text-white"
           }`}
         >
-          {song.title}
+          {getSongDisplayTitle(song)}
         </button>
         <button
           onClick={(e) => {
@@ -231,7 +234,7 @@ const SongGridCard = memo(
     <div
       role="button"
       tabIndex={0}
-      aria-label={`پخش ${song.title}`}
+      aria-label={`پخش ${getSongDisplayTitle(song)}`}
       onKeyDown={(e) => e.key === "Enter" && onPlay()}
       onClick={onPlay}
       className={`group p-3 rounded-xl transition-all duration-300 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
@@ -244,7 +247,7 @@ const SongGridCard = memo(
       <div className="relative aspect-square rounded-lg overflow-hidden mb-3 shadow-lg">
         <ImageWithPlaceholder
           src={song.cover_image}
-          alt={song.title}
+          alt={getSongDisplayTitle(song)}
           className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
           type="song"
         />
@@ -285,7 +288,7 @@ const SongGridCard = memo(
           isPlaying ? "text-emerald-400" : "text-white"
         }`}
       >
-        {song.title}
+        {getSongDisplayTitle(song)}
       </button>
 
       {/* Artist */}
@@ -364,7 +367,7 @@ export default function GenrePage({
     authenticatedFetch(`https://api.sedabox.com/api/search/genres/${id}/`)
       .then((r) => r.json())
       .then((data) => {
-        setSongs(data.results || []);
+        setSongs(normalizeSongCollection<GenreSong>(data.results));
         if (data.genre_name) {
           setName(data.genre_name);
         }
@@ -384,7 +387,7 @@ export default function GenrePage({
           : nextPage,
       );
       const data = await r.json();
-      setSongs((prev) => [...prev, ...(data.results || [])]);
+      setSongs((prev) => [...prev, ...normalizeSongCollection<GenreSong>(data.results)]);
       setNextPage(data.next || null);
     } catch (e) {
       console.error(e);
@@ -419,8 +422,9 @@ export default function GenrePage({
     (song: GenreSong) => {
       playTrack({
         id: String(song.id),
-        title: song.title,
+        title: getSongDisplayTitle(song),
         artist: song.artist_name,
+        featuredArtists: getPlayerFeaturedArtists(song),
         artistId: song.artist_id,
         album: song.album_title,
         image: song.cover_image,
@@ -444,7 +448,7 @@ export default function GenrePage({
 
   const handleSongClick = useCallback(
     (song: GenreSong) => {
-      navigateTo("song-detail", { id: String(song.id), title: song.title });
+      navigateTo("song-detail", { id: String(song.id), title: getSongDisplayTitle(song) });
     },
     [navigateTo],
   );

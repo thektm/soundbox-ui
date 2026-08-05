@@ -10,6 +10,7 @@ import React, {
 import { Drawer } from "vaul";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlayer, Track } from "./PlayerContext";
+import { getSongDisplayTitle } from "../lib/songDisplay";
 
 // ============================================================================
 // ICONS
@@ -179,7 +180,7 @@ const QueueTrack = memo<QueueTrackProps>(
         >
           <img
             src={track.image}
-            alt={track.title}
+            alt={getSongDisplayTitle(track)}
             className="w-full h-full object-cover"
             loading="lazy"
           />
@@ -198,7 +199,7 @@ const QueueTrack = memo<QueueTrackProps>(
               isCurrentTrack ? "text-emerald-400" : "text-white"
             }`}
           >
-            {track.title}
+            {getSongDisplayTitle(track)}
           </h4>
           <p className="text-xs text-neutral-400 truncate mt-0.5">
             {track.artist}

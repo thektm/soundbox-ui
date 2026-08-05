@@ -21,6 +21,7 @@ import { AddToPlaylistModal } from "./AddToPlaylistModal";
 import { getFullShareUrl } from "../utils/share";
 import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
+import { getPlayerFeaturedArtists, getSongDisplayTitle, withSongDisplayTitle } from "../lib/songDisplay";
 
 interface ApiGenreLink {
   id: number;
@@ -30,6 +31,8 @@ interface ApiGenreLink {
 interface ApiSong {
   id: number;
   title: string;
+  display_title?: string;
+  featured_artists?: any[];
   artist: number;
   artist_id?: number;
   artist_name: string;
@@ -56,6 +59,8 @@ interface ApiSong {
     items: {
       id: number;
       title: string;
+      display_title?: string;
+      featured_artists?: any[];
       artist_name: string;
       artist_id?: number;
       artist?: number;
@@ -68,7 +73,6 @@ interface ApiSong {
   };
   audio_file: string;
   stream_url: string;
-  display_title?: string;
 }
 
 interface LyricLine {
@@ -86,6 +90,7 @@ interface Song {
   title: string;
   artist: string;
   artistId?: number | string;
+  featuredArtists?: ReturnType<typeof getPlayerFeaturedArtists>;
   duration: string;
   image: string;
   src: string;
@@ -378,7 +383,7 @@ const { navigateTo } = useNavigation();
         <div className="w-10 h-10 shrink-0 relative overflow-hidden rounded">
           <ImageWithPlaceholder
             src={track.image}
-            alt={track.title}
+            alt={getSongDisplayTitle(track)}
             className="w-full h-full object-cover"
             type="song"
           />
@@ -404,11 +409,11 @@ const { navigateTo } = useNavigation();
               e.stopPropagation();
               navigateTo("song-detail", {
                 id: track.id,
-                title: createSlug(track.title),
+                title: createSlug(getSongDisplayTitle(track)),
               });
             }}
           >
-            {track.title}
+            {getSongDisplayTitle(track)}
           </p>
           <p
             className="text-neutral-400 text-xs truncate hover:text-white transition-colors cursor-pointer"
@@ -727,13 +732,15 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         );
 
         if (resp.ok) {
-          const data: ApiSong = await resp.json();
+          const rawData: ApiSong = await resp.json();
+          const data = withSongDisplayTitle(rawData);
           setFullSongData(data);
           setSong({
             id: data.id.toString(),
-            title: data.title,
+            title: getSongDisplayTitle(data),
             artist: data.artist_name,
             artistId: data.artist_id || data.artist,
+            featuredArtists: getPlayerFeaturedArtists(data),
             duration: data.duration_display,
             image: data.cover_image,
             src: data.stream_url
@@ -746,8 +753,8 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           // Update browser URL to canonical format: /track/{id}-{slug}
           if (typeof window !== "undefined") {
             const trackId = data.id;
-            const slug = data.title
-              ? data.title
+            const slug = getSongDisplayTitle(data)
+              ? getSongDisplayTitle(data)
                   .trim()
                   .replace(/\s+/g, "-")
                   .replace(/[^\w\u0600-\u06FF\-]/g, "")
@@ -762,7 +769,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                   {
                     ...(window.history.state?.params || {}),
                     id: trackId,
-                    title: data.title,
+                    title: getSongDisplayTitle(data),
                   },
                   targetPath,
                 );
@@ -797,8 +804,9 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     if (fullSongData?.similar_songs?.items) {
       return fullSongData.similar_songs.items.map((item) => ({
         id: item.id.toString(),
-        title: item.title,
+        title: getSongDisplayTitle(item),
         artist: item.artist_name,
+        featuredArtists: getPlayerFeaturedArtists(item),
         artistId: item.artist_id || item.artist,
         duration:
           item.duration_display ||
@@ -951,14 +959,14 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   const handleShare = useCallback(() => {
     if (!song) return;
     try {
-      const url = getFullShareUrl("song", song.id, song.title);
+      const url = getFullShareUrl("song", song.id, getSongDisplayTitle(song));
       const artistLabel =
         (song as any).artist_name || (song as any).artist || "";
-      const text = `درحال گوش دادن به ${song.title} از ${artistLabel} در سداباکس`;
+      const text = `درحال گوش دادن به ${getSongDisplayTitle(song)} از ${artistLabel} در سداباکس`;
 
       if (typeof navigator !== "undefined" && navigator.share) {
         navigator.share({
-          title: song.title,
+          title: getSongDisplayTitle(song),
           text: text,
           url: url,
         });
@@ -1088,8 +1096,8 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   return (
     <>
       <SEO
-        title={song?.title}
-        description={`شنیدن آهنگ ${song?.title} از ${song?.artist} در وب اپلیکیشن صداباکس`}
+        title={getSongDisplayTitle(song)}
+        description={`شنیدن آهنگ ${getSongDisplayTitle(song)} از ${song?.artist} در وب اپلیکیشن صداباکس`}
         imageUrl={song?.image}
         type="music.song"
       />
@@ -1113,7 +1121,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             dir={direction}
           >
             <h2 className="text-lg font-bold text-white truncate">
-              {song.title}
+              {getSongDisplayTitle(song)}
             </h2>
           </div>
           <button
@@ -1147,7 +1155,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           </button>
           <div className="flex-1 flex justify-center overflow-hidden px-4">
             <span className="text-base font-bold text-white truncate">
-              {song.title}
+              {getSongDisplayTitle(song)}
             </span>
           </div>
           <div className="w-10 shrink-0" />
@@ -1165,7 +1173,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             >
               <ImageWithPlaceholder
                 src={song.image}
-                alt={song.title}
+                alt={getSongDisplayTitle(song)}
                 className="w-full h-full object-cover"
                 type="song"
               />
@@ -1176,7 +1184,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                 آهنگ
               </span>
               <h1 className="mt-3 text-4xl md:text-6xl lg:text-7xl font-black text-white leading-tight">
-                {song.title}
+                {getSongDisplayTitle(song)}
               </h1>
               <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-2 text-sm text-neutral-300">
                 <button

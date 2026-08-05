@@ -17,6 +17,7 @@ import UserIcon from "./UserIcon";
 import { useI18n } from "./I18nContext";
 import UserAvatar from "./UserAvatar";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
+import { getSongDisplayTitle } from "../lib/songDisplay";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -678,7 +679,7 @@ export default function DesktopProfile() {
                                 artistSlug:
                                   track.artist_unique_id ||
                                   createSlug(track.artist_name || "artist"),
-                                songSlug: createSlug(track.title),
+                                songSlug: createSlug(getSongDisplayTitle(track)),
                               })
                             }
                           >
@@ -704,11 +705,11 @@ export default function DesktopProfile() {
                                   artistSlug:
                                     track.artist_unique_id ||
                                     createSlug(track.artist_name || "artist"),
-                                  songSlug: createSlug(track.title),
+                                  songSlug: createSlug(getSongDisplayTitle(track)),
                                 })
                               }
                             >
-                              {track.title}
+                              {getSongDisplayTitle(track)}
                             </h3>
                             <p
                               className="text-gray-400 text-sm truncate cursor-pointer hover:text-emerald-400 transition-colors"

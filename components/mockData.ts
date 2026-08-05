@@ -12,6 +12,7 @@ export interface Song {
   src: string;
   explicit?: boolean;
   plays?: number;
+  featuredArtists?: Array<{ id: string | number; name: string; uniqueId?: string }>;
 }
 
 export interface Artist {

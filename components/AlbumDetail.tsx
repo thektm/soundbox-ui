@@ -10,11 +10,13 @@ import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getFullShareUrl, slugify } from "../utils/share";
 import toast from "react-hot-toast";
 import { SEO } from "./SEO";
+import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 
 // API Interfaces based on the provided format
 interface ApiSong {
   id: number;
   title: string;
+  display_title?: string;
   artist_id: number;
   artist_name: string;
   featured_artists: any[];
@@ -34,7 +36,6 @@ interface ApiSong {
   language: string;
   description: string;
   created_at: string;
-  display_title: string;
 }
 
 interface ApiAlbumResponse {
@@ -177,7 +178,7 @@ const SongRow: React.FC<SongRowProps> = ({
         <div className="relative w-10 h-10 shrink-0 rounded overflow-hidden bg-neutral-800">
           <Image
             src={song.cover_image || "/default-cover.jpg"}
-            alt={song.title}
+            alt={getSongDisplayTitle(song)}
             fill
             sizes="40px"
             quality={75}
@@ -196,7 +197,7 @@ const SongRow: React.FC<SongRowProps> = ({
                   isPlaying ? "text-green-500" : "text-white"
                 } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </p>
               <p
                 onClick={(e) => {
@@ -215,7 +216,7 @@ const SongRow: React.FC<SongRowProps> = ({
                   isPlaying ? "text-green-500" : "text-white"
                 }`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </p>
               <p className="text-xs text-neutral-400 truncate flex items-center gap-1">
                 {song.artist_name}
@@ -340,9 +341,9 @@ const normalizeAlbumPayload = (value: any): ApiAlbumResponse | null => {
       ? payload.sub_genre_ids
       : [],
     mood_ids: Array.isArray(payload?.mood_ids) ? payload.mood_ids : [],
-    songs: Array.isArray(payload?.songs)
-      ? payload.songs.filter((song: any) => Number(song?.id) > 0)
-      : [],
+    songs: normalizeSongCollection<ApiSong>(payload?.songs).filter(
+      (song) => Number(song?.id) > 0,
+    ),
     song_genre_names: Array.isArray(payload?.song_genre_names)
       ? payload.song_genre_names
       : [],
@@ -482,11 +483,11 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   const handleAction = async (action: string, s: any) => {
     if (action === "share" && s) {
       try {
-        const url = getFullShareUrl("song", s.id, s.title);
+        const url = getFullShareUrl("song", s.id, getSongDisplayTitle(s));
         if (typeof navigator !== "undefined" && navigator.share) {
           await navigator.share({
-            title: s.title,
-            text: `گوش دادن به آهنگ ${s.title} از ${s.artist_name || albumData?.artist_name} در سداباکس`,
+            title: getSongDisplayTitle(s),
+            text: `گوش دادن به آهنگ ${getSongDisplayTitle(s)} از ${s.artist_name || albumData?.artist_name} در سداباکس`,
             url: url,
           });
         } else {
@@ -552,8 +553,9 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
 
     const tracks: Track[] = albumSongs.map((song) => ({
       id: String(song.id),
-      title: song.title,
+      title: getSongDisplayTitle(song),
       artist: song.artist_name,
+      featuredArtists: getPlayerFeaturedArtists(song),
       artistId: song.artist_id,
       image: song.cover_image,
       duration: song.duration_display,
@@ -570,8 +572,9 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
 
     const tracks: Track[] = albumSongs.map((song) => ({
       id: String(song.id),
-      title: song.title,
+      title: getSongDisplayTitle(song),
       artist: song.artist_name,
+      featuredArtists: getPlayerFeaturedArtists(song),
       artistId: song.artist_id,
       image: song.cover_image,
       duration: song.duration_display,
@@ -759,7 +762,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
               onTitleClick={() =>
                 navigateTo("song-detail", {
                   id: song.id,
-                  title: slugify(song.title),
+                  title: slugify(getSongDisplayTitle(song)),
                 })
               }
               onArtistClick={() =>

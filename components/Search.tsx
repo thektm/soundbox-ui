@@ -41,6 +41,7 @@ import { getUserFacingErrorMessage } from "../lib/clientError";
 import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
 import { buildUserNavigationParams, isSedaboxUser } from "../lib/userProfileRoute";
 import { readFollowingState } from "../lib/apiActionState";
+import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
 
 // ============ TYPES & MOCKS ============
 interface Song {
@@ -54,6 +55,7 @@ interface Song {
   src: string;
   explicit?: boolean;
   plays?: number;
+  featuredArtists?: ReturnType<typeof getPlayerFeaturedArtists>;
 }
 
 interface Artist {
@@ -532,9 +534,16 @@ const useSearch = (
               );
               const minutes = Math.floor(durationSeconds / 60);
               const seconds = Math.floor(durationSeconds % 60);
+              const songSource = {
+                ...data,
+                title: title || data.title || "Untitled",
+                display_title: data.display_title,
+                featured_artists: data.featured_artists,
+              };
               nextResults.songs.push({
                 id,
-                title: title || "Untitled",
+                title: getSongDisplayTitle(songSource) || "Untitled",
+                featuredArtists: getPlayerFeaturedArtists(songSource),
                 artist: String(
                   data.artist_name ?? data.artist?.name ?? rawItem.subtitle ?? "Unknown Artist",
                 ),
@@ -736,7 +745,7 @@ const SongCard = memo(
       <div
         role="button"
         tabIndex={0}
-        aria-label={`پخش ${song.title} از ${song.artist}`}
+        aria-label={`پخش ${getSongDisplayTitle(song)} از ${song.artist}`}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -751,7 +760,7 @@ const SongCard = memo(
         <div className="relative w-12 h-12 shrink-0">
           <ImageWithPlaceholder
             src={song.image}
-            alt={song.title}
+            alt={getSongDisplayTitle(song)}
             className="w-full h-full object-cover rounded shadow-lg"
             type="song"
           />
@@ -776,11 +785,11 @@ const SongCard = memo(
                 }}
                 className={`text-white font-normal truncate cursor-pointer hover:underline`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </span>
             ) : (
               <span className="text-white font-normal truncate">
-                {song.title}
+                {getSongDisplayTitle(song)}
               </span>
             )}
             {song.explicit && (
@@ -825,7 +834,7 @@ const SongCard = memo(
               onMore(song);
             }}
             className="p-1 text-[#a7a7a7] hover:text-white focus-visible:text-white outline-none"
-            aria-label={`گزینه‌های بیشتر برای ${song.title}`}
+            aria-label={`گزینه‌های بیشتر برای ${getSongDisplayTitle(song)}`}
           >
             <ICONS.More aria-hidden="true" />
           </button>
@@ -1277,7 +1286,7 @@ const SectionCard = memo(
     onPlay: (e: React.MouseEvent) => void;
   }) => {
     const { navigateTo } = useNavigation();
-    const title = item.title;
+    const title = type === "song" ? getSongDisplayTitle(item) : item.title;
     const subTitle = item.artist_name || item.name || item.description || "";
     const mainImage = item.cover_image || item.image;
 
@@ -1361,7 +1370,7 @@ const SectionCard = memo(
               if (isDesktop) {
                 e.stopPropagation();
                 if (type === "song") {
-                  navigateTo("song-detail", { id: item.id, title: item.title });
+                  navigateTo("song-detail", { id: item.id, title: getSongDisplayTitle(item) });
                 } else if (type === "album") {
                   navigateTo("album-detail", { id: item.id, slug: item.slug });
                 } else if (type === "playlist") {
@@ -1511,6 +1520,7 @@ export default function Search() {
       ...song,
       cover_image: song.image,
       artist_name: song.artist,
+      featured_artists: song.featuredArtists,
     });
     setIsDrawerOpen(true);
   }, []);
@@ -1518,10 +1528,10 @@ export default function Search() {
   const handleAction = async (action: string, s: any) => {
     if (action === "share" && s) {
       try {
-        const url = getFullShareUrl("song", s.id, s.title);
-        const text = `گوش دادن به آهنگ ${s.title} از ${s.artist_name} در سداباکس`;
+        const url = getFullShareUrl("song", s.id, getSongDisplayTitle(s));
+        const text = `گوش دادن به آهنگ ${getSongDisplayTitle(s)} از ${s.artist_name} در سداباکس`;
         if (typeof navigator !== "undefined" && navigator.share) {
-          await navigator.share({ title: s.title, text, url });
+          await navigator.share({ title: getSongDisplayTitle(s), text, url });
         } else {
           await navigator.clipboard.writeText(url);
           toast.success("لینک کپی شد");
@@ -1692,7 +1702,7 @@ export default function Search() {
 
   const handlePlaySong = useCallback(
     (song: Song) => {
-      addToHistory(`${song.title} - ${song.artist}`, "song");
+      addToHistory(`${getSongDisplayTitle(song)} - ${song.artist}`, "song");
       playTrack(song as any);
     },
     [addToHistory, playTrack],
@@ -2010,7 +2020,7 @@ export default function Search() {
                           onTitleClick={() =>
                             navigateFromSearch("song-detail", {
                               id: song.id,
-                              title: song.title,
+                              title: getSongDisplayTitle(song),
                             })
                           }
                           onArtistClick={() =>
@@ -2126,7 +2136,7 @@ export default function Search() {
                       onTitleClick={() =>
                         navigateFromSearch("song-detail", {
                           id: song.id,
-                          title: song.title,
+                          title: getSongDisplayTitle(song),
                         })
                       }
                       onArtistClick={() =>

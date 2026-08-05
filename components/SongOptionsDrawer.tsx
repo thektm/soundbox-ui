@@ -25,6 +25,7 @@ import { AddToPlaylistModal } from "./AddToPlaylistModal";
 import { ReportModal } from "./ReportModal";
 import { getFullShareUrl } from "../utils/share";
 import { useGuestAccess } from "./GuestAccessContext";
+import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
 
 interface SongOptionsDrawerProps {
   isOpen: boolean;
@@ -32,6 +33,9 @@ interface SongOptionsDrawerProps {
   song: {
     id: number | string;
     title: string;
+    display_title?: string;
+    featured_artists?: any[];
+    featuredArtists?: any[];
     artist_name?: string;
     cover_image: string;
     is_liked?: boolean;
@@ -71,6 +75,7 @@ export const SongOptionsDrawer = ({
 
   const isPremium = user?.plan === "premium";
   const { navigateTo } = useNavigation();
+  const songDisplayTitle = getSongDisplayTitle(song);
   const [processing, setProcessing] = useState<string | null>(null);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -122,11 +127,11 @@ export const SongOptionsDrawer = ({
 
       if (actionId === "share") {
         try {
-          const url = getFullShareUrl("song", song.id, song.title);
+          const url = getFullShareUrl("song", song.id, songDisplayTitle);
           if (typeof navigator !== "undefined" && navigator.share) {
             await navigator.share({
-              title: song.title,
-              text: `گوش دادن به ${song.title} از ${song.artist_name} در سداباکس`,
+              title: songDisplayTitle,
+              text: `گوش دادن به ${songDisplayTitle} از ${song.artist_name} در سداباکس`,
               url: url,
             });
           } else if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -151,8 +156,9 @@ export const SongOptionsDrawer = ({
         // Build a Track-like object expected by PlayerContext
         const trackToAdd = {
           id: String(song.id),
-          title: song.title,
+          title: songDisplayTitle,
           artist: song.artist_name || "Unknown Artist",
+          featuredArtists: getPlayerFeaturedArtists(song),
           image: song.cover_image || "",
           duration: (song as any).duration || "0:00",
           src:
@@ -206,7 +212,7 @@ export const SongOptionsDrawer = ({
           "";
         download({
           id: String(song.id),
-          title: song.title,
+          title: songDisplayTitle,
           artist: song.artist_name || "Unknown Artist",
           image: song.cover_image,
           duration: "0:00",
@@ -219,14 +225,14 @@ export const SongOptionsDrawer = ({
       if (actionId === "details") {
         console.log("SongOptionsDrawer: details clicked", {
           id: song.id,
-          title: song.title,
+          title: songDisplayTitle,
           artist: song.artist_name,
         });
         try {
           const artistSlug = song.artist_name
             ? createSlug(song.artist_name)
             : undefined;
-          const songSlug = song.title ? createSlug(song.title) : undefined;
+          const songSlug = songDisplayTitle ? createSlug(songDisplayTitle) : undefined;
           console.log("SongOptionsDrawer: navigating via navigateTo", {
             artistSlug,
             songSlug,
@@ -240,7 +246,7 @@ export const SongOptionsDrawer = ({
               const path = `/track/${song.id}`;
               const state = pushNavigationEntry(
                 "song-detail",
-                { id: song.id, title: song.title },
+                { id: song.id, title: songDisplayTitle },
                 path,
               );
               console.log("SongOptionsDrawer: fallback pushState", { state, path });
@@ -477,7 +483,7 @@ export const SongOptionsDrawer = ({
         <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 shadow-lg relative">
           <Image
             src={song.cover_image}
-            alt={song.title}
+            alt={songDisplayTitle}
             fill
             sizes="100vw"
             className="object-cover"
@@ -491,7 +497,7 @@ export const SongOptionsDrawer = ({
             onClick={(e) => {
               if (!isDesktop) return;
               e.stopPropagation();
-              const songSlug = song.title ? createSlug(song.title) : undefined;
+              const songSlug = songDisplayTitle ? createSlug(songDisplayTitle) : undefined;
               const artistSlug = song.artist_name
                 ? createSlug(song.artist_name)
                 : undefined;
@@ -499,7 +505,7 @@ export const SongOptionsDrawer = ({
               onClose();
             }}
           >
-            {song.title}
+            {songDisplayTitle}
           </h3>
           <p
             className={`text-[14px] text-white/50 truncate mt-1 ${
@@ -611,7 +617,7 @@ export const SongOptionsDrawer = ({
         onClose={() => setIsReportModalOpen(false)}
         targetId={song.id}
         targetType="song"
-        targetTitle={song.title}
+        targetTitle={songDisplayTitle}
       />
     </>
   );

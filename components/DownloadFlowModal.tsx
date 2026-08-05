@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, Download, Loader2, X } from "lucide-react";
 import { useI18n } from "./I18nContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { getSongDisplayTitle } from "../lib/songDisplay";
 
 export type DownloadQuality = "128" | "320";
 
@@ -96,7 +97,7 @@ export default function DownloadFlowModal({
               <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-white/5">
                 <ImageWithPlaceholder
                   src={track.image || ""}
-                  alt={track.title}
+                  alt={getSongDisplayTitle(track)}
                   className="h-full w-full object-cover"
                   type="song"
                   sizes="64px"
@@ -107,7 +108,7 @@ export default function DownloadFlowModal({
                   {t("دانلود موسیقی")}
                 </h2>
                 <p className="mt-1 truncate text-sm font-semibold text-white/85">
-                  {track.title}
+                  {getSongDisplayTitle(track)}
                 </p>
                 <p className="truncate text-xs text-white/45">{track.artist}</p>
               </div>

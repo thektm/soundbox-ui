@@ -7,10 +7,13 @@ import { usePlayerActions } from "./PlayerContext";
 import { useNavigation } from "./NavigationContext";
 import { createSlug } from "../lib/slug";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { getSongDisplayTitle, getPlayerFeaturedArtists, normalizeSongCollection } from "../lib/songDisplay";
 
 interface ApiSong {
   id: number;
   title: string;
+  display_title?: string;
+  featured_artists?: unknown[];
   artist_id?: number;
   artist_name: string;
   cover_image: string;
@@ -41,7 +44,7 @@ const NewDiscoveriesPage: React.FC = () => {
         );
         if (response.ok) {
           const data: PaginatedResponse<ApiSong> = await response.json();
-          setSongs(data.results);
+          setSongs(normalizeSongCollection<ApiSong>(data.results));
           setNextUrl(data.next);
         }
       } catch (error) {
@@ -63,7 +66,7 @@ const NewDiscoveriesPage: React.FC = () => {
       );
       if (response.ok) {
         const data: PaginatedResponse<ApiSong> = await response.json();
-        setSongs((prev) => [...prev, ...data.results]);
+        setSongs((prev) => [...prev, ...normalizeSongCollection<ApiSong>(data.results)]);
         setNextUrl(data.next);
       }
     } catch (error) {
@@ -76,8 +79,9 @@ const NewDiscoveriesPage: React.FC = () => {
   const handlePlay = (startIndex: number) => {
     const queue = songs.map((song) => ({
       id: String(song.id),
-      title: song.title,
+      title: getSongDisplayTitle(song),
       artist: song.artist_name,
+      featuredArtists: getPlayerFeaturedArtists(song),
       image: song.cover_image,
       src: (song.stream_url || (song as any).preview_url || "").replace("http://", "https://"),
       duration: `${Math.floor(song.duration_seconds / 60)}:${(song.duration_seconds % 60).toString().padStart(2, "0")}`,
@@ -106,7 +110,7 @@ const NewDiscoveriesPage: React.FC = () => {
             <div className="relative w-24 h-24 shrink-0 overflow-hidden rounded-xl shadow-lg">
               <ImageWithPlaceholder
                 src={song.cover_image}
-                alt={song.title}
+                alt={getSongDisplayTitle(song)}
                 className="w-full h-full object-cover"
                 type="song"
               />
@@ -131,11 +135,11 @@ const NewDiscoveriesPage: React.FC = () => {
                   e.stopPropagation();
                   navigateTo("song-detail", {
                     id: song.id,
-                    title: createSlug(song.title),
+                    title: createSlug(getSongDisplayTitle(song)),
                   });
                 }}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </h3>
               <p
                 className="text-zinc-500 font-medium truncate hover:text-white transition-all hover:underline decoration-zinc-500"

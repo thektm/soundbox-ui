@@ -16,6 +16,7 @@ import dynamic from "next/dynamic";
 // import Hls from "hls.js";
 import { toast } from "react-hot-toast";
 import { useI18n } from "./I18nContext";
+import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
 import type {
   DownloadFlowStatus,
   DownloadQuality,
@@ -842,7 +843,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                         ensureHttps(data.image) ||
                         ensureHttps(data.image_cover) ||
                         t.image,
-                      title: data.title || t.title,
+                      title: getSongDisplayTitle(data) || t.title,
                       artist:
                         data.artist?.name ||
                         data.artist_name ||
@@ -854,13 +855,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                         data.artist?.unique_id ||
                         t.artistUniqueId,
                       featuredArtists: Array.isArray(data.featured_artists)
-                        ? data.featured_artists
-                            .filter((artist: any) => artist?.id && (artist?.name || artist?.artistic_name))
-                            .map((artist: any) => ({
-                              id: artist.id,
-                              name: artist.artistic_name || artist.name,
-                              uniqueId: artist.unique_id,
-                            }))
+                        ? getPlayerFeaturedArtists(data)
                         : t.featuredArtists,
                     }
                   : t,
@@ -1438,7 +1433,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       );
       const persistedQueue = compacted.queue.map((track) => ({
         id: String(track.id),
-        title: track.title,
+        title: getSongDisplayTitle(track),
         artist: track.artist,
         artistId: track.artistId,
         artistUniqueId: track.artistUniqueId,
@@ -2471,7 +2466,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       anchor.href = objectUrl;
       anchor.download =
         prepared.filename ||
-        `${targetTrack.title} - ${targetTrack.artist} [${selectedQuality}kbps].mp3`.replace(
+        `${getSongDisplayTitle(targetTrack)} - ${targetTrack.artist} [${selectedQuality}kbps].mp3`.replace(
           /[<>:"/\\|?*]/g,
           "",
         );

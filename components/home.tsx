@@ -16,6 +16,7 @@ import type { Track } from "./PlayerContext";
 import { useI18n } from "./I18nContext";
 import { useNotifications } from "./NotificationContext";
 import { createSlug } from "../lib/slug";
+import { getPlayerFeaturedArtists, getSongDisplayTitle, withSongDisplayTitle } from "../lib/songDisplay";
 import {
   buildHomeSummaryRequestKey,
   HOME_SUMMARY_URL,
@@ -34,6 +35,8 @@ interface ApiGenreLink {
 interface ApiSong {
   id: number;
   title: string;
+  display_title?: string;
+  featured_artists?: any[];
   artist_name: string;
   album_title: string;
   cover_image: string;
@@ -179,7 +182,7 @@ const normalizeGenreLinks = (item: any): ApiGenreLink[] => {
 const normalizeSongPayload = (song: any): ApiSong => {
   const genres = normalizeGenreLinks(song);
   return {
-    ...(song || {}),
+    ...withSongDisplayTitle(song || {}),
     genres,
     genre_ids: genres.length
       ? genres.map((genre) => genre.id)
@@ -368,8 +371,9 @@ const formatDuration = (seconds: number): string => {
 // Utility function to convert ApiSong to Track
 const apiSongToTrack = (song: any): Track => ({
   id: String(song.id),
-  title: song.title,
+  title: getSongDisplayTitle(song),
   artist: song.artist_name,
+  featuredArtists: getPlayerFeaturedArtists(song),
   artistId: song.artist_id || song.artist,
   image: song.cover_image || "/default-cover.jpg",
   duration: formatDuration(song.duration_seconds),
@@ -934,7 +938,7 @@ export default function Home() {
     ? {
         forYou: homeData.songs_recommendations.songs.map((song) => ({
           id: song.id,
-          title: song.title,
+          title: getSongDisplayTitle(song),
           subtitle: song.artist_name,
           img: song.cover_image,
           duration: formatDuration(song.duration_seconds),
@@ -947,7 +951,7 @@ export default function Home() {
           .slice(0, 5)
           .map((song) => ({
             id: song.id,
-            title: song.title,
+            title: getSongDisplayTitle(song),
             subtitle: song.artist_name,
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
@@ -980,7 +984,7 @@ export default function Home() {
           .slice(0, 10)
           .map((song, index) => ({
             id: song.id,
-            title: song.title,
+            title: getSongDisplayTitle(song),
             subtitle: song.artist_name,
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
@@ -993,7 +997,7 @@ export default function Home() {
           .slice(0, 6)
           .map((song) => ({
             id: song.id,
-            title: song.title,
+            title: getSongDisplayTitle(song),
             subtitle: song.artist_name,
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
@@ -1004,7 +1008,7 @@ export default function Home() {
           })),
         trending: (homeData.trending?.results || []).map((song) => ({
           id: song.id,
-          title: song.title,
+          title: getSongDisplayTitle(song),
           subtitle: song.artist_name,
           img: song.cover_image,
           duration: formatDuration(song.duration_seconds),
@@ -1017,7 +1021,7 @@ export default function Home() {
           .slice(10, 20)
           .map((song, index) => ({
             id: song.id,
-            title: song.title,
+            title: getSongDisplayTitle(song),
             subtitle: song.artist_name,
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
@@ -1538,7 +1542,7 @@ export default function Home() {
         <PremiumChartList
           items={dailyTopSongs.results.map((s) => ({
             id: s.id,
-            title: s.title,
+            title: getSongDisplayTitle(s),
             subtitle: s.artist_name,
             img: s.cover_image,
             isNew: false,
@@ -1698,7 +1702,7 @@ export default function Home() {
         <PremiumChartList
           items={weeklyTopSongs.results.map((s) => ({
             id: s.id,
-            title: s.title,
+            title: getSongDisplayTitle(s),
             subtitle: s.artist_name,
             img: s.cover_image,
             isNew: false,
@@ -1856,7 +1860,7 @@ export default function Home() {
     heroHighlights.push({
       key: `personal-${firstRec.id}`,
       pill: isGuest ? "پیشنهاد امروز" : "پخش شخصی",
-      title: firstRec.title,
+      title: getSongDisplayTitle(firstRec),
       subtitle: isGuest
         ? `${firstRec.artist_name} • انتخابی تازه برای این لحظه`
         : `${firstRec.artist_name} • بر اساس شنیده‌های اخیرت`,
@@ -1879,7 +1883,7 @@ export default function Home() {
     heroHighlights.push({
       key: `latest-${latest.id}`,
       pill: "آخرین ریلیز",
-      title: latest.title,
+      title: getSongDisplayTitle(latest),
       subtitle: `${latest.artist_name} • تازه روی صداباکس`,
       image: latest.cover_image || "/default-cover.jpg",
       meshGradient: meshGradients[idx],
@@ -1902,7 +1906,7 @@ export default function Home() {
     heroHighlights.push({
       key: `discovery-${discovery.id}`,
       pill: "کشف تازه",
-      title: discovery.title,
+      title: getSongDisplayTitle(discovery),
       subtitle: `${discovery.artist_name} • پیشنهادی برای کشف جدید`,
       image: discovery.cover_image || "/default-cover.jpg",
       meshGradient: meshGradients[idx],
@@ -2086,7 +2090,7 @@ export default function Home() {
     navigateTo("song-detail", {
       id: data.id,
       artistSlug: data.artist_slug || createSlug(data.artist_name || ""),
-      songSlug: createSlug(data.title || ""),
+      songSlug: createSlug(getSongDisplayTitle(data)),
     });
   };
 
@@ -2215,7 +2219,7 @@ export default function Home() {
                     : "bg-zinc-800 text-white hover:bg-zinc-700"
                 }`}
               >
-                {s.title}
+                {getSongDisplayTitle(s)}
               </button>
             ))}
           </div>
@@ -2316,7 +2320,7 @@ export default function Home() {
                           : "bg-zinc-800 text-white hover:bg-zinc-700"
                     }`}
                   >
-                    {s.title}
+                    {getSongDisplayTitle(s)}
                   </button>
                 );
               })}
@@ -2381,7 +2385,7 @@ export default function Home() {
           {availableSections.map((s, i) => (
             <Section
               key={s.key}
-              title={s.title}
+              title={getSongDisplayTitle(s)}
               subtitle={s.subtitle}
               sectionRef={(el) => {
                 sectionRefs.current[i] = el;

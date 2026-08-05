@@ -20,6 +20,7 @@ import { SEO } from "./SEO";
 import UserAvatar from "./UserAvatar";
 import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
+import { getSongDisplayTitle } from "../lib/songDisplay";
 
 function ensureHttps(u?: string | null): string | undefined {
   if (!u) return undefined;
@@ -822,7 +823,9 @@ const LibraryScreen: React.FC = () => {
   const filteredHistory = history.filter((historyItem) => {
     const item = historyItem?.item;
     if (!item) return false;
-    const title = item.title || item.name || item.unique_id || "";
+    const title = historyItem.type === "song"
+      ? getSongDisplayTitle(item)
+      : item.title || item.name || item.unique_id || "";
     return String(title).toLowerCase().includes(searchQuery.toLowerCase());
   });
 
@@ -1062,7 +1065,9 @@ const LibraryScreen: React.FC = () => {
                     imageUrl = item.profile_image || imageUrl || "";
                     subtitle = item.unique_id || getTranslatedType(type);
                   } else if (type === "song" || type === "album") {
-                    title = item.title || item.name || title;
+                    title = type === "song"
+                      ? getSongDisplayTitle(item)
+                      : item.title || item.name || title;
                     imageUrl =
                       item.cover_image || item.profile_image || imageUrl || "";
                     subtitle = item.artist_name || getTranslatedType(type);

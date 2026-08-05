@@ -14,6 +14,7 @@ import { usePlayerPlayback } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import type { Song } from "./mockData";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
+import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
 
 // ============================================================================
 // Utilities & Constants
@@ -108,7 +109,7 @@ const SongRow = memo(
         <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-zinc-800">
           <Image
             src={song.image}
-            alt={song.title}
+            alt={getSongDisplayTitle(song)}
             fill
             sizes="100vw"
             className="object-cover"
@@ -127,7 +128,7 @@ const SongRow = memo(
                   isPlaying ? "text-emerald-400" : "text-white"
                 } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </h3>
               <p
                 onClick={(e) => {
@@ -144,7 +145,7 @@ const SongRow = memo(
               <h3
                 className={`text-sm font-medium truncate ${isPlaying ? "text-emerald-400" : "text-white"}`}
               >
-                {song.title}
+                {getSongDisplayTitle(song)}
               </h3>
               <p className="text-xs text-gray-500 truncate">{song.artist}</p>
             </>
@@ -271,7 +272,8 @@ export default function LikedSongs() {
           const data = await res.json();
           const mappedSongs = data.results.map((item: any) => ({
             id: item.id.toString(),
-            title: item.title,
+            title: getSongDisplayTitle(item),
+            featuredArtists: getPlayerFeaturedArtists(item),
             artist: item.artist_name,
             artistId: item.artist_id,
             image: ensureHttps(item.cover_image) || "",
@@ -458,6 +460,7 @@ export default function LikedSongs() {
                 ...song,
                 cover_image: song.image,
                 artist_name: song.artist,
+                featured_artists: (song as any).featuredArtists,
                 is_liked: true,
               });
               setIsDrawerOpen(true);
@@ -465,7 +468,7 @@ export default function LikedSongs() {
             onTitleClick={() =>
               navigateTo("song-detail", {
                 id: song.id,
-                title: song.title,
+                title: getSongDisplayTitle(song),
               })
             }
             onArtistClick={() =>
