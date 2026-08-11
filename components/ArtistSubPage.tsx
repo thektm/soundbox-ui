@@ -9,6 +9,7 @@ import Image from "next/image";
 import { createPortal } from "react-dom";
 import { createSlug } from "../lib/slug";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // Reuse types from ArtistDetail (redefined here for simplicity as they aren't exported)
 interface ApiArtist {
@@ -164,7 +165,7 @@ const SongItem = memo(
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-white font-bold truncate group-hover:text-emerald-400 transition-colors">
-              {getSongDisplayTitle(song)}
+              <SongTitleWithFeaturedArtists song={song} />
             </span>
             <span className="text-zinc-400 text-sm truncate">
               {song.artist_name}

@@ -6,6 +6,7 @@ import { useAuth } from "./AuthContext";
 import { useDiscovery } from "./DiscoveryContext";
 import { createSlug } from "../lib/slug";
 import { getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 import { CreatePlaylistModal } from "./CreatePlaylistModal";
 import { useI18n } from "./I18nContext";
 
@@ -625,9 +626,13 @@ const LibraryItemComponent = memo(
                     }}
                     role={onTitleClick ? "link" : undefined}
                     tabIndex={onTitleClick ? 0 : undefined}
-                    className={`truncate ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
+                    className={`inline-block w-fit max-w-full truncate ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
                   >
-                    {displayName}
+                    {item.type === "song" ? (
+                      <SongTitleWithFeaturedArtists song={item.meta} />
+                    ) : (
+                      displayName
+                    )}
                   </span>
                 </p>
                 {(subtitleText || (item.owner && item.meta == null)) && (
@@ -646,7 +651,7 @@ const LibraryItemComponent = memo(
                         }}
                         role={onSubtitleClick ? "link" : undefined}
                         tabIndex={onSubtitleClick ? 0 : undefined}
-                        className={`truncate ${onSubtitleClick ? "cursor-pointer hover:underline" : ""}`}
+                        className={`inline-block w-fit max-w-full truncate ${onSubtitleClick ? "cursor-pointer hover:underline" : ""}`}
                       >
                         {subtitleText}
                       </span>

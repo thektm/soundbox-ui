@@ -11,6 +11,7 @@ import { getFullShareUrl, slugify } from "../utils/share";
 import toast from "react-hot-toast";
 import { SEO } from "./SEO";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // API Interfaces based on the provided format
 interface ApiSong {
@@ -193,18 +194,18 @@ const SongRow: React.FC<SongRowProps> = ({
                   e.stopPropagation();
                   onTitleClick && onTitleClick();
                 }}
-                className={`text-sm font-medium truncate ${
+                className={`w-fit max-w-full text-sm font-medium truncate ${
                   isPlaying ? "text-green-500" : "text-white"
                 } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </p>
               <p
                 onClick={(e) => {
                   e.stopPropagation();
                   onArtistClick && onArtistClick();
                 }}
-                className="text-xs text-neutral-400 truncate flex items-center gap-1 cursor-pointer hover:underline"
+                className="w-fit max-w-full text-xs text-neutral-400 truncate flex items-center gap-1 cursor-pointer hover:underline"
               >
                 {song.artist_name}
               </p>
@@ -212,11 +213,11 @@ const SongRow: React.FC<SongRowProps> = ({
           ) : (
             <>
               <p
-                className={`text-sm font-medium truncate ${
+                className={`w-fit max-w-full text-sm font-medium truncate ${
                   isPlaying ? "text-green-500" : "text-white"
                 }`}
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </p>
               <p className="text-xs text-neutral-400 truncate flex items-center gap-1">
                 {song.artist_name}

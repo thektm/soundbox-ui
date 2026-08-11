@@ -26,6 +26,7 @@ import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
 import { readFollowingState } from "../lib/apiActionState";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 
 interface ApiArtist {
@@ -392,22 +393,22 @@ const SongRow = memo(
                 }}
                 role={onTitleClick ? "link" : undefined}
                 tabIndex={onTitleClick ? 0 : undefined}
-                className={`text-[15px] font-medium truncate ${
+                className={`w-fit max-w-full text-[15px] font-medium truncate ${
                   current ? "text-green-500" : "text-white"
                 } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </div>
               <div>{song.plays}</div>
             </>
           ) : (
             <>
               <div
-                className={`text-[15px] font-medium truncate ${
+                className={`w-fit max-w-full text-[15px] font-medium truncate ${
                   current ? "text-green-500" : "text-white"
                 }`}
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </div>
               <div className="text-[13px] text-white/60 truncate mt-0.5">
                 {song.plays
@@ -1317,6 +1318,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                   key={song.id}
                   id={song.id}
                   image={song.cover_image}
+                  song={song}
                   title={getSongDisplayTitle(song)}
                   artist={song.artist_name}
                   artistId={song.artist_id || artist.id}
@@ -1514,6 +1516,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
 const SongCard = ({
   id,
   image,
+  song,
   title,
   artist,
   artistId,
@@ -1522,6 +1525,7 @@ const SongCard = ({
 }: {
   id: number;
   image: string;
+  song: ApiSong;
   title: string;
   artist: string;
   artistId?: number;
@@ -1547,7 +1551,7 @@ const SongCard = ({
         <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
       </div>
       <h3
-        className={`font-semibold text-[13px] sm:text-sm truncate mb-1 ${
+        className={`w-fit max-w-full font-semibold text-[13px] sm:text-sm truncate mb-1 ${
           isDesktop ? "hover:underline decoration-zinc-500" : ""
         }`}
         onClick={(e) => {
@@ -1556,10 +1560,10 @@ const SongCard = ({
           navigateTo("song-detail", { id });
         }}
       >
-        {title}
+        <SongTitleWithFeaturedArtists song={song} />
       </h3>
       <p
-        className={`text-[11px] text-neutral-400 truncate ${
+        className={`w-fit max-w-full text-[11px] text-neutral-400 truncate ${
           isDesktop
             ? "hover:text-white transition-colors hover:underline decoration-zinc-500"
             : ""

@@ -6,6 +6,7 @@ import { Check, Download, Loader2, X } from "lucide-react";
 import { useI18n } from "./I18nContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 export type DownloadQuality = "128" | "320";
 
@@ -108,7 +109,7 @@ export default function DownloadFlowModal({
                   {t("دانلود موسیقی")}
                 </h2>
                 <p className="mt-1 truncate text-sm font-semibold text-white/85">
-                  {getSongDisplayTitle(track)}
+                  <SongTitleWithFeaturedArtists song={track} onFeaturedArtistNavigate={onClose} />
                 </p>
                 <p className="truncate text-xs text-white/45">{track.artist}</p>
               </div>

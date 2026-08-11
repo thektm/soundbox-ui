@@ -21,6 +21,7 @@ import UserAvatar from "./UserAvatar";
 import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
 import { getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 function ensureHttps(u?: string | null): string | undefined {
   if (!u) return undefined;
@@ -128,9 +129,13 @@ const LibraryItem = ({
                 }}
                 role={onTitleClick ? "link" : undefined}
                 tabIndex={onTitleClick ? 0 : undefined}
-                className="text-white text-xs font-semibold truncate w-full cursor-pointer hover:underline"
+                className="w-fit max-w-full text-white text-xs font-semibold truncate cursor-pointer hover:underline"
               >
-                {title}
+                {type === "song" ? (
+                  <SongTitleWithFeaturedArtists song={meta} />
+                ) : (
+                  title
+                )}
                 {type === "user" && meta && meta.unique_id === "sedabox" && (
                   <span
                     className="inline-flex items-center mr-2 text-emerald-500"
@@ -169,7 +174,7 @@ const LibraryItem = ({
                   }}
                   role={onSubtitleClick ? "link" : undefined}
                   tabIndex={onSubtitleClick ? 0 : undefined}
-                  className="text-zinc-400 text-[10px] truncate w-full mt-0.5 cursor-pointer hover:underline flex items-center gap-1"
+                  className="w-fit max-w-full text-zinc-400 text-[10px] truncate mt-0.5 cursor-pointer hover:underline inline-flex items-center gap-1"
                 >
                   <span className="truncate">{subtitle}</span>
                   {type === "user" && meta && (
@@ -204,11 +209,15 @@ const LibraryItem = ({
                 }}
                 role={onTitleClick ? "link" : undefined}
                 tabIndex={onTitleClick ? 0 : undefined}
-                className={`text-white text-xs font-semibold truncate w-full ${
+                className={`w-fit max-w-full text-white text-xs font-semibold truncate ${
                   onTitleClick ? "cursor-pointer hover:underline" : ""
                 }`}
               >
-                {title}
+                {type === "song" ? (
+                  <SongTitleWithFeaturedArtists song={meta} />
+                ) : (
+                  title
+                )}
                 {type === "user" && meta && meta.unique_id === "sedabox" && (
                   <span
                     className="inline-flex items-center mr-2 text-emerald-500"
@@ -247,7 +256,7 @@ const LibraryItem = ({
                   }}
                   role={onSubtitleClick ? "link" : undefined}
                   tabIndex={onSubtitleClick ? 0 : undefined}
-                  className={`text-zinc-400 text-[10px] truncate w-full mt-0.5 flex items-center gap-1 ${
+                  className={`w-fit max-w-full text-zinc-400 text-[10px] truncate mt-0.5 inline-flex items-center gap-1 ${
                     (type === "song" || type === "album") && onSubtitleClick
                       ? "cursor-pointer hover:underline"
                       : ""
@@ -324,9 +333,13 @@ const LibraryItem = ({
                 }}
                 role={onTitleClick ? "link" : undefined}
                 tabIndex={onTitleClick ? 0 : undefined}
-                className="text-white text-lg font-medium truncate w-full cursor-pointer hover:underline"
+                className="w-fit max-w-full text-white text-lg font-medium truncate cursor-pointer hover:underline"
               >
-                {title}
+                {type === "song" ? (
+                  <SongTitleWithFeaturedArtists song={meta} />
+                ) : (
+                  title
+                )}
                 {type === "user" && meta && meta.unique_id === "sedabox" && (
                   <span
                     className="inline-flex items-center mr-2 text-emerald-500"
@@ -365,7 +378,7 @@ const LibraryItem = ({
                   }}
                   role={onSubtitleClick ? "link" : undefined}
                   tabIndex={onSubtitleClick ? 0 : undefined}
-                  className="text-zinc-400 text-sm truncate w-full cursor-pointer hover:underline flex items-center gap-1"
+                  className="w-fit max-w-full text-zinc-400 text-sm truncate cursor-pointer hover:underline inline-flex items-center gap-1"
                 >
                   <span className="truncate">{subtitle}</span>
                   {type === "user" && meta && (
@@ -400,11 +413,15 @@ const LibraryItem = ({
                 }}
                 role={onTitleClick ? "link" : undefined}
                 tabIndex={onTitleClick ? 0 : undefined}
-                className={`text-white text-lg font-medium truncate w-full ${
+                className={`w-fit max-w-full text-white text-lg font-medium truncate ${
                   onTitleClick ? "cursor-pointer hover:underline" : ""
                 }`}
               >
-                {title}
+                {type === "song" ? (
+                  <SongTitleWithFeaturedArtists song={meta} />
+                ) : (
+                  title
+                )}
                 {type === "user" && meta && meta.unique_id === "sedabox" && (
                   <span
                     className="inline-flex items-center mr-2 text-emerald-500"
@@ -443,7 +460,7 @@ const LibraryItem = ({
                   }}
                   role={onSubtitleClick ? "link" : undefined}
                   tabIndex={onSubtitleClick ? 0 : undefined}
-                  className={`text-zinc-400 text-sm truncate w-full flex items-center gap-1 ${
+                  className={`w-fit max-w-full text-zinc-400 text-sm truncate inline-flex items-center gap-1 ${
                     (type === "song" || type === "album") && onSubtitleClick
                       ? "cursor-pointer hover:underline"
                       : ""

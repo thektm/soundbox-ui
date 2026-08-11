@@ -17,6 +17,8 @@ import { useI18n } from "./I18nContext";
 import { useNotifications } from "./NotificationContext";
 import { createSlug } from "../lib/slug";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, withSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import PromotionBadge from "./PromotionBadge";
 import {
   buildHomeSummaryRequestKey,
   HOME_SUMMARY_URL,
@@ -50,6 +52,7 @@ interface ApiSong {
   mood_names: string[];
   sub_genre_names: string[];
   play_count?: number;
+  is_promoted?: boolean;
 }
 
 interface ApiArtist {
@@ -448,6 +451,12 @@ type ItemType = {
   artistSlug?: string;
   slug?: string;
   songsCount?: number;
+  isPromoted?: boolean;
+  featuredArtists?: Array<{
+    id: string | number;
+    name: string;
+    uniqueId?: string;
+  }>;
 };
 
 type HeroHighlight = {
@@ -939,6 +948,7 @@ export default function Home() {
         forYou: homeData.songs_recommendations.songs.map((song) => ({
           id: song.id,
           title: getSongDisplayTitle(song),
+          featuredArtists: getPlayerFeaturedArtists(song),
           subtitle: song.artist_name,
           img: song.cover_image,
           duration: formatDuration(song.duration_seconds),
@@ -946,12 +956,14 @@ export default function Home() {
           type: "song" as const,
           artistId: (song as any).artist_id || (song as any).artist,
           artistSlug: (song as any).artist_slug,
+          isPromoted: Boolean(song.is_promoted),
         })),
         hottestDrops: homeData.latest_releases.results
           .slice(0, 5)
           .map((song) => ({
             id: song.id,
             title: getSongDisplayTitle(song),
+            featuredArtists: getPlayerFeaturedArtists(song),
             subtitle: song.artist_name,
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
@@ -985,6 +997,7 @@ export default function Home() {
           .map((song, index) => ({
             id: song.id,
             title: getSongDisplayTitle(song),
+            featuredArtists: getPlayerFeaturedArtists(song),
             subtitle: song.artist_name,
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
@@ -998,6 +1011,7 @@ export default function Home() {
           .map((song) => ({
             id: song.id,
             title: getSongDisplayTitle(song),
+            featuredArtists: getPlayerFeaturedArtists(song),
             subtitle: song.artist_name,
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
@@ -1009,6 +1023,7 @@ export default function Home() {
         trending: (homeData.trending?.results || []).map((song) => ({
           id: song.id,
           title: getSongDisplayTitle(song),
+          featuredArtists: getPlayerFeaturedArtists(song),
           subtitle: song.artist_name,
           img: song.cover_image,
           duration: formatDuration(song.duration_seconds),
@@ -1022,6 +1037,7 @@ export default function Home() {
           .map((song, index) => ({
             id: song.id,
             title: getSongDisplayTitle(song),
+            featuredArtists: getPlayerFeaturedArtists(song),
             subtitle: song.artist_name,
             img: song.cover_image,
             duration: formatDuration(song.duration_seconds),
@@ -1347,16 +1363,18 @@ export default function Home() {
                 </div>
               </div>
               <h3
-                className="mt-2 min-w-0 overflow-hidden text-lg font-bold hover:underline decoration-zinc-500"
+                className="mt-2 w-fit max-w-full min-w-0 overflow-hidden text-lg font-bold hover:underline decoration-zinc-500"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigateTo("song-detail", { id: item.id });
                 }}
               >
-                <OverflowMarquee text={item.title} />
+                <OverflowMarquee text={item.title}>
+                  <SongTitleWithFeaturedArtists song={item} />
+                </OverflowMarquee>
               </h3>
               <p
-                className="min-w-0 overflow-hidden text-sm text-zinc-400 hover:text-white transition-colors"
+                className="w-fit max-w-full min-w-0 overflow-hidden text-sm text-zinc-400 hover:text-white transition-colors"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (item.artistId) {
@@ -1543,6 +1561,7 @@ export default function Home() {
           items={dailyTopSongs.results.map((s) => ({
             id: s.id,
             title: getSongDisplayTitle(s),
+            featuredArtists: getPlayerFeaturedArtists(s),
             subtitle: s.artist_name,
             img: s.cover_image,
             isNew: false,
@@ -1703,6 +1722,7 @@ export default function Home() {
           items={weeklyTopSongs.results.map((s) => ({
             id: s.id,
             title: getSongDisplayTitle(s),
+            featuredArtists: getPlayerFeaturedArtists(s),
             subtitle: s.artist_name,
             img: s.cover_image,
             isNew: false,
@@ -2603,7 +2623,7 @@ const Section = ({
               e.stopPropagation();
               onTitleClick();
             }}
-            className="w-full rounded text-start text-2xl font-bold leading-none tracking-tight transition-colors hover:text-white hover:underline decoration-zinc-500 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="w-fit max-w-full rounded text-start text-2xl font-bold leading-none tracking-tight transition-colors hover:text-white hover:underline decoration-zinc-500 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           >
             {title}
           </button>
@@ -2692,7 +2712,7 @@ const Section = ({
                 e.stopPropagation();
                 onTitleClick();
               }}
-              className="text-2xl font-bold tracking-tight leading-none text-start w-full text-left md:text-start hover:text-white transition-colors hover:underline decoration-zinc-500 focus-visible:ring-2 focus-visible:ring-emerald-500 rounded outline-none"
+              className="w-fit max-w-full text-2xl font-bold tracking-tight leading-none text-start text-left md:text-start hover:text-white transition-colors hover:underline decoration-zinc-500 focus-visible:ring-2 focus-visible:ring-emerald-500 rounded outline-none"
             >
               {title}
             </button>
@@ -2864,6 +2884,10 @@ const HorizontalList = ({
                 type={variant === "circle" ? "artist" : "song"}
               />
 
+              {item.type === "song" && item.isPromoted && (
+                <PromotionBadge className="absolute left-2 top-2 z-20" />
+              )}
+
               {/* Hover overlay with gradient */}
               {variant === "layered" && (
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -2953,7 +2977,7 @@ const HorizontalList = ({
             }`}
           >
             <h3
-              className={`w-full min-w-0 overflow-hidden font-semibold text-white hover:underline decoration-zinc-500 ${
+              className={`w-fit max-w-full min-w-0 overflow-hidden font-semibold text-white hover:underline decoration-zinc-500 ${
                 variant === "circle" ? "text-sm" : "text-sm"
               }`}
               onClick={(e) => {
@@ -2981,13 +3005,19 @@ const HorizontalList = ({
                 <OverflowMarquee
                   text={item.title}
                   align={item.type === "artist" ? "center" : "start"}
-                />
+                >
+                  {item.type === "song" ? (
+                    <SongTitleWithFeaturedArtists song={item} />
+                  ) : (
+                    item.title
+                  )}
+                </OverflowMarquee>
               ) : (
                 <span className="block truncate">{item.title}</span>
               )}
             </h3>
             <p
-              className="w-full min-w-0 overflow-hidden text-xs text-zinc-400 hover:text-white transition-colors"
+              className="w-fit max-w-full min-w-0 overflow-hidden text-xs text-zinc-400 hover:text-white transition-colors"
               onClick={(e) => {
                 const isDesktop =
                   typeof window !== "undefined" &&
@@ -3098,7 +3128,9 @@ const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
             </div>
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden text-start">
               <span className="flex min-w-0 items-center gap-2 font-bold text-white">
-                <OverflowMarquee text={item.title} className="min-w-0 flex-1" />
+                <OverflowMarquee text={item.title} className="min-w-0 flex-1">
+                  <SongTitleWithFeaturedArtists song={item} />
+                </OverflowMarquee>
                 {item.isNew && (
                   <span className="z-20 shrink-0 rounded bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-lg">
                     جدید
@@ -3214,13 +3246,15 @@ const PremiumChartList = ({
                 }}
               >
                 {item.type === "song" ? (
-                  <OverflowMarquee text={item.title} />
+                  <OverflowMarquee text={item.title}>
+                    <SongTitleWithFeaturedArtists song={item} />
+                  </OverflowMarquee>
                 ) : (
                   <span className="block truncate">{item.title}</span>
                 )}
               </h4>
               <p
-                className="mt-0.5 min-w-0 overflow-hidden text-xs text-zinc-400 hover:text-white transition-colors"
+                className="mt-0.5 w-fit max-w-full min-w-0 overflow-hidden text-xs text-zinc-400 hover:text-white transition-colors"
                 onClick={(e) => {
                   const isDesktop =
                     typeof window !== "undefined" &&
@@ -3327,7 +3361,7 @@ const GlassAlbumGrid = ({
               {item.title}
             </h4>
             <p
-              className="mt-0.5 min-w-0 overflow-hidden px-1 text-[11px] text-zinc-400 hover:text-white transition-colors"
+              className="mt-0.5 w-fit max-w-full min-w-0 overflow-hidden px-1 text-[11px] text-zinc-400 hover:text-white transition-colors"
               onClick={(e) => {
                 const isDesktop =
                   typeof window !== "undefined" &&

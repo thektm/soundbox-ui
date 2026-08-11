@@ -3,6 +3,8 @@ import React, { memo, useEffect, useRef, useState } from "react";
 import { useI18n } from "./I18nContext";
 import { clientTrace } from "../lib/clientDebug";
 import { getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import PromotionBadge from "./PromotionBadge";
 
 // --- Interfaces ---
 export interface GenreLink {
@@ -28,6 +30,7 @@ export interface ApiSong {
   mood_names?: string[];
   sub_genre_names?: string[];
   play_count?: number;
+  is_promoted?: boolean;
 }
 
 export interface HomeSummaryResponse {
@@ -541,7 +544,7 @@ function HeroSection({
                         type="button"
                         onClick={(event) => navigateItem(event, active, "artist")}
                         dir={getTextDirection(displayArtist)}
-                        className="min-w-0 w-full max-w-[45%] overflow-hidden text-start text-sm font-semibold text-emerald-300 transition hover:text-emerald-200 hover:underline"
+                        className="inline-block w-fit max-w-[45%] min-w-0 overflow-hidden text-start text-sm font-semibold text-emerald-300 transition hover:text-emerald-200 hover:underline"
                       >
                         <OverflowMarquee text={displayArtist} />
                       </button>
@@ -561,10 +564,12 @@ function HeroSection({
                         )
                       }
                       dir={getTextDirection(displayTitle)}
-                      className="min-w-0 flex-1 overflow-hidden text-start text-zinc-100 transition hover:text-white hover:underline"
+                      className="inline-block w-fit max-w-full min-w-0 overflow-hidden text-start text-zinc-100 transition hover:text-white hover:underline"
                     >
                       {active.type === "song" ? (
-                        <OverflowMarquee text={displayTitle} />
+                        <OverflowMarquee text={displayTitle}>
+                          <SongTitleWithFeaturedArtists song={activeItem} />
+                        </OverflowMarquee>
                       ) : (
                         <span className="block truncate">{displayTitle}</span>
                       )}
@@ -744,6 +749,10 @@ function HeroSection({
                       />
                     </div>
 
+                    {item.type === "song" && item.item?.is_promoted && (
+                      <PromotionBadge className="absolute left-4 top-4 z-20" />
+                    )}
+
                     {/* Content */}
                     <div
                       dir={direction}
@@ -788,10 +797,12 @@ function HeroSection({
                                     : "song",
                               )
                             }
-                            className="w-full min-w-0 overflow-hidden text-start text-sm font-bold text-white drop-shadow-md transition hover:underline sm:text-base md:text-lg"
+                            className="inline-block w-fit max-w-full min-w-0 overflow-hidden text-start text-sm font-bold text-white drop-shadow-md transition hover:underline sm:text-base md:text-lg"
                           >
                             {item.type === "song" ? (
-                              <OverflowMarquee text={item.title} />
+                              <OverflowMarquee text={item.title}>
+                                <SongTitleWithFeaturedArtists song={item.item} />
+                              </OverflowMarquee>
                             ) : (
                               <span className="block truncate">{item.title}</span>
                             )}
@@ -802,7 +813,7 @@ function HeroSection({
                               <button
                                 type="button"
                                 onClick={(event) => navigateItem(event, item, "artist")}
-                                className="block w-full min-w-0 overflow-hidden font-semibold text-emerald-300 transition hover:text-emerald-200 hover:underline"
+                                className="inline-block w-fit max-w-full min-w-0 overflow-hidden font-semibold text-emerald-300 transition hover:text-emerald-200 hover:underline"
                               >
                                 <OverflowMarquee
                                   text={item.item?.artist_name || item.subtitle}

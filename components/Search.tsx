@@ -42,6 +42,7 @@ import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
 import { buildUserNavigationParams, isSedaboxUser } from "../lib/userProfileRoute";
 import { readFollowingState } from "../lib/apiActionState";
 import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // ============ TYPES & MOCKS ============
 interface Song {
@@ -783,13 +784,13 @@ const SongCard = memo(
                   e.stopPropagation();
                   onTitleClick();
                 }}
-                className={`text-white font-normal truncate cursor-pointer hover:underline`}
+                className="inline-flex w-fit max-w-full text-white font-normal truncate cursor-pointer hover:underline"
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </span>
             ) : (
               <span className="text-white font-normal truncate">
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </span>
             )}
             {song.explicit && (
@@ -808,7 +809,7 @@ const SongCard = memo(
                   e.stopPropagation();
                   onArtistClick();
                 }}
-                className="truncate cursor-pointer hover:underline"
+                className="inline-flex w-fit max-w-full truncate cursor-pointer hover:underline"
               >
                 {song.artist}
               </span>
@@ -1016,7 +1017,7 @@ const AlbumCard = memo(
               navigateTo("album-detail", { id: album.id, slug: album.slug });
             }
           }}
-          className={`font-bold text-white truncate mb-1 ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
+          className={`w-fit max-w-full font-bold text-white truncate mb-1 ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
         >
           {album.title}
         </div>
@@ -1027,7 +1028,7 @@ const AlbumCard = memo(
               navigateTo("artist-detail", { id: album.artistId });
             }
           }}
-          className={`text-sm text-[#a7a7a7] truncate ${isDesktop && album.artistId ? "hover:underline cursor-pointer" : ""}`}
+          className={`w-fit max-w-full text-sm text-[#a7a7a7] truncate ${isDesktop && album.artistId ? "hover:underline cursor-pointer" : ""}`}
         >
           {album.artist} • {album.year}
         </div>
@@ -1382,9 +1383,13 @@ const SectionCard = memo(
                 }
               }
             }}
-            className={`font-bold text-white text-sm truncate w-full ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
+            className={`w-fit max-w-full font-bold text-white text-sm truncate ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
           >
-            {title}
+            {type === "song" ? (
+              <SongTitleWithFeaturedArtists song={item} />
+            ) : (
+              title
+            )}
           </div>
           <div
             onClick={(e) => {
@@ -1399,7 +1404,7 @@ const SectionCard = memo(
                 }
               }
             }}
-            className={`text-xs text-[#a7a7a7] truncate w-full group-hover:text-white/80 transition-colors ${isDesktop && (type === "song" || type === "album") ? "hover:underline cursor-pointer" : ""}`}
+            className={`w-fit max-w-full text-xs text-[#a7a7a7] truncate group-hover:text-white/80 transition-colors ${isDesktop && (type === "song" || type === "album") ? "hover:underline cursor-pointer" : ""}`}
           >
             {subTitle}
           </div>

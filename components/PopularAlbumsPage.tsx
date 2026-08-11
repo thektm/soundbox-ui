@@ -138,7 +138,7 @@ const PopularAlbumsPage: React.FC = () => {
                 {album.title}
               </h3>
               <p
-                className="text-zinc-500 font-medium hover:text-white transition-colors hover:underline decoration-zinc-500"
+                className="w-fit max-w-full text-zinc-500 font-medium hover:text-white transition-colors hover:underline decoration-zinc-500"
                 onClick={(e) => {
                   const isDesktop =
                     typeof window !== "undefined" &&

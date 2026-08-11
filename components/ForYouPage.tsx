@@ -8,6 +8,8 @@ import { useNavigation } from "./NavigationContext";
 import { createSlug } from "../lib/slug";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { getSongDisplayTitle, getPlayerFeaturedArtists, normalizeSongCollection } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import PromotionBadge from "./PromotionBadge";
 
 interface ApiSong {
   id: number;
@@ -19,6 +21,7 @@ interface ApiSong {
   cover_image: string;
   stream_url: string;
   duration_seconds: number;
+  is_promoted?: boolean;
 }
 
 interface SongsRecommendationsContainer {
@@ -148,6 +151,9 @@ const ForYouPage: React.FC = () => {
                 className="w-full h-full object-cover"
                 type="song"
               />
+              {song.is_promoted && (
+                <PromotionBadge className="absolute left-2 top-2 z-20" />
+              )}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <svg
                   className="w-8 h-8 text-white fill-current"
@@ -159,7 +165,7 @@ const ForYouPage: React.FC = () => {
             </div>
             <div className="flex-1 min-w-0 pr-2">
               <h3
-                className="font-black text-white text-lg truncate group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
+                className="w-fit max-w-full font-black text-white text-lg truncate group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
                 onClick={(e) => {
                   const isDesktop =
                     typeof window !== "undefined" &&
@@ -173,10 +179,10 @@ const ForYouPage: React.FC = () => {
                   });
                 }}
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </h3>
               <p
-                className="text-zinc-500 font-medium truncate hover:text-white transition-all hover:underline decoration-zinc-500"
+                className="w-fit max-w-full text-zinc-500 font-medium truncate hover:text-white transition-all hover:underline decoration-zinc-500"
                 onClick={(e) => {
                   const isDesktop =
                     typeof window !== "undefined" &&

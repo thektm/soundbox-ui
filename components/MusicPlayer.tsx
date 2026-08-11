@@ -33,6 +33,7 @@ import { createSlug } from "../lib/slug";
 import { Sparkles, User, UserRoundCog } from "lucide-react";
 import { clientTrace } from "../lib/clientDebug";
 import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -547,26 +548,14 @@ const TrackIdentity = memo<{
   artistsClassName = "",
 }) => {
   const { navigateTo } = useNavigation();
-  const artists = useMemo(() => {
-    const items = [
-      {
-        id: track.artistId || (track as any).artist_id,
-        name: track.artist,
-        uniqueId:
-          track.artistUniqueId ||
-          (track as any).artist_unique_id ||
-          undefined,
-      },
-      ...(track.featuredArtists || []),
-    ].filter((artist) => artist?.name);
-    const seen = new Set<string>();
-    return items.filter((artist) => {
-      const key = String(artist.id || artist.name).toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [track]);
+  const primaryArtist = useMemo(() => ({
+    id: track.artistId || (track as any).artist_id,
+    name: track.artist,
+    uniqueId:
+      track.artistUniqueId ||
+      (track as any).artist_unique_id ||
+      undefined,
+  }), [track]);
 
   const openSong = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -597,7 +586,7 @@ const TrackIdentity = memo<{
 
   const titleAlignment =
     align === "center" ? "mx-auto text-center" : "text-start";
-  const artistsDirection = textDirection(artists.map((artist) => artist.name).join(" "));
+  const artistsDirection = textDirection(primaryArtist.name);
 
   return (
     <div className={`min-w-0 ${align === "center" ? "w-full" : "flex-1"}`}>
@@ -611,7 +600,7 @@ const TrackIdentity = memo<{
           compact ? "text-sm" : ""
         } ${isAdPlaying ? "cursor-default" : "hover:underline"} ${titleClassName}`}
       >
-        {getSongDisplayTitle(track)}
+        <SongTitleWithFeaturedArtists song={track} />
       </button>
       <div
         dir={artistsDirection}
@@ -625,34 +614,27 @@ const TrackIdentity = memo<{
       >
         {isAdPlaying ? (
           <span className="truncate text-xs text-neutral-400">Ad</span>
+        ) : primaryArtist.id || primaryArtist.uniqueId ? (
+          <button
+            type="button"
+            onClick={(event) => openArtist(event, primaryArtist)}
+            dir={textDirection(primaryArtist.name)}
+            data-player-no-expand="true"
+            className={`inline-block w-fit max-w-full flex-none truncate text-xs text-neutral-400 transition hover:text-white hover:underline ${
+              textDirection(primaryArtist.name) === "rtl"
+                ? "text-right"
+                : "text-left"
+            }`}
+          >
+            {primaryArtist.name}
+          </button>
         ) : (
-          artists.map((artist, index) => (
-            <React.Fragment key={`${artist.id || artist.name}-${index}`}>
-              {index > 0 && <span className="text-neutral-600">،</span>}
-              {artist.id || artist.uniqueId ? (
-                <button
-                  type="button"
-                  onClick={(event) => openArtist(event, artist)}
-                  dir={textDirection(artist.name)}
-                  data-player-no-expand="true"
-                  className={`inline-block w-fit max-w-full flex-none truncate text-xs text-neutral-400 transition hover:text-white hover:underline ${
-                    textDirection(artist.name) === "rtl"
-                      ? "text-right"
-                      : "text-left"
-                  }`}
-                >
-                  {artist.name}
-                </button>
-              ) : (
-                <span
-                  dir={textDirection(artist.name)}
-                  className="min-w-0 truncate text-xs text-neutral-400"
-                >
-                  {artist.name}
-                </span>
-              )}
-            </React.Fragment>
-          ))
+          <span
+            dir={textDirection(primaryArtist.name)}
+            className="inline-block w-fit max-w-full truncate text-xs text-neutral-400"
+          >
+            {primaryArtist.name}
+          </span>
         )}
       </div>
     </div>
@@ -916,7 +898,7 @@ const ActionPreview = memo<{
               {label}
             </div>
             <div className="text-xs text-white font-medium truncate">
-              {getSongDisplayTitle(track)}
+              <SongTitleWithFeaturedArtists song={track} />
             </div>
           </div>
         )}
@@ -934,7 +916,7 @@ const ActionPreview = memo<{
               {label}
             </div>
             <div className="text-xs text-white font-medium truncate">
-              {getSongDisplayTitle(track)}
+              <SongTitleWithFeaturedArtists song={track} />
             </div>
           </div>
         )}
@@ -2361,7 +2343,7 @@ const DesktopExpandedPlayer = memo<{
                               : "text-white"
                           }`}
                         >
-                          {getSongDisplayTitle(track)}
+                          <SongTitleWithFeaturedArtists song={track} />
                         </div>
                         <div className="text-xs text-neutral-500 truncate">
                           {track.artist}
@@ -2509,7 +2491,7 @@ const DesktopExpandedPlayer = memo<{
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium truncate text-white">
-                              {getSongDisplayTitle(track)}
+                              <SongTitleWithFeaturedArtists song={track} />
                             </div>
                             <div className="text-xs text-neutral-500 truncate">
                               {track.artist}

@@ -212,7 +212,7 @@ const AlbumCardGrid = memo(
               navigateTo("album-detail", { id: album.id });
             }
           }}
-          className={`text-sm font-medium text-white truncate ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
+          className={`w-fit max-w-full text-sm font-medium text-white truncate ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
         >
           {album.title}
         </h3>
@@ -223,7 +223,7 @@ const AlbumCardGrid = memo(
               navigateTo("artist-detail", { id: album.artistId });
             }
           }}
-          className={`text-xs text-gray-500 truncate mt-0.5 ${isDesktop && album.artistId ? "hover:underline cursor-pointer" : ""}`}
+          className={`w-fit max-w-full text-xs text-gray-500 truncate mt-0.5 ${isDesktop && album.artistId ? "hover:underline cursor-pointer" : ""}`}
         >
           {album.artist}
         </p>
@@ -286,7 +286,7 @@ const AlbumCardList = memo(
                 navigateTo("album-detail", { id: album.id });
               }
             }}
-            className={`text-sm font-medium text-white truncate ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
+            className={`w-fit max-w-full text-sm font-medium text-white truncate ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
           >
             {album.title}
           </h3>
@@ -297,7 +297,7 @@ const AlbumCardList = memo(
                 navigateTo("artist-detail", { id: album.artistId });
               }
             }}
-            className={`text-xs text-gray-500 truncate mt-0.5 ${isDesktop && album.artistId ? "hover:underline cursor-pointer" : ""}`}
+            className={`w-fit max-w-full text-xs text-gray-500 truncate mt-0.5 ${isDesktop && album.artistId ? "hover:underline cursor-pointer" : ""}`}
           >
             {album.artist}
           </p>

@@ -11,6 +11,7 @@ import { Drawer } from "vaul";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlayer, Track } from "./PlayerContext";
 import { getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // ============================================================================
 // ICONS
@@ -115,6 +116,7 @@ interface QueueTrackProps {
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
   onDelete: (index: number) => void;
+  onFeaturedArtistNavigate?: () => void;
 }
 
 const QueueTrack = memo<QueueTrackProps>(
@@ -129,6 +131,7 @@ const QueueTrack = memo<QueueTrackProps>(
     onMoveUp,
     onMoveDown,
     onDelete,
+    onFeaturedArtistNavigate,
   }) => {
     return (
       <motion.div
@@ -199,7 +202,7 @@ const QueueTrack = memo<QueueTrackProps>(
               isCurrentTrack ? "text-emerald-400" : "text-white"
             }`}
           >
-            {getSongDisplayTitle(track)}
+            <SongTitleWithFeaturedArtists song={track} onFeaturedArtistNavigate={onFeaturedArtistNavigate} />
           </h4>
           <p className="text-xs text-neutral-400 truncate mt-0.5">
             {track.artist}
@@ -424,6 +427,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
                           const newQueue = queue.filter((_, j) => j !== i);
                           reorderQueue(newQueue);
                         }}
+                        onFeaturedArtistNavigate={onClose}
                       />
                     </div>
                   ))}

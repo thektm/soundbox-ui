@@ -8,6 +8,7 @@ import { useNavigation } from "./NavigationContext";
 import { createSlug } from "../lib/slug";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { getSongDisplayTitle, getPlayerFeaturedArtists, normalizeSongCollection } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 interface ApiSong {
   id: number;
@@ -125,7 +126,7 @@ const NewDiscoveriesPage: React.FC = () => {
             </div>
             <div className="flex-1 min-w-0 pr-2">
               <h3
-                className="font-black text-white text-lg truncate group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
+                className="w-fit max-w-full font-black text-white text-lg truncate group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
                 onClick={(e) => {
                   const isDesktop =
                     typeof window !== "undefined" &&
@@ -139,10 +140,10 @@ const NewDiscoveriesPage: React.FC = () => {
                   });
                 }}
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </h3>
               <p
-                className="text-zinc-500 font-medium truncate hover:text-white transition-all hover:underline decoration-zinc-500"
+                className="w-fit max-w-full text-zinc-500 font-medium truncate hover:text-white transition-all hover:underline decoration-zinc-500"
                 onClick={(e) => {
                   const isDesktop =
                     typeof window !== "undefined" &&

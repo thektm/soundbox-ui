@@ -20,6 +20,7 @@ import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // ============== API INTERFACES ==============
 
@@ -313,11 +314,11 @@ const SongRow = memo(
                 }}
                 role={onTitleClick ? "link" : undefined}
                 tabIndex={onTitleClick ? 0 : undefined}
-                className={`text-[15px] font-medium truncate ${
+                className={`w-fit max-w-full text-[15px] font-medium truncate ${
                   current ? "text-green-500" : "text-white"
                 } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </div>
               <div
                 onClick={(e: React.MouseEvent<HTMLDivElement>) => {
@@ -332,7 +333,7 @@ const SongRow = memo(
                 }}
                 role={onArtistClick ? "link" : undefined}
                 tabIndex={onArtistClick ? 0 : undefined}
-                className="text-[13px] text-white/60 truncate mt-0.5 cursor-pointer hover:underline"
+                className="w-fit max-w-full text-[13px] text-white/60 truncate mt-0.5 cursor-pointer hover:underline"
               >
                 {song.artist_name}
               </div>
@@ -340,11 +341,11 @@ const SongRow = memo(
           ) : (
             <>
               <div
-                className={`text-[15px] font-medium truncate ${
+                className={`w-fit max-w-full text-[15px] font-medium truncate ${
                   current ? "text-green-500" : "text-white"
                 }`}
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </div>
               <div className="text-[13px] text-white/60 truncate mt-0.5">
                 {song.artist_name}

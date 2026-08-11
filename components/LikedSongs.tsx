@@ -15,6 +15,7 @@ import { useAuth } from "./AuthContext";
 import type { Song } from "./mockData";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // ============================================================================
 // Utilities & Constants
@@ -124,18 +125,18 @@ const SongRow = memo(
                   e.stopPropagation();
                   onTitleClick && onTitleClick();
                 }}
-                className={`text-sm font-medium truncate ${
+                className={`w-fit max-w-full text-sm font-medium truncate ${
                   isPlaying ? "text-emerald-400" : "text-white"
                 } ${onTitleClick ? "cursor-pointer hover:underline" : ""}`}
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </h3>
               <p
                 onClick={(e) => {
                   e.stopPropagation();
                   onArtistClick && onArtistClick();
                 }}
-                className="text-xs text-gray-500 truncate cursor-pointer hover:underline"
+                className="w-fit max-w-full text-xs text-gray-500 truncate cursor-pointer hover:underline"
               >
                 {song.artist}
               </p>
@@ -143,9 +144,9 @@ const SongRow = memo(
           ) : (
             <>
               <h3
-                className={`text-sm font-medium truncate ${isPlaying ? "text-emerald-400" : "text-white"}`}
+                className={`w-fit max-w-full text-sm font-medium truncate ${isPlaying ? "text-emerald-400" : "text-white"}`}
               >
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </h3>
               <p className="text-xs text-gray-500 truncate">{song.artist}</p>
             </>

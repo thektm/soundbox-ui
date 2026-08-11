@@ -22,6 +22,7 @@ import { getFullShareUrl } from "../utils/share";
 import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, withSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 interface ApiGenreLink {
   id: number;
@@ -399,7 +400,7 @@ const { navigateTo } = useNavigation();
         </div>
         <div className="flex-1 min-w-0">
           <p
-            className="text-white text-sm font-medium truncate hover:underline decoration-zinc-500 cursor-pointer"
+            className="w-fit max-w-full text-white text-sm font-medium truncate hover:underline decoration-zinc-500 cursor-pointer"
             onClick={(e) => {
               const isDesktop =
                 typeof window !== "undefined" &&
@@ -413,10 +414,10 @@ const { navigateTo } = useNavigation();
               });
             }}
           >
-            {getSongDisplayTitle(track)}
+            <SongTitleWithFeaturedArtists song={track} />
           </p>
           <p
-            className="text-neutral-400 text-xs truncate hover:text-white transition-colors cursor-pointer"
+            className="w-fit max-w-full text-neutral-400 text-xs truncate hover:text-white transition-colors cursor-pointer"
             onClick={(e) => {
               const isDesktop =
                 typeof window !== "undefined" &&
@@ -1121,7 +1122,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             dir={direction}
           >
             <h2 className="text-lg font-bold text-white truncate">
-              {getSongDisplayTitle(song)}
+              <SongTitleWithFeaturedArtists song={song} />
             </h2>
           </div>
           <button
@@ -1155,7 +1156,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
           </button>
           <div className="flex-1 flex justify-center overflow-hidden px-4">
             <span className="text-base font-bold text-white truncate">
-              {getSongDisplayTitle(song)}
+              <SongTitleWithFeaturedArtists song={song} />
             </span>
           </div>
           <div className="w-10 shrink-0" />
@@ -1184,7 +1185,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                 آهنگ
               </span>
               <h1 className="mt-3 text-4xl md:text-6xl lg:text-7xl font-black text-white leading-tight">
-                {getSongDisplayTitle(song)}
+                <SongTitleWithFeaturedArtists song={song} />
               </h1>
               <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-2 text-sm text-neutral-300">
                 <button
@@ -1199,7 +1200,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                       });
                     }
                   }}
-                  className="font-semibold text-white hover:underline cursor-pointer"
+                  className="inline-block w-fit max-w-full font-semibold text-white hover:underline cursor-pointer"
                 >
                   {song.artist}
                 </button>

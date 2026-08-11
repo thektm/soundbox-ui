@@ -26,6 +26,7 @@ import { ReportModal } from "./ReportModal";
 import { getFullShareUrl } from "../utils/share";
 import { useGuestAccess } from "./GuestAccessContext";
 import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 interface SongOptionsDrawerProps {
   isOpen: boolean;
@@ -505,7 +506,7 @@ export const SongOptionsDrawer = ({
               onClose();
             }}
           >
-            {songDisplayTitle}
+            <SongTitleWithFeaturedArtists song={song} onFeaturedArtistNavigate={onClose} />
           </h3>
           <p
             className={`text-[14px] text-white/50 truncate mt-1 ${

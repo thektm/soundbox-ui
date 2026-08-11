@@ -8,6 +8,7 @@ import { usePlayerActions } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useI18n } from "./I18nContext";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 interface ChartPageProps {
   title?: string;
@@ -225,7 +226,7 @@ const ChartPage: React.FC<ChartPageProps> = ({
             {/* Text */}
             <div className="flex-1 min-w-0 pr-2">
               <h3
-                className="text-white font-black text-lg group-hover:text-emerald-400 transition-colors truncate hover:underline decoration-zinc-500"
+                className="w-fit max-w-full text-white font-black text-lg group-hover:text-emerald-400 transition-colors truncate hover:underline decoration-zinc-500"
                 onClick={(e) => {
                   const isDesktop =
                     typeof window !== "undefined" &&
@@ -249,12 +250,14 @@ const ChartPage: React.FC<ChartPageProps> = ({
                   }
                 }}
               >
-                {type === "songs"
-                  ? getSongDisplayTitle(item)
-                  : item.title || item.name || item.artistic_name}
+                {type === "songs" ? (
+                  <SongTitleWithFeaturedArtists song={item} />
+                ) : (
+                  item.title || item.name || item.artistic_name
+                )}
               </h3>
               <p
-                className="text-zinc-500 font-medium truncate hover:text-white transition-all hover:underline decoration-zinc-500"
+                className="w-fit max-w-full text-zinc-500 font-medium truncate hover:text-white transition-all hover:underline decoration-zinc-500"
                 onClick={(e) => {
                   const isDesktop =
                     typeof window !== "undefined" &&

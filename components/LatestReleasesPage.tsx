@@ -7,6 +7,7 @@ import { useNavigation } from "./NavigationContext";
 import { usePlayerActions } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { getSongDisplayTitle, getPlayerFeaturedArtists, normalizeSongCollection } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 interface ApiSong {
   id: number;
@@ -132,7 +133,7 @@ const LatestReleasesPage: React.FC = () => {
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
                   <h3
-                    className="text-2xl font-black text-white group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
+                    className="w-fit max-w-full text-2xl font-black text-white group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
                     onClick={(e) => {
                       const isDesktop =
                         typeof window !== "undefined" &&
@@ -143,10 +144,10 @@ const LatestReleasesPage: React.FC = () => {
                       navigateTo("song-detail", { id: song.id });
                     }}
                   >
-                    {getSongDisplayTitle(song)}
+                    <SongTitleWithFeaturedArtists song={song} />
                   </h3>
                   <p
-                    className="text-zinc-400 font-medium text-lg hover:text-white transition-colors hover:underline decoration-zinc-500"
+                    className="w-fit max-w-full text-zinc-400 font-medium text-lg hover:text-white transition-colors hover:underline decoration-zinc-500"
                     onClick={(e) => {
                       const isDesktop =
                         typeof window !== "undefined" &&

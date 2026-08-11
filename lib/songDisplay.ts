@@ -26,6 +26,14 @@ export type SongDisplayLike = {
   featuredArtists?: unknown;
 };
 
+export type FeaturedArtistEntry = {
+  key: string;
+  name: string;
+  id?: string | number;
+  uniqueId?: string;
+  canNavigate: boolean;
+};
+
 const textValue = (value: unknown): string =>
   typeof value === "string" || typeof value === "number"
     ? String(value).trim()
@@ -58,23 +66,75 @@ export function getFeaturedArtistName(artist: FeaturedArtistLike): string {
   );
 }
 
-export function getFeaturedArtistNames(song: SongDisplayLike | null | undefined): string[] {
+export function getFeaturedArtistEntries(
+  song: SongDisplayLike | null | undefined,
+): FeaturedArtistEntry[] {
   const raw = Array.isArray(song?.featured_artists)
-    ? song?.featured_artists
+    ? song.featured_artists
     : Array.isArray(song?.featuredArtists)
-      ? song?.featuredArtists
+      ? song.featuredArtists
       : [];
 
-  const names: string[] = [];
+  const entries: FeaturedArtistEntry[] = [];
   const seen = new Set<string>();
-  for (const artist of raw as FeaturedArtistLike[]) {
+
+  for (const [index, artist] of (raw as FeaturedArtistLike[]).entries()) {
     const name = getFeaturedArtistName(artist);
-    const key = name.toLocaleLowerCase();
-    if (!name || seen.has(key)) continue;
-    seen.add(key);
-    names.push(name);
+    if (!name) continue;
+
+    const objectArtist =
+      artist && typeof artist === "object" && !Array.isArray(artist)
+        ? artist
+        : null;
+    const id = objectArtist?.id ?? undefined;
+    const uniqueId = objectArtist
+      ? textValue(objectArtist.unique_id) || textValue(objectArtist.uniqueId)
+      : "";
+    const identity =
+      id !== undefined && id !== null
+        ? `id:${String(id)}`
+        : uniqueId
+          ? `uid:${uniqueId}`
+          : `name:${name.toLocaleLowerCase()}`;
+
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+
+    entries.push({
+      key: `${identity}:${index}`,
+      name,
+      ...(id !== undefined && id !== null ? { id } : {}),
+      ...(uniqueId ? { uniqueId } : {}),
+      canNavigate: Boolean(
+        uniqueId ||
+          (id !== undefined &&
+            id !== null &&
+            String(id).trim() &&
+            !String(id).startsWith("featured-")),
+      ),
+    });
   }
-  return names;
+
+  return entries;
+}
+
+export function getFeaturedArtistNames(
+  song: SongDisplayLike | null | undefined,
+): string[] {
+  return getFeaturedArtistEntries(song).map((artist) => artist.name);
+}
+
+export function getSongBaseTitle(
+  song: SongDisplayLike | null | undefined,
+): string {
+  const baseTitle =
+    textValue(song?.title) ||
+    textValue(song?.title_fa) ||
+    textValue(song?.title_en) ||
+    textValue(song?.display_title) ||
+    textValue(song?.displayTitle) ||
+    "";
+  return baseTitle.replace(FEATURE_SUFFIX_RE, "").trim();
 }
 
 export function getSongDisplayTitle(song: SongDisplayLike | null | undefined): string {

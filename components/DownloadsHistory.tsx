@@ -20,6 +20,7 @@ import {
 import toast from "react-hot-toast";
 import { useI18n } from "./I18nContext";
 import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 const API_ROOT = "https://api.sedabox.com/api";
 
@@ -96,6 +97,9 @@ export default function DownloadsHistory() {
       id: String(songData.id),
       title: getSongDisplayTitle(songData),
       artist: songData.artist_name,
+      artistId: songData.artist_id,
+      artistUniqueId: songData.artist_unique_id,
+      featuredArtists: getPlayerFeaturedArtists(songData),
       image: songData.cover_image,
       duration: "0:00",
       src:
@@ -281,7 +285,7 @@ export default function DownloadsHistory() {
                     <h3
                       className={`text-lg font-bold truncate leading-tight mb-0.5 ${isCurrent ? "text-emerald-400" : "text-white"}`}
                     >
-                      {getSongDisplayTitle(song)}
+                      <SongTitleWithFeaturedArtists song={song} />
                     </h3>
                     <p className="text-[13px] text-gray-400 truncate mb-2">
                       {song.artist_name}
@@ -374,7 +378,7 @@ export default function DownloadsHistory() {
                       حذف از تاریخچه
                     </h3>
                     <p className="text-sm text-white/40 mt-1 truncate max-w-[220px]">
-                      {getSongDisplayTitle(deletingItem?.song)}
+                      <SongTitleWithFeaturedArtists song={deletingItem?.song} />
                     </p>
                   </div>
                 </div>

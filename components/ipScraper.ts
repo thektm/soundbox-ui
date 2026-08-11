@@ -1,13 +1,29 @@
 type IpInfo = { country: string; province: string };
 
+type IpApiResponse = {
+  country_name?: string | null;
+  country?: string | null;
+  region?: string | null;
+  region_code?: string | null;
+  error?: boolean;
+};
+
 let cachedIpInfo: IpInfo | null = null;
 let lookupPromise: Promise<IpInfo | null> | null = null;
 
 async function performLookup(): Promise<IpInfo | null> {
+  if (typeof window === "undefined") return null;
+
   try {
-    const response = await fetch("/api/ip-proxy", {
-      headers: { Accept: "text/html" },
-      cache: "force-cache",
+    // This request intentionally goes straight from the browser to the IP
+    // provider. Never proxy it through Next/Netlify: the provider must see the
+    // listener's public IP, not the hosting/server IP.
+    const response = await fetch("https://ipapi.co/json/", {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
     });
 
     if (!response.ok) {
@@ -18,62 +34,21 @@ async function performLookup(): Promise<IpInfo | null> {
       throw lookupError;
     }
 
-    const html = await response.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
+    const data = (await response.json()) as IpApiResponse;
+    if (data?.error) throw new Error("IP_LOOKUP_PROVIDER_ERROR");
 
-    const countryLabels = ["کشور", "Country", "Land"];
-    const provinceLabels = ["استان", "Province", "State", "Bundesland", "Staat"];
+    const country = String(data?.country_name || data?.country || "Unknown").trim();
+    const province = String(data?.region || data?.region_code || "Unknown").trim();
+    const result = {
+      country: country || "Unknown",
+      province: province || "Unknown",
+    };
 
-    let country = "Unknown";
-    let province = "Unknown";
-
-    const table = doc.getElementById("home_ip_info_data");
-    if (table) {
-      table.querySelectorAll("tr").forEach((row) => {
-        const th = row.querySelector("th");
-        const td = row.querySelector("td");
-        if (!th || !td) return;
-
-        const labelText = th.textContent?.trim() || "";
-        if (countryLabels.some((label) => labelText.includes(label))) {
-          country = td.textContent?.trim() || "Unknown";
-        }
-        if (provinceLabels.some((label) => labelText.includes(label))) {
-          province = td.textContent?.trim() || "Unknown";
-        }
-      });
-    } else {
-      for (const label of countryLabels) {
-        const regex = new RegExp(
-          `<th[^>]*>[\\s\\S]*?${label}[\\s\\S]*?<\\/th>[\\s\\S]*?<td[^>]*>([\\s\\S]*?)<\\/td>`,
-          "i",
-        );
-        const match = html.match(regex);
-        if (match?.[1]) {
-          country = match[1].replace(/<[^>]*>?/gm, "").trim();
-          break;
-        }
-      }
-      for (const label of provinceLabels) {
-        const regex = new RegExp(
-          `<th[^>]*>[\\s\\S]*?${label}[\\s\\S]*?<\\/th>[\\s\\S]*?<td[^>]*>([\\s\\S]*?)<\\/td>`,
-          "i",
-        );
-        const match = html.match(regex);
-        if (match?.[1]) {
-          province = match[1].replace(/<[^>]*>?/gm, "").trim();
-          break;
-        }
-      }
-    }
-
-    const result = { country, province };
     cachedIpInfo = result;
     return result;
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
-      console.debug("[SEDABOX:IP_LOOKUP] lookup failed", error);
+      console.debug("[SEDABOX:IP_LOOKUP] client lookup failed", error);
     }
     return null;
   }
@@ -81,7 +56,7 @@ async function performLookup(): Promise<IpInfo | null> {
 
 /**
  * Resolve location at most once per browser module lifetime. Concurrent player
- * starts share the same request, and subsequent tracks reuse the result.
+ * starts share the same direct client request, and later tracks reuse it.
  */
 export function scrapeIpInfo(): Promise<IpInfo | null> {
   if (cachedIpInfo) return Promise.resolve(cachedIpInfo);

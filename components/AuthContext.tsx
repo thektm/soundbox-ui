@@ -15,6 +15,7 @@ import { formatAuthError } from "./authErrors";
 import { openAuthPrompt } from "./authPrompt";
 import { clientTrace, withClientTimeout } from "../lib/clientDebug";
 import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
+import type { FeaturedArtistLike } from "../lib/songDisplay";
 
 export interface UserRecentlyPlayedItem {
   id: number;
@@ -22,7 +23,7 @@ export interface UserRecentlyPlayedItem {
   artist_id: number;
   artist_unique_id?: string | null;
   artist_name: string;
-  featured_artists: string[];
+  featured_artists: FeaturedArtistLike[];
   album: number;
   album_title: string;
   is_single: boolean;

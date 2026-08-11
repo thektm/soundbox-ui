@@ -12,6 +12,7 @@ type TextDirection = "ltr" | "rtl";
 
 type OverflowMarqueeProps = {
   text: string;
+  children?: React.ReactNode;
   className?: string;
   direction?: TextDirection | "auto";
   align?: "start" | "center" | "end";
@@ -62,6 +63,7 @@ const alignToCss = (
  */
 const OverflowMarquee = memo(function OverflowMarquee({
   text,
+  children,
   className = "",
   direction = "auto",
   align = "start",
@@ -168,7 +170,7 @@ const OverflowMarquee = memo(function OverflowMarquee({
         ref={contentRef}
         className="overflow-marquee__content inline-block max-w-none whitespace-nowrap"
       >
-        {text}
+        {children ?? text}
       </span>
 
       <style jsx>{`

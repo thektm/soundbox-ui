@@ -8,6 +8,7 @@ import { useAuth } from "./AuthContext";
 import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
 import { getSongDisplayTitle, getPlayerFeaturedArtists, normalizeSongCollection } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // ============ TYPES ============
 interface GenreSong {
@@ -184,18 +185,18 @@ const SongListItem = memo(
             e.stopPropagation();
             onSongClick();
           }}
-          className={`text-sm font-medium truncate block hover:underline text-start w-full outline-none ${
+          className={`w-fit max-w-full text-sm font-medium truncate block hover:underline text-start outline-none ${
             isPlaying ? "text-emerald-400" : "text-white"
           }`}
         >
-          {getSongDisplayTitle(song)}
+          <SongTitleWithFeaturedArtists song={song} />
         </button>
         <button
           onClick={(e) => {
             e.stopPropagation();
             onArtistClick();
           }}
-          className="text-zinc-400 text-xs hover:text-white hover:underline text-start block truncate outline-none"
+          className="w-fit max-w-full text-zinc-400 text-xs hover:text-white hover:underline text-start block truncate outline-none"
         >
           {song.artist_name}
         </button>
@@ -284,11 +285,11 @@ const SongGridCard = memo(
           e.stopPropagation();
           onSongClick();
         }}
-        className={`text-sm font-semibold truncate block hover:underline text-start w-full mb-1 outline-none ${
+        className={`w-fit max-w-full text-sm font-semibold truncate block hover:underline text-start mb-1 outline-none ${
           isPlaying ? "text-emerald-400" : "text-white"
         }`}
       >
-        {getSongDisplayTitle(song)}
+        <SongTitleWithFeaturedArtists song={song} />
       </button>
 
       {/* Artist */}
@@ -297,7 +298,7 @@ const SongGridCard = memo(
           e.stopPropagation();
           onArtistClick();
         }}
-        className="text-zinc-400 text-xs hover:text-white hover:underline text-start block truncate w-full outline-none"
+        className="w-fit max-w-full text-zinc-400 text-xs hover:text-white hover:underline text-start block truncate outline-none"
       >
         {song.artist_name}
       </button>

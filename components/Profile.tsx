@@ -14,6 +14,7 @@ import { useI18n } from "./I18nContext";
 import UserAvatar from "./UserAvatar";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
 import { getSongDisplayTitle } from "../lib/songDisplay";
+import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // Reusable SVG Icon component
 const Icon = ({
@@ -776,7 +777,7 @@ export default function Profile() {
 
                       <div className="flex-1 text-start overflow-hidden">
                         <h4
-                          className="font-semibold text-sm text-white truncate cursor-pointer hover:text-emerald-400 transition-colors"
+                          className="w-fit max-w-full font-semibold text-sm text-white truncate cursor-pointer hover:text-emerald-400 transition-colors"
                           onClick={() =>
                             navigateTo("song-detail", {
                               id: track.id,
@@ -787,10 +788,10 @@ export default function Profile() {
                             })
                           }
                         >
-                          {getSongDisplayTitle(track)}
+                          <SongTitleWithFeaturedArtists song={track} />
                         </h4>
                         <p
-                          className="text-xs text-gray-400 truncate mt-1 cursor-pointer hover:text-emerald-400 transition-colors"
+                          className="w-fit max-w-full text-xs text-gray-400 truncate mt-1 cursor-pointer hover:text-emerald-400 transition-colors"
                           onClick={() =>
                             navigateTo("artist-detail", {
                               id: track.artist_unique_id || track.artist_id,
