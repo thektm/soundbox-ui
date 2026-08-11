@@ -294,8 +294,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isAdPlaying, setIsAdPlaying] = useState<boolean>(false);
   const [currentAd, setCurrentAd] = useState<Ad | null>(null);
   const [userLocation, setUserLocation] = useState({
-    country: "iran",
-    city: "Tehran",
+    country: "Unknown",
+    city: "Unknown",
   });
   const [downloadTrack, setDownloadTrack] = useState<Track | null>(null);
   const [downloadOptions, setDownloadOptions] = useState<
@@ -347,7 +347,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const submittedForCurrentRef = useRef<boolean>(false);
   const submittedUidsRef = useRef<Set<string>>(new Set());
   const resolvedUrlsRef = useRef<Map<string, string>>(new Map());
-  const userLocationRef = useRef({ country: "iran", city: "Tehran" });
+  const userLocationRef = useRef({ country: "Unknown", city: "Unknown" });
   const isAdPlayingRef = useRef<boolean>(false);
   const adSubmitIdRef = useRef<string | null>(null);
   const currentTrackRef = useRef<Track | null>(null);
@@ -1256,7 +1256,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               if (res) {
                 userLocationRef.current = {
                   country: res.country,
-                  city: res.province,
+                  city: res.city,
                 };
               }
             })
