@@ -19,6 +19,8 @@ declare global {
 }
 
 const MAX_LOG_ENTRIES = 500;
+const CLIENT_DIAGNOSTICS_ENABLED =
+  process.env.NEXT_PUBLIC_SEDABOX_DEBUG === "1";
 
 const getElapsedMs = (): number => {
   if (typeof window === "undefined") return 0;
@@ -46,7 +48,7 @@ export const clientTrace = (
   details?: unknown,
   level: ClientTraceLevel = "log",
 ): void => {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !CLIENT_DIAGNOSTICS_ENABLED) return;
 
   const entry: ClientTraceEntry = {
     timestamp: new Date().toISOString(),
@@ -73,7 +75,9 @@ export const clientTrace = (
 };
 
 export const installGlobalClientDiagnostics = (): (() => void) => {
-  if (typeof window === "undefined") return () => undefined;
+  if (typeof window === "undefined" || !CLIENT_DIAGNOSTICS_ENABLED) {
+    return () => undefined;
+  }
 
   window.__SEDABOX_DUMP_CLIENT_LOGS__ = () => {
     const logs = [...(window.__SEDABOX_CLIENT_LOGS__ || [])];

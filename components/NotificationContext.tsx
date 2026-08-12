@@ -12,7 +12,6 @@ import React, {
 import toast from "react-hot-toast";
 import { useAuth } from "./AuthContext";
 import { useI18n } from "./I18nContext";
-import { clientTrace } from "../lib/clientDebug";
 
 const NOTIFICATION_ROLE = "audience" as const;
 
@@ -351,16 +350,10 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
           for (const notification of recoveredNotifications) {
             showNewNotificationToast(notification);
           }
-
-          clientTrace("NOTIFICATIONS", "http:reconciled", {
-            unreadCount: rows.length,
-            recoveredRealtimeEvents: recoveredNotifications.length,
-          });
         } else {
           refreshQueuedRef.current = true;
         }
-      } catch (error) {
-        clientTrace("NOTIFICATIONS", "http:failed", error, "error");
+      } catch {
       }
     })().finally(() => {
       if (requestRef.current?.promise === request) {
@@ -429,8 +422,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         notificationsRef.current = remaining;
         setNotifications(remaining);
         setUnreadHint(remaining.length > 0);
-      } catch (error) {
-        clientTrace("NOTIFICATIONS", "mark-one:failed", { id, error }, "error");
+      } catch {
       } finally {
         markingReadIdsRef.current.delete(id);
         setMarkingReadIds((current) => {
@@ -485,8 +477,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       notificationsRef.current = remaining;
       setNotifications(remaining);
       setUnreadHint(remaining.length > 0);
-    } catch (error) {
-      clientTrace("NOTIFICATIONS", "mark-all:failed", error, "error");
+    } catch {
     } finally {
       markingAllRef.current = false;
       setIsMarkingAll(false);
@@ -578,7 +569,6 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       try {
         message = JSON.parse(event.data);
       } catch {
-        clientTrace("NOTIFICATIONS", "socket:invalid-json", event.data, "warn");
         return;
       }
 
@@ -586,7 +576,6 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         message?.type !== "pong" &&
         message?.recipient_role !== NOTIFICATION_ROLE
       ) {
-        clientTrace("NOTIFICATIONS", "socket:role-mismatch", message, "error");
         return;
       }
 
@@ -648,7 +637,6 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         case "pong":
           break;
         default:
-          clientTrace("NOTIFICATIONS", "socket:unknown-message", message, "warn");
       }
     };
 
@@ -688,8 +676,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
           SOCKET_PUBLIC_PROTOCOL,
           `jwt.${currentToken}`,
         ]);
-      } catch (error) {
-        clientTrace("NOTIFICATIONS", "socket:construct-failed", error, "error");
+      } catch {
         scheduleReconnect();
         return;
       } finally {
@@ -712,7 +699,6 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         lastMessageAt = Date.now();
         setRealtimeStatus("connected");
         clearSocketTimers();
-        clientTrace("NOTIFICATIONS", "socket:connected");
 
         heartbeatTimer = window.setInterval(() => {
           if (!socket || socket.readyState !== WebSocket.OPEN) return;
@@ -725,17 +711,10 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       };
       socket.onmessage = handleMessage;
       socket.onerror = (error) => {
-        clientTrace("NOTIFICATIONS", "socket:error", error, "warn");
       };
       socket.onclose = (event) => {
         clearSocketTimers();
         const rejectedBeforeAccept = !socketWasAccepted && event.code !== 1000;
-        clientTrace("NOTIFICATIONS", "socket:closed", {
-          code: event.code,
-          reason: event.reason,
-          clean: event.wasClean,
-          rejectedBeforeAccept,
-        }, event.code === 1000 ? "log" : "warn");
         socket = null;
 
         if (

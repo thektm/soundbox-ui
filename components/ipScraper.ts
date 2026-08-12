@@ -4,144 +4,254 @@ type IpInfo = {
   city: string;
 };
 
+type ClientIpResponse = {
+  ip?: string | null;
+  source?: string | null;
+};
+
+type IpnumberiaAttemptDiagnostic = {
+  transport: "https" | "http";
+  status?: number;
+  contentType?: string;
+  finalUrl?: string;
+  responseBytes?: number;
+  classification?: "location" | "challenge" | "placeholder" | "invalid";
+  reason: string;
+  hasLocationTable?: boolean;
+  hasSearchForm?: boolean;
+  hasChallengeMarker?: boolean;
+  returnedIp?: string | null;
+  parsedLocation?: IpInfo | null;
+};
+
+type ProxyDiagnostics = {
+  ip?: {
+    selected?: string | null;
+    source?: string | null;
+    headerIp?: string | null;
+    browserIp?: string | null;
+    headerIsPublic?: boolean;
+    browserIsPublic?: boolean;
+  };
+  ipnumberia?: IpnumberiaAttemptDiagnostic[];
+  fallback?: {
+    provider?: string;
+    attempted?: boolean;
+    status?: number;
+    reason?: string;
+  };
+};
+
+type LocationProxyResponse = {
+  ok?: boolean;
+  provider?: "ipnumberia" | "ipapi";
+  transport?: "https" | "http";
+  location?: IpInfo;
+  diagnostics?: ProxyDiagnostics;
+  error?: { code?: string };
+};
+
 let cachedIpInfo: IpInfo | null = null;
 let lookupPromise: Promise<IpInfo | null> | null = null;
 
-const FIELD_LABELS = {
-  country: ["کشور", "Country", "Land"],
-  province: ["استان", "Province", "State", "Bundesland", "Staat", "Region"],
-  city: ["شهر", "City", "Town", "Ort"],
-} as const;
+const DEFAULT_API_ROOT = "https://api.sedabox.com/api";
+
+function getApiRoot(): string {
+  const configured = String(process.env.NEXT_PUBLIC_API_ROOT || DEFAULT_API_ROOT).trim();
+  return configured.replace(/\/+$/, "");
+}
+
+function locationLog(
+  event: string,
+  details?: Record<string, unknown>,
+  level: "info" | "warn" | "error" = "info",
+): void {
+  if (typeof window === "undefined") return;
+  const method = level === "error" ? console.error : level === "warn" ? console.warn : console.info;
+  method(`[SEDABOX:LOCATION] ${event}`, details || "");
+}
 
 function normalizeText(value: string | null | undefined): string {
-  return String(value || "")
-    .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return String(value || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function labelMatches(label: string, candidates: readonly string[]): boolean {
-  const normalized = normalizeText(label).replace(/[：:]+$/g, "").trim();
-  return candidates.some((candidate) => {
-    const expected = normalizeText(candidate);
-    return normalized === expected || normalized.includes(expected);
-  });
-}
-
-function decodeHtmlFragment(doc: Document, fragment: string): string {
-  const holder = doc.createElement("div");
-  holder.innerHTML = fragment.replace(/<br\s*\/?\s*>/gi, " ");
-  return normalizeText(holder.textContent);
-}
-
-function extractByRegex(
-  html: string,
-  doc: Document,
-  labels: readonly string[],
-): string | null {
-  for (const label of labels) {
-    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp(
-      `<(?:th|td)[^>]*>[\\s\\S]*?${escaped}[\\s\\S]*?<\\/(?:th|td)>[\\s\\S]*?<(?:td|th)[^>]*>([\\s\\S]*?)<\\/(?:td|th)>`,
-      "i",
-    );
-    const match = html.match(regex);
-    if (match?.[1]) {
-      const value = decodeHtmlFragment(doc, match[1]);
-      if (value) return value;
-    }
+function looksLikeUsableIp(value: string | null | undefined): boolean {
+  const ip = normalizeText(value);
+  if (!ip) return false;
+  if (ip === "127.0.0.1" || ip === "::1" || ip.startsWith("192.168.") || ip.startsWith("10.")) {
+    return false;
   }
-  return null;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return false;
+  return /^[0-9a-f:.]+$/i.test(ip);
+}
+
+async function lookupFirstPartyClientIp(): Promise<string | null> {
+  const url = `${getApiRoot()}/client-ip/`;
+  locationLog("client-ip:start", { url });
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 5_000);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      locationLog("client-ip:http-failed", { status: response.status }, "warn");
+      return null;
+    }
+
+    const payload = (await response.json()) as ClientIpResponse;
+    const ip = normalizeText(payload.ip);
+    const source = normalizeText(payload.source) || "unknown";
+    if (!looksLikeUsableIp(ip)) {
+      locationLog("client-ip:non-public", { ip: ip || null, source }, "warn");
+      return null;
+    }
+
+    locationLog("client-ip:success", { ip, source });
+    return ip;
+  } catch (error) {
+    locationLog(
+      "client-ip:request-failed",
+      { error: error instanceof Error ? error.message : String(error) },
+      "warn",
+    );
+    return null;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function lookupLocation(): Promise<IpInfo | null> {
+  const browserPublicIp = await lookupFirstPartyClientIp();
+  const proxyUrl = browserPublicIp
+    ? `/api/ip-proxy?ip=${encodeURIComponent(browserPublicIp)}`
+    : "/api/ip-proxy";
+
+  locationLog("proxy:start", {
+    proxyUrl,
+    browserPublicIp: browserPublicIp || null,
+  });
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 18_000);
+  try {
+    const response = await fetch(proxyUrl, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: controller.signal,
+    });
+
+    let payload: LocationProxyResponse | null = null;
+    try {
+      payload = (await response.json()) as LocationProxyResponse;
+    } catch (error) {
+      locationLog(
+        "proxy:invalid-json",
+        {
+          status: response.status,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "error",
+      );
+      return null;
+    }
+
+    const diagnostics = payload?.diagnostics || {};
+
+    if (!response.ok || !payload?.ok || !payload.location) {
+      locationLog(
+        "proxy:failed",
+        {
+          status: response.status,
+          code: payload?.error?.code || `HTTP_${response.status}`,
+          diagnostics,
+        },
+        "error",
+      );
+      return null;
+    }
+
+    const result: IpInfo = {
+      country: normalizeText(payload.location.country),
+      province: normalizeText(payload.location.province),
+      city: normalizeText(payload.location.city),
+    };
+
+    if (!result.country || !result.province || !result.city) {
+      locationLog(
+        "proxy:empty-location",
+        { provider: payload.provider, transport: payload.transport, result, diagnostics },
+        "error",
+      );
+      return null;
+    }
+
+    if (payload.provider === "ipnumberia") {
+      locationLog("ipnumberia:success", {
+        provider: payload.provider,
+        transport: payload.transport,
+        ...result,
+        diagnostics,
+      });
+    } else {
+      locationLog("ipnumberia:failed-fallback:success", {
+        provider: payload.provider,
+        transport: payload.transport,
+        ...result,
+        diagnostics,
+      }, "warn");
+    }
+
+    return result;
+  } catch (error) {
+    locationLog(
+      "proxy:request-failed",
+      { error: error instanceof Error ? error.message : String(error) },
+      "error",
+    );
+    return null;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 async function performLookup(): Promise<IpInfo | null> {
   if (typeof window === "undefined") return null;
+  locationLog("lookup:start");
 
-  try {
-    // Keep ipnumberia as the location source. The Next route handles its broken
-    // TLS certificate/server-side HTTP fallback and returns only its HTML to us.
-    const response = await fetch("/api/ip-proxy", {
-      method: "GET",
-      headers: { Accept: "text/html" },
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-
-    if (!response.ok) {
-      const lookupError = new Error("IP_LOOKUP_REQUEST_FAILED") as Error & {
-        status?: number;
-      };
-      lookupError.status = response.status;
-      throw lookupError;
-    }
-
-    const html = await response.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-
-    let country = "";
-    let province = "";
-    let city = "";
-
-    // Prefer ipnumberia's known location table, but scan all rows as a fallback
-    // because the site has changed markup in the past.
-    const table = doc.getElementById("home_ip_info_data");
-    const rows = table
-      ? Array.from(table.querySelectorAll("tr"))
-      : Array.from(doc.querySelectorAll("tr"));
-
-    for (const row of rows) {
-      const cells = Array.from(row.querySelectorAll("th,td"));
-      if (cells.length < 2) continue;
-
-      const label = normalizeText(cells[0]?.textContent);
-      const value = normalizeText(cells.slice(1).map((cell) => cell.textContent || "").join(" "));
-      if (!label || !value) continue;
-
-      if (!country && labelMatches(label, FIELD_LABELS.country)) country = value;
-      if (!province && labelMatches(label, FIELD_LABELS.province)) province = value;
-      if (!city && labelMatches(label, FIELD_LABELS.city)) city = value;
-    }
-
-    // Last-resort parser for the older HTML layout where DOM table selection can
-    // fail because of malformed markup.
-    country ||= extractByRegex(html, doc, FIELD_LABELS.country) || "";
-    province ||= extractByRegex(html, doc, FIELD_LABELS.province) || "";
-    city ||= extractByRegex(html, doc, FIELD_LABELS.city) || "";
-
-    const result: IpInfo = {
-      country: country || "Unknown",
-      province: province || "Unknown",
-      city: city || "Unknown",
-    };
-
-    // Do not cache an empty/broken ipnumberia page. This allows a later playback
-    // to retry automatically after a temporary upstream failure.
-    if (
-      result.country === "Unknown" &&
-      result.province === "Unknown" &&
-      result.city === "Unknown"
-    ) {
-      throw new Error("IPNUMBERIA_LOCATION_FIELDS_NOT_FOUND");
-    }
-
+  const result = await lookupLocation();
+  if (result) {
     cachedIpInfo = result;
+    locationLog("lookup:success", result);
     return result;
-  } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.debug("[SEDABOX:IP_LOOKUP] ipnumberia lookup failed", error);
-    }
-    return null;
   }
+
+  locationLog("lookup:failed-all-providers", undefined, "error");
+  return null;
 }
 
 /**
- * Resolve location at most once per browser module lifetime. Concurrent player
- * starts share one ipnumberia scrape, and subsequent tracks reuse the result.
+ * Resolve location once after success. Failed lookups are not cached so a later
+ * playback can retry with fresh proxy/provider diagnostics.
  */
 export function scrapeIpInfo(): Promise<IpInfo | null> {
-  if (cachedIpInfo) return Promise.resolve(cachedIpInfo);
-  if (lookupPromise) return lookupPromise;
+  if (cachedIpInfo) {
+    locationLog("lookup:cache-hit", cachedIpInfo);
+    return Promise.resolve(cachedIpInfo);
+  }
+  if (lookupPromise) {
+    locationLog("lookup:join-inflight");
+    return lookupPromise;
+  }
 
   lookupPromise = performLookup().finally(() => {
     lookupPromise = null;

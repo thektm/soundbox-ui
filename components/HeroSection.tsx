@@ -1,7 +1,6 @@
 import OverflowMarquee from "./OverflowMarquee";
 import React, { memo, useEffect, useRef, useState } from "react";
 import { useI18n } from "./I18nContext";
-import { clientTrace } from "../lib/clientDebug";
 import { getSongDisplayTitle } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 import PromotionBadge from "./PromotionBadge";
@@ -163,19 +162,6 @@ function HeroSection({
   const [activeIndex, setActiveIndex] = useState(0);
 
   const highlightCount = heroHighlights?.length ?? 0;
-
-  useEffect(() => {
-    clientTrace("HERO", "props:ready", {
-      highlightCount,
-      activeIndex,
-      activeKey: heroHighlights?.[activeIndex]?.key ?? null,
-      activeSource: heroHighlights?.[activeIndex]?.sourceSectionKey ?? null,
-      recommendationSongs:
-        homeData?.songs_recommendations?.songs?.length ?? null,
-      latestSongs: homeData?.latest_releases?.results?.length ?? null,
-      discoverySongs: homeData?.discoveries?.results?.length ?? null,
-    });
-  }, [activeIndex, heroHighlights, highlightCount, homeData]);
 
   const safeIndex =
     activeIndex >= 0 && activeIndex < highlightCount ? activeIndex : 0;

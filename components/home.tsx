@@ -25,7 +25,6 @@ import {
   invalidateHomeSummaryRequest,
   requestHomeSummary,
 } from "../lib/homeSummaryPrefetch";
-import { clientTrace } from "../lib/clientDebug";
 import { getUserFacingErrorMessage } from "../lib/clientError";
 
 // API Interfaces
@@ -560,22 +559,10 @@ export default function Home() {
 
   const fetchPublicHome = useCallback(
     async (input: RequestInfo | URL): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
       const authenticated = Boolean(accessTokenRef.current);
-      clientTrace("HOME", "fetch:dispatch", { url, authenticated });
-
-      const startedAt = performance.now();
       const response = authenticated
         ? await authenticatedFetchRef.current(input)
         : await fetch(input);
-
-      clientTrace("HOME", "fetch:response", {
-        url,
-        authenticated,
-        status: response.status,
-        ok: response.ok,
-        elapsedMs: Math.round(performance.now() - startedAt),
-      });
       return response;
     },
     [],
@@ -597,38 +584,9 @@ export default function Home() {
   ];
 
   useEffect(() => {
-    clientTrace("HOME", "component:mounted", {
-      audienceKey,
-      isGuest,
-      isInitializing,
-      hasCachedHomeData: Boolean(cachedHomeData),
-      language,
-    });
-    return () => {
-      clientTrace("HOME", "component:unmounted", { audienceKey }, "warn");
-    };
-    // Mount/unmount only. Audience changes are logged separately below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    clientTrace("HOME", "auth-and-audience-state", {
-      audienceKey,
-      isGuest,
-      isInitializing,
-      hasAccessToken: Boolean(accessToken),
-      userId: user?.id ?? null,
-      language,
-    });
-  }, [accessToken, audienceKey, isGuest, isInitializing, language, user?.id]);
-
-  useEffect(() => {
     // Authentication determines the Home audience. Waiting here avoids a
     // transient guest request while an existing member session is restored.
     if (isInitializing) {
-      clientTrace("HOME", "summary-effect:skipped-auth-initializing", {
-        audienceKey,
-      });
       return;
     }
 
@@ -644,7 +602,6 @@ export default function Home() {
       homeCacheRef.current?._audience === requestedAudience
         ? normalizeHomeSummaryPayload(homeCacheRef.current, requestedAudience)
         : null;
-    const isBackground = Boolean(cachedForAudience);
     const requestKey = buildHomeSummaryRequestKey(
       accessTokenRef.current,
       language,
@@ -652,61 +609,23 @@ export default function Home() {
     const isCurrentRequest = () =>
       active && homeRequestSequenceRef.current === requestId;
 
-    clientTrace("HOME", "summary-effect:start", {
-      requestId,
-      requestedAudience,
-      isBackground,
-      reloadKey: homeReloadKey,
-      cacheAudience: homeCacheRef.current?._audience ?? null,
-    });
-
     setHomeError(null);
     if (cachedForAudience) {
-      clientTrace("HOME", "state:using-audience-cache", {
-        requestId,
-        requestedAudience,
-      });
       setHomeData(cachedForAudience);
       setIsLoading(false);
     } else {
-      clientTrace("HOME", "state:reset-for-request", {
-        requestId,
-        requestedAudience,
-      });
       setHomeData(null);
       setIsLoading(true);
     }
 
     const fetchHomeData = async (): Promise<void> => {
-      const startedAt = performance.now();
-      clientTrace("HOME", "summary-request:start", {
-        requestId,
-        requestedAudience,
-        background: isBackground,
-      });
-
       try {
         const data = await requestHomeSummary(requestKey, () =>
           fetchPublicHome(HOME_SUMMARY_URL),
         );
         const current = isCurrentRequest();
 
-        clientTrace("HOME", "summary-request:promise-resolved", {
-          requestId,
-          requestedAudience,
-          background: isBackground,
-          hasData: Boolean(data),
-          current,
-          elapsedMs: Math.round(performance.now() - startedAt),
-        });
-
         if (!current) {
-          clientTrace(
-            "HOME",
-            "summary-request:ignored-obsolete-consumer",
-            { requestId, requestedAudience, hasData: Boolean(data) },
-            "warn",
-          );
           return;
         }
         if (!data) {
@@ -714,19 +633,6 @@ export default function Home() {
         }
 
         const nextData = normalizeHomeSummaryPayload(data, requestedAudience);
-        clientTrace("HOME", "summary:normalized", {
-          requestId,
-          requestedAudience,
-          recommendations: nextData.songs_recommendations.songs.length,
-          latest: nextData.latest_releases.results.length,
-          artists: nextData.popular_artists.results.length,
-          albums: nextData.popular_albums.results.length,
-          playlists: Array.isArray(nextData.playlist_recommendations)
-            ? nextData.playlist_recommendations.length
-            : nextData.playlist_recommendations.results.length,
-          discoveries: nextData.discoveries.results.length,
-          trending: nextData.trending?.results.length ?? 0,
-        });
 
         const hasChanged =
           !cachedForAudience ||
@@ -736,22 +642,12 @@ export default function Home() {
         // writes are deduplicated separately and must never gate rendering.
         setHomeData(nextData);
         setHomeError(null);
-        clientTrace("HOME", "state:set-home-data", {
-          requestId,
-          requestedAudience,
-          background: isBackground,
-          hasChanged,
-        });
 
         if (hasChanged) {
           try {
             setHomeCache(nextData);
-            clientTrace("HOME", "cache:set-home-cache", {
-              requestId,
-              requestedAudience,
-            });
-          } catch (error) {
-            clientTrace("HOME", "cache:set-home-cache-failed", error, "warn");
+          } catch {
+            // Cache writes are best-effort and must never block rendering.
           }
         }
       } catch (error) {
@@ -760,20 +656,6 @@ export default function Home() {
           fa: "بارگذاری صفحه خانه انجام نشد. لطفاً دوباره تلاش کنید.",
           en: "Home could not be loaded. Please try again.",
         });
-
-        clientTrace(
-          "HOME",
-          "summary-request:failed",
-          {
-            requestId,
-            requestedAudience,
-            background: isBackground,
-            current,
-            elapsedMs: Math.round(performance.now() - startedAt),
-            error,
-          },
-          "error",
-        );
 
         if (current) {
           console.error("Error fetching home data:", error);
@@ -784,14 +666,6 @@ export default function Home() {
         }
       } finally {
         const current = isCurrentRequest();
-        clientTrace("HOME", "summary-request:finally", {
-          requestId,
-          requestedAudience,
-          background: isBackground,
-          current,
-          willReleaseLoading: current,
-          elapsedMs: Math.round(performance.now() - startedAt),
-        });
 
         // Never leave the active Home consumer behind the skeleton, regardless
         // of whether the request succeeded or failed.
@@ -802,10 +676,6 @@ export default function Home() {
     void fetchHomeData();
     return () => {
       active = false;
-      clientTrace("HOME", "summary-effect:cancelled", {
-        requestId,
-        requestedAudience,
-      });
     };
   }, [
     audienceKey,
@@ -1058,44 +928,6 @@ export default function Home() {
         })),
       }
     : null;
-
-  useEffect(() => {
-    const hasTerminalError = !isLoading && Boolean(homeError) && !homeData;
-    // Once any valid summary payload exists, render it immediately. The chart
-    // and playlist requests remain independent and keep their own per-section
-    // skeletons, so a slow chart endpoint can never hold the Hero or summary
-    // sections behind the full-page loader.
-    const isRenderBlocked =
-      (!homeData && !hasTerminalError) ||
-      (Boolean(homeData) && !sectionData);
-    const snapshot = {
-      isLoading,
-      hasHomeData: Boolean(homeData),
-      hasSectionData: Boolean(sectionData),
-      audienceKey,
-      homeError,
-      recommendations: homeData?.songs_recommendations?.songs?.length ?? null,
-      latest: homeData?.latest_releases?.results?.length ?? null,
-      discoveries: homeData?.discoveries?.results?.length ?? null,
-    };
-
-    clientTrace(
-      "HOME",
-      hasTerminalError
-        ? "render:error-state"
-        : isRenderBlocked
-          ? "render:skeleton"
-          : "render:data-ready",
-      snapshot,
-      hasTerminalError || isRenderBlocked ? "warn" : "info",
-    );
-
-    if (!isRenderBlocked) return;
-    const watchdog = window.setTimeout(() => {
-      clientTrace("HOME", "render:still-blocked-after-8s", snapshot, "error");
-    }, 8000);
-    return () => window.clearTimeout(watchdog);
-  }, [audienceKey, homeData, homeError, isLoading, sectionData]);
 
   useEffect(() => {
     const delay = isInitialMount.current ? 2700 : 700;

@@ -293,10 +293,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [lyrics, setLyrics] = useState<string | null>(null);
   const [isAdPlaying, setIsAdPlaying] = useState<boolean>(false);
   const [currentAd, setCurrentAd] = useState<Ad | null>(null);
-  const [userLocation, setUserLocation] = useState({
-    country: "Unknown",
-    city: "Unknown",
-  });
   const [downloadTrack, setDownloadTrack] = useState<Track | null>(null);
   const [downloadOptions, setDownloadOptions] = useState<
     DownloadQualityOption[]
@@ -344,7 +340,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const uniqueOtplayIdRef = useRef<string | null>(null);
   const lastSubmitAttemptRef = useRef<number | null>(null);
   const isActuallyPlayingRef = useRef<boolean>(false);
-  const submittedForCurrentRef = useRef<boolean>(false);
   const submittedUidsRef = useRef<Set<string>>(new Set());
   const resolvedUrlsRef = useRef<Map<string, string>>(new Map());
   const userLocationRef = useRef({ country: "Unknown", city: "Unknown" });
@@ -478,17 +473,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               // avoid counting huge jumps caused by drag/seek
               if (currentSecond - last <= 3) {
                 playSecondsRef.current += currentSecond - last;
-                // log each second individually for debugging
-                for (let s = last + 1; s <= currentSecond; s++) {
-                  const relative = playSecondsRef.current - (currentSecond - s);
-                  console.log("play-seconds", { second: relative });
-                }
-              } else {
-                // big jump -> do not count intermediate seconds, treat as user jump
-                console.log(
-                  "play-seconds: large jump detected, not counting intermediate seconds",
-                  { from: last, to: currentSecond },
-                );
               }
               lastCountedSecondRef.current = currentSecond;
             }
@@ -534,6 +518,24 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 try {
+                  if (
+                    userLocationRef.current.country === "Unknown" ||
+                    userLocationRef.current.city === "Unknown"
+                  ) {
+                    try {
+                      const { scrapeIpInfo } = await import("./ipScraper");
+                      const resolvedLocation = await scrapeIpInfo();
+                      if (resolvedLocation) {
+                        userLocationRef.current = {
+                          country: resolvedLocation.country,
+                          city: resolvedLocation.city,
+                        };
+                      }
+                    } catch {
+                      // Keep play submission functional even if location lookup fails.
+                    }
+                  }
+
                   const url = "https://api.sedabox.com/api/play/count/";
                   const headers: Record<string, string> = {
                     "Content-Type": "application/json",
@@ -546,30 +548,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                     city: userLocationRef.current.city,
                     country: userLocationRef.current.country,
                   });
-                  console.log("Submitting play count body:", body);
                   const resp = await fetch(url, {
                     method: "POST",
                     headers,
                     body,
                   });
-                  let respText = null;
-                  try {
-                    respText = await resp.text();
-                  } catch (e) {
-                    respText = null;
-                  }
-                  console.log("Play count submitted", {
-                    status: resp.status,
-                    body: respText,
-                  });
-
                   if (resp.status === 200) {
                     if (uid) {
                       submittedUidsRef.current.add(uid);
-                      console.log(
-                        "UID marked as submitted, stopping further counts for this session",
-                        { uid },
-                      );
                     }
                   }
                 } catch (err) {
@@ -712,7 +698,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
       };
 
-      const handleSuspend = () => console.warn("Audio suspend");
+      const handleSuspend = () => {};
 
       audio.addEventListener("timeupdate", handleTimeUpdate);
       audio.addEventListener("loadedmetadata", handleLoadedMetadata);
@@ -875,10 +861,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       try {
         if (bypassAdCheckData) {
-          console.debug(
-            "Bypassing ad check, playing from provided data:",
-            bypassAdCheckData,
-          );
           const data = bypassAdCheckData;
           // extract unique play id if present
           const uid =
@@ -971,7 +953,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
           // Authenticated tracks use the protected unwrap endpoint.
           try {
-            console.debug("Requesting stream API (needs auth):", initialSrc);
             const headers: Record<string, string> = {};
             if (accessTokenRef.current)
               headers["Authorization"] = `Bearer ${accessTokenRef.current}`;
@@ -989,12 +970,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             } catch (e) {
               respText = null;
             }
-            console.debug("Stream API response:", {
-              status: resp.status,
-              statusText: resp.statusText,
-              body: respText,
-              headers: Array.from(resp.headers.entries()),
-            });
 
             // If server indicates this stream URL has already been used (413) and provides a new_stream_url, follow it
             if (resp.status === 413) {
@@ -1018,16 +993,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                     // normalize any server-provided URL
                     newUrl = (ensureHttps(newUrl) as string) || newUrl;
                     if (/^https?:\/\//i.test(newUrl)) {
-                      console.debug(
-                        "Normalized new_stream_url to HTTPS:",
-                        newUrl,
-                      );
                     }
-
-                    console.debug(
-                      "Stream token expired. Fetching new stream URL (normalized):",
-                      newUrl,
-                    );
                     const resp2 = await fetch(newUrl, {
                       method: "GET",
                       mode: "cors",
@@ -1039,12 +1005,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                     } catch (e) {
                       resp2Text = null;
                     }
-                    console.debug("Stream API (follow) response:", {
-                      status: resp2.status,
-                      statusText: resp2.statusText,
-                      body: resp2Text,
-                      headers: Array.from(resp2.headers.entries()),
-                    });
                     resp = resp2;
                     respText = resp2Text;
                   } catch (innerErr) {
@@ -1076,7 +1036,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                   const data = respText
                     ? JSON.parse(respText)
                     : await resp.json();
-                  console.debug("Stream API JSON response:", data);
 
                   // Handle Ad Type
                   if (data.type === "ad") {
@@ -1091,8 +1050,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                     isAdPlayingRef.current = true;
                     setCurrentAd(data.ad);
                     adSubmitIdRef.current = data.submit_id;
-
-                    console.debug("Ad detected, playing ad:", data.ad);
 
                     setDuration(data.ad.duration);
                     setProgress(0);
@@ -1133,10 +1090,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 // Some APIs return a plain text URL or playlist
                 try {
                   const text = respText ?? (await resp.text());
-                  console.debug(
-                    "Stream API text response preview:",
-                    (text || "").slice(0, 400),
-                  );
                   // If the text looks like a URL, use it
                   const urlMatch = text?.match(/https?:\/\/[^\s"']+/);
                   if (urlMatch) resolvedSrc = urlMatch[0];
@@ -1160,7 +1113,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                   const finalUrl = resp.url;
                   if (finalUrl && finalUrl !== initialSrc) {
                     resolvedSrc = finalUrl;
-                    console.debug("Stream API redirected to", finalUrl);
                   }
                 } catch (err) {
                   console.warn(
@@ -1192,13 +1144,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           resolvedSrc =
             (ensureHttps(resolvedSrc as string) as string) ||
             (resolvedSrc as string);
-          console.debug("Resolved media source:", resolvedSrc);
           // Store the resolved URL for downloading
           if (track && track.id) {
             resolvedUrlsRef.current.set(String(track.id), resolvedSrc);
           }
         } catch (e) {
-          console.debug("Resolved media source:", resolvedSrc);
         }
 
         if (requestSequence !== playbackRequestSequenceRef.current) return;
@@ -1315,7 +1265,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         } else {
           // Regular media file: set src to resolved URL.
           const audio = audioRef.current;
-          console.debug("Setting audio.src to", resolvedSrc);
           try {
             audio.pause();
             audio.currentTime = 0;
@@ -1324,7 +1273,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               audio.load();
             }
           } catch (error) {
-            console.debug("Error preparing audio element:", error);
           }
 
           audio.src = resolvedSrc;
@@ -1663,7 +1611,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // Handle Ad Completion
       if (isAdPlayingRef.current && adSubmitIdRef.current) {
         setIsLoading(true);
-        console.debug("Ad ended, submitting ID:", adSubmitIdRef.current);
         try {
           const headers: Record<string, string> = {
             "Content-Type": "application/json",
@@ -1680,7 +1627,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           if (resp.ok) {
             const data = await resp.json();
             if (data.type === "stream") {
-              console.debug("Ad submit success, transition to stream:", data);
 
               // Completely reset audio element to clear any error state from ad playback
               if (audioRef.current) {
@@ -1690,7 +1636,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 try {
                   audioRef.current.load();
                 } catch (e) {
-                  console.debug("Error resetting audio element:", e);
                 }
               }
 
@@ -1699,7 +1644,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 try {
                   hlsRef.current.destroy();
                 } catch (e) {
-                  console.debug("Error destroying HLS instance:", e);
                 }
                 hlsRef.current = null;
               }
