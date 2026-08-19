@@ -5,7 +5,7 @@ import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug } from "../lib/slug";
 
 interface ApiArtist {
   id: number;
@@ -88,7 +88,7 @@ const PopularArtistsPage: React.FC = () => {
             onClick={() =>
               navigateTo("artist-detail", {
                 id: artist.id,
-                slug: (artist as any).unique_id || createSlug(artist.name),
+                urlSlug: getCanonicalSlug(artist, artist.name),
               })
             }
             className="group cursor-pointer flex flex-col items-center text-center space-y-3"

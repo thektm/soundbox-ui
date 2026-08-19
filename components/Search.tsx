@@ -9,6 +9,7 @@ import React, {
   useMemo,
 } from "react";
 import Image from "next/image";
+import { Capacitor } from "@capacitor/core";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
 import { usePlayerActions } from "./PlayerContext";
@@ -34,7 +35,7 @@ import {
 } from "lucide-react";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getFullShareUrl } from "../utils/share";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
 import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
 import { getUserFacingErrorMessage } from "../lib/clientError";
@@ -43,6 +44,11 @@ import { buildUserNavigationParams, isSedaboxUser } from "../lib/userProfileRout
 import { readFollowingState } from "../lib/apiActionState";
 import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import {
+  makeRouteDataCacheKey,
+  readRouteDataCache,
+  writeRouteDataCache,
+} from "../lib/routeDataCache";
 
 // ============ TYPES & MOCKS ============
 interface Song {
@@ -56,6 +62,8 @@ interface Song {
   src: string;
   explicit?: boolean;
   plays?: number;
+  urlSlug?: string;
+  artistUrlSlug?: string;
   featuredArtists?: ReturnType<typeof getPlayerFeaturedArtists>;
 }
 
@@ -69,6 +77,7 @@ interface Artist {
   followers: string;
   verified?: boolean;
   is_following?: boolean;
+  urlSlug?: string;
 }
 
 interface Album {
@@ -81,11 +90,14 @@ interface Album {
   year: string;
   type: string;
   description: string;
+  urlSlug?: string;
+  artistUrlSlug?: string;
 }
 
 interface Playlist {
   id: string;
   title: string;
+  urlSlug?: string;
   description: string;
   image: string;
   gradient: string;
@@ -189,6 +201,7 @@ interface Genre {
 
 // ============ UTILS & HOOKS ============
 const STORAGE_KEY = "spotify_search_history";
+const IS_NATIVE_CAPACITOR_SEARCH = Capacitor.isNativePlatform();
 
 // Hook: Handle Debouncing
 const useDebounce = <T,>(value: T, delay: number): T => {
@@ -201,11 +214,29 @@ const useDebounce = <T,>(value: T, delay: number): T => {
 };
 
 // Hook: Handle Local Storage History
+const readStoredSearchHistory = (): SearchHistory[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    if (!data) return [];
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 const useSearchHistory = () => {
-  const [history, setHistory] = useState<SearchHistory[]>([]);
+  const [history, setHistory] = useState<SearchHistory[]>(() =>
+    IS_NATIVE_CAPACITOR_SEARCH ? readStoredSearchHistory() : [],
+  );
 
   useEffect(() => {
-    // Defer localStorage read to after initial render for instant loading
+    if (IS_NATIVE_CAPACITOR_SEARCH) return;
+
+    // Preserve the website's existing deferred localStorage behavior exactly.
+    // Native reads its tiny local history synchronously so the first committed
+    // frame cannot re-layout immediately after navigation.
     const timer = setTimeout(() => {
       try {
         const data = localStorage.getItem(STORAGE_KEY);
@@ -263,36 +294,59 @@ const useEventPlaylists = (
     init?: RequestInit,
   ) => Promise<Response>,
   enabled = true,
+  cacheKey: string | null = null,
 ) => {
-  const [eventData, setEventData] = useState<EventPlaylistEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const initialSnapshot = readRouteDataCache<EventPlaylistEntry[]>(cacheKey);
+  const [eventData, setEventData] = useState<EventPlaylistEntry[]>(
+    initialSnapshot || [],
+  );
+  const [isLoading, setIsLoading] = useState(
+    () => enabled && IS_NATIVE_CAPACITOR_SEARCH && !initialSnapshot,
+  );
 
   useEffect(() => {
     if (!enabled) return;
 
-    // Defer the fetch to after initial render for instant loading
-    const timer = setTimeout(() => {
-      const fetchEventPlaylists = async () => {
-        setIsLoading(true);
-        try {
-          const response = await authenticatedFetch(
-            "https://api.sedabox.com/api/search/event-playlists/",
-          );
-          if (response.ok) {
-            const data = await response.json();
+    const cached = readRouteDataCache<EventPlaylistEntry[]>(cacheKey);
+    if (cached) {
+      setEventData(cached);
+      setIsLoading(false);
+    } else {
+      // The key includes the account identity. Never keep metadata from a
+      // previous account visible while the new account refreshes.
+      setEventData([]);
+    }
+
+    const fetchEventPlaylists = async () => {
+      if (!cached) setIsLoading(true);
+      try {
+        const response = await authenticatedFetch(
+          "https://api.sedabox.com/api/search/event-playlists/",
+        );
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            writeRouteDataCache(cacheKey, data);
             setEventData(data);
           }
-        } catch (error) {
-          console.error("Failed to fetch event playlists", error);
-        } finally {
-          setIsLoading(false);
         }
-      };
-      fetchEventPlaylists();
-    }, 0);
+      } catch (error) {
+        console.error("Failed to fetch event playlists", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
+    if (IS_NATIVE_CAPACITOR_SEARCH) {
+      void fetchEventPlaylists();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void fetchEventPlaylists();
+    }, 0);
     return () => clearTimeout(timer);
-  }, [authenticatedFetch, enabled]);
+  }, [authenticatedFetch, cacheKey, enabled]);
 
   const getTimeOfDay = useCallback(() => {
     const hour = new Date().getHours();
@@ -315,36 +369,55 @@ const useSearchSections = (
     init?: RequestInit,
   ) => Promise<Response>,
   enabled = true,
+  cacheKey: string | null = null,
 ) => {
-  const [sections, setSections] = useState<SearchSection[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const initialSnapshot = readRouteDataCache<SearchSection[]>(cacheKey);
+  const [sections, setSections] = useState<SearchSection[]>(initialSnapshot || []);
+  const [isLoading, setIsLoading] = useState(
+    () => enabled && IS_NATIVE_CAPACITOR_SEARCH && !initialSnapshot,
+  );
 
   useEffect(() => {
     if (!enabled) return;
 
-    // Defer the fetch to after initial render for instant loading
-    const timer = setTimeout(() => {
-      const fetchSections = async () => {
-        setIsLoading(true);
-        try {
-          const response = await authenticatedFetch(
-            "https://api.sedabox.com/api/search/sections/",
-          );
-          if (response.ok) {
-            const data = await response.json();
+    const cached = readRouteDataCache<SearchSection[]>(cacheKey);
+    if (cached) {
+      setSections(cached);
+      setIsLoading(false);
+    } else {
+      setSections([]);
+    }
+
+    const fetchSections = async () => {
+      if (!cached) setIsLoading(true);
+      try {
+        const response = await authenticatedFetch(
+          "https://api.sedabox.com/api/search/sections/",
+        );
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            writeRouteDataCache(cacheKey, data);
             setSections(data);
           }
-        } catch (error) {
-          console.error("Failed to fetch search sections", error);
-        } finally {
-          setIsLoading(false);
         }
-      };
-      fetchSections();
-    }, 0);
+      } catch (error) {
+        console.error("Failed to fetch search sections", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
+    if (IS_NATIVE_CAPACITOR_SEARCH) {
+      void fetchSections();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void fetchSections();
+    }, 0);
     return () => clearTimeout(timer);
-  }, [authenticatedFetch, enabled]);
+  }, [authenticatedFetch, cacheKey, enabled]);
 
   return { sections, isLoading };
 };
@@ -355,35 +428,54 @@ const useGenres = (
     init?: RequestInit,
   ) => Promise<Response>,
   enabled = true,
+  cacheKey: string | null = null,
 ) => {
-  const [genres, setGenres] = useState<Genre[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const initialSnapshot = readRouteDataCache<Genre[]>(cacheKey);
+  const [genres, setGenres] = useState<Genre[]>(initialSnapshot || []);
+  const [isLoading, setIsLoading] = useState(
+    () => enabled && IS_NATIVE_CAPACITOR_SEARCH && !initialSnapshot,
+  );
 
   useEffect(() => {
     if (!enabled) return;
 
-    const timer = setTimeout(() => {
-      const fetchGenres = async () => {
-        setIsLoading(true);
-        try {
-          const response = await authenticatedFetch(
-            "https://api.sedabox.com/api/genres/",
-          );
-          if (response.ok) {
-            const data = await response.json();
-            setGenres(Array.isArray(data) ? data : []);
-          }
-        } catch (error) {
-          console.error("Failed to fetch genres", error);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchGenres();
-    }, 0);
+    const cached = readRouteDataCache<Genre[]>(cacheKey);
+    if (cached) {
+      setGenres(cached);
+      setIsLoading(false);
+    } else {
+      setGenres([]);
+    }
 
+    const fetchGenres = async () => {
+      if (!cached) setIsLoading(true);
+      try {
+        const response = await authenticatedFetch(
+          "https://api.sedabox.com/api/genres/",
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const normalized = Array.isArray(data) ? data : [];
+          writeRouteDataCache(cacheKey, normalized);
+          setGenres(normalized);
+        }
+      } catch (error) {
+        console.error("Failed to fetch genres", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (IS_NATIVE_CAPACITOR_SEARCH) {
+      void fetchGenres();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void fetchGenres();
+    }, 0);
     return () => clearTimeout(timer);
-  }, [authenticatedFetch, enabled]);
+  }, [authenticatedFetch, cacheKey, enabled]);
 
   return { genres, isLoading };
 };
@@ -414,10 +506,27 @@ const useSearch = (
     init?: RequestInit,
   ) => Promise<Response>,
   enabled = true,
+  userId?: string | number | null,
 ) => {
   const { language } = useI18n();
-  const [results, setResults] = useState<SearchResults>(createEmptySearchResults);
-  const [isLoading, setIsLoading] = useState(false);
+  const normalizedInitialQuery = query.trim();
+  const initialCacheKey = normalizedInitialQuery
+    ? makeRouteDataCacheKey(
+        "search-results",
+        `${language}:${filter}:${normalizedInitialQuery.toLocaleLowerCase()}`,
+        userId,
+      )
+    : null;
+  const initialSnapshot = readRouteDataCache<SearchResults>(initialCacheKey);
+  const [results, setResults] = useState<SearchResults>(
+    initialSnapshot || createEmptySearchResults(),
+  );
+  const [isLoading, setIsLoading] = useState(() =>
+    enabled &&
+    IS_NATIVE_CAPACITOR_SEARCH &&
+    Boolean(normalizedInitialQuery) &&
+    !initialSnapshot,
+  );
   const [error, setError] = useState<string | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
   const requestSequenceRef = useRef(0);
@@ -445,13 +554,26 @@ const useSearch = (
 
     const requestId = ++requestSequenceRef.current;
     const abortController = new AbortController();
+    const searchCacheKey = makeRouteDataCacheKey(
+      "search-results",
+      `${language}:${filter}:${normalizedQuery.toLocaleLowerCase()}`,
+      userId,
+    );
+    const cached = readRouteDataCache<SearchResults>(searchCacheKey);
 
     const fetchResults = async () => {
-      setIsLoading(true);
       setError(null);
-      // Never leave results from the previous query/filter visible underneath
-      // a new request. This also makes the final empty state authoritative.
-      setResults(createEmptySearchResults());
+      if (cached) {
+        // Revisited searches paint immediately. The exact same request still
+        // revalidates below and replaces this snapshot with server truth.
+        setResults(cached);
+        setIsLoading(false);
+      } else {
+        setIsLoading(true);
+        // Never leave results from a different query/filter visible underneath
+        // a new uncached request. The final empty state stays authoritative.
+        setResults(createEmptySearchResults());
+      }
 
       try {
         const typeMapping: Record<SearchFilter, string> = {
@@ -555,6 +677,8 @@ const useSearch = (
                 src: data.stream_url || data.preview_url || data.src || "",
                 explicit: Boolean(data.explicit),
                 plays: Number(data.plays || 0) || 0,
+                urlSlug: getCanonicalSlug(data, title),
+                artistUrlSlug: getArtistCanonicalSlug(data, data.artist_name),
               });
               break;
             }
@@ -562,7 +686,8 @@ const useSearch = (
               nextResults.artists.push({
                 id,
                 name: title || String(data.name || "Unknown Artist"),
-                slug: data.unique_id || data.slug,
+                slug: getCanonicalSlug(data, title || data.name),
+                urlSlug: getCanonicalSlug(data, title || data.name),
                 image,
                 profileImage: data.profile_image || image,
                 followers: String(data.followers_count ?? data.followers ?? ""),
@@ -580,7 +705,9 @@ const useSearch = (
                   data.artist_name ?? data.artist?.name ?? rawItem.subtitle ?? "",
                 ),
                 artistId: data.artist_id ?? data.artist?.id,
-                slug: data.slug || createSlug(title || `album-${id}`),
+                slug: getCanonicalSlug(data, title),
+                urlSlug: getCanonicalSlug(data, title),
+                artistUrlSlug: getArtistCanonicalSlug(data, data.artist_name),
                 image,
                 year: data.release_date
                   ? new Date(data.release_date).getFullYear().toString()
@@ -593,6 +720,7 @@ const useSearch = (
               nextResults.playlists.push({
                 id,
                 title: title || "Untitled",
+                urlSlug: getCanonicalSlug(data, title),
                 image,
                 songsCount: Number(
                   data.songs_count ?? data.song_count ?? data.songs?.length ?? 0,
@@ -629,6 +757,7 @@ const useSearch = (
         });
 
         if (requestId !== requestSequenceRef.current) return;
+        writeRouteDataCache(searchCacheKey, nextResults);
         setResults(nextResults);
       } catch (requestError: any) {
         if (
@@ -656,7 +785,7 @@ const useSearch = (
     return () => {
       abortController.abort();
     };
-  }, [enabled, filter, language, query, retryVersion]);
+  }, [enabled, filter, language, query, retryVersion, userId]);
 
   return { results, isLoading, error, retry };
 };
@@ -1014,7 +1143,7 @@ const AlbumCard = memo(
           onClick={(e) => {
             if (isDesktop) {
               e.stopPropagation();
-              navigateTo("album-detail", { id: album.id, slug: album.slug });
+              navigateTo("album-detail", { id: album.id, urlSlug: album.urlSlug || album.slug });
             }
           }}
           className={`w-fit max-w-full font-bold text-white truncate mb-1 ${isDesktop ? "hover:underline cursor-pointer" : ""}`}
@@ -1371,12 +1500,13 @@ const SectionCard = memo(
               if (isDesktop) {
                 e.stopPropagation();
                 if (type === "song") {
-                  navigateTo("song-detail", { id: item.id, title: getSongDisplayTitle(item) });
+                  navigateTo("song-detail", { id: item.id, urlSlug: item.urlSlug || getCanonicalSlug(item, getSongDisplayTitle(item)) });
                 } else if (type === "album") {
-                  navigateTo("album-detail", { id: item.id, slug: item.slug });
+                  navigateTo("album-detail", { id: item.id, urlSlug: item.urlSlug || item.slug });
                 } else if (type === "playlist") {
                   navigateTo("playlist-detail", {
                     id: item.id,
+                    urlSlug: item.urlSlug || getCanonicalSlug(item, item.title),
                     generatedBy: item.generated_by,
                     creatorUniqueId: item.creator_unique_id,
                   });
@@ -1399,7 +1529,7 @@ const SectionCard = memo(
                   e.stopPropagation();
                   navigateTo("artist-detail", {
                     id: artistId,
-                    slug: item.artist_slug || item.artistSlug,
+                    urlSlug: item.artistUrlSlug || getArtistCanonicalSlug(item, item.artist || item.artist_name),
                   });
                 }
               }
@@ -1500,10 +1630,25 @@ const ModernBackground = memo(() => (
 export default function Search() {
   const { navigateTo } = useNavigation();
   const { playTrack } = usePlayerActions();
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { accessToken, authenticatedFetch, user } = useAuth();
   const { requestAuth } = useGuestAccess();
   const { locale } = useI18n();
   const isEnglish = locale === "en-US";
+  const eventPlaylistsCacheKey = makeRouteDataCacheKey(
+    "search-event-playlists",
+    `${locale}:current`,
+    user?.id,
+  );
+  const searchSectionsCacheKey = makeRouteDataCacheKey(
+    "search-sections",
+    `${locale}:current`,
+    user?.id,
+  );
+  const genresCacheKey = makeRouteDataCacheKey(
+    "search-genres",
+    `${locale}:current`,
+    user?.id,
+  );
   const [initialSearchState] = useState(readInitialSearchState);
   const [query, setQuery] = useState(initialSearchState.query);
   const debouncedQuery = useDebounce(query, 300);
@@ -1533,7 +1678,7 @@ export default function Search() {
   const handleAction = async (action: string, s: any) => {
     if (action === "share" && s) {
       try {
-        const url = getFullShareUrl("song", s.id, getSongDisplayTitle(s));
+        const url = getFullShareUrl("song", s.id, s.urlSlug || getCanonicalSlug(s, getSongDisplayTitle(s)));
         const text = `گوش دادن به آهنگ ${getSongDisplayTitle(s)} از ${s.artist_name} در سداباکس`;
         if (typeof navigator !== "undefined" && navigator.share) {
           await navigator.share({ title: getSongDisplayTitle(s), text, url });
@@ -1643,9 +1788,14 @@ export default function Search() {
     [authenticatedFetch, accessToken, isEnglish, requestAuth],
   );
 
-  // mark ready after first paint; initial network requests wait for this
-  const [isReady, setIsReady] = useState(false);
+  // The website keeps its historical one-paint defer. Capacitor starts its data
+  // hooks on the destination's first frame: native route commits are immediate
+  // now, and warmed modules make that frame hot in the common case. Delaying
+  // these hooks would only add an avoidable input-only frame.
+  const [isReady, setIsReady] = useState(IS_NATIVE_CAPACITOR_SEARCH);
   useEffect(() => {
+    if (IS_NATIVE_CAPACITOR_SEARCH) return;
+
     const raf = requestAnimationFrame(() => {
       const t = setTimeout(() => setIsReady(true), 0);
       return () => clearTimeout(t);
@@ -1664,6 +1814,7 @@ export default function Search() {
     activeFilter,
     authenticatedFetch,
     isReady,
+    user?.id,
   );
   const {
     history,
@@ -1675,16 +1826,19 @@ export default function Search() {
   const { currentEvent, isLoading: isEventLoading } = useEventPlaylists(
     authenticatedFetch,
     isReady,
+    eventPlaylistsCacheKey,
   );
 
   const { sections, isLoading: isSectionsLoading } = useSearchSections(
     authenticatedFetch,
     isReady,
+    searchSectionsCacheKey,
   );
 
   const { genres, isLoading: isGenresLoading } = useGenres(
     authenticatedFetch,
     isReady,
+    genresCacheKey,
   );
 
 
@@ -1718,7 +1872,7 @@ export default function Search() {
       addToHistory(artist.name, "artist");
       navigateFromSearch("artist-detail", {
         id: artist.id,
-        slug: (artist as any).unique_id || createSlug(artist.name),
+        urlSlug: (artist as any).urlSlug || getCanonicalSlug(artist, artist.name),
       });
     },
     [addToHistory, navigateFromSearch],
@@ -1733,37 +1887,21 @@ export default function Search() {
   );
 
   const handleEventPlaylistPress = useCallback(
-    async (playlist: EventPlaylist) => {
+    (playlist: EventPlaylist) => {
       if (openingEventPlaylistId === playlist.id) return;
       setOpeningEventPlaylistId(playlist.id);
 
-      try {
-        // Fetch only the selected child playlist. This keeps the search list
-        // lightweight while making its songs available immediately on open.
-        const response = await authenticatedFetch(
-          `https://api.sedabox.com/api/playlists/${playlist.id}/`,
-        );
-        const hydratedPlaylist = response.ok ? await response.json() : null;
-
-        navigateFromSearch("playlist-detail", {
-          id: String(playlist.id),
-          generatedBy: playlist.generated_by,
-          creatorUniqueId: playlist.creator_unique_id,
-          initialPlaylist: hydratedPlaylist || undefined,
-        });
-      } catch (error) {
-        console.error("Failed to fetch event playlist details", error);
-        // Preserve the previous behavior as a network-error fallback.
-        navigateFromSearch("playlist-detail", {
-          id: String(playlist.id),
-          generatedBy: playlist.generated_by,
-          creatorUniqueId: playlist.creator_unique_id,
-        });
-      } finally {
-        setOpeningEventPlaylistId(null);
-      }
+      // Never serialize navigation behind the detail request. PlaylistDetail
+      // already owns this exact hydration request (and its cache), so changing
+      // routes immediately preserves the final result while eliminating a full
+      // network round-trip from the tap-to-screen critical path.
+      navigateFromSearch("playlist-detail", {
+        id: String(playlist.id),
+        generatedBy: playlist.generated_by,
+        creatorUniqueId: playlist.creator_unique_id,
+      });
     },
-    [authenticatedFetch, navigateFromSearch, openingEventPlaylistId],
+    [navigateFromSearch, openingEventPlaylistId],
   );
 
   // Derived State

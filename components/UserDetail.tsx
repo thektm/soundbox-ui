@@ -12,12 +12,12 @@ import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { replaceCurrentNavigationEntry, useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
-import { slugify } from "../utils/share";
 import { buildUserNavigationParams, getCanonicalUserPath, isSedaboxUser } from "../lib/userProfileRoute";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import { ReportModal } from "./ReportModal";
 import { useI18n } from "./I18nContext";
 import { openAuthPrompt } from "./authPrompt";
+import { getCanonicalSlug } from "../lib/slug";
 
 interface UserPlaylist {
   id: number;
@@ -1004,7 +1004,7 @@ function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId?: string }) {
 
       {/* Mobile Sticky Header */}
       <header
-        className="md:hidden fixed flex-row-reverse top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
+        className="md:hidden fixed flex-row-reverse top-0 sb-native-fixed-top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
         style={{
           transform: headerScrolled ? "translateY(0)" : "translateY(-100%)",
           opacity: headerOpacity,
@@ -1064,7 +1064,7 @@ function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId?: string }) {
       {/* Mobile Back (shows when header hidden) */}
       <button
         onClick={goBack}
-        className="fixed top-4 left-4 w-10 h-10 sb-back-position bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
+        className="fixed top-4 sb-native-fixed-top-4 left-4 w-10 h-10 sb-back-position bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
         style={{
           opacity: headerScrolled ? 0 : 1,
           pointerEvents: headerScrolled ? "none" : "auto",
@@ -1712,7 +1712,7 @@ function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId?: string }) {
                         id: idToUse,
                         generatedBy: playlist.generated_by,
                         creatorUniqueId: playlist.creator_unique_id,
-                        slug: slugify(playlist.title),
+                        urlSlug: getCanonicalSlug(playlist, playlist.title),
                       });
                     } else {
                       navigateTo("user-playlist-detail", {
@@ -1745,7 +1745,7 @@ function UserDetail({ uniqueId, dbId }: { uniqueId?: string; dbId?: string }) {
                         id: idToUse,
                         generatedBy: playlist.generated_by,
                         creatorUniqueId: playlist.creator_unique_id,
-                        slug: slugify(playlist.title),
+                        urlSlug: getCanonicalSlug(playlist, playlist.title),
                       });
                     } else {
                       navigateTo("user-playlist-detail", {

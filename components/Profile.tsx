@@ -9,7 +9,7 @@ import Image from "next/image";
 import { Drawer } from "vaul";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import toast from "react-hot-toast";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
 import { useI18n } from "./I18nContext";
 import UserAvatar from "./UserAvatar";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
@@ -86,7 +86,7 @@ export default function Profile() {
     formatErrorMessage,
   } = useAuth();
   const { navigateTo, goBack } = useNavigation();
-  const [isFetching, setIsFetching] = useState(true);
+  const [isFetching, setIsFetching] = useState(() => !authUser);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleLogout = () => {
@@ -141,12 +141,22 @@ export default function Profile() {
   const isPremium = authUser?.plan === "premium";
 
   useEffect(() => {
-    const fetch = async () => {
-      setIsFetching(true);
-      await fetchUserProfile();
-      setIsFetching(false);
+    let active = true;
+    const refresh = async () => {
+      // AuthContext already owns a fresh profile snapshot before it releases
+      // the startup gate. Reuse it immediately and refresh in the background
+      // instead of flashing a second profile skeleton on every navigation.
+      if (!authUser) setIsFetching(true);
+      try {
+        await fetchUserProfile();
+      } finally {
+        if (active) setIsFetching(false);
+      }
     };
-    fetch();
+    void refresh();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const [formData, setFormData] = useState({
@@ -263,9 +273,9 @@ export default function Profile() {
       <div className="absolute bottom-[-10%] right-[20%] w-[400px] h-[400px] bg-blue-900/6 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Header */}
-      <header className="relative z-80 lg:p-12 ">
+      <header className="relative z-30 lg:p-12 ">
         <div
-          className={`flex fixed top-0 z-60 w-full bg-black/90 items-center px-4 pt-4 pb-2 justify-between ${direction === "ltr" ? "flex-row-reverse" : "flex-row"}`}
+          className={`flex fixed top-0 sb-native-fixed-top-0 z-40 w-full bg-black/90 items-center px-4 pt-4 pb-2 justify-between ${direction === "ltr" ? "flex-row-reverse" : "flex-row"}`}
         >
           <div className="flex items-center gap-3 mb-4">
             <div className="h-10 w-10" aria-hidden="true">
@@ -759,10 +769,7 @@ export default function Profile() {
                         onClick={() =>
                           navigateTo("song-detail", {
                             id: track.id,
-                            artistSlug:
-                              track.artist_unique_id ||
-                              createSlug(track.artist_name || "artist"),
-                            songSlug: createSlug(getSongDisplayTitle(track)),
+                            urlSlug: getCanonicalSlug(track, getSongDisplayTitle(track)),
                           })
                         }
                       >
@@ -781,10 +788,7 @@ export default function Profile() {
                           onClick={() =>
                             navigateTo("song-detail", {
                               id: track.id,
-                              artistSlug:
-                                track.artist_unique_id ||
-                                createSlug(track.artist_name || "artist"),
-                              songSlug: createSlug(getSongDisplayTitle(track)),
+                              urlSlug: getCanonicalSlug(track, getSongDisplayTitle(track)),
                             })
                           }
                         >
@@ -794,10 +798,8 @@ export default function Profile() {
                           className="w-fit max-w-full text-xs text-gray-400 truncate mt-1 cursor-pointer hover:text-emerald-400 transition-colors"
                           onClick={() =>
                             navigateTo("artist-detail", {
-                              id: track.artist_unique_id || track.artist_id,
-                              slug:
-                                track.artist_unique_id ||
-                                createSlug(track.artist_name || "artist"),
+                              id: track.artist_id || track.artist_unique_id,
+                              urlSlug: getArtistCanonicalSlug(track, track.artist_name),
                             })
                           }
                         >
@@ -809,10 +811,7 @@ export default function Profile() {
                         onClick={() =>
                           navigateTo("song-detail", {
                             id: track.id,
-                            artistSlug:
-                              track.artist_unique_id ||
-                              createSlug(track.artist_name || "artist"),
-                            songSlug: createSlug(getSongDisplayTitle(track)),
+                            urlSlug: getCanonicalSlug(track, getSongDisplayTitle(track)),
                           })
                         }
                         className="w-10 h-10 flex items-center justify-center rounded-md bg-white/6 active:scale-95 transition-all"

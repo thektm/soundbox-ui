@@ -18,6 +18,7 @@ type OverflowMarqueeProps = {
   align?: "start" | "center" | "end";
   speedPxPerSecond?: number;
   title?: string;
+  deferMeasurement?: boolean;
 };
 
 type MarqueeStyle = CSSProperties & {
@@ -69,11 +70,12 @@ const OverflowMarquee = memo(function OverflowMarquee({
   align = "start",
   speedPxPerSecond = 28,
   title,
+  deferMeasurement = false,
 }: OverflowMarqueeProps) {
   const viewportRef = useRef<HTMLSpanElement | null>(null);
   const contentRef = useRef<HTMLSpanElement | null>(null);
   const [overflowPixels, setOverflowPixels] = useState(0);
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(!deferMeasurement);
 
   const resolvedDirection = useMemo(
     () => resolveTextDirection(text, direction),
@@ -98,6 +100,7 @@ const OverflowMarquee = memo(function OverflowMarquee({
     const viewport = viewportRef.current;
     const content = contentRef.current;
     if (!viewport || !content) return;
+    if (deferMeasurement && !isVisible) return;
 
     let frame = window.requestAnimationFrame(measure);
     const resizeObserver =
@@ -122,11 +125,15 @@ const OverflowMarquee = memo(function OverflowMarquee({
       resizeObserver?.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [measure, text]);
+  }, [deferMeasurement, isVisible, measure, text]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport || typeof IntersectionObserver === "undefined") return;
+    if (!viewport) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setIsVisible(true);
+      return;
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => setIsVisible(entry.isIntersecting),

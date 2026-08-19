@@ -5,9 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "build:capacitor": "node scripts/build-capacitor.mjs",
+    "cap:icon": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-android-icon.ps1"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.0",
     "@hello-pangea/dnd": "^18.0.1",
     "@radix-ui/react-popover": "^1.1.15",
     "babel-plugin-react-compiler": "^1.0.0",
@@ -27,6 +32,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

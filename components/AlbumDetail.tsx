@@ -7,16 +7,21 @@ import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
 import { usePlayerPlayback, Track } from "./PlayerContext";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
-import { getFullShareUrl, slugify } from "../utils/share";
+import { getFullShareUrl } from "../utils/share";
+import { getCanonicalSlug } from "../lib/slug";
 import toast from "react-hot-toast";
 import { SEO } from "./SEO";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import { deleteRouteDataCache, makeRouteDataCacheKey, readRouteDataCache, writeRouteDataCache } from "../lib/routeDataCache";
 
 // API Interfaces based on the provided format
 interface ApiSong {
   id: number;
   title: string;
+  title_en?: string;
+  url_slug?: string;
+  artist_url_slug?: string;
   display_title?: string;
   artist_id: number;
   artist_name: string;
@@ -42,9 +47,12 @@ interface ApiSong {
 interface ApiAlbumResponse {
   id: number;
   title: string;
+  title_en?: string;
+  url_slug?: string;
   artist_id: number;
   artist_name: string;
   artist_unique_id?: string;
+  artist_url_slug?: string;
   cover_image: string;
   release_date: string | null;
   description: string;
@@ -366,19 +374,30 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   album: albumProp,
 }) => {
   const { goBack, currentParams, navigateTo } = useNavigation();
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { accessToken, authenticatedFetch, user } = useAuth();
   const authenticatedFetchRef = useRef(authenticatedFetch);
   authenticatedFetchRef.current = authenticatedFetch;
   const { requestAuth } = useGuestAccess();
   const { setQueue, currentTrack, isPlaying: isPlayerPlaying } = usePlayerPlayback();
 
   const albumId = idProp || currentParams?.id;
+  const albumCacheKey = albumId
+    ? makeRouteDataCacheKey("album", albumId, user?.id)
+    : null;
   const currentParamsRef = useRef(currentParams);
   currentParamsRef.current = currentParams;
+  const initialNavigationPayload = currentParams?.album ?? albumProp;
+  const initialNavigationAlbum = normalizeAlbumPayload(initialNavigationPayload);
+  const initialAlbum =
+    initialNavigationAlbum &&
+    String(initialNavigationAlbum.id) === String(albumId) &&
+    hasCompleteAlbumPayload(initialNavigationPayload)
+      ? initialNavigationAlbum
+      : readRouteDataCache<ApiAlbumResponse>(albumCacheKey);
 
-  const [albumData, setAlbumData] = useState<ApiAlbumResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isLiked, setIsLiked] = useState(false);
+  const [albumData, setAlbumData] = useState<ApiAlbumResponse | null>(initialAlbum);
+  const [loading, setLoading] = useState(!initialAlbum);
+  const [isLiked, setIsLiked] = useState(Boolean(initialAlbum?.is_liked));
   const [liking, setLiking] = useState(false);
 
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
@@ -410,6 +429,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
       // Only a genuine detail payload may bypass the detail endpoint. Card/list
       // payloads are intentionally partial and must never be treated as complete.
       if (navigationMatches && hasCompleteAlbumPayload(navigationPayload)) {
+        writeRouteDataCache(albumCacheKey, navigationAlbum);
         if (active) {
           setAlbumData(navigationAlbum);
           setIsLiked(Boolean(navigationAlbum.is_liked));
@@ -418,7 +438,12 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
         return;
       }
 
-      if (active) {
+      const cached = readRouteDataCache<ApiAlbumResponse>(albumCacheKey);
+      if (active && cached) {
+        setAlbumData(cached);
+        setIsLiked(Boolean(cached.is_liked));
+        setLoading(false);
+      } else if (active) {
         setLoading(true);
         setAlbumData((previous) =>
           previous && String(previous.id) === String(albumId) ? previous : null,
@@ -431,6 +456,8 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
           { signal: controller.signal },
         );
         if (!response.ok) {
+          deleteRouteDataCache(albumCacheKey);
+          if (active) setAlbumData(null);
           throw new Error(`Album request failed with status ${response.status}`);
         }
 
@@ -438,31 +465,30 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
         if (!data) throw new Error("Album response is malformed");
         if (!active) return;
 
+        writeRouteDataCache(albumCacheKey, data);
         setAlbumData(data);
         setIsLiked(data.is_liked);
 
         const routeParams = currentParamsRef.current;
-        const hasSlug =
-          routeParams?.title ||
-          routeParams?.slug ||
-          (typeof window !== "undefined" &&
-            window.location.pathname.includes(`-${slugify(data.title)}`));
-
-        if (data.title && !hasSlug) {
+        const canonicalSlug = getCanonicalSlug(data);
+        const targetPath = `/album/${data.id}${canonicalSlug ? `-${canonicalSlug}` : ""}`;
+        if (typeof window !== "undefined" && window.location.pathname !== targetPath) {
           replaceCurrentNavigationEntry(
             "album-detail",
             {
               ...routeParams,
               id: data.id,
-              title: data.title,
+              urlSlug: canonicalSlug,
             },
-            `/album/${data.id}-${slugify(data.title)}`,
+            targetPath,
           );
         }
       } catch (error) {
         if (controller.signal.aborted || !active) return;
         console.error("Error fetching album:", error);
-        setAlbumData(null);
+        if (!readRouteDataCache<ApiAlbumResponse>(albumCacheKey)) {
+          setAlbumData(null);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -473,7 +499,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
       active = false;
       controller.abort();
     };
-  }, [albumId, albumProp]);
+  }, [albumCacheKey, albumId, albumProp]);
 
 
   const handleMore = useCallback((song: ApiSong) => {
@@ -484,7 +510,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   const handleAction = async (action: string, s: any) => {
     if (action === "share" && s) {
       try {
-        const url = getFullShareUrl("song", s.id, getSongDisplayTitle(s));
+        const url = getFullShareUrl("song", s.id, getCanonicalSlug(s));
         if (typeof navigator !== "undefined" && navigator.share) {
           await navigator.share({
             title: getSongDisplayTitle(s),
@@ -504,7 +530,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
   const handleShare = async () => {
     if (!albumData) return;
     try {
-      const url = getFullShareUrl("album", albumData.id, albumData.title);
+      const url = getFullShareUrl("album", albumData.id, getCanonicalSlug(albumData));
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: albumData.title,
@@ -538,6 +564,12 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
       if (response.ok) {
         const data = await response.json();
         setIsLiked(data.liked);
+        setAlbumData((previous) => {
+          if (!previous) return previous;
+          const next = { ...previous, is_liked: Boolean(data.liked) };
+          writeRouteDataCache(albumCacheKey, next);
+          return next;
+        });
         toast.success(data.liked ? "آلبوم لایک شد" : "لایک آلبوم لغو شد");
       } else {
         toast.error("خطا در لایک آلبوم");
@@ -668,7 +700,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
                 onClick={() =>
                   navigateTo("artist-detail", {
                     id: albumData.artist_id,
-                    slug: albumData.artist_unique_id || undefined,
+                    urlSlug: albumData.artist_url_slug || undefined,
                   })
                 }
                 className="font-medium hover:underline cursor-pointer"
@@ -763,7 +795,7 @@ const AlbumDetail: React.FC<AlbumDetailProps> = ({
               onTitleClick={() =>
                 navigateTo("song-detail", {
                   id: song.id,
-                  title: slugify(getSongDisplayTitle(song)),
+                  urlSlug: getCanonicalSlug(song, getSongDisplayTitle(song)),
                 })
               }
               onArtistClick={() =>

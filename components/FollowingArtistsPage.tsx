@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug } from "../lib/slug";
 import {
   LayoutGrid,
   List,
@@ -228,8 +228,7 @@ const FollowingArtistsPage: React.FC = () => {
                     onClick={() =>
                       navigateTo("artist-detail", {
                         id: artist.id,
-                        slug:
-                          (artist as any).unique_id || createSlug(artist.name),
+                        urlSlug: getCanonicalSlug(artist, artist.name),
                       })
                     }
                   />

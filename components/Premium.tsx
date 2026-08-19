@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Check, ShieldCheck, X } from "lucide-react";
 import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
@@ -76,15 +77,54 @@ const Premium: React.FC = () => {
     const fetchPrice = async () => {
       try {
         setPriceLoading(true);
-        const res = await fetch("/api/premium-price", {
-          signal: controller.signal,
-          cache: "no-store",
-          headers: { Accept: "application/json", "Cache-Control": "no-cache" },
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (mounted && data && typeof data.price === "number" && data.price > 0) {
-          setPrice(data.price);
+        let data: any = null;
+
+        if (Capacitor.isNativePlatform()) {
+          // A Capacitor WebView is served from a local origin. Do not depend on
+          // browser CORS for this public backend endpoint: use Capacitor's
+          // bundled native HTTP client only for the native price lookup.
+          const nativeResponse = await CapacitorHttp.get({
+            url: "https://api.sedabox.com/api/plans/premium/price/",
+            headers: {
+              Accept: "application/json",
+              "Cache-Control": "no-cache",
+            },
+            connectTimeout: 8_000,
+            readTimeout: 8_000,
+            responseType: "json",
+          });
+
+          if (nativeResponse.status < 200 || nativeResponse.status >= 300) {
+            throw new Error(`HTTP ${nativeResponse.status}`);
+          }
+
+          data = nativeResponse.data;
+          if (typeof data === "string") {
+            try {
+              data = JSON.parse(data);
+            } catch {
+              data = null;
+            }
+          }
+        } else {
+          // Preserve the website's existing same-origin Next.js proxy exactly.
+          const res = await fetch("/api/premium-price", {
+            signal: controller.signal,
+            cache: "no-store",
+            headers: { Accept: "application/json", "Cache-Control": "no-cache" },
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          data = await res.json();
+        }
+
+        const rawPrice = data?.price;
+        const numericPrice =
+          typeof rawPrice === "number"
+            ? rawPrice
+            : Number(String(rawPrice ?? "").replace(/[\s,]/g, ""));
+
+        if (mounted && Number.isFinite(numericPrice) && numericPrice > 0) {
+          setPrice(numericPrice);
         } else if (mounted) {
           setPriceError("قیمت در حال حاضر در دسترس نیست");
         }

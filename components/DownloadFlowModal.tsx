@@ -3,6 +3,7 @@
 import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Download, Loader2, X } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 import { useI18n } from "./I18nContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { getSongDisplayTitle } from "../lib/songDisplay";
@@ -66,6 +67,8 @@ export default function DownloadFlowModal({
 }: DownloadFlowModalProps) {
   const { direction, locale, t } = useI18n();
   const isBusy = status === "loading-options" || status === "downloading";
+  const isNativeAndroid =
+    Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
   const selectedOption = options.find(
     (option) => option.quality === selectedQuality,
   );
@@ -137,10 +140,10 @@ export default function DownloadFlowModal({
                     <Check className="h-8 w-8" strokeWidth={3} />
                   </div>
                   <h3 className="text-xl font-black text-white">
-                    {t("دانلود با موفقیت آماده شد")}
+                    {t(isNativeAndroid ? "دانلود با موفقیت انجام شد" : "دانلود با موفقیت آماده شد")}
                   </h3>
                   <p className="mt-2 max-w-xs text-sm leading-6 text-white/50">
-                    {t("فایل کامل به مرورگر تحویل داده شد.")}
+                    {t(isNativeAndroid ? "فایل با موفقیت دانلود شد." : "فایل کامل به مرورگر تحویل داده شد.")}
                   </p>
                   <button
                     type="button"
@@ -157,7 +160,11 @@ export default function DownloadFlowModal({
                       {t("کیفیت دانلود را انتخاب کنید")}
                     </h3>
                     <p className="mt-1 text-xs leading-5 text-white/45">
-                      {t("فایل ابتدا کامل دریافت می‌شود و سپس به مرورگر تحویل داده می‌شود.")}
+                      {t(
+                        isNativeAndroid
+                          ? "فایل در پوشه دانلودهای دستگاه ذخیره می‌شود."
+                          : "فایل ابتدا کامل دریافت می‌شود و سپس به مرورگر تحویل داده می‌شود.",
+                      )}
                     </p>
                   </div>
 

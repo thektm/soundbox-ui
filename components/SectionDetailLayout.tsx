@@ -111,7 +111,7 @@ const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
       style={{ zIndex: 40 }}
     >
       {/* Top Bar (overlays header image) */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-transparent backdrop-blur-md border-b border-white/10">
+      <div className="fixed top-0 sb-native-fixed-top-0 left-0 right-0 z-50 bg-transparent backdrop-blur-md border-b border-white/10">
         <div
           className={`flex justify-between items-center px-6 py-3 ${direction === "ltr" ? "flex-row-reverse" : "flex-row"}`}
           dir={direction}

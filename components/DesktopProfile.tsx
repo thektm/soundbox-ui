@@ -5,7 +5,7 @@ import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import Image from "next/image";
 import toast from "react-hot-toast";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
 import LikedSongs from "./LikedSongs";
 import LikedAlbums from "./LikedAlbums";
 import LikedPlaylists from "./LikedPlaylists";
@@ -105,7 +105,7 @@ export default function DesktopProfile() {
   const [activeSection, setActiveSection] = useState<Section>("overview");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
-  const [isFetching, setIsFetching] = useState(true);
+  const [isFetching, setIsFetching] = useState(() => !authUser);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDeletingImage, setIsDeletingImage] = useState(false);
@@ -196,12 +196,21 @@ export default function DesktopProfile() {
   }, [authUser]);
 
   useEffect(() => {
-    const fetch = async () => {
-      setIsFetching(true);
-      await fetchUserProfile();
-      setIsFetching(false);
+    let active = true;
+    const refresh = async () => {
+      // The auth gate already populated authUser. Keep that snapshot visible and
+      // refresh it in the background instead of forcing another route skeleton.
+      if (!authUser) setIsFetching(true);
+      try {
+        await fetchUserProfile();
+      } finally {
+        if (active) setIsFetching(false);
+      }
     };
-    fetch();
+    void refresh();
+    return () => {
+      active = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -677,10 +686,7 @@ export default function DesktopProfile() {
                             onClick={() =>
                               navigateTo("song-detail", {
                                 id: track.id,
-                                artistSlug:
-                                  track.artist_unique_id ||
-                                  createSlug(track.artist_name || "artist"),
-                                songSlug: createSlug(getSongDisplayTitle(track)),
+                                urlSlug: getCanonicalSlug(track, getSongDisplayTitle(track)),
                               })
                             }
                           >
@@ -703,10 +709,7 @@ export default function DesktopProfile() {
                               onClick={() =>
                                 navigateTo("song-detail", {
                                   id: track.id,
-                                  artistSlug:
-                                    track.artist_unique_id ||
-                                    createSlug(track.artist_name || "artist"),
-                                  songSlug: createSlug(getSongDisplayTitle(track)),
+                                  urlSlug: getCanonicalSlug(track, getSongDisplayTitle(track)),
                                 })
                               }
                             >
@@ -716,10 +719,8 @@ export default function DesktopProfile() {
                               className="w-fit max-w-full text-gray-400 text-sm truncate cursor-pointer hover:text-emerald-400 transition-colors"
                               onClick={() =>
                                 navigateTo("artist-detail", {
-                                  id: track.artist_unique_id || track.artist_id,
-                                  slug:
-                                    track.artist_unique_id ||
-                                    createSlug(track.artist_name || "artist"),
+                                  id: track.artist_id || track.artist_unique_id,
+                                  urlSlug: getArtistCanonicalSlug(track, track.artist_name),
                                 })
                               }
                             >

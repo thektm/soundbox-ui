@@ -1,5 +1,6 @@
 import OverflowMarquee from "./OverflowMarquee";
 import React, { memo, useEffect, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useI18n } from "./I18nContext";
 import { getSongDisplayTitle } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
@@ -83,6 +84,7 @@ type Props = {
     target: "song" | "artist" | "album" | "playlist",
   ) => void;
   onGenreNavigate?: (genre: GenreLink) => void;
+  nativeMobile?: boolean;
 };
 
 // --- Optimized Sub-Components ---
@@ -154,9 +156,11 @@ function HeroSection({
   onCardPlay,
   onItemNavigate,
   onGenreNavigate,
+  nativeMobile = false,
 }: Props) {
   const { locale, direction } = useI18n();
   const isRtl = direction === "rtl";
+  const isNative = Capacitor.isNativePlatform();
   const sliderShellRef = useRef<HTMLDivElement | null>(null);
   const draggedRef = useRef(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -612,7 +616,7 @@ function HeroSection({
               </div>
 
               {/* Play Count (Desktop) */}
-              {active.type === "song" && playCountValue > 0 && (
+              {!nativeMobile && active.type === "song" && playCountValue > 0 && (
                 <div className="hidden items-center justify-start md:flex">
                   <div className="flex items-center gap-2 text-white">
                     <div className="text-center text-2xl md:text-3xl lg:text-4xl font-thin leading-tight text-emerald-400">
@@ -625,7 +629,8 @@ function HeroSection({
             </div>
 
             {/* Desktop Buttons */}
-            <div className="hidden items-center justify-start gap-3 pt-1 md:flex">
+            {!nativeMobile && (
+              <div className="hidden items-center justify-start gap-3 pt-1 md:flex">
               <button
                 type="button"
                 onClick={() => onPrimaryPlay(active)}
@@ -640,7 +645,8 @@ function HeroSection({
               >
                 {sourceActionText}
               </button>
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Direction-isolated card deck: always stays inside the hero viewport. */}
@@ -679,6 +685,13 @@ function HeroSection({
                 const rotate = visualOffset * -4.25;
                 const cardOpacity =
                   distance === 0 ? 1 : distance === 1 ? 0.9 : distance === 2 ? 0.56 : 0;
+
+                // Keep one fully-transparent neighbor beyond the visible deck
+                // so swipe/settle transitions still animate in exactly as before.
+                // Cards farther away are opacity:0 + non-interactive anyway, so
+                // their image/gradient/text trees are pure hidden work on native.
+                if (isNative && distance > 3) return null;
+
                 const cardGenres = getGenreLinks(item.item).slice(0, 2);
                 const genreHighlight =
                   cardGenres.length > 0 &&
@@ -803,6 +816,7 @@ function HeroSection({
                               >
                                 <OverflowMarquee
                                   text={item.item?.artist_name || item.subtitle}
+                                 
                                 />
                               </button>
                             </p>

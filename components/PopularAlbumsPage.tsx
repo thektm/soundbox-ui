@@ -5,6 +5,7 @@ import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { getCanonicalSlug } from "../lib/slug";
 
 interface ApiAlbum {
   id: number;
@@ -92,7 +93,7 @@ const PopularAlbumsPage: React.FC = () => {
             onClick={() =>
               navigateTo("album-detail", {
                 id: album.id,
-                slug: createSlug(album.title),
+                urlSlug: getCanonicalSlug(album, album.title),
               })
             }
             className="group cursor-pointer space-y-4"
@@ -131,7 +132,7 @@ const PopularAlbumsPage: React.FC = () => {
                   e.stopPropagation();
                   navigateTo("album-detail", {
                     id: album.id,
-                    slug: createSlug(album.title),
+                    urlSlug: getCanonicalSlug(album, album.title),
                   });
                 }}
               >

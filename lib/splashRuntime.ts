@@ -252,3 +252,34 @@ export const getSplashRuntimeSnapshot = (): SplashRuntimeSnapshot => {
 
 export const getSplashServerSnapshot = (): SplashRuntimeSnapshot =>
   INITIAL_SNAPSHOT;
+
+/**
+ * Resolves only after the one-time splash has fully left the DOM. Heavy native
+ * response parsing can await this without controlling the splash timeline.
+ */
+export const waitForSplashHidden = (): Promise<void> => {
+  if (typeof window === "undefined" || !getSplashRuntimeSnapshot().visible) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let unsubscribe: (() => void) | null = null;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      unsubscribe?.();
+      // Give the WebView one clean frame after removing the splash before
+      // releasing deferred JSON/React work onto the main thread.
+      window.requestAnimationFrame(() => resolve());
+    };
+
+    unsubscribe = subscribeSplashRuntime(() => {
+      if (!getSplashRuntimeSnapshot().visible) finish();
+    });
+
+    // Cover the tiny race between the initial visibility check and subscribe.
+    if (!getSplashRuntimeSnapshot().visible) finish();
+  });
+};

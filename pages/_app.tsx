@@ -40,7 +40,10 @@ const toastOptions = {
   error: { className: "sb-toast sb-toast--error" },
 } as const;
 
-const containerStyle = { zIndex: 100000 } as const;
+const containerStyle = {
+  zIndex: 100000,
+  bottom: "var(--sb-safe-bottom, env(safe-area-inset-bottom, 0px))",
+} as const;
 
 function LocalizedToastBar({ toastItem }: { toastItem: Toast }) {
   const { language } = useI18n();

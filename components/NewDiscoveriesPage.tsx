@@ -5,7 +5,7 @@ import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
 import { usePlayerActions } from "./PlayerContext";
 import { useNavigation } from "./NavigationContext";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug } from "../lib/slug";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { getSongDisplayTitle, getPlayerFeaturedArtists, normalizeSongCollection } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
@@ -136,7 +136,7 @@ const NewDiscoveriesPage: React.FC = () => {
                   e.stopPropagation();
                   navigateTo("song-detail", {
                     id: song.id,
-                    title: createSlug(getSongDisplayTitle(song)),
+                    urlSlug: getCanonicalSlug(song, getSongDisplayTitle(song)),
                   });
                 }}
               >

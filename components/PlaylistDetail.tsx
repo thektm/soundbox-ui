@@ -17,17 +17,22 @@ import { useGuestAccess } from "./GuestAccessContext";
 import { usePlayerPlayback, Track } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { toast } from "react-hot-toast";
-import { getFullShareUrl, slugify } from "../utils/share";
+import { getFullShareUrl } from "../utils/share";
+import { getCanonicalSlug } from "../lib/slug";
 import { SEO } from "./SEO";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import { deleteRouteDataCache, makeRouteDataCacheKey, readRouteDataCache, writeRouteDataCache } from "../lib/routeDataCache";
 
 // ============== API INTERFACES ==============
 
 interface ApiSong {
   id: number;
   title: string;
+  title_en?: string;
+  url_slug?: string;
+  artist_url_slug?: string;
   display_title?: string;
   featured_artists?: any[];
   artist_id?: number;
@@ -48,6 +53,8 @@ interface PlaylistResponse {
   id: number;
   unique_id?: string;
   title: string;
+  title_en?: string;
+  url_slug?: string;
   description: string;
   cover_image?: string;
   covers?: string[];
@@ -75,6 +82,8 @@ const apiSongToTrack = (song: ApiSong): Track => ({
   artist: song.artist_name,
   featuredArtists: getPlayerFeaturedArtists(song),
   artistId: song.artist_id,
+  urlSlug: getCanonicalSlug(song, getSongDisplayTitle(song)),
+  artistUrlSlug: (song as any).artist_url_slug || "",
   image: song.cover_image || "/default-cover.jpg",
   duration: formatDuration(song.duration_seconds),
   durationSeconds: song.duration_seconds,
@@ -343,20 +352,25 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
   const scrollY = useNavigationScroll();
   const currentParamsRef = useRef(currentParams);
   currentParamsRef.current = currentParams;
-  const { accessToken, authenticatedFetch, formatErrorMessage } = useAuth();
+  const { accessToken, authenticatedFetch, formatErrorMessage, user } = useAuth();
   const { requestAuth } = useGuestAccess();
   const { setQueue, currentTrack, isPlaying } = usePlayerPlayback();
 
+  const playlistCacheKey = id
+    ? makeRouteDataCacheKey("playlist", id, user?.id)
+    : null;
   const hasHydratedInitialPlaylist = Boolean(
     initialPlaylist &&
       String(initialPlaylist.id) === String(id) &&
       Array.isArray(initialPlaylist.songs),
   );
-  const [playlist, setPlaylist] = useState<PlaylistResponse | null>(
-    hasHydratedInitialPlaylist && initialPlaylist ? normalizePlaylistResponse(initialPlaylist) : null,
-  );
-  const [loading, setLoading] = useState(!hasHydratedInitialPlaylist);
-  const [isLiked, setIsLiked] = useState(false);
+  const initialPlaylistData =
+    hasHydratedInitialPlaylist && initialPlaylist
+      ? normalizePlaylistResponse(initialPlaylist)
+      : readRouteDataCache<PlaylistResponse>(playlistCacheKey);
+  const [playlist, setPlaylist] = useState<PlaylistResponse | null>(initialPlaylistData);
+  const [loading, setLoading] = useState(!initialPlaylistData);
+  const [isLiked, setIsLiked] = useState(Boolean(initialPlaylistData?.is_liked));
   const [isLiking, setIsLiking] = useState(false);
 
   const [selectedSong, setSelectedSong] = useState<any | null>(null);
@@ -372,7 +386,14 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
     // Use the recommendation endpoint if the ID is not purely numeric (like smart_rec_ or liked_rec_)
     const isRecommended = typeof id === "string" && !/^\d+$/.test(id);
 
-    setLoading(true);
+    const cached = readRouteDataCache<PlaylistResponse>(playlistCacheKey);
+    if (cached) {
+      setPlaylist(cached);
+      setIsLiked(!!cached.is_liked);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
       const url = isRecommended
         ? `https://api.sedabox.com/api/home/playlist-recommendations/${id}/`
@@ -388,33 +409,32 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         if (creatorUniqueId && !data.creator_unique_id) {
           data.creator_unique_id = creatorUniqueId;
         }
-        setPlaylist(normalizePlaylistResponse(data));
+        const normalized = normalizePlaylistResponse(data);
+        writeRouteDataCache(playlistCacheKey, normalized);
+        setPlaylist(normalized);
         setIsLiked(!!data.is_liked);
 
-        // Fix URL if slug is missing or does not match
-        // Only if not a recommendation
-        if (!isRecommended && data && data.title) {
+        // Canonical public playlist URLs use only the verified English title
+        // slug. Old localized slugs are accepted on input but never re-emitted.
+        if (!isRecommended && data) {
           const routeParams = currentParamsRef.current;
-          const hasSlug =
-            routeParams?.title ||
-            slug ||
-            (typeof window !== "undefined" &&
-              window.location.pathname.includes(`-${slugify(data.title)}`));
-
-          if (!hasSlug) {
+          const canonicalSlug = getCanonicalSlug(data);
+          const targetPath = `/playlist/${data.id}${canonicalSlug ? `-${canonicalSlug}` : ""}`;
+          if (typeof window !== "undefined" && window.location.pathname !== targetPath) {
             replaceCurrentNavigationEntry(
               "playlist-detail",
               {
                 ...routeParams,
                 id: data.id,
-                title: data.title,
-                slug: slugify(data.title),
+                urlSlug: canonicalSlug,
               },
-              `/playlist/${data.id}-${slugify(data.title)}`,
+              targetPath,
             );
           }
         }
       } else {
+        deleteRouteDataCache(playlistCacheKey);
+        setPlaylist(null);
         toast.error("خطا در بارگذاری پلی‌لیست");
       }
     } catch (err) {
@@ -429,29 +449,36 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
     generatedBy,
     creatorUniqueId,
     slug,
+    playlistCacheKey,
   ]);
 
   useEffect(() => {
     if (hasHydratedInitialPlaylist && initialPlaylist) {
-      setPlaylist(normalizePlaylistResponse(initialPlaylist));
+      const normalized = normalizePlaylistResponse(initialPlaylist);
+      writeRouteDataCache(playlistCacheKey, normalized);
+      setPlaylist(normalized);
       setIsLiked(!!initialPlaylist.is_liked);
       setLoading(false);
       return;
     }
     fetchPlaylist();
-  }, [fetchPlaylist, hasHydratedInitialPlaylist, initialPlaylist]);
+  }, [fetchPlaylist, hasHydratedInitialPlaylist, initialPlaylist, playlistCacheKey]);
 
   useEffect(() => {
     const handleSongLikeChanged = (e: any) => {
       const { id: songId, liked } = e.detail;
       setPlaylist((prev) => {
         if (!prev) return prev;
-        return {
+        const next = {
           ...prev,
           songs: prev.songs.map((s) =>
-            String(s.id) === String(songId) ? { ...s, is_liked: !!liked } : s,
+            String(s.id) === String(songId)
+              ? { ...s, is_liked: !!liked }
+              : s,
           ),
         };
+        writeRouteDataCache(playlistCacheKey, next);
+        return next;
       });
     };
 
@@ -461,7 +488,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
         "song-like-changed" as any,
         handleSongLikeChanged,
       );
-  }, []);
+  }, [playlistCacheKey]);
 
   const handleToggleLike = async () => {
     if (!playlist) return;
@@ -501,14 +528,16 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
 
         setIsLiked(Boolean(liked));
         if (playlist) {
-          setPlaylist({
+          const nextPlaylist = {
             ...playlist,
             likes_count:
               typeof data.likes_count !== "undefined"
                 ? data.likes_count
                 : playlist.likes_count,
             is_liked: Boolean(liked),
-          });
+          };
+          writeRouteDataCache(playlistCacheKey, nextPlaylist);
+          setPlaylist(nextPlaylist);
         }
         toast.success(liked ? "پلی‌لیست لایک شد" : "لایک حذف شد");
       } else if (resp.status !== 401) {
@@ -534,7 +563,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
       const uniqueIdStr = String(playlist.unique_id || playlist.id);
       const useUniqueId = !!playlist.unique_id && !/^\d+$/.test(uniqueIdStr);
       const idForShare = useUniqueId ? playlist.unique_id! : playlist.id;
-      const url = getFullShareUrl("playlist", idForShare, playlist.title);
+      const url = getFullShareUrl("playlist", idForShare, getCanonicalSlug(playlist));
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: playlist.title,
@@ -554,7 +583,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
     async (action: string, song: any) => {
       if (action === "share" && song) {
         try {
-          const url = getFullShareUrl("song", song.id, getSongDisplayTitle(song));
+          const url = getFullShareUrl("song", song.id, getCanonicalSlug(song));
           const text = `گوش دادن به آهنگ ${getSongDisplayTitle(song)} از ${song.artist_name} در سداباکس`;
           if (typeof navigator !== "undefined" && navigator.share) {
             await navigator.share({ title: getSongDisplayTitle(song), text, url });
@@ -696,7 +725,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
 
       {/* Mobile condensed header that slides in when scrolled */}
       <header
-        className="md:hidden fixed flex-row-reverse top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
+        className="md:hidden fixed flex-row-reverse top-0 sb-native-fixed-top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
         style={{
           transform: showHeader ? "translateY(0)" : "translateY(-100%)",
           opacity: showHeader ? 1 : 0,
@@ -867,7 +896,7 @@ const PlaylistDetail: React.FC<PlaylistDetailProps> = ({
             onTitleClick={() =>
               navigateTo("song-detail", {
                 id: song.id,
-                title: slugify(getSongDisplayTitle(song)),
+                urlSlug: getCanonicalSlug(song, getSongDisplayTitle(song)),
               })
             }
             onArtistClick={() =>

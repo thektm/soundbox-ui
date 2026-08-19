@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
 import dynamic from "next/dynamic";
 import { useResponsiveLayout } from "./ResponsiveLayout";
 import { useAuth } from "./AuthContext";
@@ -37,13 +38,14 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
   const { hasCollapsedPlayer } = usePlayerLayoutState();
   const { registerScrollContainer, restoreScroll, navigationKey } =
     useNavigation();
+  const isNative = Capacitor.isNativePlatform();
 
   // Screens already reserve their normal navbar gutter. Add only the
   // collapsed player's own footprint, with a small breathing gap, so the last
   // item remains scrollable above the player without a large empty tail.
   const playerContentInset = hasCollapsedPlayer
     ? isMobile
-      ? "calc(88px + env(safe-area-inset-bottom, 0px))"
+      ? "calc(88px + var(--sb-safe-bottom, env(safe-area-inset-bottom, 0px)))"
       : "106px"
     : "0px";
 
@@ -78,11 +80,12 @@ const ResponsiveAppShell: React.FC<Props> = ({ children }) => {
       <>
         <div
           dir={direction}
-          className="w-full overflow-y-auto overflow-x-hidden"
+          className={`w-full overflow-y-auto overflow-x-hidden ${isNative ? "sb-native-scroll-root" : ""}`}
           ref={registerScrollContainer}
           style={{
-            minHeight: "calc(var(--vh, 1vh) * 100)",
-            maxHeight: "calc(var(--vh, 1vh) * 100)",
+            minHeight: isNative ? "100dvh" : "calc(var(--vh, 1vh) * 100)",
+            maxHeight: isNative ? "100dvh" : "calc(var(--vh, 1vh) * 100)",
+            paddingTop: isNative ? "var(--sb-safe-top, 0px)" : undefined,
             position: "relative",
             overscrollBehavior: "contain",
           }}

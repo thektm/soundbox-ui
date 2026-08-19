@@ -116,7 +116,7 @@ function MobileContent({
         data-notification-dialog
         aria-label={labels.title}
         dir={labels.direction}
-        className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-101"
+        className="fixed top-4 sb-native-fixed-top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md z-101"
         style={{
           // Performance optimizations
           transform: "translate3d(0, 0, 0)",

@@ -194,7 +194,7 @@ export default function BottomNavbar() {
       {/* Main Navbar - Only visible on mobile */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-50 bg-[#121212] border-t border-white/8 md:hidden"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        style={{ paddingBottom: "var(--sb-safe-bottom, env(safe-area-inset-bottom, 0px))" }}
         dir="ltr" data-direction-fixed="ltr"
       >
         {/* Safe area spacer for iOS */}
@@ -221,7 +221,7 @@ export default function BottomNavbar() {
                 className={`
                   relative flex flex-col items-center justify-center
                   flex-1 h-full py-2 
-                  transition-all duration-150 ease-out
+                  sb-compositor-motion transition-[transform,opacity,color,background-color] duration-150 ease-out
                   select-none outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg
                   ${
                     isPressed === tab.id

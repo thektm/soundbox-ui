@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { Capacitor, SystemBars, SystemBarsStyle } from "@capacitor/core";
 import dynamic from "next/dynamic";
 import MusicPlayer from "./MusicPlayer";
 import { NavigationProvider } from "./NavigationContext";
@@ -37,7 +38,18 @@ interface AppContainerProps {
 const AppContainer: React.FC<AppContainerProps> = ({ children }) => {
   useEffect(() => {
     const cleanup = installGlobalClientDiagnostics();
-    clientTrace("APP", "container:mounted");
+    const isNative = Capacitor.isNativePlatform();
+
+    if (isNative) {
+      // Mark the document once so native-only performance/safe-area CSS can be
+      // applied without changing the browser/PWA presentation.
+      document.documentElement.dataset.sedaboxNative = Capacitor.getPlatform();
+
+      // Keep system-bar glyphs readable over SedaBox's dark edge-to-edge UI.
+      void SystemBars.setStyle({ style: SystemBarsStyle.Dark }).catch(() => undefined);
+    }
+
+    clientTrace("APP", "container:mounted", { native: isNative });
     return () => {
       clientTrace("APP", "container:unmounted", undefined, "warn");
       cleanup();

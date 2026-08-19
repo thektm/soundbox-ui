@@ -6,6 +6,7 @@ import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { useDiscovery } from "./DiscoveryContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
+import { getCanonicalSlug } from "../lib/slug";
 
 interface ApiPlaylist {
   id: number;
@@ -75,7 +76,7 @@ const RecommendedPlaylistsPage: React.FC = () => {
             onClick={() =>
               navigateTo("playlist-detail", {
                 id: playlist.unique_id,
-                slug: createSlug(playlist.title),
+                urlSlug: getCanonicalSlug(playlist, playlist.title),
               })
             }
             className="group cursor-pointer space-y-4"

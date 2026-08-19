@@ -1,3 +1,5 @@
+import { createSlug } from "../lib/slug";
+
 // Share links utility for sedabox
 // Generates clean, human-readable share URLs.
 
@@ -5,15 +7,10 @@ export type ShareType = "song" | "artist" | "album" | "playlist" | "user-playlis
 
 /**
  * Converts a string into a URL-friendly slug.
- * Keeps Latin letters/digits, Persian/Arabic characters, and hyphens.
+ * Emits an English/ASCII slug only; Persian/Arabic input becomes an empty slug.
  */
 export function slugify(str: string): string {
-  return String(str)
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^\w\u0600-\u06FF\-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return createSlug(str);
 }
 
 const TYPE_PREFIX: Record<ShareType, string> = {
@@ -57,7 +54,8 @@ export function getSharePath(
   name?: string,
 ): string {
   const prefix = TYPE_PREFIX[type];
-  const namePart = name ? `-${slugify(name)}` : "";
+  const canonicalSlug = name ? slugify(name) : "";
+  const namePart = canonicalSlug ? `-${canonicalSlug}` : "";
   return `/${prefix}/${id}${namePart}`;
 }
 

@@ -20,8 +20,14 @@ import { SEO } from "./SEO";
 import UserAvatar from "./UserAvatar";
 import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
+import { getCanonicalSlug } from "../lib/slug";
 import { getSongDisplayTitle } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import {
+  makeRouteDataCacheKey,
+  readRouteDataCache,
+  writeRouteDataCache,
+} from "../lib/routeDataCache";
 
 function ensureHttps(u?: string | null): string | undefined {
   if (!u) return undefined;
@@ -40,6 +46,7 @@ function validHistoryEntries(entries: unknown): any[] {
 const LibraryItem = ({
   title,
   subtitle,
+  subtitleLoading = false,
   imageUrl,
   icon,
   type,
@@ -52,6 +59,7 @@ const LibraryItem = ({
 }: {
   title: string;
   subtitle?: string;
+  subtitleLoading?: boolean;
   imageUrl?: string;
   icon?: React.ReactNode;
   type?: string;
@@ -160,7 +168,7 @@ const LibraryItem = ({
                   </span>
                 )}
               </span>
-              {subtitle && (
+              {(subtitle || subtitleLoading) && (
                 <span
                   onClick={(e) => {
                     e.stopPropagation();
@@ -176,7 +184,14 @@ const LibraryItem = ({
                   tabIndex={onSubtitleClick ? 0 : undefined}
                   className="w-fit max-w-full text-zinc-400 text-[10px] truncate mt-0.5 cursor-pointer hover:underline inline-flex items-center gap-1"
                 >
-                  <span className="truncate">{subtitle}</span>
+                  {subtitleLoading ? (
+                    <span
+                      className="inline-block h-2.5 w-14 rounded bg-white/10 animate-pulse"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <span className="truncate">{subtitle}</span>
+                  )}
                   {type === "user" && meta && (
                     <span className="text-emerald-500 text-5xl">·</span>
                   )}
@@ -242,7 +257,7 @@ const LibraryItem = ({
                   </span>
                 )}
               </span>
-              {subtitle && (
+              {(subtitle || subtitleLoading) && (
                 <span
                   onClick={(e) => {
                     e.stopPropagation();
@@ -262,7 +277,14 @@ const LibraryItem = ({
                       : ""
                   }`}
                 >
-                  <span className="truncate">{subtitle}</span>
+                  {subtitleLoading ? (
+                    <span
+                      className="inline-block h-2.5 w-14 rounded bg-white/10 animate-pulse"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <span className="truncate">{subtitle}</span>
+                  )}
                   {type === "user" && meta && (
                     <span className="text-emerald-500 text-5xl">·</span>
                   )}
@@ -364,7 +386,7 @@ const LibraryItem = ({
                   </span>
                 )}
               </span>
-              {subtitle && (
+              {(subtitle || subtitleLoading) && (
                 <span
                   onClick={(e) => {
                     e.stopPropagation();
@@ -380,7 +402,14 @@ const LibraryItem = ({
                   tabIndex={onSubtitleClick ? 0 : undefined}
                   className="w-fit max-w-full text-zinc-400 text-sm truncate cursor-pointer hover:underline inline-flex items-center gap-1"
                 >
-                  <span className="truncate">{subtitle}</span>
+                  {subtitleLoading ? (
+                    <span
+                      className="inline-block h-2.5 w-14 rounded bg-white/10 animate-pulse"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <span className="truncate">{subtitle}</span>
+                  )}
                   {type === "user" && meta && (
                     <span className="text-emerald-500 text-5xl">·</span>
                   )}
@@ -446,7 +475,7 @@ const LibraryItem = ({
                   </span>
                 )}
               </span>
-              {subtitle && (
+              {(subtitle || subtitleLoading) && (
                 <span
                   onClick={(e) => {
                     e.stopPropagation();
@@ -466,7 +495,14 @@ const LibraryItem = ({
                       : ""
                   }`}
                 >
-                  <span className="truncate">{subtitle}</span>
+                  {subtitleLoading ? (
+                    <span
+                      className="inline-block h-2.5 w-14 rounded bg-white/10 animate-pulse"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <span className="truncate">{subtitle}</span>
+                  )}
                   {type === "user" && meta && (
                     <span className="text-emerald-500 text-5xl">·</span>
                   )}
@@ -536,17 +572,45 @@ const LibrarySkeletonItem: React.FC<{ viewMode?: "list" | "grid" }> = ({
   );
 };
 
+type LibraryHistorySnapshot = {
+  results: any[];
+  hasNextPage: boolean;
+};
+
+type LibraryLikedSnapshot = {
+  count: number;
+  cover: string | null;
+};
+
 const LibraryScreen: React.FC = () => {
   const { navigateTo } = useNavigation();
   const { user, accessToken, authenticatedFetch } = useAuth();
+  const defaultHistoryCacheKey = makeRouteDataCacheKey(
+    "library-history",
+    "all",
+    user?.id,
+  );
+  const likedSummaryCacheKey = makeRouteDataCacheKey(
+    "library-liked-summary",
+    "current",
+    user?.id,
+  );
+  const initialHistorySnapshot =
+    readRouteDataCache<LibraryHistorySnapshot>(defaultHistoryCacheKey);
+  const initialLikedSnapshot =
+    readRouteDataCache<LibraryLikedSnapshot>(likedSummaryCacheKey);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>(
+    initialHistorySnapshot?.results || [],
+  );
   const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialHistorySnapshot);
   const [page, setPage] = useState(1);
-  const [hasNextPage, setHasNextPage] = useState(false);
+  const [hasNextPage, setHasNextPage] = useState(
+    initialHistorySnapshot?.hasNextPage || false,
+  );
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [searchPage, setSearchPage] = useState(1);
@@ -556,10 +620,15 @@ const LibraryScreen: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedSong, setSelectedSong] = useState<any>(null);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [likedSongsCount, setLikedSongsCount] = useState<number>(0);
+  const [likedSongsCount, setLikedSongsCount] = useState<number | null>(
+    initialLikedSnapshot ? initialLikedSnapshot.count : null,
+  );
+  const [isLikedSummaryLoading, setIsLikedSummaryLoading] = useState(
+    !initialLikedSnapshot,
+  );
   const [latestLikedSongCover, setLatestLikedSongCover] = useState<
     string | null
-  >(null);
+  >(initialLikedSnapshot?.cover || null);
 
   const filters = [
     { id: "artist", label: "هنرمندان" },
@@ -576,20 +645,43 @@ const LibraryScreen: React.FC = () => {
       );
       if (response.ok) {
         const data = await response.json();
-        setLikedSongsCount(data.count || 0);
-        if (data.results && data.results.length > 0) {
-          setLatestLikedSongCover(data.results[0].cover_image);
-        }
+        const rawCount = Number(data?.count);
+        const count = Number.isFinite(rawCount) && rawCount >= 0 ? rawCount : 0;
+        const cover =
+          data.results && data.results.length > 0
+            ? data.results[0].cover_image || null
+            : null;
+        writeRouteDataCache(likedSummaryCacheKey, { count, cover });
+        setLikedSongsCount(count);
+        setLatestLikedSongCover(cover);
       }
     } catch (error) {
       console.error("Error fetching liked songs count:", error);
+    } finally {
+      setIsLikedSummaryLoading(false);
     }
-  }, [authenticatedFetch]);
+  }, [authenticatedFetch, likedSummaryCacheKey]);
 
   const fetchHistory = useCallback(
     async (pageNum: number, type?: string) => {
+      const historyCacheKey = makeRouteDataCacheKey(
+        "library-history",
+        type || "all",
+        user?.id,
+      );
+      const cached =
+        pageNum === 1
+          ? readRouteDataCache<LibraryHistorySnapshot>(historyCacheKey)
+          : null;
+
       if (pageNum === 1) {
-        setIsLoading(true);
+        if (cached) {
+          setHistory(cached.results);
+          setHasNextPage(cached.hasNextPage);
+          setIsLoading(false);
+        } else {
+          setIsLoading(true);
+        }
       } else {
         setIsFetchingMore(true);
       }
@@ -605,10 +697,17 @@ const LibraryScreen: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           const results = validHistoryEntries(data.results);
+          const hasNext = !!data.next;
+          if (pageNum === 1) {
+            writeRouteDataCache(historyCacheKey, {
+              results,
+              hasNextPage: hasNext,
+            });
+          }
           setHistory((prev) =>
             pageNum === 1 ? results : [...prev, ...results],
           );
-          setHasNextPage(!!data.next);
+          setHasNextPage(hasNext);
         }
       } catch (error) {
         console.error("Error fetching history:", error);
@@ -617,7 +716,7 @@ const LibraryScreen: React.FC = () => {
         setIsFetchingMore(false);
       }
     },
-    [authenticatedFetch],
+    [authenticatedFetch, user?.id],
   );
 
   const fetchSearch = useCallback(
@@ -671,9 +770,17 @@ const LibraryScreen: React.FC = () => {
     fetchLikedSongs();
   }, [fetchHistory, fetchLikedSongs]);
 
-  // Debounce filter changes (when not searching) to avoid rapid intermediate requests
+  // Debounce filter changes (when not searching) to avoid rapid intermediate requests.
+  // The mount effect above already owns the first history request, so skip this
+  // effect's initial pass instead of scheduling the same page-1 fetch twice.
   const filterDebounceRef = useRef<any>(null);
+  const didRunFilterEffectRef = useRef(false);
   useEffect(() => {
+    if (!didRunFilterEffectRef.current) {
+      didRunFilterEffectRef.current = true;
+      return;
+    }
+
     if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
 
     // when filter changes, clear current display and show skeleton
@@ -829,7 +936,7 @@ const LibraryScreen: React.FC = () => {
       navigateTo(page, {
         id: identifier,
         uniqueId: item.unique_id || undefined,
-        slug: item.unique_id || item.id,
+        urlSlug: getCanonicalSlug(item),
         generatedBy: item.generated_by,
         creatorUniqueId: item.creator_unique_id,
       });
@@ -1041,7 +1148,8 @@ const LibraryScreen: React.FC = () => {
             (activeFilter === null || activeFilter === "song") && (
               <LibraryItem
                 title="آهنگ‌های لایک شده"
-                subtitle={`${likedSongsCount} آهنگ`}
+                subtitle={likedSongsCount === null ? "— آهنگ" : `${likedSongsCount} آهنگ`}
+                subtitleLoading={isLikedSummaryLoading}
                 viewMode={viewMode}
                 type="playlist"
                 icon={

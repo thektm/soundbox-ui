@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
 import dynamic from "next/dynamic";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { useResponsiveLayout } from "./ResponsiveLayout";
 import { GuestProtectedPage } from "./GuestAccessContext";
+import { useSplashVisibility } from "./SplashVisibilityContext";
 import { clientTrace } from "../lib/clientDebug";
+import { getNativeScreenComponent } from "../lib/nativeScreenLoader";
+import {
+  buildHomeSummaryRequestKey,
+  HOME_SUMMARY_URL,
+  requestHomeSummary,
+} from "../lib/homeSummaryPrefetch";
 import {
   getRuntimeClientLanguage,
   getUserFacingErrorMessage,
@@ -299,10 +307,246 @@ const renderHome = (routeKey: string) => (
   </HomeRouteErrorBoundary>
 );
 
+type NativeRouteComponent = React.ElementType<any>;
+type NativeComponentResolver = (
+  page: string,
+  fallback: NativeRouteComponent,
+  renderKey?: string,
+) => NativeRouteComponent;
+
+const renderNativeHome = (
+  routeKey: string,
+  resolveNativeComponent: NativeComponentResolver,
+) => {
+  const HomeComponent = resolveNativeComponent("home", Home);
+  return (
+    <HomeRouteErrorBoundary routeKey={routeKey}>
+      <HomeComponent />
+    </HomeRouteErrorBoundary>
+  );
+};
+
+const renderNativeRoute = ({
+  currentPage,
+  currentParams,
+  isLoggedIn,
+  isDesktop,
+  resolveNativeComponent,
+}: {
+  currentPage: string;
+  currentParams: any;
+  isLoggedIn: boolean;
+  isDesktop: boolean;
+  resolveNativeComponent: NativeComponentResolver;
+}): React.ReactNode => {
+  switch (currentPage) {
+    case "login":
+      return isLoggedIn
+        ? renderNativeHome("login-redirect-home", resolveNativeComponent)
+        : React.createElement(resolveNativeComponent("login", Login));
+    case "register":
+      return isLoggedIn
+        ? renderNativeHome("register-redirect-home", resolveNativeComponent)
+        : React.createElement(resolveNativeComponent("register", Register));
+    case "verify":
+      return isLoggedIn
+        ? renderNativeHome("verify-redirect-home", resolveNativeComponent)
+        : React.createElement(resolveNativeComponent("verify", Verify));
+    case "forgot-password":
+      return isLoggedIn
+        ? renderNativeHome("forgot-password-redirect-home", resolveNativeComponent)
+        : React.createElement(resolveNativeComponent("forgot-password", ForgotPassword));
+  }
+
+  const publicPages = new Set([
+    "home",
+    "search",
+    "song-detail",
+    "playlist-detail",
+    "user-playlist-detail",
+    "artist-detail",
+    "artist-sub-page",
+    "album-detail",
+    "genre-detail",
+    "popular-artists",
+    "latest-releases",
+    "popular-albums",
+    "recommended-playlists",
+    "chart-detail",
+    "for-you",
+    "new-discoveries",
+    "user-detail",
+    "other-user-playlists",
+  ]);
+
+  if (!isLoggedIn && !publicPages.has(currentPage)) {
+    return <GuestProtectedPage />;
+  }
+
+  switch (currentPage) {
+    case "home":
+      return renderNativeHome("home", resolveNativeComponent);
+    case "song-detail":
+      return React.createElement(resolveNativeComponent("song-detail", SongDetail), { id: currentParams?.id });
+    case "search":
+      return React.createElement(resolveNativeComponent("search", Search));
+    case "library":
+      return React.createElement(resolveNativeComponent("library", LibraryScreen));
+    case "playlists":
+      return React.createElement(resolveNativeComponent("playlists", Playlists));
+    case "profile":
+      return React.createElement(resolveNativeComponent(
+        "profile",
+        isDesktop ? DesktopProfile : Profile,
+        isDesktop ? "profile:desktop" : "profile:mobile",
+      ));
+    case "downloads-history":
+      return React.createElement(resolveNativeComponent("downloads-history", DownloadsHistory));
+    case "settings":
+      return React.createElement(resolveNativeComponent("settings", Settings));
+    case "playlist-detail":
+      return React.createElement(resolveNativeComponent("playlist-detail", PlaylistDetail), {
+        id: currentParams?.id,
+        slug: currentParams?.slug,
+        generatedBy: currentParams?.generatedBy,
+        creatorUniqueId: currentParams?.creatorUniqueId,
+        initialPlaylist: currentParams?.initialPlaylist,
+      });
+    case "user-playlist-detail":
+      return React.createElement(resolveNativeComponent("user-playlist-detail", UserPlaylistDetail), {
+        id: currentParams?.id,
+        isOwner: currentParams?.isOwner,
+      });
+    case "artist-detail":
+      return React.createElement(resolveNativeComponent("artist-detail", ArtistDetail), { id: currentParams?.id });
+    case "artist-sub-page":
+      return React.createElement(resolveNativeComponent("artist-sub-page", ArtistSubPage), {
+        id: currentParams?.id,
+        subPage: currentParams?.subPage,
+      });
+    case "user-detail":
+      return React.createElement(resolveNativeComponent("user-detail", UserDetail), {
+        uniqueId: currentParams?.uniqueId || currentParams?.id,
+        dbId: currentParams?.dbId,
+      });
+    case "album-detail":
+      return React.createElement(resolveNativeComponent("album-detail", AlbumDetail), {
+        id: currentParams?.id,
+        slug: currentParams?.slug,
+        album: currentParams?.album,
+      });
+    case "followers-following":
+      return React.createElement(resolveNativeComponent("followers-following", FollowersFollowing), {
+        initialTab: currentParams?.tab || "followers",
+        uniqueId: currentParams?.uniqueId || currentParams?.id,
+      });
+    case "liked-songs":
+      return React.createElement(resolveNativeComponent("liked-songs", LikedSongs));
+    case "liked-albums":
+      return React.createElement(resolveNativeComponent("liked-albums", LikedAlbums));
+    case "liked-playlists":
+      return React.createElement(resolveNativeComponent("liked-playlists", LikedPlaylists));
+    case "premium":
+      return React.createElement(resolveNativeComponent("premium", Premium));
+    case "followed-artists":
+      return React.createElement(resolveNativeComponent("followed-artists", FollowingArtistsPage));
+    case "my-playlists":
+      return React.createElement(resolveNativeComponent("my-playlists", MyPlaylists));
+    case "upgrade-plans":
+      return React.createElement(resolveNativeComponent("upgrade-plans", UpgradePlans));
+    case "payment-processing":
+      return React.createElement(resolveNativeComponent("payment-processing", PaymentProcessing));
+    case "payment-success":
+      return React.createElement(resolveNativeComponent("payment-success", PaymentSuccess));
+    case "popular-artists":
+      return React.createElement(resolveNativeComponent("popular-artists", PopularArtistsPage));
+    case "latest-releases":
+      return React.createElement(resolveNativeComponent("latest-releases", LatestReleasesPage));
+    case "popular-albums":
+      return React.createElement(resolveNativeComponent("popular-albums", PopularAlbumsPage));
+    case "recommended-playlists":
+      return React.createElement(resolveNativeComponent("recommended-playlists", RecommendedPlaylistsPage));
+    case "new-discoveries":
+      return React.createElement(resolveNativeComponent("new-discoveries", NewDiscoveriesPage));
+    case "for-you":
+      return React.createElement(resolveNativeComponent("for-you", ForYouPage));
+    case "other-user-playlists":
+      return React.createElement(resolveNativeComponent("other-user-playlists", OtherUserPlaylists), {
+        uniqueId: currentParams?.uniqueId,
+        fullName: currentParams?.fullName,
+      });
+    case "chart-detail":
+      return React.createElement(resolveNativeComponent("chart-detail", ChartPage), {
+        title: currentParams?.title,
+        type: currentParams?.type,
+        chartType: currentParams?.chartType,
+        initialData: currentParams?.initialData,
+      });
+    case "genre-detail":
+      return React.createElement(resolveNativeComponent("genre-detail", GenrePage), {
+        id: currentParams?.id,
+        name: currentParams?.name ?? "",
+        color: currentParams?.color,
+      });
+    default:
+      return renderNativeHome(`default:${currentPage}`, resolveNativeComponent);
+  }
+};
+
 export const AppRouter: React.FC = () => {
   const { currentPage, currentParams } = useNavigation();
-  const { isLoggedIn, isInitializing } = useAuth();
+  const { isLoggedIn, isInitializing, accessToken, authenticatedFetch } = useAuth();
   const { isDesktop } = useResponsiveLayout();
+  const { splashVisible } = useSplashVisibility();
+  const isNative = Capacitor.isNativePlatform();
+  const holdNativeScreenTree = isNative && splashVisible;
+  const nativeRenderersRef = React.useRef(
+    new Map<string, NativeRouteComponent>(),
+  );
+  const resolveNativeComponent = React.useCallback<NativeComponentResolver>(
+    (page, fallback, renderKey = page) => {
+      const existing = nativeRenderersRef.current.get(renderKey);
+      if (existing) return existing;
+
+      // Lock the renderer chosen on first use. If a route was entered before
+      // its warmup completed, keep Next's dynamic wrapper for that route rather
+      // than swapping component identity on a later AppRouter rerender. The
+      // wrapper caches its loaded module, so future visits are still hot.
+      const selected = getNativeScreenComponent(page) || fallback;
+      nativeRenderersRef.current.set(renderKey, selected);
+      return selected;
+    },
+    [],
+  );
+
+  // Capacitor-only Home data primer. This deliberately does NOT preload any
+  // screen chunk. It only starts the Home HTTP request while the native splash
+  // is still covering the UI. requestHomeSummary() already postpones body
+  // materialization until the splash is hidden, so network latency overlaps the
+  // splash without reintroducing the SVG jank that parsing/React commits caused.
+  // The Home component subscribes to the same keyed in-flight promise after it
+  // mounts, so there is no duplicate request and browser/PWA behavior is untouched.
+  useEffect(() => {
+    if (!isNative || !splashVisible || isInitializing || currentPage !== "home") return;
+
+    const language = getRuntimeClientLanguage();
+    const requestKey = buildHomeSummaryRequestKey(accessToken, language);
+    const request = () =>
+      accessToken
+        ? authenticatedFetch(HOME_SUMMARY_URL)
+        : fetch(HOME_SUMMARY_URL);
+
+    void requestHomeSummary(requestKey, request).catch(() => {
+      // Home owns the user-facing retry/error state. Priming is best-effort only.
+    });
+  }, [
+    accessToken,
+    authenticatedFetch,
+    currentPage,
+    isInitializing,
+    isNative,
+    splashVisible,
+  ]);
 
   useEffect(() => {
     clientTrace("ROUTER", "state", {
@@ -314,7 +558,23 @@ export const AppRouter: React.FC = () => {
     });
   }, [currentPage, currentParams, isDesktop, isInitializing, isLoggedIn]);
 
+  // The native splash is a full-screen visual gate. Mounting/evaluating the
+  // current dynamic page behind it wastes main-thread time and can interrupt
+  // SVG stroke painting when auth resolves. The exact same route mounts the
+  // moment the splash leaves; browser/PWA behavior is untouched.
+  if (holdNativeScreenTree) return null;
+
   if (isInitializing) return <AuthGateSkeleton />;
+
+  if (isNative) {
+    return renderNativeRoute({
+      currentPage,
+      currentParams,
+      isLoggedIn,
+      isDesktop,
+      resolveNativeComponent,
+    });
+  }
 
   // Authentication pages are always reachable and keep the original public URL
   // stored by GuestAccessProvider for post-login continuation.

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigation } from "./NavigationContext";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug } from "../lib/slug";
 import {
   getFeaturedArtistEntries,
   getSongBaseTitle,
@@ -61,7 +61,7 @@ export function SongTitleWithFeaturedArtists({
             }
             navigateTo("artist-detail", {
               id: targetId,
-              slug: createSlug(artist.name),
+              urlSlug: getCanonicalSlug(artist, artist.name),
               name: artist.name,
             });
             onFeaturedArtistNavigate?.();

@@ -17,6 +17,7 @@ import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
+import { getCanonicalSlug } from "../lib/slug";
 import { ReportModal } from "./ReportModal";
 
 interface Artist {
@@ -24,6 +25,9 @@ interface Artist {
   name: string;
   profile_image: string;
   is_following: boolean;
+  url_slug?: string;
+  name_en?: string;
+  artistic_name_en?: string;
 }
 
 interface ArtistOptionsDrawerProps {
@@ -64,7 +68,7 @@ export const ArtistOptionsDrawer = ({
 
   const handleShare = async () => {
     try {
-      const url = getFullShareUrl("artist", artist.id, artist.name);
+      const url = getFullShareUrl("artist", artist.id, getCanonicalSlug(artist, artist.name));
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: artist.name,
@@ -211,7 +215,7 @@ export const ArtistOptionsDrawer = ({
           <Drawer.Portal>
             <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
             <Drawer.Content
-              className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none border-t border-white/5"
+              className="fixed bottom-0 sb-native-bottom-safe left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none border-t border-white/5"
             >
               {content}
             </Drawer.Content>

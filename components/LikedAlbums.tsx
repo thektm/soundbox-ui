@@ -562,7 +562,7 @@ export default function LikedAlbums() {
       {/* Header */}
       <div className="relative z-60 pt-14 lg:pt-20">
         {/* Navigation Bar - Hidden on Desktop */}
-        <div className="flex items-center flex-row-reverse justify-between px-4 p-2.5 fixed top-0 left-0 right-0 bg-[#030303]/80 z-60 lg:hidden">
+        <div className="flex items-center flex-row-reverse justify-between px-4 p-2.5 fixed top-0 sb-native-fixed-top-0 left-0 right-0 bg-[#030303]/80 z-60 lg:hidden">
           <button
             onClick={handleBack}
             className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center hover:bg-black/50 transition-all duration-200"

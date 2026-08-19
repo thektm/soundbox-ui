@@ -132,12 +132,11 @@ export function getCanonicalUserPath(source: UserRouteSource | string | number):
   }
 
   if (params.dbId) {
-    const suffix = params.name
-      ? slugify(params.name)
-      : params.uniqueId
-        ? slugify(params.uniqueId)
-        : "profile";
-    return `/user/${encodeURIComponent(params.dbId)}-${suffix || "profile"}`;
+    // User profiles do not have a separate English-name column. Keep the
+    // readable suffix only when the stored/display name is already English;
+    // otherwise the stable numeric ID is the complete canonical path.
+    const suffix = params.name ? slugify(params.name) : "";
+    return `/user/${encodeURIComponent(params.dbId)}${suffix ? `-${suffix}` : ""}`;
   }
 
   if (params.uniqueId) {

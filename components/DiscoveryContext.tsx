@@ -1,5 +1,6 @@
 "use client";
 
+import { Capacitor } from "@capacitor/core";
 import React, {
   createContext,
   useContext,
@@ -11,6 +12,7 @@ import React, {
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { useI18n } from "./I18nContext";
+import { useSplashVisibility } from "./SplashVisibilityContext";
 
 export interface ApiGenreLink {
   id: number;
@@ -103,6 +105,8 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const { isLoggedIn, user, authenticatedFetch } = useAuth();
+  const { splashVisible } = useSplashVisibility();
+  const deferNativeStartup = Capacitor.isNativePlatform() && splashVisible;
   const { homeCache } = useNavigation();
   const { language } = useI18n();
   const audienceKey = isLoggedIn
@@ -191,6 +195,8 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [fetchPublicRecommendations, isLoading, nextUrl]);
 
   useEffect(() => {
+    if (deferNativeStartup) return;
+
     const cached =
       homeCache?._audience === audienceKey
         ? homeCache.playlist_recommendations
@@ -216,7 +222,13 @@ export const DiscoveryProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     void refreshRecommended(true);
-  }, [audienceKey, homeCache, refreshRecommended, setRecommendedData]);
+  }, [
+    audienceKey,
+    deferNativeStartup,
+    homeCache,
+    refreshRecommended,
+    setRecommendedData,
+  ]);
 
   return (
     <DiscoveryContext.Provider

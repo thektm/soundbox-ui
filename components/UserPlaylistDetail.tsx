@@ -20,6 +20,7 @@ import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
+import { getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // ============== API INTERFACES ==============
@@ -765,7 +766,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
   const handleShare = async () => {
     if (!playlist) return;
     try {
-      const url = getFullShareUrl("user-playlist", playlist.id);
+      const url = getFullShareUrl("user-playlist", playlist.id, getCanonicalSlug(playlist, playlist.title));
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: playlist.title,
@@ -785,7 +786,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
     async (action: string, song: any) => {
       if (action === "share" && song) {
         try {
-          const url = getFullShareUrl("song", song.id);
+          const url = getFullShareUrl("song", song.id, getCanonicalSlug(song, getSongDisplayTitle(song)));
           const text = `گوش دادن به آهنگ ${getSongDisplayTitle(song)} از ${song.artist_name} در سداباکس`;
           if (typeof navigator !== "undefined" && navigator.share) {
             await navigator.share({ title: getSongDisplayTitle(song), text, url });
@@ -909,7 +910,7 @@ const UserPlaylistDetail: React.FC<UserPlaylistDetailProps> = ({
 
       {/* Mobile condensed header */}
       <header
-        className="md:hidden fixed flex-row-reverse top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
+        className="md:hidden fixed flex-row-reverse top-0 sb-native-fixed-top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
         style={{
           transform: showHeader ? "translateY(0)" : "translateY(-100%)",
           opacity: showHeader ? 1 : 0,

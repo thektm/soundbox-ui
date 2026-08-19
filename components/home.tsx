@@ -4,6 +4,7 @@ import OverflowMarquee from "./OverflowMarquee";
 import { SEO } from "./SEO";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Capacitor } from "@capacitor/core";
 import UserIcon from "./UserIcon";
 import HeroSection from "./HeroSection";
 import NotificationPopover from "./NotificationPopover";
@@ -15,7 +16,8 @@ import { useResponsiveLayout } from "./ResponsiveLayout";
 import type { Track } from "./PlayerContext";
 import { useI18n } from "./I18nContext";
 import { useNotifications } from "./NotificationContext";
-import { createSlug } from "../lib/slug";
+import { useSplashVisibility } from "./SplashVisibilityContext";
+import { getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, withSongDisplayTitle } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 import PromotionBadge from "./PromotionBadge";
@@ -377,6 +379,8 @@ const apiSongToTrack = (song: any): Track => ({
   artist: song.artist_name,
   featuredArtists: getPlayerFeaturedArtists(song),
   artistId: song.artist_id || song.artist,
+  urlSlug: getCanonicalSlug(song, getSongDisplayTitle(song)),
+  artistUrlSlug: getArtistCanonicalSlug(song, song.artist_name),
   image: song.cover_image || "/default-cover.jpg",
   duration: formatDuration(song.duration_seconds),
   durationSeconds: song.duration_seconds,
@@ -473,8 +477,59 @@ type HeroHighlight = {
   sourceLabel: string;
 };
 
+const NativeHomeSectionContent = React.memo(function NativeHomeSectionContent({
+  index,
+  children,
+}: {
+  index: number;
+  children: React.ReactNode;
+}) {
+  // Keep the hero + first two Home sections eager. Everything farther down the
+  // page is mounted only as it approaches the viewport. This preserves the
+  // exact UI before the user can see it while avoiding a huge first React
+  // commit full of off-screen cards, images, observers, and marquee effects.
+  const [ready, setReady] = useState(index < 2);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (ready) return;
+    const host = hostRef.current;
+    if (!host || typeof IntersectionObserver === "undefined") {
+      setReady(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setReady(true);
+        observer.disconnect();
+      },
+      { rootMargin: "600px 0px", threshold: 0.01 },
+    );
+
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, [ready]);
+
+  return (
+    <div
+      ref={hostRef}
+      className="min-w-0"
+      style={ready ? undefined : { minHeight: 280 }}
+      aria-hidden={ready ? undefined : true}
+    >
+      {ready ? children : null}
+    </div>
+  );
+});
+
+NativeHomeSectionContent.displayName = "NativeHomeSectionContent";
+
 export default function Home() {
   const { direction, language } = useI18n();
+  const { splashVisible } = useSplashVisibility();
+  const isNative = Capacitor.isNativePlatform();
   const { logout, accessToken, user, authenticatedFetch, isInitializing } = useAuth();
   const {
     notifications,
@@ -502,7 +557,9 @@ export default function Home() {
     : `member:${user?.id ?? "loading"}:${language}`;
   const cachedHomeData =
     homeCache?._audience === audienceKey
-      ? normalizeHomeSummaryPayload(homeCache, audienceKey)
+      ? isNative
+        ? (homeCache as HomeSummaryResponse)
+        : normalizeHomeSummaryPayload(homeCache, audienceKey)
       : null;
 
   const isPremium = user?.plan === "premium";
@@ -600,7 +657,9 @@ export default function Home() {
     const requestedAudience = audienceKey;
     const cachedForAudience =
       homeCacheRef.current?._audience === requestedAudience
-        ? normalizeHomeSummaryPayload(homeCacheRef.current, requestedAudience)
+        ? isNative
+          ? (homeCacheRef.current as HomeSummaryResponse)
+          : normalizeHomeSummaryPayload(homeCacheRef.current, requestedAudience)
         : null;
     const requestKey = buildHomeSummaryRequestKey(
       accessTokenRef.current,
@@ -635,6 +694,7 @@ export default function Home() {
         const nextData = normalizeHomeSummaryPayload(data, requestedAudience);
 
         const hasChanged =
+          isNative ||
           !cachedForAudience ||
           JSON.stringify(nextData) !== JSON.stringify(cachedForAudience);
 
@@ -682,12 +742,22 @@ export default function Home() {
     fetchPublicHome,
     homeReloadKey,
     isInitializing,
+    isNative,
     language,
     setHomeCache,
   ]);
 
-  // Fetch extra sections
+  // Fetch extra sections. They are below the initial native viewport, so do
+  // not let six independent response/React commits compete with Home's first
+  // meaningful paint. Browser/PWA timing stays exactly as before.
   useEffect(() => {
+    if (isNative && splashVisible) return;
+
+    let cancelled = false;
+    let frameId: number | null = null;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    let idleId: number | null = null;
+
     const fetchExtra = async (
       endpoint: string,
       setter: (data: any) => void,
@@ -699,43 +769,72 @@ export default function Home() {
         );
         if (response.ok) {
           const data = await response.json();
-          setter(data);
+          if (!cancelled) setter(data);
         }
       } catch (error) {
         console.error(`Error fetching ${endpoint}:`, error);
       } finally {
-        setLoadingExtra((prev) => ({ ...prev, [key]: false }));
+        if (!cancelled) {
+          setLoadingExtra((prev) => ({ ...prev, [key]: false }));
+        }
       }
     };
 
-    fetchExtra("daily-top-albums-global", setDailyTopAlbums, "dailyTopAlbums");
-    fetchExtra(
-      "daily-top-artists-global",
-      setDailyTopArtists,
-      "dailyTopArtists",
-    );
-    fetchExtra("daily-top-songs-global", setDailyTopSongs, "dailyTopSongs");
-    fetchExtra(
-      "weekly-top-albums-global",
-      setWeeklyTopAlbums,
-      "weeklyTopAlbums",
-    );
-    fetchExtra(
-      "weekly-top-artists-global",
-      setWeeklyTopArtists,
-      "weeklyTopArtists",
-    );
-    fetchExtra("weekly-top-songs-global", setWeeklyTopSongs, "weeklyTopSongs");
-  }, [fetchPublicHome]);
+    const startExtraRequests = () => {
+      if (cancelled) return;
+      void fetchExtra("daily-top-albums-global", setDailyTopAlbums, "dailyTopAlbums");
+      void fetchExtra("daily-top-artists-global", setDailyTopArtists, "dailyTopArtists");
+      void fetchExtra("daily-top-songs-global", setDailyTopSongs, "dailyTopSongs");
+      void fetchExtra("weekly-top-albums-global", setWeeklyTopAlbums, "weeklyTopAlbums");
+      void fetchExtra("weekly-top-artists-global", setWeeklyTopArtists, "weeklyTopArtists");
+      void fetchExtra("weekly-top-songs-global", setWeeklyTopSongs, "weeklyTopSongs");
+    };
+
+    if (isNative) {
+      // Guarantee one clean Home frame, then let Chromium choose an idle slot
+      // for below-the-fold data work. The timeout prevents starvation on a
+      // continuously busy device, while normal web keeps the original timing.
+      frameId = window.requestAnimationFrame(() => {
+        const requestIdle = (window as any).requestIdleCallback as
+          | ((cb: () => void, options?: { timeout: number }) => number)
+          | undefined;
+        if (requestIdle) {
+          idleId = requestIdle(startExtraRequests, { timeout: 900 });
+        } else {
+          timerId = setTimeout(startExtraRequests, 220);
+        }
+      });
+    } else {
+      startExtraRequests();
+    }
+
+    return () => {
+      cancelled = true;
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      if (timerId !== null) clearTimeout(timerId);
+      if (idleId !== null) {
+        const cancelIdle = (window as any).cancelIdleCallback as
+          | ((id: number) => void)
+          | undefined;
+        cancelIdle?.(idleId);
+      }
+    };
+  }, [fetchPublicHome, isNative, splashVisible]);
 
   useEffect(() => {
     // The global provider keeps the socket alive on every route. Landing on
     // Home still performs an authoritative HTTP reconciliation so missed or
-    // delayed socket events can never leave the badge stale.
-    if (!isInitializing && !isGuest) {
-      void refreshNotifications();
+    // delayed socket events can never leave the badge stale. On Capacitor the
+    // badge refresh is non-critical for first paint, so let Home commit first.
+    if (isInitializing || isGuest || (isNative && splashVisible)) return;
+
+    if (isNative) {
+      const timer = setTimeout(() => void refreshNotifications(), 280);
+      return () => clearTimeout(timer);
     }
-  }, [isGuest, isInitializing, refreshNotifications]);
+
+    void refreshNotifications();
+  }, [isGuest, isInitializing, isNative, refreshNotifications, splashVisible]);
 
   const fetchNextPlaylists = async () => {
     // Use DiscoveryContext's loader for pagination
@@ -825,7 +924,7 @@ export default function Home() {
           isNew: false,
           type: "song" as const,
           artistId: (song as any).artist_id || (song as any).artist,
-          artistSlug: (song as any).artist_slug,
+          artistSlug: getArtistCanonicalSlug(song, (song as any).artist_name || ""),
           isPromoted: Boolean(song.is_promoted),
         })),
         hottestDrops: homeData.latest_releases.results
@@ -840,7 +939,7 @@ export default function Home() {
             isNew: true,
             type: "song" as const,
             artistId: (song as any).artist_id || (song as any).artist,
-            artistSlug: (song as any).artist_slug,
+            artistSlug: getArtistCanonicalSlug(song, (song as any).artist_name || ""),
           })),
         popularArtists: homeData.popular_artists.results.map((artist) => ({
           id: artist.id,
@@ -849,7 +948,7 @@ export default function Home() {
           img: artist.profile_image || "",
           isNew: false,
           type: "artist" as const,
-          slug: (artist as any).unique_id || createSlug(artist.name),
+          slug: getCanonicalSlug(artist, artist.name),
         })),
         popularAlbums: homeData.popular_albums.results.map((album) => ({
           id: album.id,
@@ -859,8 +958,8 @@ export default function Home() {
           isNew: false,
           type: "album" as const,
           artistId: (album as any).artist_id || (album as any).artist,
-          artistSlug: (album as any).artist_slug,
-          slug: createSlug(album.title),
+          artistSlug: getArtistCanonicalSlug(album, (album as any).artist_name || ""),
+          slug: getCanonicalSlug(album, album.title),
         })),
         top10Week: homeData.latest_releases.results
           .slice(0, 10)
@@ -874,7 +973,7 @@ export default function Home() {
             isNew: index < 3,
             type: "song" as const,
             artistId: (song as any).artist_id || (song as any).artist,
-            artistSlug: (song as any).artist_slug,
+            artistSlug: getArtistCanonicalSlug(song, (song as any).artist_name || ""),
           })),
         newDiscoveries: homeData.discoveries.results
           .slice(0, 6)
@@ -888,7 +987,7 @@ export default function Home() {
             isNew: false,
             type: "song" as const,
             artistId: (song as any).artist_id || (song as any).artist,
-            artistSlug: (song as any).artist_slug,
+            artistSlug: getArtistCanonicalSlug(song, (song as any).artist_name || ""),
           })),
         trending: (homeData.trending?.results || []).map((song) => ({
           id: song.id,
@@ -900,7 +999,7 @@ export default function Home() {
           isNew: false,
           type: "song" as const,
           artistId: (song as any).artist_id || (song as any).artist,
-          artistSlug: (song as any).artist_slug,
+          artistSlug: getArtistCanonicalSlug(song, (song as any).artist_name || ""),
         })),
         top10HipHop: homeData.latest_releases.results
           .slice(10, 20)
@@ -914,7 +1013,7 @@ export default function Home() {
             isNew: index < 3,
             type: "song" as const,
             artistId: (song as any).artist_id || (song as any).artist,
-            artistSlug: (song as any).artist_slug,
+            artistSlug: getArtistCanonicalSlug(song, (song as any).artist_name || ""),
           })),
         newPlaylists: (playlistRecommendations || []).map((playlist: any) => ({
           id: playlist.unique_id,
@@ -923,7 +1022,7 @@ export default function Home() {
           img: playlist.top_three_song_covers || playlist.covers || [],
           isNew: false,
           type: "playlist" as const,
-          slug: createSlug(playlist.title),
+          slug: getCanonicalSlug(playlist, playlist.title),
           songsCount: playlist.songs_count ?? playlist.songsCount ?? 0,
         })),
       }
@@ -1034,7 +1133,7 @@ export default function Home() {
       <>
         <SEO />
         <div
-          className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
+          className="relative box-border w-full min-w-0 max-w-full overflow-x-clip bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
           style={{ minHeight: "calc(var(--vh, 1vh) * 100)" }}
         >
           <div className="pt-4">
@@ -1201,7 +1300,7 @@ export default function Home() {
                   navigateTo("song-detail", { id: item.id });
                 }}
               >
-                <OverflowMarquee text={item.title}>
+                <OverflowMarquee text={item.title} deferMeasurement={Capacitor.isNativePlatform()}>
                   <SongTitleWithFeaturedArtists song={item} />
                 </OverflowMarquee>
               </h3>
@@ -1212,12 +1311,12 @@ export default function Home() {
                   if (item.artistId) {
                     navigateTo("artist-detail", {
                       id: item.artistId,
-                      slug: item.artistSlug,
+                      urlSlug: item.artistSlug,
                     });
                   }
                 }}
               >
-                <OverflowMarquee text={item.subtitle} />
+                <OverflowMarquee text={item.subtitle} deferMeasurement={Capacitor.isNativePlatform()} />
               </p>
             </button>
           ))}
@@ -1244,7 +1343,7 @@ export default function Home() {
           onItemClick={(item) =>
             navigateTo("artist-detail", {
               id: item.id,
-              slug: (item as any).slug,
+              urlSlug: (item as any).slug,
             })
           }
         />
@@ -1269,7 +1368,7 @@ export default function Home() {
           onItemClick={(item) =>
             navigateTo("album-detail", {
               id: item.id,
-              slug: createSlug(item.title),
+              urlSlug: getCanonicalSlug(item, item.title),
             })
           }
           maxItems={4}
@@ -1356,14 +1455,14 @@ export default function Home() {
             img: p.covers || p.top_three_song_covers || p.cover_image,
             isNew: false,
             type: "playlist",
-            slug: createSlug(p.title),
+            slug: getCanonicalSlug(p, p.title),
             songsCount: p.songs_count ?? p.songsCount ?? 0,
           }))}
           variant="layered"
           onItemClick={(item) =>
             navigateTo("playlist-detail", {
               id: item.id,
-              slug: createSlug(item.title),
+              urlSlug: getCanonicalSlug(item, item.title),
             })
           }
         />
@@ -1399,7 +1498,7 @@ export default function Home() {
             isNew: false,
             type: "song",
             artistId: (s as any).artist_id || (s as any).artist,
-            artistSlug: (s as any).artist_slug,
+            artistSlug: getArtistCanonicalSlug(s, (s as any).artist_name || ""),
           }))}
           onPlay={(item) =>
             handlePlaySong(item.id, dailyTopSongs.results as any)
@@ -1444,13 +1543,13 @@ export default function Home() {
             isNew: false,
             type: "album",
             artistId: (a as any).artist_id || (a as any).artist,
-            artistSlug: (a as any).artist_slug,
-            slug: createSlug(a.title),
+            artistSlug: getArtistCanonicalSlug(a, (a as any).artist_name || ""),
+            slug: getCanonicalSlug(a, a.title),
           }))}
           onItemClick={(item) =>
             navigateTo("album-detail", {
               id: item.id,
-              slug: createSlug(item.title),
+              urlSlug: getCanonicalSlug(item, item.title),
             })
           }
           maxItems={4}
@@ -1509,12 +1608,12 @@ export default function Home() {
             img: a.profile_image,
             isNew: false,
             type: "artist",
-            slug: (a as any).unique_id || createSlug(a.name),
+            slug: getCanonicalSlug(a, a.name),
           }))}
           onItemClick={(item) =>
             navigateTo("artist-detail", {
               id: item.id,
-              slug: (item as any).slug,
+              urlSlug: (item as any).slug,
             })
           }
         />
@@ -1560,7 +1659,7 @@ export default function Home() {
             isNew: false,
             type: "song",
             artistId: (s as any).artist_id || (s as any).artist,
-            artistSlug: (s as any).artist_slug,
+            artistSlug: getArtistCanonicalSlug(s, (s as any).artist_name || ""),
           }))}
           onPlay={(item) =>
             handlePlaySong(item.id, weeklyTopSongs.results as any)
@@ -1605,13 +1704,13 @@ export default function Home() {
             isNew: false,
             type: "album",
             artistId: (a as any).artist_id || (a as any).artist,
-            artistSlug: (a as any).artist_slug,
-            slug: createSlug(a.title),
+            artistSlug: getArtistCanonicalSlug(a, (a as any).artist_name || ""),
+            slug: getCanonicalSlug(a, a.title),
           }))}
           onItemClick={(item) =>
             navigateTo("album-detail", {
               id: item.id,
-              slug: createSlug(item.title),
+              urlSlug: getCanonicalSlug(item, item.title),
             })
           }
           maxItems={4}
@@ -1671,12 +1770,12 @@ export default function Home() {
             subtitle: "Artist",
             img: a.profile_image,
             isNew: false,
-            slug: (a as any).unique_id || createSlug(a.name),
+            slug: getCanonicalSlug(a, a.name),
           }))}
           onItemClick={(item) =>
             navigateTo("artist-detail", {
               id: item.id,
-              slug: (item as any).slug,
+              urlSlug: (item as any).slug,
             })
           }
         />
@@ -1927,22 +2026,22 @@ export default function Home() {
     const data = item.item || {};
     if (target === "artist") {
       const id = data.artist_id || data.artist?.id || data.artist;
-      if (id) navigateTo("artist-detail", { id, slug: data.artist_slug || createSlug(data.artist_name || "") });
+      if (id) navigateTo("artist-detail", { id, urlSlug: getArtistCanonicalSlug(data, data.artist_name || "") });
       return;
     }
     if (target === "album") {
       const id = data.album_id || data.album?.id || data.album;
-      if (id) navigateTo("album-detail", { id, slug: createSlug(data.album_title || data.title || "") });
+      if (id) navigateTo("album-detail", { id, urlSlug: getCanonicalSlug(data, data.album_title || data.title || "") });
       return;
     }
     if (target === "playlist") {
-      navigateTo("playlist-detail", { id: data.unique_id || data.id, slug: createSlug(data.title || "") });
+      navigateTo("playlist-detail", { id: data.unique_id || data.id, urlSlug: getCanonicalSlug(data, data.title || "") });
       return;
     }
     navigateTo("song-detail", {
       id: data.id,
-      artistSlug: data.artist_slug || createSlug(data.artist_name || ""),
-      songSlug: createSlug(getSongDisplayTitle(data)),
+      artistSlug: getArtistCanonicalSlug(data, data.artist_name || ""),
+      songSlug: getCanonicalSlug(data, getSongDisplayTitle(data)),
     });
   };
 
@@ -1965,6 +2064,7 @@ export default function Home() {
     if (!Number.isFinite(Number(genre.id))) return;
     navigateTo("genre-detail", {
       id: Number(genre.id),
+      urlSlug: getCanonicalSlug(genre, genre.name),
       name: genre.name,
       color: HOME_GENRE_ACCENT_HEX[Number(genre.id)] ?? "#1a1a2e",
     });
@@ -1975,17 +2075,19 @@ export default function Home() {
       <SEO />
       <div
         dir={direction}
-        className="relative bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
+        className="relative box-border w-full min-w-0 max-w-full overflow-x-clip bg-transparent text-white font-sans pb-24 md:pb-4 md:min-h-screen selection:bg-green-500 selection:text-black"
         style={{ minHeight: "calc(var(--vh, 1vh) * 100)" }}
         aria-busy={isLoading}
         data-home-loading={isLoading ? "summary-refresh" : "ready"}
+        data-sb-native-home={isNative ? "true" : undefined}
       >
         {/* Background gradients - adjusted for responsive */}
         <div className="fixed top-0 left-0 w-full h-96 bg-gradient-to-b from-emerald-900/40 to-transparent pointer-events-none z-0 md:rounded-t-lg" />
         <div className="absolute top-[-10%] w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
 
         {/* Mobile Header - only visible on mobile */}
-        <header className="md:hidden sticky top-0 z-50 px-4 pt-4 pb-2 bg-black/90  transition-all duration-300">
+        {(!isNative || isMobileView) && (
+          <header className="md:hidden sticky top-0 z-50 px-4 pt-4 pb-2 bg-black/90  transition-all duration-300">
           <div className="flex flex-row-reverse items-center justify-between mb-4">
             <div className="flex flex-row-reverse items-center gap-2 fade-in">
               <div
@@ -2075,10 +2177,12 @@ export default function Home() {
               </button>
             ))}
           </div>
-        </header>
+          </header>
+        )}
 
         {/* Desktop Header */}
-        <header className="hidden md:block sticky top-0 z-50 px-4 pt-3 pb-2 bg-black/90 backdrop-blur-sm">
+        {(!isNative || isDesktop) && (
+          <header className="hidden md:block sticky top-0 z-50 px-4 pt-3 pb-2 bg-black/90 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             {/* Prev / Next section arrows */}
             <div className="flex items-center gap-1.5 shrink-0">
@@ -2219,7 +2323,8 @@ export default function Home() {
               </button>
             </div>
           </div>
-        </header>
+          </header>
+        )}
 
         <main className="relative z-10 flex flex-col gap-8 pt-2 md:gap-10 md:pt-4">
           <HeroSection
@@ -2233,6 +2338,7 @@ export default function Home() {
             onCardPlay={handleHeroCardPlay}
             onItemNavigate={handleHeroItemNavigate}
             onGenreNavigate={handleHeroGenreNavigate}
+            nativeMobile={isNative && isMobileView}
           />
           {availableSections.map((s, i) => (
             <Section
@@ -2246,8 +2352,15 @@ export default function Home() {
               showMore={s.showMore}
               onShowMore={s.onShowMore}
               onTitleClick={s.onTitleClick}
+              nativeViewport={isNative ? (isMobileView ? "mobile" : "desktop") : null}
             >
-              {s.content}
+              {isNative ? (
+                <NativeHomeSectionContent index={i}>
+                  {s.content}
+                </NativeHomeSectionContent>
+              ) : (
+                s.content
+              )}
             </Section>
           ))}
         </main>
@@ -2283,6 +2396,18 @@ export default function Home() {
               content-visibility: auto;
               contain-intrinsic-size: auto 420px;
             }
+          }
+
+          /* Capacitor Home fast path. These are rendering hints only; the
+             visible styles/animations remain unchanged. The hero shell has an
+             opaque zinc background, so its backdrop blur cannot contribute any
+             pixels and can be skipped safely on native. */
+          html[data-sedabox-native] [data-sb-native-home="true"] .will-change-transform {
+            will-change: auto !important;
+          }
+          html[data-sedabox-native] [data-sb-native-home="true"] .hero-shell {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
           }
           .notif-checkbox {
             transition: all 180ms ease-in-out;
@@ -2430,6 +2555,7 @@ type SectionProps = {
   showMore?: boolean;
   onShowMore?: () => void;
   onTitleClick?: () => void;
+  nativeViewport?: "mobile" | "desktop" | null;
 };
 const Section = ({
   title,
@@ -2440,6 +2566,7 @@ const Section = ({
   showMore,
   onShowMore,
   onTitleClick,
+  nativeViewport = null,
 }: SectionProps) => (
   <section
     ref={sectionRef}
@@ -2447,7 +2574,8 @@ const Section = ({
     className="sb-home-section flex flex-col gap-3 fade-in scroll-mt-[135px] md:scroll-mt-24"
   >
     {/* Mobile only: title on row one, subtitle and action on one compact row below. */}
-    <div className="px-4 text-start md:hidden">
+    {nativeViewport !== "desktop" && (
+      <div className="px-4 text-start md:hidden">
       {onTitleClick ? (
         <h2 className="w-full text-start text-2xl font-bold leading-none tracking-tight">
           <button
@@ -2504,10 +2632,12 @@ const Section = ({
           )}
         </div>
       )}
-    </div>
+      </div>
+    )}
 
     {/* Desktop/tablet markup intentionally preserved exactly. */}
-    <div className="px-4 text-start relative hidden md:block">
+    {nativeViewport !== "mobile" && (
+      <div className="px-4 text-start relative hidden md:block">
       {showMore && (
         <button
           onClick={(e) => {
@@ -2560,7 +2690,8 @@ const Section = ({
           </p>
         )}
       </div>
-    </div>
+      </div>
+    )}
     {children}
   </section>
 );
@@ -2579,6 +2710,10 @@ const HorizontalList = ({
 }: HorizontalListProps) => {
   const { navigateTo } = useNavigation();
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const isNative = Capacitor.isNativePlatform();
+  const [nativeRenderCount, setNativeRenderCount] = useState(() =>
+    isNative ? Math.min(items.length, 8) : items.length,
+  );
   const isDown = useRef(false);
   const startX = useRef(0);
   const scrollLeft = useRef(0);
@@ -2612,16 +2747,41 @@ const HorizontalList = ({
     return () => el.removeEventListener("dragstart", onDragStart);
   }, []);
 
+  useEffect(() => {
+    if (!isNative) {
+      setNativeRenderCount(items.length);
+      return;
+    }
+    setNativeRenderCount((current) =>
+      Math.min(items.length, Math.max(Math.min(items.length, 8), current)),
+    );
+  }, [isNative, items.length]);
+
+  const renderedItems = isNative
+    ? items.slice(0, nativeRenderCount)
+    : items;
+
+  const handleNativeRailScroll = () => {
+    if (!isNative || nativeRenderCount >= items.length) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    const remaining = el.scrollWidth - el.clientWidth - el.scrollLeft;
+    if (remaining < Math.max(420, el.clientWidth * 1.5)) {
+      setNativeRenderCount((current) => Math.min(items.length, current + 8));
+    }
+  };
+
   return (
     <div
       ref={scrollerRef}
+      onScroll={handleNativeRailScroll}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       className="flex overflow-x-auto gap-4 px-4 snap-x snap-mandatory no-scrollbar pb-4 will-change-transform"
     >
-      {items.map((item, index) => (
+      {renderedItems.map((item, index) => (
         <div
           key={item.id}
           role="button"
@@ -2820,15 +2980,15 @@ const HorizontalList = ({
 
                 e.stopPropagation();
                 if (item.type === "artist") {
-                  navigateTo("artist-detail", { id: item.id, slug: item.slug });
+                  navigateTo("artist-detail", { id: item.id, urlSlug: item.slug });
                 } else if (item.type === "song") {
                   navigateTo("song-detail", { id: item.id });
                 } else if (item.type === "album") {
-                  navigateTo("album-detail", { id: item.id, slug: item.slug });
+                  navigateTo("album-detail", { id: item.id, urlSlug: item.slug });
                 } else if (item.type === "playlist") {
                   navigateTo("playlist-detail", {
                     id: item.id,
-                    slug: item.slug,
+                    urlSlug: item.slug,
                   });
                 }
               }}
@@ -2837,6 +2997,7 @@ const HorizontalList = ({
                 <OverflowMarquee
                   text={item.title}
                   align={item.type === "artist" ? "center" : "start"}
+                  deferMeasurement={Capacitor.isNativePlatform()}
                 >
                   {item.type === "song" ? (
                     <SongTitleWithFeaturedArtists song={item} />
@@ -2863,7 +3024,7 @@ const HorizontalList = ({
                 ) {
                   navigateTo("artist-detail", {
                     id: item.artistId,
-                    slug: item.artistSlug,
+                    urlSlug: item.artistSlug,
                   });
                 }
               }}
@@ -2872,6 +3033,7 @@ const HorizontalList = ({
                 <OverflowMarquee
                   text={item.subtitle}
                   align={variant === "circle" ? "center" : "start"}
+                  deferMeasurement={Capacitor.isNativePlatform()}
                 />
               ) : (
                 <span className="block truncate">{item.subtitle}</span>
@@ -2960,7 +3122,7 @@ const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
             </div>
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden text-start">
               <span className="flex min-w-0 items-center gap-2 font-bold text-white">
-                <OverflowMarquee text={item.title} className="min-w-0 flex-1">
+                <OverflowMarquee text={item.title} className="min-w-0 flex-1" deferMeasurement={Capacitor.isNativePlatform()}>
                   <SongTitleWithFeaturedArtists song={item} />
                 </OverflowMarquee>
                 {item.isNew && (
@@ -2970,7 +3132,7 @@ const ChartList = ({ items, color = "text-white", onPlay }: ChartListProps) => {
                 )}
               </span>
               <span className="min-w-0 overflow-hidden text-xs text-zinc-400">
-                <OverflowMarquee text={item.subtitle} />
+                <OverflowMarquee text={item.subtitle} deferMeasurement={Capacitor.isNativePlatform()} />
               </span>
             </div>
             <MoreHorizontal className="w-5 h-5 text-zinc-400 shrink-0" />
@@ -3072,13 +3234,13 @@ const PremiumChartList = ({
                   } else if (item.type === "album") {
                     navigateTo("album-detail", {
                       id: item.id,
-                      slug: item.slug,
+                      urlSlug: item.slug,
                     });
                   }
                 }}
               >
                 {item.type === "song" ? (
-                  <OverflowMarquee text={item.title}>
+                  <OverflowMarquee text={item.title} deferMeasurement={Capacitor.isNativePlatform()}>
                     <SongTitleWithFeaturedArtists song={item} />
                   </OverflowMarquee>
                 ) : (
@@ -3100,13 +3262,13 @@ const PremiumChartList = ({
                   ) {
                     navigateTo("artist-detail", {
                       id: item.artistId,
-                      slug: item.artistSlug,
+                      urlSlug: item.artistSlug,
                     });
                   }
                 }}
               >
                 {item.type === "song" || item.type === "album" ? (
-                  <OverflowMarquee text={item.subtitle} />
+                  <OverflowMarquee text={item.subtitle} deferMeasurement={Capacitor.isNativePlatform()} />
                 ) : (
                   <span className="block truncate">{item.subtitle}</span>
                 )}
@@ -3186,7 +3348,7 @@ const GlassAlbumGrid = ({
 
                 e.stopPropagation();
                 if (item.type === "album") {
-                  navigateTo("album-detail", { id: item.id, slug: item.slug });
+                  navigateTo("album-detail", { id: item.id, urlSlug: item.slug });
                 }
               }}
             >
@@ -3204,12 +3366,12 @@ const GlassAlbumGrid = ({
                 if (item.artistId) {
                   navigateTo("artist-detail", {
                     id: item.artistId,
-                    slug: item.artistSlug,
+                    urlSlug: item.artistSlug,
                   });
                 }
               }}
             >
-              <OverflowMarquee text={item.subtitle} />
+              <OverflowMarquee text={item.subtitle} deferMeasurement={Capacitor.isNativePlatform()} />
             </p>
           </button>
         ))}
@@ -3310,10 +3472,10 @@ const SpotlightArtistList = ({
               if (!isDesktop) return;
 
               e.stopPropagation();
-              navigateTo("artist-detail", { id: item.id, slug: item.slug });
+              navigateTo("artist-detail", { id: item.id, urlSlug: item.slug });
             }}
           >
-            <OverflowMarquee text={item.title} align="center" />
+            <OverflowMarquee text={item.title} align="center" deferMeasurement={Capacitor.isNativePlatform()} />
           </h4>
           <p className="text-zinc-400 text-[10px] mt-1 uppercase tracking-widest font-medium">
             Artist

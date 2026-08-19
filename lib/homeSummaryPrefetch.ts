@@ -1,4 +1,6 @@
+import { Capacitor } from "@capacitor/core";
 import { withClientTimeout } from "./clientDebug";
+import { waitForSplashHidden } from "./splashRuntime";
 
 export const HOME_SUMMARY_URL = "https://api.sedabox.com/api/home/summary/";
 
@@ -64,6 +66,15 @@ export const requestHomeSummary = (
         throw new Error(
           `Home summary request failed with status ${response.status}`,
         );
+      }
+
+      // On native Android the SVG path animation is paint-sensitive. The
+      // request can finish in parallel with it, but reading/parsing a large
+      // Home payload and waking every awaiting React consumer at the exact
+      // arrival moment can create a long main-thread task. Keep network overlap
+      // while postponing only body materialization until the splash is gone.
+      if (Capacitor.isNativePlatform()) {
+        await waitForSplashHidden();
       }
 
       const text = await withClientTimeout(

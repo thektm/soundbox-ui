@@ -7,7 +7,7 @@ import { useNavigation } from "./NavigationContext";
 import { usePlayerActions, type Track } from "./PlayerContext";
 import Image from "next/image";
 import { createPortal } from "react-dom";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug } from "../lib/slug";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
@@ -316,7 +316,7 @@ export default function ArtistSubPage({
                 onClick={() =>
                   navigateTo("album-detail", {
                     id: album.id,
-                    slug: createSlug(album.title),
+                    urlSlug: getCanonicalSlug(album, album.title),
                   })
                 }
               >

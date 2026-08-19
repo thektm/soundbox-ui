@@ -13,7 +13,7 @@ import { usePlayerPlayback } from "./PlayerContext";
 import { useAuth } from "./AuthContext";
 import { useGuestAccess } from "./GuestAccessContext";
 import { toast } from "react-hot-toast";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
@@ -23,6 +23,7 @@ import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, withSongDisplayTitle } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import { deleteRouteDataCache, makeRouteDataCacheKey, readRouteDataCache, writeRouteDataCache } from "../lib/routeDataCache";
 
 interface ApiGenreLink {
   id: number;
@@ -32,6 +33,9 @@ interface ApiGenreLink {
 interface ApiSong {
   id: number;
   title: string;
+  title_en?: string;
+  url_slug?: string;
+  artist_url_slug?: string;
   display_title?: string;
   featured_artists?: any[];
   artist: number;
@@ -96,6 +100,17 @@ interface Song {
   image: string;
   src: string;
 }
+
+const apiSongToDetailSong = (data: ApiSong): Song => ({
+  id: data.id.toString(),
+  title: getSongDisplayTitle(data),
+  artist: data.artist_name,
+  artistId: data.artist_id || data.artist,
+  featuredArtists: getPlayerFeaturedArtists(data),
+  duration: data.duration_display,
+  image: data.cover_image,
+  src: data.stream_url ? data.stream_url.replace("http://", "https://") : "",
+});
 
 const SONG_GENRE_ACCENT_HEX: Record<number, string> = {
   1: "#E91E63",
@@ -410,7 +425,7 @@ const { navigateTo } = useNavigation();
               e.stopPropagation();
               navigateTo("song-detail", {
                 id: track.id,
-                title: createSlug(getSongDisplayTitle(track)),
+                urlSlug: getCanonicalSlug(track, getSongDisplayTitle(track)),
               });
             }}
           >
@@ -428,7 +443,7 @@ const { navigateTo } = useNavigation();
               if (track.artistId) {
                 navigateTo("artist-detail", {
                   id: track.artistId,
-                  slug: createSlug(track.artist),
+                  urlSlug: getArtistCanonicalSlug(track, track.artist),
                 });
               }
             }}
@@ -690,7 +705,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   const scrollY = useNavigationScroll();
   const { currentTrack, isPlaying, playTrack, togglePlay, download } =
     usePlayerPlayback();
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { accessToken, authenticatedFetch, user } = useAuth();
   const { requestAuth } = useGuestAccess();
   const { direction, language } = useI18n();
 
@@ -703,12 +718,18 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     return match ? decodeURIComponent(match[1]) : null;
   }, [propId, currentParams, currentPage]);
 
+  const songCacheKey = idOrSlug
+    ? makeRouteDataCacheKey("song", idOrSlug, user?.id)
+    : null;
+  const initialCachedSong = readRouteDataCache<ApiSong>(songCacheKey);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [song, setSong] = useState<Song | null>(null);
-  const [fullSongData, setFullSongData] = useState<ApiSong | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isLiked, setIsLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(0);
+  const [song, setSong] = useState<Song | null>(
+    initialCachedSong ? apiSongToDetailSong(initialCachedSong) : null,
+  );
+  const [fullSongData, setFullSongData] = useState<ApiSong | null>(initialCachedSong);
+  const [loading, setLoading] = useState(!initialCachedSong);
+  const [isLiked, setIsLiked] = useState(Boolean(initialCachedSong?.is_liked));
+  const [likesCount, setLikesCount] = useState(initialCachedSong?.likes_count ?? 0);
   const [isLiking, setIsLiking] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
@@ -726,7 +747,18 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   useEffect(() => {
     const fetchSongDetail = async () => {
       if (!idOrSlug) return;
-      setLoading(true);
+
+      const cached = readRouteDataCache<ApiSong>(songCacheKey);
+      if (cached) {
+        setFullSongData(cached);
+        setSong(apiSongToDetailSong(cached));
+        setIsLiked(cached.is_liked);
+        setLikesCount(cached.likes_count);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+
       try {
         const resp = await authenticatedFetch(
           `https://api.sedabox.com/api/songs/${idOrSlug}/`,
@@ -735,42 +767,25 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         if (resp.ok) {
           const rawData: ApiSong = await resp.json();
           const data = withSongDisplayTitle(rawData);
+          writeRouteDataCache(songCacheKey, data);
           setFullSongData(data);
-          setSong({
-            id: data.id.toString(),
-            title: getSongDisplayTitle(data),
-            artist: data.artist_name,
-            artistId: data.artist_id || data.artist,
-            featuredArtists: getPlayerFeaturedArtists(data),
-            duration: data.duration_display,
-            image: data.cover_image,
-            src: data.stream_url
-              ? data.stream_url.replace("http://", "https://")
-              : "",
-          });
+          setSong(apiSongToDetailSong(data));
           setIsLiked(data.is_liked);
           setLikesCount(data.likes_count);
 
-          // Update browser URL to canonical format: /track/{id}-{slug}
+          // Canonical public track URLs use the stored English title only.
           if (typeof window !== "undefined") {
             const trackId = data.id;
-            const slug = getSongDisplayTitle(data)
-              ? getSongDisplayTitle(data)
-                  .trim()
-                  .replace(/\s+/g, "-")
-                  .replace(/[^\w\u0600-\u06FF\-]/g, "")
-                  .replace(/-+/g, "-")
-                  .replace(/^-+|-+$/g, "")
-              : "";
             if (trackId) {
-              const targetPath = `/track/${trackId}${slug ? `-${slug}` : ""}`;
+              const canonicalSlug = getCanonicalSlug(data);
+              const targetPath = `/track/${trackId}${canonicalSlug ? `-${canonicalSlug}` : ""}`;
               if (window.location.pathname !== targetPath) {
                 replaceCurrentNavigationEntry(
                   "song-detail",
                   {
                     ...(window.history.state?.params || {}),
                     id: trackId,
-                    title: getSongDisplayTitle(data),
+                    urlSlug: canonicalSlug,
                   },
                   targetPath,
                 );
@@ -778,20 +793,23 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             }
           }
         } else {
+          deleteRouteDataCache(songCacheKey);
           setFullSongData(null);
           setSong(null);
         }
       } catch (err) {
         console.error("Failed to fetch song detail:", err);
-        setFullSongData(null);
-        setSong(null);
+        if (!cached) {
+          setFullSongData(null);
+          setSong(null);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchSongDetail();
-  }, [idOrSlug, authenticatedFetch]);
+  }, [authenticatedFetch, idOrSlug, songCacheKey]);
 
   const dominantColor = useImageColor(song?.image || "");
   const isCurrentTrack = currentTrack?.id === song?.id;
@@ -853,6 +871,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     (genre: ApiGenreLink) => {
       navigateTo("genre-detail", {
         id: genre.id,
+        urlSlug: getCanonicalSlug(genre, genre.name),
         name: genre.name,
         color: SONG_GENRE_ACCENT_HEX[genre.id] ?? "#1a1a2e",
       });
@@ -937,6 +956,16 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         const data = await resp.json();
         setIsLiked(data.liked);
         setLikesCount(data.likes_count);
+        setFullSongData((previous) => {
+          if (!previous) return previous;
+          const next = {
+            ...previous,
+            is_liked: Boolean(data.liked),
+            likes_count: Number(data.likes_count ?? previous.likes_count),
+          };
+          writeRouteDataCache(songCacheKey, next);
+          return next;
+        });
         showNotification(
           data.liked ? "به لایک‌ها اضافه شد" : "از لایک‌ها حذف شد",
         );
@@ -960,7 +989,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
   const handleShare = useCallback(() => {
     if (!song) return;
     try {
-      const url = getFullShareUrl("song", song.id, getSongDisplayTitle(song));
+      const url = getFullShareUrl("song", song.id, getCanonicalSlug(fullSongData || song));
       const artistLabel =
         (song as any).artist_name || (song as any).artist || "";
       const text = `درحال گوش دادن به ${getSongDisplayTitle(song)} از ${artistLabel} در سداباکس`;
@@ -998,15 +1027,16 @@ export default function SongDetail({ id: propId }: { id?: string }) {
             setLikesCount(Number(detail.likes_count));
         }
         if (fullSongData && String(fullSongData.id) === sid) {
-          setFullSongData((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  is_liked: detail.liked ?? prev.is_liked,
-                  likes_count: detail.likes_count ?? prev.likes_count,
-                }
-              : prev,
-          );
+          setFullSongData((prev) => {
+            if (!prev) return prev;
+            const next = {
+              ...prev,
+              is_liked: detail.liked ?? prev.is_liked,
+              likes_count: detail.likes_count ?? prev.likes_count,
+            };
+            writeRouteDataCache(songCacheKey, next);
+            return next;
+          });
         }
       } catch (err) {
         console.error("Error handling song-like-changed in SongDetail:", err);
@@ -1016,7 +1046,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     window.addEventListener("song-like-changed", handler as EventListener);
     return () =>
       window.removeEventListener("song-like-changed", handler as EventListener);
-  }, [song, fullSongData]);
+  }, [song, fullSongData, songCacheKey]);
 
   useEffect(() => {
     if (containerRef.current) {
@@ -1028,7 +1058,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
     return (
       <div className="min-h-screen bg-neutral-950 text-white pb-28">
         <SEO title="در حال بارگذاری..." />
-        <header className="fixed top-0 left-0 right-0 z-40 h-16 flex flex-row-reverse items-center justify-between px-4 md:px-6">
+        <header className="fixed top-0 sb-native-fixed-top-0 left-0 right-0 z-40 h-16 flex flex-row-reverse items-center justify-between px-4 md:px-6">
           <Skeleton className="w-10 h-10 rounded-full" />
           <Skeleton className="w-32 h-6" />
           <div className="w-10" />
@@ -1138,7 +1168,7 @@ export default function SongDetail({ id: propId }: { id?: string }) {
         {/* Mobile Sticky Header */}
         <header
           ref={headerRef}
-          className="md:hidden fixed top-0 inset-x-0 h-16 bg-black/40 backdrop-blur-xl flex flex-row-reverse items-center px-4 z-50 transition-all duration-300"
+          className="md:hidden fixed top-0 sb-native-fixed-top-0 inset-x-0 h-16 bg-black/40 backdrop-blur-xl flex flex-row-reverse items-center px-4 z-50 transition-all duration-300"
           style={{
             transform: "translateY(0)",
             opacity: 1,
@@ -1194,9 +1224,9 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                     if (artistId) {
                       navigateTo("artist-detail", {
                         id: artistId,
-                        slug:
-                          fullSongData?.artist_unique_id ||
-                          createSlug(song.artist),
+                        urlSlug:
+                          fullSongData?.artist_url_slug ||
+                          getArtistCanonicalSlug(fullSongData, song.artist),
                       });
                     }
                   }}
@@ -1390,8 +1420,9 @@ export default function SongDetail({ id: propId }: { id?: string }) {
                   setContextMenu((prev) => ({ ...prev, isOpen: false }));
                   navigateTo("artist-detail", {
                     id: song.artistId || (song as any).artist_id,
-                    slug:
-                      fullSongData?.artist_unique_id || createSlug(song.artist),
+                    urlSlug:
+                      fullSongData?.artist_url_slug ||
+                      getArtistCanonicalSlug(fullSongData, song.artist),
                   });
                 }
               : undefined

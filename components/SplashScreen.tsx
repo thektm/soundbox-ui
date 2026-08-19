@@ -7,9 +7,11 @@ import React, {
   useRef,
   useSyncExternalStore,
 } from "react";
+import { Capacitor } from "@capacitor/core";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import { warmAppScreensDuringSplash, continueAppScreenWarmup } from "../lib/appScreenPreloader";
+import { continueNativeScreenWarmup } from "../lib/nativeScreenLoader";
 import { useI18n } from "./I18nContext";
 import {
   buildHomeSummaryRequestKey,
@@ -21,7 +23,6 @@ import {
   getSplashRuntimeSnapshot,
   getSplashServerSnapshot,
   SPLASH_COLOR_DURATION_MS,
-  SPLASH_DRAW_DURATION_MS,
   SPLASH_EXIT_DURATION_MS,
   subscribeSplashRuntime,
 } from "../lib/splashRuntime";
@@ -51,6 +52,7 @@ const SplashStartupCoordinator: React.FC = () => {
   const { language } = useI18n();
   const authenticatedFetchRef = useRef(authenticatedFetch);
   authenticatedFetchRef.current = authenticatedFetch;
+  const isNative = Capacitor.isNativePlatform();
 
   // Subscribe only to the boolean visibility value. Phase changes notify the
   // store, but Object.is(true, true) prevents coordinator rerenders.
@@ -72,8 +74,18 @@ const SplashStartupCoordinator: React.FC = () => {
   useEffect(() => {
     if (!visible || isInitializing) return;
 
-    let active = true;
     const runtime = getSplashRuntime();
+
+    if (isNative) {
+      // Dynamic imports have to be parsed/evaluated on the WebView main thread.
+      // Warming dozens of screens while a stroke-dash SVG is actively painting
+      // creates visible frame drops. Native still warms the same screens, but
+      // only after the splash has fully exited.
+      runtime.setScreensReady(true);
+      return;
+    }
+
+    let active = true;
     runtime.setScreensReady(false);
 
     void warmAppScreensDuringSplash({ currentPage, isLoggedIn })
@@ -89,7 +101,7 @@ const SplashStartupCoordinator: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [currentPage, isInitializing, isLoggedIn, visible]);
+  }, [currentPage, isInitializing, isLoggedIn, isNative, visible]);
 
   useEffect(() => {
     // Readiness is bookkeeping only. It must never advance or replay the
@@ -98,11 +110,19 @@ const SplashStartupCoordinator: React.FC = () => {
   }, [isInitializing, isResolving]);
 
   useEffect(() => {
-    if (isInitializing) return;
-    // Authentication can change after the one-time splash (login/logout in the
-    // same tab). Warm the newly relevant member/guest chunks during idle time.
+    if (isInitializing || isNative) return;
     continueAppScreenWarmup({ currentPage, isLoggedIn });
-  }, [currentPage, isInitializing, isLoggedIn]);
+  }, [currentPage, isInitializing, isLoggedIn, isNative]);
+
+  useEffect(() => {
+    if (!isNative || visible || isInitializing) return;
+
+    // Native warming begins only after the splash has completely left the DOM.
+    // The loader itself waits for clean paint/idle slices and evaluates one
+    // module at a time, so the SVG animation and first Home frame never compete
+    // with a burst of dynamic-import parsing.
+    continueNativeScreenWarmup({ currentPage, isLoggedIn });
+  }, [currentPage, isInitializing, isLoggedIn, isNative, visible]);
 
   useEffect(() => {
     if (!visible || isInitializing) return;
@@ -130,6 +150,7 @@ const SplashStartupCoordinator: React.FC = () => {
 const SplashVisual = memo(function SplashVisual() {
   const outlineHostRef = useRef<HTMLDivElement>(null);
   const pathRunRef = useRef<PathAnimationRun | null>(null);
+  const isNative = Capacitor.isNativePlatform();
 
   const snapshot = useSyncExternalStore(
     subscribeSplashRuntime,
@@ -205,10 +226,42 @@ const SplashVisual = memo(function SplashVisual() {
 
     cancelPathRun();
 
+    const elapsed = Math.max(0, performance.now() - animationStartedAt);
+
+    // Native keeps the real line-drawing effect. Instead of creating one
+    // Animation object per path, animate the inheritable stroke-dashoffset on
+    // the SVG root once. Every path has pathLength=1 and inherits the same
+    // offset, so the visual result stays extremely close to the browser build
+    // while removing almost all per-path JS animation scheduling overhead.
+    if (isNative) {
+      const svg = host.querySelector<SVGSVGElement>(".splash-mark-svg");
+      if (!svg) return;
+
+      const nativePathDuration = 5_265;
+      const animation = svg.animate(
+        [
+          { strokeDashoffset: "1" },
+          { strokeDashoffset: "0" },
+        ],
+        {
+          duration: nativePathDuration,
+          delay: -Math.min(elapsed, nativePathDuration),
+          easing: "cubic-bezier(0.65, 0, 0.18, 1)",
+          fill: "both",
+        },
+      );
+
+      pathRunRef.current = {
+        host,
+        startedAt: animationStartedAt,
+        animations: [animation],
+      };
+      return;
+    }
+
     const paths = Array.from(host.querySelectorAll<SVGPathElement>("path"));
     if (paths.length === 0) return;
 
-    const elapsed = Math.max(0, performance.now() - animationStartedAt);
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -242,6 +295,7 @@ const SplashVisual = memo(function SplashVisual() {
     animationStartedAt,
     assets?.outlineSvgMarkup,
     cancelPathRun,
+    isNative,
     visible,
   ]);
 
@@ -260,8 +314,8 @@ const SplashVisual = memo(function SplashVisual() {
       aria-label="Preparing SedaBox — در حال آماده‌سازی صداباکس"
       aria-live="polite"
       className={`splash-root fixed inset-0 z-60 flex items-center justify-center ${
-        fading ? "is-fading" : ""
-      }`}
+        isNative ? "is-native" : ""
+      } ${fading ? "is-fading" : ""}`}
     >
       <div className="ambient ambient-one" aria-hidden="true" />
       <div className="ambient ambient-two" aria-hidden="true" />
@@ -283,7 +337,7 @@ const SplashVisual = memo(function SplashVisual() {
               src={assets.colorLogoUrl}
               alt=""
               draggable={false}
-              decoding="sync"
+              decoding={isNative ? "async" : "sync"}
               className={`splash-color-logo ${showColor ? "is-visible" : ""}`}
             />
           )}
@@ -528,6 +582,36 @@ const SplashVisual = memo(function SplashVisual() {
           }
         }
 
+        /* Native WebView: remove paint-heavy filters/masks and keep motion on
+           transform/opacity so the compositor can stay on the display cadence. */
+        .splash-root.is-native .ambient {
+          display: none;
+        }
+
+        .splash-root.is-native .splash-outline {
+          filter: none;
+          transform: translateZ(0);
+          will-change: transform, opacity;
+        }
+
+        .splash-root.is-native .splash-color-logo {
+          filter: none;
+          transition-property: opacity, transform;
+          will-change: transform, opacity;
+        }
+
+        .splash-root.is-native .splash-color-logo.is-visible {
+          filter: none;
+        }
+
+        .splash-root.is-native .paint-sheen {
+          display: none;
+        }
+
+        .splash-root.is-native .splash-dots span {
+          box-shadow: none;
+        }
+
         @media (max-width: 480px) {
           .splash-stage {
             width: min(76vw, 286px);
@@ -585,6 +669,19 @@ const SplashVisual = memo(function SplashVisual() {
 
         .splash-outline .splash-mark-svg path[fill="#AFCAC3"] {
           stroke: #a7ddd0;
+        }
+
+        .splash-root.is-native .splash-outline .splash-mark-svg {
+          /* stroke-dashoffset is inherited by the paths. One animation on this
+             root drives every normalized path concurrently. */
+          stroke-dashoffset: 1;
+          contain: paint;
+        }
+
+        .splash-root.is-native .splash-outline .splash-mark-svg path {
+          stroke-dashoffset: inherit !important;
+          opacity: 1 !important;
+          shape-rendering: optimizeSpeed;
         }
 
       `}</style>

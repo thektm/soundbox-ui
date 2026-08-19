@@ -12,7 +12,7 @@ import React, {
 import { useNavigation } from "./NavigationContext";
 import { useAuth, UserFollowItem } from "./AuthContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug } from "../lib/slug";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { clsx, type ClassValue } from "clsx";
@@ -106,7 +106,7 @@ const FollowerCard = memo(
           if (user.type === "artist") {
             navigateTo("artist-detail", {
               id: user.id.toString(),
-              slug: (user as any).unique_id || createSlug(user.name),
+              urlSlug: getCanonicalSlug(user, user.name),
             });
           } else {
             navigateTo("user-detail", buildUserNavigationParams(user as any));
@@ -198,7 +198,7 @@ const FollowingCard = memo(
           if (artist.type === "artist") {
             navigateTo("artist-detail", {
               id: artist.id.toString(),
-              slug: (artist as any).unique_id || createSlug(artist.name),
+              urlSlug: getCanonicalSlug(artist, artist.name),
             });
           } else {
             navigateTo("user-detail", buildUserNavigationParams(artist as any));

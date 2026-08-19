@@ -1315,7 +1315,7 @@ export default function Settings() {
       <div className="fixed bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-900/5 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Header */}
-      <div className="fixed w-full top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5">
+      <div className="fixed w-full top-0 sb-native-fixed-top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-4xl mx-auto flex flex-row-reverse items-center justify-between px-4 py-4">
           <button
             onClick={() => goBack()}

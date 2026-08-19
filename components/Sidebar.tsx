@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, memo, useMemo } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
 import { useDiscovery } from "./DiscoveryContext";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
 import { getSongDisplayTitle } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 import { CreatePlaylistModal } from "./CreatePlaylistModal";
@@ -1113,7 +1113,7 @@ function Sidebar() {
                       if (item.type === "artist") {
                         navigateTo("artist-detail", {
                           id: item.id,
-                          slug: createSlug(item.name || ""),
+                          urlSlug: getCanonicalSlug(item, item.name || ""),
                         });
                         return;
                       }
@@ -1121,7 +1121,7 @@ function Sidebar() {
                       if (item.type === "album") {
                         navigateTo("album-detail", {
                           id: item.id,
-                          slug: createSlug(item.name),
+                          urlSlug: getCanonicalSlug(item, item.name),
                           album: item,
                         });
                         return;
@@ -1149,14 +1149,14 @@ function Sidebar() {
                       if (item.type === "artist") {
                         navigateTo("artist-detail", {
                           id: item.id,
-                          slug: createSlug(item.name || ""),
+                          urlSlug: getCanonicalSlug(item, item.name || ""),
                         });
                         return;
                       }
                       if (item.type === "album") {
                         navigateTo("album-detail", {
                           id: item.id,
-                          slug: createSlug(item.name),
+                          urlSlug: getCanonicalSlug(item, item.name),
                           album: item,
                         });
                         return;
@@ -1190,7 +1190,8 @@ function Sidebar() {
                         } else if (artistUnique) {
                           navigateTo("artist-detail", {
                             id: artistUnique,
-                            slug: createSlug(
+                            urlSlug: getArtistCanonicalSlug(
+                              meta,
                               meta.artist_name || item.owner || "",
                             ),
                           });

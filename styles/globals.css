@@ -33,6 +33,38 @@
 :root {
   --background: #0a0a0a; /* dark background */
   --foreground: #ededed; /* light foreground */
+  --sb-safe-top: env(safe-area-inset-top, 0px);
+  --sb-safe-right: env(safe-area-inset-right, 0px);
+  --sb-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --sb-safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* Capacitor 8's SystemBars plugin publishes reliable Android insets as CSS
+   custom properties. Keep env() as the browser/iOS fallback so web styling is
+   unchanged while native Android gets the real status/navigation-bar sizes. */
+html[data-sedabox-native] {
+  --sb-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --sb-safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --sb-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --sb-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --sb-mobile-nav-content-height: 64px;
+  --sb-mobile-nav-total-height: calc(
+    var(--sb-mobile-nav-content-height) + var(--sb-safe-bottom, 0px)
+  );
+}
+
+/* Android 15+ is edge-to-edge and the system status bar is transparent. Keep a
+   dedicated, non-scrolling SedaBox surface behind the status-bar glyphs so
+   page artwork/content never flashes above sticky headers while scrolling. */
+html[data-sedabox-native] body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: var(--sb-safe-top, 0px);
+  background: #060707;
+  pointer-events: none;
+  z-index: 2147483000;
+  transform: translateZ(0);
 }
 
 @theme inline {
@@ -608,4 +640,133 @@ html[dir='ltr'] [data-direction-fixed='ltr'] [class~='border-l'] { border-left-w
   direction: ltr !important;
   unicode-bidi: isolate !important;
   font-variant-numeric: tabular-nums;
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Capacitor / Android rendering hardening                                    */
+/* -------------------------------------------------------------------------- */
+
+/* Native-only rules: do not change the browser/PWA presentation. */
+html[data-sedabox-native],
+html[data-sedabox-native] body {
+  min-height: 100dvh;
+  background: #060707;
+}
+
+html[data-sedabox-native] body {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html[data-sedabox-native] button,
+html[data-sedabox-native] a,
+html[data-sedabox-native] [role='button'] {
+  touch-action: manipulation;
+}
+
+.sb-native-scroll-root {
+  box-sizing: border-box;
+  scrollbar-width: none;
+}
+.sb-native-scroll-root::-webkit-scrollbar { display: none; }
+
+/* Keep short-lived motion on compositor-friendly properties. Avoid promoting
+   every button permanently; only components opting into this helper get a
+   transient layer hint. */
+html[data-sedabox-native] .sb-compositor-motion,
+html[data-sedabox-native] .sb-toast {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+@keyframes sb-native-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Do not pin .animate-spin to translateZ(0): Tailwind's spinner also animates
+   transform, and Android WebView can freeze that conflicting native override.
+   Give native spinners one explicit transform owner instead. */
+html[data-sedabox-native] .animate-spin {
+  animation: sb-native-spin 1s linear infinite !important;
+  transform-origin: center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
+}
+
+html[data-sedabox-native] .sb-toast {
+  contain: layout paint;
+}
+
+html[data-sedabox-native] .pb-safe {
+  padding-bottom: var(--sb-safe-bottom, 0px) !important;
+}
+
+html[data-sedabox-native] .sb-native-bottom-safe {
+  box-sizing: border-box;
+  padding-bottom: var(--sb-safe-bottom, 0px) !important;
+}
+
+/* Backdrop blur is expensive in Android WebView during scrolling/transitions.
+   Keep it disabled for ordinary native surfaces, but preserve the intentional
+   glass effect on real page headers (header elements, sticky bars, and the
+   fixed top bars that already opt into native safe-area handling). */
+@media (max-width: 767px) {
+  html[data-sedabox-native] .backdrop-blur-sm:not(header):not(.sticky):not(.sb-native-fixed-top-0),
+  html[data-sedabox-native] .backdrop-blur:not(header):not(.sticky):not(.sb-native-fixed-top-0),
+  html[data-sedabox-native] .backdrop-blur-md:not(header):not(.sticky):not(.sb-native-fixed-top-0),
+  html[data-sedabox-native] .backdrop-blur-lg:not(header):not(.sticky):not(.sb-native-fixed-top-0),
+  html[data-sedabox-native] .backdrop-blur-xl:not(header):not(.sticky):not(.sb-native-fixed-top-0),
+  html[data-sedabox-native] .backdrop-blur-2xl:not(header):not(.sticky):not(.sb-native-fixed-top-0),
+  html[data-sedabox-native] .backdrop-blur-3xl:not(header):not(.sticky):not(.sb-native-fixed-top-0) {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* The mobile expanded player is a fixed full-screen surface, so parent/page
+     padding cannot protect its controls from Android's edge-to-edge status bar.
+     Reserve exactly the injected status-bar inset inside the player itself. */
+  html[data-sedabox-native] .sb-native-expanded-player {
+    box-sizing: border-box;
+    padding-top: var(--sb-safe-top, 0px);
+  }
+}
+
+
+/* Native mobile stacking contract:
+   navbars < guest CTAs < collapsed player. The browser/PWA z-indexes remain
+   untouched; these overrides apply only inside Capacitor. */
+@media (max-width: 767px) {
+  html[data-sedabox-native] .sb-native-guest-bottom-nav {
+    z-index: 50 !important;
+  }
+
+  html[data-sedabox-native] .sb-native-guest-top-actions {
+    z-index: 60 !important;
+  }
+
+  html[data-sedabox-native] .sb-native-guest-preview-cta {
+    bottom: calc(var(--sb-mobile-nav-total-height) + 88px) !important;
+    z-index: 70 !important;
+  }
+
+  html[data-sedabox-native] .sb-native-collapsed-player {
+    bottom: calc(var(--sb-mobile-nav-total-height) + 6px) !important;
+    z-index: 90 !important;
+  }
+}
+
+/* Helpers for the few mobile controls that are fixed to the physical top edge.
+   Fixed elements ignore parent padding, so they need the status-bar inset on
+   the element itself. */
+html[data-sedabox-native] .sb-native-fixed-top-0 {
+  top: var(--sb-safe-top, 0px) !important;
+}
+html[data-sedabox-native] .sb-native-fixed-top-3 {
+  top: calc(var(--sb-safe-top, 0px) + 0.75rem) !important;
+}
+html[data-sedabox-native] .sb-native-fixed-top-4 {
+  top: calc(var(--sb-safe-top, 0px) + 1rem) !important;
 }

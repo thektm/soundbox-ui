@@ -1,5 +1,6 @@
 "use client";
 
+import { Capacitor } from "@capacitor/core";
 import React, {
   createContext,
   useCallback,
@@ -12,6 +13,7 @@ import React, {
 import toast from "react-hot-toast";
 import { useAuth } from "./AuthContext";
 import { useI18n } from "./I18nContext";
+import { useSplashVisibility } from "./SplashVisibilityContext";
 
 const NOTIFICATION_ROLE = "audience" as const;
 
@@ -182,6 +184,8 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     user,
   } = useAuth();
   const { language } = useI18n();
+  const { splashVisible } = useSplashVisibility();
+  const deferNativeStartup = Capacitor.isNativePlatform() && splashVisible;
 
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
   const [unreadHint, setUnreadHint] = useState(false);
@@ -515,9 +519,15 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       return;
     }
 
+    if (deferNativeStartup) {
+      setIsLoading(false);
+      return;
+    }
+
     void refreshNotifications();
   }, [
     accessToken,
+    deferNativeStartup,
     isInitializing,
     isLoggedIn,
     refreshNotifications,
@@ -525,7 +535,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   ]);
 
   useEffect(() => {
-    if (isInitializing || !isLoggedIn || !accessToken) {
+    if (isInitializing || !isLoggedIn || !accessToken || deferNativeStartup) {
       setRealtimeStatus("disabled");
       return;
     }
@@ -539,7 +549,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     let lastMessageAt = Date.now();
     let lastFailureReconcileAt = 0;
     let preparingConnection = false;
-    let forceRefreshBeforeNextConnect = false;
+    let authRecoveryBeforeNextConnect: Promise<void> | null = null;
     let tokenUsedForHandshake: string | null = null;
     let socketWasAccepted = false;
 
@@ -658,11 +668,14 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       setRealtimeStatus(reconnectAttempt ? "reconnecting" : "connecting");
 
       try {
-        const shouldForceRefresh = forceRefreshBeforeNextConnect;
-        forceRefreshBeforeNextConnect = false;
-        const currentToken = await getFreshAccessTokenRef.current(
-          shouldForceRefresh,
-        );
+        // A failed WebSocket handshake is not reliable proof that the JWT is
+        // invalid (1006 is only an abnormal close). If the previous handshake
+        // asked for HTTP reconciliation, let authenticatedFetch validate/recover
+        // the session first; it refreshes only on an actual HTTP 401.
+        const pendingRecovery = authRecoveryBeforeNextConnect;
+        if (pendingRecovery) await pendingRecovery;
+
+        const currentToken = await getFreshAccessTokenRef.current(false);
         if (disposed || !currentToken) {
           if (!disposed) setRealtimeStatus("disabled");
           return;
@@ -720,12 +733,18 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         if (
           rejectedBeforeAccept &&
           tokenUsedForHandshake &&
-          tokenUsedForHandshake === accessTokenRef.current
+          tokenUsedForHandshake === accessTokenRef.current &&
+          !authRecoveryBeforeNextConnect
         ) {
-          // A browser reports an HTTP 401/403 WebSocket rejection as close 1006.
-          // Force one token rotation before the next handshake instead of
-          // repeatedly retrying the same stale/revoked access token.
-          forceRefreshBeforeNextConnect = true;
+          // 1006/other pre-open failures can be network, proxy, TLS, WebView
+          // scheduling, or auth. Do not rotate a refresh token speculatively.
+          // Reconcile over HTTP first; authenticatedFetch owns real 401 recovery.
+          const recovery = refreshNotifications().finally(() => {
+            if (authRecoveryBeforeNextConnect === recovery) {
+              authRecoveryBeforeNextConnect = null;
+            }
+          });
+          authRecoveryBeforeNextConnect = recovery;
         }
         tokenUsedForHandshake = null;
         socketWasAccepted = false;
@@ -790,6 +809,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     };
   }, [
     accessToken,
+    deferNativeStartup,
     isInitializing,
     isLoggedIn,
     refreshNotifications,
@@ -798,7 +818,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   ]);
 
   useEffect(() => {
-    if (isInitializing || !isLoggedIn || !accessToken) return;
+    if (isInitializing || !isLoggedIn || !accessToken || deferNativeStartup) return;
     const intervalMs =
       realtimeStatus === "connected"
         ? CONNECTED_RECONCILE_MS
@@ -811,6 +831,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     return () => window.clearInterval(interval);
   }, [
     accessToken,
+    deferNativeStartup,
     isInitializing,
     isLoggedIn,
     realtimeStatus,

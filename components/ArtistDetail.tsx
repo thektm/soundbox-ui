@@ -13,7 +13,7 @@ import React, {
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import type { Song } from "./mockData";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug } from "../lib/slug";
 import { replaceCurrentNavigationEntry, useNavigation, useNavigationScroll } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { SongOptionsDrawer } from "./SongOptionsDrawer";
@@ -27,13 +27,17 @@ import { useI18n } from "./I18nContext";
 import { readFollowingState } from "../lib/apiActionState";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import { deleteRouteDataCache, makeRouteDataCacheKey, readRouteDataCache, writeRouteDataCache } from "../lib/routeDataCache";
 
 
 interface ApiArtist {
   id: number;
   name: string;
+  name_en?: string;
   unique_id?: string;
   artistic_name: string;
+  artistic_name_en?: string;
+  url_slug?: string;
   user_id: number | null;
   bio: string;
   profile_image: string;
@@ -54,6 +58,9 @@ interface ApiArtist {
 interface ApiSong {
   id: number;
   title: string;
+  title_en?: string;
+  url_slug?: string;
+  artist_url_slug?: string;
   display_title?: string;
   featured_artists?: any[];
   artist: number;
@@ -70,6 +77,8 @@ interface ApiSong {
 interface ApiAlbum {
   id: number;
   title: string;
+  title_en?: string;
+  url_slug?: string;
   artist: number;
   artist_name: string;
   cover_image: string;
@@ -499,7 +508,7 @@ const ArtistCard = memo(
         onClick={() =>
           navigateTo("artist-detail", {
             id: artist.id,
-            slug: artist.unique_id || createSlug(artist.name),
+            urlSlug: getCanonicalSlug(artist, artist.name),
           })
         }
         onMouseEnter={() => setHover(true)}
@@ -608,16 +617,22 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
   const { goBack, currentParams, navigateTo } = useNavigation();
   const scrollY = useNavigationScroll();
   const { playTrack, setQueue, currentTrack, isPlaying } = usePlayerPlayback();
-  const { accessToken, authenticatedFetch } = useAuth();
+  const { accessToken, authenticatedFetch, user } = useAuth();
   const { requestAuth } = useGuestAccess();
 
   // Support navigation by numeric id OR by unique_id slug (from URL)
   const artistIdOrSlug = id || currentParams?.id || currentParams?.slug;
+  const artistCacheKey = artistIdOrSlug
+    ? makeRouteDataCacheKey("artist", artistIdOrSlug, user?.id)
+    : null;
+  const initialCachedArtist = readRouteDataCache<ArtistResponse>(artistCacheKey);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const headerRef = React.useRef<HTMLElement | null>(null);
-  const [data, setData] = useState<ArtistResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [following, setFollowing] = useState<boolean | null>(null);
+  const [data, setData] = useState<ArtistResponse | null>(initialCachedArtist);
+  const [loading, setLoading] = useState(!initialCachedArtist);
+  const [following, setFollowing] = useState<boolean | null>(
+    initialCachedArtist?.artist?.is_following ?? null,
+  );
   const [isFollowLoading, setIsFollowLoading] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [isBioOpen, setIsBioOpen] = useState(false);
@@ -629,8 +644,16 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
   useEffect(() => {
     if (!artistIdOrSlug) return;
 
-    const fetchArtist = async () => {
+    const cached = readRouteDataCache<ArtistResponse>(artistCacheKey);
+    if (cached) {
+      setData(cached);
+      setFollowing(cached.artist?.is_following ?? false);
+      setLoading(false);
+    } else {
       setLoading(true);
+    }
+
+    const fetchArtist = async () => {
       try {
         const res = await authenticatedFetch(
           `https://api.sedabox.com/api/artists/${artistIdOrSlug}/`,
@@ -639,6 +662,9 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         // Guard against HTML error pages (404, 500, etc.)
         const contentType = res.headers.get("content-type") || "";
         if (!res.ok || !contentType.includes("application/json")) {
+          deleteRouteDataCache(artistCacheKey);
+          setData(null);
+          setFollowing(false);
           throw new Error(`Unexpected response ${res.status}`);
         }
 
@@ -654,29 +680,24 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
             items: normalizeSongCollection<ApiSong>(json.latest_songs?.items),
           },
         };
+        writeRouteDataCache(artistCacheKey, normalizedJson);
         setData(normalizedJson);
         setFollowing(json.artist?.is_following ?? false);
 
-        // Update browser URL to canonical format: /artist/{id}-{slug}
+        // Canonical web URL is language-independent: use only the backend's
+        // verified English slug, otherwise keep the stable numeric ID alone.
         if (typeof window !== "undefined" && json.artist) {
-          const artistName =
-            json.artist.artistic_name || json.artist.name || "";
           const artistId = json.artist.id;
           if (artistId) {
-            const slug = (json.artist.unique_id || artistName)
-              .trim()
-              .replace(/\s+/g, "-")
-              .replace(/[^\w\u0600-\u06FF\-]/g, "")
-              .replace(/-+/g, "-")
-              .replace(/^-+|-+$/g, "");
-            const targetPath = `/artist/${artistId}${slug ? `-${slug}` : ""}`;
+            const canonicalSlug = getCanonicalSlug(json.artist);
+            const targetPath = `/artist/${artistId}${canonicalSlug ? `-${canonicalSlug}` : ""}`;
             if (window.location.pathname !== targetPath) {
               replaceCurrentNavigationEntry(
                 "artist-detail",
                 {
                   ...(window.history.state?.params || {}),
                   id: artistId,
-                  name: artistName,
+                  urlSlug: canonicalSlug,
                 },
                 targetPath,
               );
@@ -685,14 +706,14 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         }
       } catch (err) {
         console.error("Error fetching artist:", err);
-        setFollowing(false);
+        if (!cached) setFollowing(false);
       } finally {
         setLoading(false);
       }
     };
 
     fetchArtist();
-  }, [artistIdOrSlug, authenticatedFetch]);
+  }, [artistCacheKey, artistIdOrSlug, authenticatedFetch]);
 
   const headerOpacity = useMemo(() => Math.min(scrollY / 300, 1), [scrollY]);
   const showHeader = scrollY > 50;
@@ -782,14 +803,15 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
 
     setIsFollowLoading(true);
     setFollowing(shouldFollow);
-    setData((previous) =>
-      previous
-        ? {
-            ...previous,
-            artist: { ...previous.artist, is_following: shouldFollow },
-          }
-        : previous,
-    );
+    setData((previous) => {
+      if (!previous) return previous;
+      const next = {
+        ...previous,
+        artist: { ...previous.artist, is_following: shouldFollow },
+      };
+      writeRouteDataCache(artistCacheKey, next);
+      return next;
+    });
     try {
       const res = await authenticatedFetch(
         `https://api.sedabox.com/api/follow/`,
@@ -805,11 +827,15 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
       const result = await res.json();
       const isFollowing = readFollowingState(result, shouldFollow);
       setFollowing(isFollowing);
-      setData((prev) =>
-        prev
-          ? { ...prev, artist: { ...prev.artist, is_following: isFollowing } }
-          : null,
-      );
+      setData((prev) => {
+        if (!prev) return null;
+        const next = {
+          ...prev,
+          artist: { ...prev.artist, is_following: isFollowing },
+        };
+        writeRouteDataCache(artistCacheKey, next);
+        return next;
+      });
       toast.success(
         isFollowing
           ? language === "fa"
@@ -822,14 +848,15 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     } catch (err) {
       console.error("Follow error:", err);
       setFollowing(wasFollowing);
-      setData((previous) =>
-        previous
-          ? {
-              ...previous,
-              artist: { ...previous.artist, is_following: wasFollowing },
-            }
-          : previous,
-      );
+      setData((previous) => {
+        if (!previous) return previous;
+        const next = {
+          ...previous,
+          artist: { ...previous.artist, is_following: wasFollowing },
+        };
+        writeRouteDataCache(artistCacheKey, next);
+        return next;
+      });
       toast.error(
         language === "fa" ? "عملیات انجام نشد" : "The action failed",
       );
@@ -838,6 +865,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
     }
   }, [
     accessToken,
+    artistCacheKey,
     artistIdOrSlug,
     authenticatedFetch,
     data?.artist?.id,
@@ -874,7 +902,9 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
               ? { ...it, is_liked: data.liked, likes_count: data.likes_count }
               : it,
           );
-          return { ...prev, top_songs: { ...prev.top_songs, items } };
+          const next = { ...prev, top_songs: { ...prev.top_songs, items } };
+          writeRouteDataCache(artistCacheKey, next);
+          return next;
         });
 
         // Update selectedSong if it's the same one shown in drawer
@@ -909,8 +939,8 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         // If a specific song is provided, share the song
         const isSong = song && (song.id || getSongDisplayTitle(song));
         const url = isSong
-          ? getFullShareUrl("song", song.id, getSongDisplayTitle(song))
-          : getFullShareUrl("artist", artist!.id, artist?.name);
+          ? getFullShareUrl("song", song.id, getCanonicalSlug(song))
+          : getFullShareUrl("artist", artist!.id, getCanonicalSlug(artist));
 
         const title = isSong ? getSongDisplayTitle(song) : artist?.name;
         const text = isSong
@@ -1006,7 +1036,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         {/* Mobile Sticky Header */}
         <header
           ref={headerRef}
-          className="md:hidden  fixed flex-row-reverse top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
+          className="md:hidden  fixed flex-row-reverse top-0 sb-native-fixed-top-0 inset-x-0 h-16 bg-black/20 backdrop-blur-xl flex items-center justify-between px-4 z-50 transition-all duration-250"
           style={{
             transform: showHeader ? "translateY(0)" : "translateY(-100%)",
             opacity: showHeader ? 1 : 0,
@@ -1041,7 +1071,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
         {/* Mobile Back */}
         <button
           onClick={goBack}
-          className="fixed top-4 left-4 w-10 h-10 sb-back-position bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
+          className="fixed top-4 sb-native-fixed-top-4 left-4 w-10 h-10 sb-back-position bg-black/50 rounded-full flex items-center justify-center z-40 transition hover:bg-black/70"
           style={{
             opacity: showHeader ? 0 : 1,
             pointerEvents: showHeader ? "none" : "auto",
@@ -1167,7 +1197,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                 onClick={() =>
                   navigateTo("artist-sub-page", {
                     id: artist.id,
-                    slug: artist.unique_id,
+                    urlSlug: getCanonicalSlug(artist, artist.name),
                     subPage: "top-songs",
                   })
                 }
@@ -1179,7 +1209,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                   onClick={() =>
                     navigateTo("artist-sub-page", {
                       id: artist.id,
-                      slug: artist.unique_id,
+                      urlSlug: getCanonicalSlug(artist, artist.name),
                       subPage: "top-songs",
                     })
                   }
@@ -1203,14 +1233,14 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                     onTitleClick={() =>
                       navigateTo("song-detail", {
                         id: song.id,
-                        title: createSlug(getSongDisplayTitle(song)),
+                        urlSlug: getCanonicalSlug(song, getSongDisplayTitle(song)),
                       })
                     }
                     onArtistClick={() =>
                       (song.artist_id || artist.id) &&
                       navigateTo("artist-detail", {
                         id: song.artist_id || artist.id,
-                        slug: artist.unique_id,
+                        urlSlug: getCanonicalSlug(artist, artist.name),
                       })
                     }
                     artistName={artist.name}
@@ -1243,7 +1273,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                 onClick={() =>
                   navigateTo("artist-sub-page", {
                     id: artist.id,
-                    slug: artist.unique_id,
+                    urlSlug: getCanonicalSlug(artist, artist.name),
                     subPage: "albums",
                   })
                 }
@@ -1255,7 +1285,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                   onClick={() =>
                     navigateTo("artist-sub-page", {
                       id: artist.id,
-                      slug: artist.unique_id,
+                      urlSlug: getCanonicalSlug(artist, artist.name),
                       subPage: "albums",
                     })
                   }
@@ -1289,7 +1319,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
               onClick={() =>
                 navigateTo("artist-sub-page", {
                   id: artist.id,
-                  slug: artist.unique_id,
+                  urlSlug: getCanonicalSlug(artist, artist.name),
                   subPage: "latest-songs",
                 })
               }
@@ -1301,7 +1331,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                 onClick={() =>
                   navigateTo("artist-sub-page", {
                     id: artist.id,
-                    slug: artist.unique_id,
+                    urlSlug: getCanonicalSlug(artist, artist.name),
                     subPage: "latest-songs",
                   })
                 }
@@ -1322,7 +1352,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                   title={getSongDisplayTitle(song)}
                   artist={song.artist_name}
                   artistId={song.artist_id || artist.id}
-                  artistSlug={artist.unique_id}
+                  artistSlug={getCanonicalSlug(artist, artist.name)}
                   onClick={() => playSong(song)}
                 />
               ))
@@ -1386,7 +1416,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                 onClick={() =>
                   navigateTo("artist-sub-page", {
                     id: artist.id,
-                    slug: artist.unique_id,
+                    urlSlug: getCanonicalSlug(artist, artist.name),
                     subPage: "discovered-on",
                   })
                 }
@@ -1397,7 +1427,7 @@ export default function ArtistDetail({ id }: ArtistDetailProps) {
                 onClick={() =>
                   navigateTo("artist-sub-page", {
                     id: artist.id,
-                    slug: artist.unique_id,
+                    urlSlug: getCanonicalSlug(artist, artist.name),
                     subPage: "discovered-on",
                   })
                 }
@@ -1557,7 +1587,7 @@ const SongCard = ({
         onClick={(e) => {
           if (!isDesktop) return;
           e.stopPropagation();
-          navigateTo("song-detail", { id });
+          navigateTo("song-detail", { id, urlSlug: getCanonicalSlug(song, title) });
         }}
       >
         <SongTitleWithFeaturedArtists song={song} />
@@ -1571,7 +1601,7 @@ const SongCard = ({
         onClick={(e) => {
           if (!isDesktop || !artistId) return;
           e.stopPropagation();
-          navigateTo("artist-detail", { id: artistId, slug: artistSlug });
+          navigateTo("artist-detail", { id: artistId, urlSlug: artistSlug });
         }}
       >
         {artist}

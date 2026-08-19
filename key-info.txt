@@ -1,0 +1,26 @@
+Alias name: sedabox
+Creation date: Aug 17, 2026
+Entry type: PrivateKeyEntry
+Certificate chain length: 1
+Certificate[1]:
+Owner: CN=sedabox, OU=sedabox, O=sedabox, L=sedabox, ST=sedabox
+Issuer: CN=sedabox, OU=sedabox, O=sedabox, L=sedabox, ST=sedabox
+Serial number: 14f9fe3a051aaf0b
+Valid from: Mon Aug 17 08:08:33 UTC 2026 until: Wed Jul 24 08:08:33 UTC 2126
+Certificate fingerprints:
+	 SHA1: A5:85:4F:D9:BA:46:50:0C:0C:88:FE:C4:E7:09:DA:DF:B8:3C:7E:FB
+	 SHA256: 6E:96:11:36:03:E8:C7:0E:DB:88:25:82:B0:30:60:A4:D7:91:E1:E7:7A:9D:FB:A6:80:F5:7B:03:F5:72:35:CE
+Signature algorithm name: SHA256withRSA
+Subject Public Key Algorithm: 4096-bit RSA key
+Version: 3
+
+Extensions: 
+
+#1: ObjectId: 2.5.29.14 Criticality=false
+SubjectKeyIdentifier [
+KeyIdentifier [
+0000: A7 E3 87 65 9C 86 75 4C   29 09 84 3C 34 C1 26 93  ...e..uL)..<4.&.
+0010: 10 65 B2 F9                                        .e..
+]
+]
+

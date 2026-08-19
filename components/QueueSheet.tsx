@@ -436,7 +436,7 @@ const QueueSheet = memo<QueueSheetProps>(({ isOpen, onClose }) => {
             </AnimatePresence>
 
             {/* Bottom Safe Area */}
-            <div className="h-safe-area-inset-bottom bg-neutral-950" />
+            <div className="shrink-0 bg-neutral-950" style={{ height: "var(--sb-safe-bottom, env(safe-area-inset-bottom, 0px))" }} />
           </div>
         </Drawer.Content>
       </Drawer.Portal>

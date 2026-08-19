@@ -7,6 +7,7 @@ import { Share2, Heart, Loader2, X } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import { toast } from "react-hot-toast";
 import { getFullShareUrl } from "../utils/share";
+import { getCanonicalSlug } from "../lib/slug";
 import { useGuestAccess } from "./GuestAccessContext";
 
 interface PlaylistOptionsDrawerProps {
@@ -19,6 +20,8 @@ interface PlaylistOptionsDrawerProps {
     likes_count?: number;
     unique_id?: string;
     public?: boolean;
+    url_slug?: string;
+    title_en?: string;
   } | null;
   // If provided, will be called for actions: (action, playlist)
   onAction?: (action: string, payload: any) => Promise<any> | void;
@@ -52,7 +55,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
   const handleShare = async () => {
     if (!playlist) return;
     try {
-      const url = getFullShareUrl("playlist", playlist.id, playlist.title);
+      const url = getFullShareUrl("playlist", playlist.id, getCanonicalSlug(playlist, playlist.title));
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: playlist.title,
@@ -209,7 +212,7 @@ export const PlaylistOptionsDrawer: React.FC<PlaylistOptionsDrawerProps> = ({
           <Drawer.Portal>
             <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
             <Drawer.Content
-              className="fixed bottom-0 left-0 right-0 max-h-[88%] bg-[#121212] rounded-t-[28px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
+              className="fixed bottom-0 sb-native-bottom-safe left-0 right-0 max-h-[88%] bg-[#121212] rounded-t-[28px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
             >
               {content}
             </Drawer.Content>

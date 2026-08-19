@@ -146,7 +146,7 @@ const Verify: React.FC = () => {
   return (
     <div
       dir="ltr"
-      className="relative w-full min-h-screen bg-[#0a0a0a] text-white overflow-hidden font-sans flex flex-col lg:flex-row"
+      className="relative w-full min-h-screen bg-[#0a0a0a] text-white overflow-clip font-sans flex flex-col lg:flex-row pb-[calc(4rem+var(--sb-safe-bottom))] lg:pb-0"
     >
       <div
         className="fixed inset-0 opacity-[0.03] pointer-events-none z-50 mix-blend-overlay"

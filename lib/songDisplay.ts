@@ -5,6 +5,8 @@ export type FeaturedArtistLike =
       id?: string | number | null;
       unique_id?: string | null;
       uniqueId?: string | null;
+      url_slug?: string | null;
+      urlSlug?: string | null;
       name?: string | null;
       name_fa?: string | null;
       name_en?: string | null;
@@ -31,6 +33,7 @@ export type FeaturedArtistEntry = {
   name: string;
   id?: string | number;
   uniqueId?: string;
+  urlSlug?: string;
   canNavigate: boolean;
 };
 
@@ -90,6 +93,9 @@ export function getFeaturedArtistEntries(
     const uniqueId = objectArtist
       ? textValue(objectArtist.unique_id) || textValue(objectArtist.uniqueId)
       : "";
+    const urlSlug = objectArtist
+      ? textValue(objectArtist.url_slug) || textValue(objectArtist.urlSlug)
+      : "";
     const identity =
       id !== undefined && id !== null
         ? `id:${String(id)}`
@@ -105,6 +111,7 @@ export function getFeaturedArtistEntries(
       name,
       ...(id !== undefined && id !== null ? { id } : {}),
       ...(uniqueId ? { uniqueId } : {}),
+      ...(urlSlug ? { urlSlug } : {}),
       canNavigate: Boolean(
         uniqueId ||
           (id !== undefined &&
@@ -180,13 +187,14 @@ export function getPlayerFeaturedArtists(song: SongDisplayLike | null | undefine
   id: string | number;
   name: string;
   uniqueId?: string;
+  urlSlug?: string;
 }> {
   const raw = Array.isArray(song?.featured_artists)
     ? song.featured_artists
     : Array.isArray(song?.featuredArtists)
       ? song.featuredArtists
       : [];
-  const result: Array<{ id: string | number; name: string; uniqueId?: string }> = [];
+  const result: Array<{ id: string | number; name: string; uniqueId?: string; urlSlug?: string }> = [];
 
   for (const [index, artist] of (raw as FeaturedArtistLike[]).entries()) {
     const name = getFeaturedArtistName(artist);
@@ -197,10 +205,12 @@ export function getPlayerFeaturedArtists(song: SongDisplayLike | null | undefine
     }
 
     const uniqueId = textValue(artist.unique_id) || textValue(artist.uniqueId);
+    const urlSlug = textValue(artist.url_slug) || textValue(artist.urlSlug);
     result.push({
       id: artist.id ?? artist.unique_id ?? artist.uniqueId ?? `featured-${index}-${name}`,
       name,
       ...(uniqueId ? { uniqueId } : {}),
+      ...(urlSlug ? { urlSlug } : {}),
     });
   }
   return result;

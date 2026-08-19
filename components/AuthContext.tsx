@@ -1,3 +1,13 @@
+"use no memo";
+
+// Keep the auth/session coordinator on baseline React semantics. The Capacitor
+// build enables React Compiler for UI performance, but this module is a
+// long-lived async state machine built around mutable refs, single-flight
+// refresh promises, token rotation, storage synchronization and stale-response
+// guards. Opting this one module out keeps native session behavior identical
+// to the original web/base implementation while the rest of the native UI
+// remains compiler-optimized.
+
 import React, {
   createContext,
   useContext,
@@ -16,6 +26,7 @@ import { openAuthPrompt } from "./authPrompt";
 import { clientTrace, withClientTimeout } from "../lib/clientDebug";
 import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
 import type { FeaturedArtistLike } from "../lib/songDisplay";
+import { isNativeAndroid, nativePreferences } from "../lib/nativePreferences";
 
 export interface UserRecentlyPlayedItem {
   id: number;
@@ -212,7 +223,197 @@ const normalizeServerUser = (candidate: any): User => {
 
 const ACCESS_TOKEN_STORAGE_KEY = "sedaboxAccessToken";
 const REFRESH_TOKEN_STORAGE_KEY = "refreshToken";
+const NATIVE_AUTH_SESSION_STORAGE_KEY = "sedabox.auth.session.v1";
+const AUTH_SESSION_UPDATED_AT_STORAGE_KEY = "sedabox.auth.session.updatedAt";
 const REFRESH_LOCK_NAME = "sedabox-auth-refresh";
+
+// These queues intentionally live at module scope instead of inside a mounted
+// AuthProvider. Navigation warmups and Android lifecycle recreation can create
+// overlapping async work around a provider remount; the session/refresh
+// critical sections must survive that remount and remain single-owner for the
+// whole JavaScript realm.
+let authSessionMutationQueue: Promise<void> = Promise.resolve();
+let refreshCriticalSectionQueue: Promise<void> = Promise.resolve();
+
+const queueAuthSessionMutation = <T,>(operation: () => Promise<T>): Promise<T> => {
+  const run = authSessionMutationQueue.then(operation, operation);
+  authSessionMutationQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+};
+
+const runInRefreshCriticalSection = <T,>(operation: () => Promise<T>): Promise<T> => {
+  const run = refreshCriticalSectionQueue.then(operation, operation);
+  refreshCriticalSectionQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+};
+
+interface NativeAuthSession {
+  accessToken: string;
+  refreshToken: string;
+  updatedAt: number;
+}
+
+const isNativeAuthPlatform = () => isNativeAndroid();
+
+const getAccessTokenGeneration = (token: string | null): number => {
+  if (!token || typeof window === "undefined") return 0;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return 0;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = JSON.parse(atob(padded));
+    const issuedAt = Number(decoded?.iat || 0);
+    const expiresAt = Number(decoded?.exp || 0);
+    // iat is the strongest rotation ordering signal. exp is a safe migration
+    // fallback for JWTs that omit iat.
+    return issuedAt > 0 ? issuedAt : expiresAt;
+  } catch {
+    return 0;
+  }
+};
+
+const readNativeAuthSession = async (): Promise<NativeAuthSession | null> => {
+  if (!isNativeAuthPlatform()) return null;
+  try {
+    const value = await nativePreferences.get(NATIVE_AUTH_SESSION_STORAGE_KEY);
+    if (!value) return null;
+    const parsed = JSON.parse(value) as Partial<NativeAuthSession>;
+    if (
+      typeof parsed.accessToken !== "string" ||
+      !parsed.accessToken ||
+      typeof parsed.refreshToken !== "string" ||
+      !parsed.refreshToken
+    ) {
+      return null;
+    }
+    return {
+      accessToken: parsed.accessToken,
+      refreshToken: parsed.refreshToken,
+      updatedAt:
+        typeof parsed.updatedAt === "number" && Number.isFinite(parsed.updatedAt)
+          ? parsed.updatedAt
+          : 0,
+    };
+  } catch (error) {
+    clientTrace("AUTH", "native-session:read-failed", error, "warn");
+    return null;
+  }
+};
+
+const persistNativeAuthSession = async (
+  accessToken: string,
+  refreshToken: string,
+  updatedAt = Date.now(),
+): Promise<void> => {
+  if (!isNativeAuthPlatform()) return;
+  try {
+    await nativePreferences.set(
+      NATIVE_AUTH_SESSION_STORAGE_KEY,
+      JSON.stringify({ accessToken, refreshToken, updatedAt }),
+    );
+  } catch (error) {
+    // Never turn a successful server login/refresh into a client-side failure.
+    // localStorage remains the live session and the trace exposes persistence issues.
+    clientTrace("AUTH", "native-session:write-failed", error, "warn");
+  }
+};
+
+const removeNativeAuthSession = async (): Promise<void> => {
+  if (!isNativeAuthPlatform()) return;
+  try {
+    await nativePreferences.remove(NATIVE_AUTH_SESSION_STORAGE_KEY);
+  } catch (error) {
+    clientTrace("AUTH", "native-session:remove-failed", error, "warn");
+  }
+};
+
+const hydrateNativeAuthSession = async (): Promise<void> => {
+  if (!isNativeAuthPlatform() || typeof window === "undefined") return;
+
+  const nativeSession = await readNativeAuthSession();
+  const localAccessToken = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+  const localRefreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+  const rawLocalUpdatedAt = Number(
+    localStorage.getItem(AUTH_SESSION_UPDATED_AT_STORAGE_KEY) || 0,
+  );
+  const localUpdatedAt = Number.isFinite(rawLocalUpdatedAt)
+    ? Math.max(0, rawLocalUpdatedAt)
+    : 0;
+  const hasCompleteLocalPair = Boolean(localAccessToken && localRefreshToken);
+
+  if (nativeSession && hasCompleteLocalPair) {
+    const samePair =
+      nativeSession.accessToken === localAccessToken &&
+      nativeSession.refreshToken === localRefreshToken;
+    if (samePair) {
+      const newestTimestamp = Math.max(nativeSession.updatedAt, localUpdatedAt);
+      if (newestTimestamp > 0) {
+        localStorage.setItem(
+          AUTH_SESSION_UPDATED_AT_STORAGE_KEY,
+          String(newestTimestamp),
+        );
+      }
+      return;
+    }
+
+    const nativeGeneration = getAccessTokenGeneration(nativeSession.accessToken);
+    const localGeneration = getAccessTokenGeneration(localAccessToken);
+    const localIsNewer =
+      localUpdatedAt > nativeSession.updatedAt ||
+      (localUpdatedAt === nativeSession.updatedAt &&
+        localGeneration > 0 &&
+        localGeneration >= nativeGeneration);
+
+    if (localIsNewer) {
+      // A prior native write can fail while localStorage still successfully
+      // publishes the newer rotated pair. Never roll that newer pair backward
+      // on the next WebView creation; repair the durable mirror instead.
+      const repairedAt = localUpdatedAt || Date.now();
+      await persistNativeAuthSession(
+        localAccessToken!,
+        localRefreshToken!,
+        repairedAt,
+      );
+      localStorage.setItem(AUTH_SESSION_UPDATED_AT_STORAGE_KEY, String(repairedAt));
+      clientTrace("AUTH", "native-session:repaired-from-newer-local", {
+        nativeUpdatedAt: nativeSession.updatedAt,
+        localUpdatedAt,
+        nativeGeneration,
+        localGeneration,
+      }, "warn");
+      return;
+    }
+  }
+
+  if (nativeSession) {
+    // Preferences is the durable recovery copy on native. Restore the pair
+    // together before the normal auth initializer evaluates either token.
+    localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, nativeSession.refreshToken);
+    localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, nativeSession.accessToken);
+    if (nativeSession.updatedAt > 0) {
+      localStorage.setItem(
+        AUTH_SESSION_UPDATED_AT_STORAGE_KEY,
+        String(nativeSession.updatedAt),
+      );
+    }
+    return;
+  }
+
+  // One-time migration for users upgrading from builds that stored auth only
+  // in WebView localStorage. Preserve their current login if both tokens exist.
+  if (localAccessToken && localRefreshToken) {
+    const migratedAt = localUpdatedAt || Date.now();
+    localStorage.setItem(AUTH_SESSION_UPDATED_AT_STORAGE_KEY, String(migratedAt));
+    await persistNativeAuthSession(localAccessToken, localRefreshToken, migratedAt);
+  }
+};
 
 const getStoredRefreshToken = (): string | null => {
   if (typeof window === "undefined") return null;
@@ -318,21 +519,87 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const clearLocalAuth = (expectedRefreshToken?: string): boolean => {
-    if (
-      expectedRefreshToken &&
-      getStoredRefreshToken() !== expectedRefreshToken
-    ) {
-      // Another refresh already replaced the token. This 401 is stale.
-      return false;
-    }
-    setStoredRefreshToken(null);
-    updateAccessToken(null);
-    setIsLoggedIn(false);
-    setUser(null);
-    setNeedsInitialCheck(false);
-    return true;
-  };
+  const commitAuthSession = async (
+    nextAccessToken: string,
+    nextRefreshToken: string,
+    expectedRefreshToken?: string,
+  ): Promise<boolean> =>
+    queueAuthSessionMutation(async () => {
+      if (
+        expectedRefreshToken &&
+        getStoredRefreshToken() !== expectedRefreshToken
+      ) {
+        // This refresh response belongs to an older token generation. Never
+        // let a late successful response overwrite a newer rotated session.
+        return false;
+      }
+
+      // Persist the pair as one durable native record before publishing either
+      // rotated token to WebView storage. A force-close can therefore recover
+      // either the complete old pair or the complete new pair, never half of each.
+      const committedAt = Date.now();
+      await persistNativeAuthSession(
+        nextAccessToken,
+        nextRefreshToken,
+        committedAt,
+      );
+
+      if (
+        expectedRefreshToken &&
+        getStoredRefreshToken() !== expectedRefreshToken
+      ) {
+        // A different browsing context may have changed the session while the
+        // native bridge was committing. Restore its current pair to the native
+        // mirror rather than publishing this stale refresh result locally.
+        const currentAccessToken =
+          typeof window !== "undefined"
+            ? localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
+            : null;
+        const currentRefreshToken = getStoredRefreshToken();
+        if (currentAccessToken && currentRefreshToken) {
+          const currentUpdatedAt = Number(
+            localStorage.getItem(AUTH_SESSION_UPDATED_AT_STORAGE_KEY) || 0,
+          );
+          await persistNativeAuthSession(
+            currentAccessToken,
+            currentRefreshToken,
+            Number.isFinite(currentUpdatedAt) && currentUpdatedAt > 0
+              ? currentUpdatedAt
+              : Date.now(),
+          );
+        }
+        return false;
+      }
+
+      localStorage.setItem(
+        AUTH_SESSION_UPDATED_AT_STORAGE_KEY,
+        String(committedAt),
+      );
+      setStoredRefreshToken(nextRefreshToken);
+      updateAccessToken(nextAccessToken);
+      return true;
+    });
+
+  const clearLocalAuth = async (expectedRefreshToken?: string): Promise<boolean> =>
+    queueAuthSessionMutation(async () => {
+      if (
+        expectedRefreshToken &&
+        getStoredRefreshToken() !== expectedRefreshToken
+      ) {
+        // Another refresh/login already replaced the token. This failure is stale.
+        return false;
+      }
+      await removeNativeAuthSession();
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(AUTH_SESSION_UPDATED_AT_STORAGE_KEY);
+      }
+      setStoredRefreshToken(null);
+      updateAccessToken(null);
+      setIsLoggedIn(false);
+      setUser(null);
+      setNeedsInitialCheck(false);
+      return true;
+    });
   const [verificationContext, setVerificationContext] = useState<string | null>(
     null,
   );
@@ -667,38 +934,50 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Give a concurrent tab/effect a chance to publish its rotated tokens.
-          await new Promise((resolve) => setTimeout(resolve, 75));
+          // Give a concurrent context/session mutation a short chance to
+          // publish its newer token pair before deciding this refresh is bad.
+          await new Promise((resolve) => setTimeout(resolve, 100));
 
           const latestRefreshToken = getStoredRefreshToken();
           const latestAccessToken = readStoredAccessToken();
           const aNewerAuthStateExists =
             authRevisionRef.current !== revisionAtStart ||
-            (latestAccessToken && latestAccessToken !== accessAtStart);
+            (latestAccessToken && latestAccessToken !== accessAtStart) ||
+            latestRefreshToken !== token;
 
           if (
             latestAccessToken &&
             isAccessTokenUsable(latestAccessToken) &&
-            (aNewerAuthStateExists || latestRefreshToken !== token)
+            (aNewerAuthStateExists || staleAccessToken === latestAccessToken)
           ) {
+            // A failed proactive/duplicate rotation must never throw away an
+            // access token that is still locally valid. The protected request
+            // path will decide separately if the server has actually revoked it.
             syncAccessTokenState(latestAccessToken);
             setIsLoggedIn(true);
+            clientTrace("AUTH", "refresh:401-preserved-valid-access", {
+              newerState: aNewerAuthStateExists,
+              refreshChanged: latestRefreshToken !== token,
+            }, "warn");
             return latestAccessToken;
           }
 
           if (latestRefreshToken && latestRefreshToken !== token) {
-            // The token used by this request was rotated elsewhere. Retry the
-            // current token instead of treating the stale 401 as a logout.
-            return performRefresh(latestRefreshToken, staleAccessToken);
+            // The session changed while this refresh was in flight. Never reuse
+            // or rotate the newly-published refresh token from this stale task.
+            clientTrace("AUTH", "refresh:401-stale-generation", undefined, "warn");
+            return latestAccessToken || accessTokenRef.current;
           }
 
-          // A refresh 401 is authoritative only when the exact token that
-          // failed is still current and no newer auth state appeared.
+          // Only startup/expired-token recovery is allowed to clear here. If a
+          // still-usable access token exists, a refresh-endpoint 401 can be a
+          // rotation race and is not sufficient evidence to log the user out.
           if (
+            !latestAccessToken &&
             getStoredRefreshToken() === token &&
             authRevisionRef.current === revisionAtStart
           ) {
-            clearLocalAuth(token);
+            await clearLocalAuth(token);
           }
         }
         // Network/server failures and stale 401s never destroy a valid session.
@@ -709,10 +988,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       const newRefreshToken = body?.refreshToken;
       if (!newAccessToken || !newRefreshToken) return null;
 
-      // Publish the rotated refresh token before the access token. Other tabs
-      // that were waiting can then observe a complete, consistent token pair.
-      setStoredRefreshToken(newRefreshToken);
-      updateAccessToken(newAccessToken);
+      // A refresh result may arrive after another refresh/login has already
+      // committed. Only the response belonging to the refresh token that is
+      // still current is allowed to publish a new pair.
+      const committed = await commitAuthSession(
+        newAccessToken,
+        newRefreshToken,
+        token,
+      );
+      if (!committed) {
+        const latestAccessToken = readStoredAccessToken() || accessTokenRef.current;
+        if (latestAccessToken && isAccessTokenUsable(latestAccessToken)) {
+          syncAccessTokenState(latestAccessToken);
+          setIsLoggedIn(true);
+        }
+        clientTrace("AUTH", "refresh:success-discarded-stale-generation", undefined, "warn");
+        return latestAccessToken;
+      }
 
       if (body.user) {
         setUser(normalizeServerUser(body.user));
@@ -758,6 +1050,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         );
       };
 
+      const runInRealmLock = () => runInRefreshCriticalSection(run);
+
       if (typeof navigator !== "undefined") {
         const lockManager = (navigator as Navigator & {
           locks?: {
@@ -768,10 +1062,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           };
         }).locks;
         if (lockManager?.request) {
-          return lockManager.request(REFRESH_LOCK_NAME, run);
+          // Web Lock coordinates tabs/workers; the module-scope queue covers
+          // Android/provider remounts and environments without Web Locks.
+          return lockManager.request(REFRESH_LOCK_NAME, runInRealmLock);
         }
       }
-      return run();
+      return runInRealmLock();
     })();
 
     refreshPromiseRef.current = refreshTask;
@@ -1039,6 +1335,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const init = async () => {
       if (!mounted) return;
 
+      // Android can recreate the WebView with localStorage missing even though
+      // the native app data survived. Hydrate the durable token pair first.
+      await hydrateNativeAuthSession();
+
       const storedAccessToken = readStoredAccessToken();
       const hasRefreshToken = Boolean(getStoredRefreshToken());
       clientTrace("AUTH", "init:start", {
@@ -1158,8 +1458,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     });
     if (!r.ok) throw r.body || new Error("Login failed");
     const data = r.body;
-    updateAccessToken(data.accessToken);
-    setStoredRefreshToken(data.refreshToken);
+    await commitAuthSession(data.accessToken, data.refreshToken);
 
     if (
       data.user &&
@@ -1191,8 +1490,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     });
     if (!r.ok) throw r.body || new Error("Verification failed");
     const data = r.body;
-    updateAccessToken(data.accessToken);
-    setStoredRefreshToken(data.refreshToken);
+    await commitAuthSession(data.accessToken, data.refreshToken);
 
     if (
       data.user &&
@@ -1215,8 +1513,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     });
     if (!r.ok) throw r.body || new Error("Verification failed");
     const data = r.body;
-    updateAccessToken(data.accessToken);
-    setStoredRefreshToken(data.refreshToken);
+    await commitAuthSession(data.accessToken, data.refreshToken);
 
     if (
       data.user &&
@@ -1249,7 +1546,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         await post("/auth/logout/", { refreshToken: refresh });
       }
     } finally {
-      clearLocalAuth();
+      await clearLocalAuth();
     }
   };
 

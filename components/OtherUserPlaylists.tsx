@@ -5,9 +5,9 @@ import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
 import { useNavigation } from "./NavigationContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
-import { slugify } from "../utils/share";
 import { toast } from "react-hot-toast";
 import { useI18n } from "./I18nContext";
+import { getCanonicalSlug } from "../lib/slug";
 
 interface UserPlaylist {
   id: number;
@@ -184,7 +184,7 @@ const OtherUserPlaylists: React.FC<OtherUserPlaylistsProps> = ({
         id: idToUse,
         generatedBy: playlist.generated_by,
         creatorUniqueId: playlist.creator_unique_id,
-        slug: slugify(playlist.title),
+        urlSlug: getCanonicalSlug(playlist, playlist.title),
       });
     } else {
       navigateTo("user-playlist-detail", { id: String(playlist.id) });
@@ -203,6 +203,7 @@ const OtherUserPlaylists: React.FC<OtherUserPlaylistsProps> = ({
     <SectionDetailLayout
       title={pageTitle}
       subtitle={subtitle}
+      subtitleLoading={isLoading}
       isLoading={isLoading || isLoadingMore}
       onLoadMore={loadMore}
       hasMore={Boolean(nextUrl)}

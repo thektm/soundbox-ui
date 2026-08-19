@@ -138,6 +138,7 @@ export const GuestAccessProvider: React.FC<{ children: React.ReactNode }> = ({
       {reason && !isLoggedIn && (
         <div
           className="fixed inset-0 z-[120000] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"
+          style={{ paddingBottom: "calc(var(--sb-safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.75rem)" }}
           role="dialog"
           dir={direction}
           aria-modal="true"

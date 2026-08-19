@@ -19,7 +19,7 @@ import Image from "next/image";
 import { useAuth } from "./AuthContext";
 import { usePlayer } from "./PlayerContext";
 import { pushNavigationEntry, useNavigation } from "./NavigationContext";
-import { createSlug } from "../lib/slug";
+import { getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
 import { toast } from "react-hot-toast";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
 import { ReportModal } from "./ReportModal";
@@ -128,7 +128,7 @@ export const SongOptionsDrawer = ({
 
       if (actionId === "share") {
         try {
-          const url = getFullShareUrl("song", song.id, songDisplayTitle);
+          const url = getFullShareUrl("song", song.id, getCanonicalSlug(song, songDisplayTitle));
           if (typeof navigator !== "undefined" && navigator.share) {
             await navigator.share({
               title: songDisplayTitle,
@@ -231,9 +231,9 @@ export const SongOptionsDrawer = ({
         });
         try {
           const artistSlug = song.artist_name
-            ? createSlug(song.artist_name)
+            ? getArtistCanonicalSlug(song, song.artist_name)
             : undefined;
-          const songSlug = songDisplayTitle ? createSlug(songDisplayTitle) : undefined;
+          const songSlug = getCanonicalSlug(song, songDisplayTitle) || undefined;
           console.log("SongOptionsDrawer: navigating via navigateTo", {
             artistSlug,
             songSlug,
@@ -498,11 +498,8 @@ export const SongOptionsDrawer = ({
             onClick={(e) => {
               if (!isDesktop) return;
               e.stopPropagation();
-              const songSlug = songDisplayTitle ? createSlug(songDisplayTitle) : undefined;
-              const artistSlug = song.artist_name
-                ? createSlug(song.artist_name)
-                : undefined;
-              navigateTo("song-detail", { id: song.id, songSlug, artistSlug });
+              const urlSlug = getCanonicalSlug(song, songDisplayTitle) || undefined;
+              navigateTo("song-detail", { id: song.id, urlSlug });
               onClose();
             }}
           >
@@ -519,10 +516,8 @@ export const SongOptionsDrawer = ({
                 (song as any).artistId || (song as any).artist_id;
               if (!isDesktop || !artistId) return;
               e.stopPropagation();
-              const artistSlug = song.artist_name
-                ? createSlug(song.artist_name)
-                : undefined;
-              navigateTo("artist-detail", { id: artistId, slug: artistSlug });
+              const urlSlug = getArtistCanonicalSlug(song, song.artist_name);
+              navigateTo("artist-detail", { id: artistId, urlSlug });
               onClose();
             }}
           >
@@ -599,7 +594,7 @@ export const SongOptionsDrawer = ({
           <Drawer.Portal>
             <Drawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
             <Drawer.Content
-              className="fixed bottom-0 left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
+              className="fixed bottom-0 sb-native-bottom-safe left-0 right-0 max-h-[96%] bg-[#121212] rounded-t-[32px] z-[110] flex flex-col outline-none shadow-[0_-8px_40px_rgba(0,0,0,0.5)]"
             >
               {content}
             </Drawer.Content>

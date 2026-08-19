@@ -16,6 +16,7 @@ import { useNavigation } from "./NavigationContext";
 import { usePlayerLayoutState } from "./PlayerContext";
 import { useI18n } from "./I18nContext";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
+import { getCanonicalSlug } from "../lib/slug";
 
 const navItems = [
   { page: "home", label: "خانه", Icon: Home },
@@ -100,7 +101,7 @@ const SedaboxAccountWidget = () => {
       id,
       generatedBy: playlist.generated_by,
       creatorUniqueId: playlist.creator_unique_id || "sedabox",
-      slug: playlist.title,
+      urlSlug: getCanonicalSlug(playlist, playlist.title),
     });
   };
 
@@ -348,38 +349,61 @@ export const GuestSidebar = () => {
   );
 };
 
+const GuestBottomIcons = {
+  Home: () => (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 11.5 12 3l9 8.5M5.5 9.5V21h13V9.5M9 21v-6h6v6" />
+    </svg>
+  ),
+  Search: () => (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path strokeLinecap="round" d="m20 20-4-4" />
+    </svg>
+  ),
+  Library: () => (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 4h3v16H5zM10.5 4h3v16h-3zM16.5 5.5 19 5l2.5 14-2.5.5z" />
+    </svg>
+  ),
+};
+
 export const GuestBottomNav = () => {
   const { currentPage, navigateTo } = useNavigation();
   const { requestAuth } = useGuestAccess();
   const itemClass = (active: boolean) =>
-    `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-bold transition ${active ? "text-white" : "text-zinc-500"}`;
+    `sb-compositor-motion flex min-w-0 flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-bold transition-colors duration-150 ${active ? "text-white" : "text-zinc-500"}`;
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-[80] flex h-16 border-t border-white/10 bg-black/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
+      className="sb-native-guest-bottom-nav fixed inset-x-0 bottom-0 z-[80] border-t border-white/10 bg-black/95 md:hidden"
+      style={{ paddingBottom: "var(--sb-safe-bottom, env(safe-area-inset-bottom, 0px))" }}
       dir="ltr"
       data-direction-fixed="ltr"
+      aria-label="ناوبری مهمان"
     >
-      <button type="button" onClick={() => navigateTo("home")} className={itemClass(currentPage === "home")}>
-        <Home className="h-6 w-6" strokeWidth={1.8} /><span>خانه</span>
-      </button>
-      <button type="button" onClick={() => navigateTo("search")} className={itemClass(currentPage === "search")}>
-        <Search className="h-6 w-6" strokeWidth={1.8} /><span>جستجو</span>
-      </button>
-      <button type="button" onClick={() => requestAuth("برای دسترسی به کتابخانه و پلی‌لیست‌های شخصی وارد شوید.")} className={itemClass(false)}>
-        <Library className="h-6 w-6" strokeWidth={1.8} /><span>کتابخانه</span>
-      </button>
-      <button type="button" onClick={() => navigateTo("login")} className={itemClass(["login", "register"].includes(currentPage))}>
-        <Image
-          src="/logo.png"
-          width={24}
-          height={24}
-          alt="ورود به صداباکس"
-          className="object-contain"
-          style={{ width: 24, height: 24 }}
-        />
-        <span>ورود</span>
-      </button>
+      <div className="mx-auto flex h-16 w-full max-w-lg items-stretch px-2">
+        <button type="button" aria-label="خانه" onClick={() => navigateTo("home")} className={itemClass(currentPage === "home")}>
+          <GuestBottomIcons.Home /><span>خانه</span>
+        </button>
+        <button type="button" aria-label="جستجو" onClick={() => navigateTo("search")} className={itemClass(currentPage === "search")}>
+          <GuestBottomIcons.Search /><span>جستجو</span>
+        </button>
+        <button type="button" aria-label="کتابخانه" onClick={() => requestAuth("برای دسترسی به کتابخانه و پلی‌لیست‌های شخصی وارد شوید.")} className={itemClass(false)}>
+          <GuestBottomIcons.Library /><span>کتابخانه</span>
+        </button>
+        <button type="button" aria-label="ورود به صداباکس" onClick={() => navigateTo("login")} className={itemClass(["login", "register"].includes(currentPage))}>
+          <img
+            src="/logo.png"
+            width={24}
+            height={24}
+            alt=""
+            draggable={false}
+            className="h-6 w-6 object-contain"
+          />
+          <span>ورود</span>
+        </button>
+      </div>
     </nav>
   );
 };
@@ -390,7 +414,11 @@ export const GuestTopActions = () => {
   if (currentPage !== "home") return null;
 
   return (
-    <div className="fixed left-3 sb-inline-end-position top-3 z-[70] flex items-center gap-1 rounded-full border border-white/10 bg-black/75 p-1.5 shadow-xl backdrop-blur-xl md:hidden" dir={direction}>
+    <div
+      className="sb-native-guest-top-actions fixed left-3 sb-inline-end-position z-[70] flex items-center gap-1 rounded-full border border-white/10 bg-black/85 p-1.5 shadow-xl backdrop-blur-xl md:hidden"
+      style={{ top: "calc(var(--sb-safe-top, env(safe-area-inset-top, 0px)) + 0.75rem)" }}
+      dir={direction}
+    >
       <button type="button" onClick={() => navigateTo("register")} className="h-9 rounded-full bg-white px-4 text-xs font-black text-black">
         ثبت‌نام
       </button>

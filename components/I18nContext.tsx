@@ -10,6 +10,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { isNativeAndroid, nativePreferences } from "../lib/nativePreferences";
 import { EXTRA_FA_TO_EN } from "./I18nCatalogExtra";
 import {
   installClientFetchGuard,
@@ -916,9 +917,11 @@ function patchNativeDialogs(languageRef: React.MutableRefObject<AppLanguage>): (
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>(DEFAULT_LANGUAGE);
   const languageRef = useRef<AppLanguage>(language);
+  const languageChangeRevisionRef = useRef(0);
 
   const setLanguage = useCallback((next: AppLanguage) => {
     if (next !== "fa" && next !== "en") return;
+    languageChangeRevisionRef.current += 1;
     languageRef.current = next;
     activeLanguage = next;
     try {
@@ -926,12 +929,20 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Private browsing/storage restrictions should not block language changes.
     }
+    if (isNativeAndroid()) {
+      // Native Preferences survives WebView storage recreation. Keep the UI
+      // update synchronous and mirror the choice durably in the background.
+      void nativePreferences.set(STORAGE_KEY, next).catch((error) => {
+        console.warn("Could not persist native language preference", error);
+      });
+    }
     applyDocumentLanguage(next);
     setLanguageState(next);
     window.dispatchEvent(new CustomEvent("sedabox:language-change", { detail: { language: next } }));
   }, []);
 
   useIsomorphicLayoutEffect(() => {
+    let active = true;
     // Hydrate with the same default used on the server, then adopt the value
     // that the pre-hydration script read from localStorage before first paint.
     const initialLanguage = readStoredLanguage();
@@ -941,6 +952,24 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     delete document.documentElement.dataset.i18nPending;
     document.documentElement.dataset.i18nReady = "true";
     if (initialLanguage !== language) setLanguageState(initialLanguage);
+
+    if (isNativeAndroid()) {
+      const hydrationRevision = languageChangeRevisionRef.current;
+      void nativePreferences.get(STORAGE_KEY)
+        .then(async (value) => {
+          if (!active || languageChangeRevisionRef.current !== hydrationRevision) return;
+          if (value === "fa" || value === "en") {
+            if (value !== languageRef.current) setLanguage(value);
+            return;
+          }
+          // Migrate the existing WebView choice for users upgrading from older
+          // native builds instead of resetting them to the default language.
+          await nativePreferences.set(STORAGE_KEY, languageRef.current);
+        })
+        .catch((error) => {
+          console.warn("Could not restore native language preference", error);
+        });
+    }
 
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
@@ -960,6 +989,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     const restoreFetch = patchFetchForLanguage(languageRef);
     const restoreDialogs = patchNativeDialogs(languageRef);
     return () => {
+      active = false;
       observer.disconnect();
       restoreFetch();
       restoreDialogs();

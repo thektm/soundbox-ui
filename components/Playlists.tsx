@@ -27,8 +27,8 @@ import {
   SLEEP_PLAYLISTS,
   GENRE_CATEGORIES,
   MoodIconKey,
+  createSlug,
 } from "./mockData";
-import { createSlug } from "../lib/slug";
 import { useNavigation } from "./NavigationContext";
 
 // ============================================================================

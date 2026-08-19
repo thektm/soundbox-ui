@@ -9,6 +9,7 @@ import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useI18n } from "./I18nContext";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import { getCanonicalSlug } from "../lib/slug";
 
 interface ChartPageProps {
   title?: string;
@@ -154,12 +155,7 @@ const ChartPage: React.FC<ChartPageProps> = ({
     setQueue(queue, startIndex);
   };
 
-  const createSlug = (name: string): string => {
-    return name
-      .toLowerCase()
-      .replace(/ /g, "-")
-      .replace(/[^\w-]+/g, "");
-  };
+
 
   return (
     <SectionDetailLayout
@@ -179,12 +175,12 @@ const ChartPage: React.FC<ChartPageProps> = ({
               if (type === "albums")
                 navigateTo("album-detail", {
                   id: item.id,
-                  slug: createSlug(item.title),
+                  urlSlug: getCanonicalSlug(item, item.title),
                 });
               if (type === "artists")
                 navigateTo("artist-detail", {
                   id: item.id,
-                  slug: item.unique_id || createSlug(item.name || item.title),
+                  urlSlug: getCanonicalSlug(item, item.name || item.title),
                 });
             }}
             className="group flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-all cursor-pointer border border-transparent hover:border-white/5 shadow-lg shadow-black/20"
@@ -239,13 +235,12 @@ const ChartPage: React.FC<ChartPageProps> = ({
                   } else if (type === "albums") {
                     navigateTo("album-detail", {
                       id: item.id,
-                      slug: createSlug(item.title),
+                      urlSlug: getCanonicalSlug(item, item.title),
                     });
                   } else if (type === "artists") {
                     navigateTo("artist-detail", {
                       id: item.id,
-                      slug:
-                        item.unique_id || createSlug(item.name || item.title),
+                      urlSlug: getCanonicalSlug(item, item.name || item.title),
                     });
                   }
                 }}

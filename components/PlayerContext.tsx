@@ -15,6 +15,7 @@ import dynamic from "next/dynamic";
 // hls.js is heavy (~200 KB) — import it lazily the first time HLS playback is needed.
 // import Hls from "hls.js";
 import { toast } from "react-hot-toast";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { useI18n } from "./I18nContext";
 import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
 import type {
@@ -22,11 +23,6 @@ import type {
   DownloadQuality,
   DownloadQualityOption,
 } from "./DownloadFlowModal";
-
-const DownloadFlowModal = dynamic(() => import("./DownloadFlowModal"), {
-  ssr: false,
-  loading: () => null,
-});
 import {
   clearPlaybackSession,
   compactPlaybackQueue,
@@ -35,6 +31,34 @@ import {
   readPlaybackSession,
   writePlaybackSession,
 } from "../lib/playbackSession";
+
+const DownloadFlowModal = dynamic(() => import("./DownloadFlowModal"), {
+  ssr: false,
+  loading: () => null,
+});
+
+interface NativeDownloadProgressEvent {
+  downloadId?: number;
+  bytes: number;
+  totalBytes: number;
+}
+
+interface NativeDownloadPluginContract {
+  downloadFile(options: {
+    url: string;
+    fallbackUrl?: string;
+    filename: string;
+    mimeType?: string;
+    authorization?: string;
+  }): Promise<{ downloadId: number; filename: string; uri?: string }>;
+  addListener(
+    eventName: "progress",
+    listener: (event: NativeDownloadProgressEvent) => void,
+  ): Promise<{ remove: () => Promise<void> }>;
+}
+
+const NativeDownload = registerPlugin<NativeDownloadPluginContract>("NativeDownload");
+
 
 // Ensure any URL coming from the server uses HTTPS where possible.
 function ensureHttps(u?: string | null): string | undefined {
@@ -147,10 +171,15 @@ export interface Track {
   artist: string;
   artistId?: number | string;
   artistUniqueId?: string;
+  /** Canonical web-only English slugs; empty means intentionally ID-only. */
+  urlSlug?: string;
+  artistUrlSlug?: string;
+  albumUrlSlug?: string;
   featuredArtists?: Array<{
     id: number | string;
     name: string;
     uniqueId?: string;
+    urlSlug?: string;
   }>;
   image: string;
   duration: string;
@@ -313,12 +342,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const {
     accessToken,
     authenticatedFetch,
+    getFreshAccessToken,
     formatErrorMessage,
     user: authUser,
     isInitializing: isAuthInitializing,
   } = useAuth();
   const { requestAuth } = useGuestAccess();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const authenticatedFetchRef = useRef(authenticatedFetch);
+  authenticatedFetchRef.current = authenticatedFetch;
+  const languageRef = useRef(language);
+  languageRef.current = language;
+  const previousPlayerLanguageRef = useRef(language);
   // mirror accessToken in a ref so long-lived handlers always see latest value
   const accessTokenRef = useRef<string | null>(accessToken || null);
   useEffect(() => {
@@ -385,6 +420,74 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     currentTrackRef.current = currentTrack;
   }, [currentTrack]);
+
+  // Keep an already-playing track's visible metadata aligned with the UI
+  // language without touching audio state. Card taps already merge their
+  // freshly localized track object into the queue; this closes the remaining
+  // edge where the language is switched while the player is already open.
+  useEffect(() => {
+    if (previousPlayerLanguageRef.current === language) return;
+    previousPlayerLanguageRef.current = language;
+
+    const track = currentTrackRef.current;
+    if (!track || isAdPlayingRef.current) return;
+
+    const trackId = String(track.id);
+    const requestedLanguage = language;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const resp = await authenticatedFetchRef.current(
+          `https://api.sedabox.com/api/songs/${track.id}/`,
+        );
+        if (!resp.ok || cancelled || languageRef.current !== requestedLanguage) {
+          return;
+        }
+
+        const data = await resp.json();
+        if (
+          cancelled ||
+          languageRef.current !== requestedLanguage ||
+          String(currentTrackRef.current?.id) !== trackId
+        ) {
+          return;
+        }
+
+        setQueueState((prev) =>
+          prev.map((item) =>
+            String(item.id) === trackId
+              ? {
+                  ...item,
+                  title: getSongDisplayTitle(data) || item.title,
+                  artist:
+                    data.artist?.name ||
+                    data.artist_name ||
+                    data.artist ||
+                    item.artist,
+                  artistId: data.artist_id || data.artist?.id || item.artistId,
+                  artistUniqueId:
+                    data.artist_unique_id ||
+                    data.artist?.unique_id ||
+                    item.artistUniqueId,
+                  featuredArtists: Array.isArray(data.featured_artists)
+                    ? getPlayerFeaturedArtists(data)
+                    : item.featuredArtists,
+                }
+              : item,
+          ),
+        );
+      } catch (error) {
+        // A language switch should never interrupt playback just because the
+        // metadata refresh failed; the existing localized queue value remains.
+        console.warn('Failed to refresh player metadata after language change:', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [language]);
 
   // Keep ref mirrored to latest isPlaying state for long-lived handlers
   useEffect(() => {
@@ -803,54 +906,61 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setIsLiking(false);
       setLyrics(track.lyrics || null);
 
-      // Fetch full details (including lyrics) in background
+      // Fetch full details (including lyrics) in background. Use the shared
+      // authenticated request boundary so token rotation and Accept-Language
+      // stay consistent with the rest of the app. A response from an older
+      // playback request or language generation must never overwrite the player.
       (async () => {
+        const languageAtRequest = languageRef.current;
         try {
-          const headers: Record<string, string> = {
-            "Content-Type": "application/json",
-          };
-          if (accessTokenRef.current)
-            headers["Authorization"] = `Bearer ${accessTokenRef.current}`;
-          const resp = await fetch(
+          const resp = await authenticatedFetchRef.current(
             `https://api.sedabox.com/api/songs/${track.id}/`,
-            { headers },
           );
-          if (resp.ok) {
-            const data = await resp.json();
-            setLyrics(data.lyrics || null);
-            // Also update the track in queue to cache the lyrics and latest data
-            setQueueState((prev) =>
-              prev.map((t) =>
-                String(t.id) === String(track.id)
-                  ? {
-                      ...t,
-                      lyrics: data.lyrics || t.lyrics,
-                      image:
-                        ensureHttps(data.image) ||
-                        ensureHttps(data.image_cover) ||
-                        t.image,
-                      title: getSongDisplayTitle(data) || t.title,
-                      artist:
-                        data.artist?.name ||
-                        data.artist_name ||
-                        data.artist ||
-                        t.artist,
-                      artistId: data.artist_id || data.artist?.id || t.artistId,
-                      artistUniqueId:
-                        data.artist_unique_id ||
-                        data.artist?.unique_id ||
-                        t.artistUniqueId,
-                      featuredArtists: Array.isArray(data.featured_artists)
-                        ? getPlayerFeaturedArtists(data)
-                        : t.featuredArtists,
-                    }
-                  : t,
-              ),
-            );
-            // Update like state too
-            setIsLiked(data.is_liked);
-            setLikesCount(data.likes_count);
+          if (!resp.ok) return;
+
+          const data = await resp.json();
+          if (
+            requestSequence !== playbackRequestSequenceRef.current ||
+            languageAtRequest !== languageRef.current
+          ) {
+            return;
           }
+
+          setLyrics(data.lyrics || null);
+          // Also update the track in queue to cache the lyrics and latest,
+          // correctly-localized public metadata.
+          setQueueState((prev) =>
+            prev.map((t) =>
+              String(t.id) === String(track.id)
+                ? {
+                    ...t,
+                    lyrics: data.lyrics || t.lyrics,
+                    image:
+                      ensureHttps(data.image) ||
+                      ensureHttps(data.image_cover) ||
+                      t.image,
+                    title: getSongDisplayTitle(data) || t.title,
+                    artist:
+                      data.artist?.name ||
+                      data.artist_name ||
+                      data.artist ||
+                      t.artist,
+                    artistId: data.artist_id || data.artist?.id || t.artistId,
+                    artistUniqueId:
+                      data.artist_unique_id ||
+                      data.artist?.unique_id ||
+                      t.artistUniqueId,
+                    featuredArtists: Array.isArray(data.featured_artists)
+                      ? getPlayerFeaturedArtists(data)
+                      : t.featuredArtists,
+                  }
+                : t,
+            ),
+          );
+          // Update like state too, but only for the playback request that is
+          // still current (guarded above).
+          setIsLiked(Boolean(data.is_liked));
+          setLikesCount(Number(data.likes_count) || 0);
         } catch (err) {
           console.error("Failed to fetch song details for player:", err);
         }
@@ -1731,10 +1841,44 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const playTrack = useCallback(
     (track: Track) => {
-      const existingIndex = queue.findIndex((t) => t.id === track.id);
+      const existingIndex = queue.findIndex(
+        (queuedTrack) => String(queuedTrack.id) === String(track.id),
+      );
       if (existingIndex >= 0) {
+        // A queue entry may have been created under a previous UI language.
+        // The card the user just pressed contains the freshest localized
+        // metadata, so merge it into the existing entry before playback rather
+        // than reusing a stale Farsi title from the queue.
+        const existing = queue[existingIndex];
+        const mergedBase: Track = {
+          ...existing,
+          ...track,
+          src:
+            (ensureHttps(track.src || existing.src) as string) ||
+            track.src ||
+            existing.src,
+          image:
+            (ensureHttps(track.image || existing.image) as string) ||
+            track.image ||
+            existing.image,
+          lyrics: track.lyrics ?? existing.lyrics,
+          featuredArtists:
+            track.featuredArtists ?? existing.featuredArtists,
+          isLiked: track.isLiked ?? existing.isLiked,
+          likesCount: track.likesCount ?? existing.likesCount,
+          durationSeconds:
+            track.durationSeconds ?? existing.durationSeconds,
+          isPreview: track.isPreview ?? existing.isPreview,
+          previewUrl: track.previewUrl ?? existing.previewUrl,
+        };
+        const merged = accessTokenRef.current
+          ? { ...mergedBase, isPreview: false }
+          : asGuestPreviewTrack(mergedBase);
+        const nextQueue = [...queue];
+        nextQueue[existingIndex] = merged;
+        setQueueState(nextQueue);
         setCurrentIndex(existingIndex);
-        playAtIndex(existingIndex);
+        playAtIndex(existingIndex, nextQueue);
       } else {
         const baseTrack = {
           ...track,
@@ -2325,100 +2469,157 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const downloadUrl = ensureHttps(prepared.download_url) || prepared.download_url;
       if (!downloadUrl) throw new Error("DOWNLOAD_SOURCE_UNAVAILABLE");
 
-      const directFetch = () =>
-        fetch(downloadUrl, {
-          method: "GET",
-          mode: "cors",
-          credentials: "omit",
-          signal: controller.signal,
-        });
       const proxyUrl = ensureHttps(prepared.proxy_url) || prepared.proxy_url;
-      let fileResponse: Response;
-      try {
-        fileResponse = await directFetch();
-        if (!fileResponse.ok && proxyUrl) {
-          fileResponse = await authenticatedFetch(proxyUrl, {
-            method: "GET",
-            signal: controller.signal,
-          });
-        }
-      } catch (directError) {
-        if (!proxyUrl || controller.signal.aborted) throw directError;
-        fileResponse = await authenticatedFetch(proxyUrl, {
-          method: "GET",
-          signal: controller.signal,
-        });
-      }
-      if (!fileResponse.ok) {
-        const payload = await fileResponse.json().catch(() => null);
-        if (payload) throw payload;
-        throw new Error(`DOWNLOAD_HTTP_${fileResponse.status}`);
-      }
-
-      const contentLength = Number(fileResponse.headers.get("content-length") || 0);
-      const totalBytes = Number.isFinite(contentLength) && contentLength > 0
-        ? contentLength
-        : null;
-      setDownloadTotalBytes(totalBytes);
-
-      let blob: Blob;
-      if (fileResponse.body) {
-        const reader = fileResponse.body.getReader();
-        const chunks: ArrayBuffer[] = [];
-        let loaded = 0;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            // BlobPart requires an ArrayBuffer-backed view. Stream chunks are typed
-            // as ArrayBufferLike and may theoretically be backed by SharedArrayBuffer,
-            // so normalize each chunk without changing its bytes.
-            let chunkBuffer: ArrayBuffer;
-            if (value.buffer instanceof ArrayBuffer) {
-              chunkBuffer =
-                value.byteOffset === 0 && value.byteLength === value.buffer.byteLength
-                  ? value.buffer
-                  : value.buffer.slice(
-                      value.byteOffset,
-                      value.byteOffset + value.byteLength,
-                    );
-            } else {
-              const copiedChunk = new Uint8Array(value.byteLength);
-              copiedChunk.set(value);
-              chunkBuffer = copiedChunk.buffer;
-            }
-            chunks.push(chunkBuffer);
-            loaded += value.byteLength;
-            setDownloadLoadedBytes(loaded);
-            setDownloadProgress(
-              totalBytes ? Math.min(100, (loaded / totalBytes) * 100) : null,
-            );
-          }
-        }
-        blob = new Blob(chunks, {
-          type: fileResponse.headers.get("content-type") || "audio/mpeg",
-        });
-      } else {
-        blob = await fileResponse.blob();
-        setDownloadLoadedBytes(blob.size);
-      }
-
-      if (controller.signal.aborted) return;
-      setDownloadProgress(100);
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download =
+      const downloadFilename =
         prepared.filename ||
         `${getSongDisplayTitle(targetTrack)} - ${targetTrack.artist} [${selectedQuality}kbps].mp3`.replace(
           /[<>:"/\\|?*]/g,
           "",
         );
-      anchor.style.display = "none";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      const isNativeAndroidDownload =
+        Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
+
+      if (isNativeAndroidDownload) {
+        let progressListener: { remove: () => Promise<void> } | null = null;
+        try {
+          progressListener = await NativeDownload.addListener(
+            "progress",
+            ({ bytes, totalBytes }) => {
+              if (controller.signal.aborted) return;
+              const safeLoaded = Number.isFinite(bytes) ? Math.max(0, bytes) : 0;
+              const safeTotal =
+                Number.isFinite(totalBytes) && totalBytes > 0 ? totalBytes : null;
+              setDownloadLoadedBytes(safeLoaded);
+              setDownloadTotalBytes(safeTotal);
+              setDownloadProgress(
+                safeTotal ? Math.min(100, (safeLoaded / safeTotal) * 100) : null,
+              );
+            },
+          );
+
+          const freshAccessToken = await getFreshAccessToken();
+          if (controller.signal.aborted) return;
+          let nativeFallbackUrl: string | undefined;
+          if (proxyUrl) {
+            try {
+              nativeFallbackUrl = new URL(proxyUrl, "https://api.sedabox.com").toString();
+            } catch {
+              nativeFallbackUrl = undefined;
+            }
+          }
+
+          const nativeDownloadUrl = new URL(
+            downloadUrl,
+            "https://api.sedabox.com",
+          ).toString();
+          await NativeDownload.downloadFile({
+            url: nativeDownloadUrl,
+            fallbackUrl: nativeFallbackUrl,
+            filename: downloadFilename,
+            mimeType: prepared.mime_type || "audio/mpeg",
+            authorization: freshAccessToken
+              ? `Bearer ${freshAccessToken}`
+              : undefined,
+          });
+          if (controller.signal.aborted) return;
+          setDownloadProgress(100);
+        } finally {
+          if (progressListener) {
+            await progressListener.remove().catch(() => undefined);
+          }
+        }
+      } else {
+        // Browser behavior intentionally stays unchanged: stream into a Blob,
+        // then hand that Blob to the browser's normal download mechanism.
+        const directFetch = () =>
+          fetch(downloadUrl, {
+            method: "GET",
+            mode: "cors",
+            credentials: "omit",
+            signal: controller.signal,
+          });
+        let fileResponse: Response;
+        try {
+          fileResponse = await directFetch();
+          if (!fileResponse.ok && proxyUrl) {
+            fileResponse = await authenticatedFetch(proxyUrl, {
+              method: "GET",
+              signal: controller.signal,
+            });
+          }
+        } catch (directError) {
+          if (!proxyUrl || controller.signal.aborted) throw directError;
+          fileResponse = await authenticatedFetch(proxyUrl, {
+            method: "GET",
+            signal: controller.signal,
+          });
+        }
+        if (!fileResponse.ok) {
+          const payload = await fileResponse.json().catch(() => null);
+          if (payload) throw payload;
+          throw new Error(`DOWNLOAD_HTTP_${fileResponse.status}`);
+        }
+
+        const contentLength = Number(fileResponse.headers.get("content-length") || 0);
+        const totalBytes = Number.isFinite(contentLength) && contentLength > 0
+          ? contentLength
+          : null;
+        setDownloadTotalBytes(totalBytes);
+
+        let blob: Blob;
+        if (fileResponse.body) {
+          const reader = fileResponse.body.getReader();
+          const chunks: ArrayBuffer[] = [];
+          let loaded = 0;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) {
+              // BlobPart requires an ArrayBuffer-backed view. Stream chunks are typed
+              // as ArrayBufferLike and may theoretically be backed by SharedArrayBuffer,
+              // so normalize each chunk without changing its bytes.
+              let chunkBuffer: ArrayBuffer;
+              if (value.buffer instanceof ArrayBuffer) {
+                chunkBuffer =
+                  value.byteOffset === 0 && value.byteLength === value.buffer.byteLength
+                    ? value.buffer
+                    : value.buffer.slice(
+                        value.byteOffset,
+                        value.byteOffset + value.byteLength,
+                      );
+              } else {
+                const copiedChunk = new Uint8Array(value.byteLength);
+                copiedChunk.set(value);
+                chunkBuffer = copiedChunk.buffer;
+              }
+              chunks.push(chunkBuffer);
+              loaded += value.byteLength;
+              setDownloadLoadedBytes(loaded);
+              setDownloadProgress(
+                totalBytes ? Math.min(100, (loaded / totalBytes) * 100) : null,
+              );
+            }
+          }
+          blob = new Blob(chunks, {
+            type: fileResponse.headers.get("content-type") || "audio/mpeg",
+          });
+        } else {
+          blob = await fileResponse.blob();
+          setDownloadLoadedBytes(blob.size);
+        }
+
+        if (controller.signal.aborted) return;
+        setDownloadProgress(100);
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = objectUrl;
+        anchor.download = downloadFilename;
+        anchor.style.display = "none";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      }
 
       setDownloadStatus("success");
       void authenticatedFetch("https://api.sedabox.com/api/profile/downloads/", {
@@ -2462,6 +2663,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     downloadStatus,
     downloadTrack,
     formatErrorMessage,
+    getFreshAccessToken,
     selectedDownloadQuality,
     t,
   ]);

@@ -11,6 +11,8 @@ import React, {
 } from "react";
 import { decodeShare, slugify } from "../utils/share";
 import { getCanonicalUserPath } from "../lib/userProfileRoute";
+import { Capacitor } from "@capacitor/core";
+import { isNativeScreenReady, prepareNativeScreen } from "../lib/nativeScreenLoader";
 
 interface NavigationContextType {
   currentPage: string;
@@ -327,13 +329,9 @@ function pageToPathname(page: string, params?: any): string | null {
     return queryString ? `/search?${queryString}` : "/search";
   }
   if (page === "chart-detail") {
-    if (params?.chartType) {
-      if (params?.title)
-        return `/chart/${params.chartType}/${encodeURIComponent(params.title)}`;
-      return `/chart/${params.chartType}`;
-    }
-    if (params?.type && params?.title)
-      return `/chart/${params.type}/${encodeURIComponent(params.title)}`;
+    // Chart titles are localized display text, not canonical URL slugs.
+    // The stable chart key/type is sufficient for routing and keeps generated URLs language-neutral.
+    if (params?.chartType) return `/chart/${params.chartType}`;
     if (params?.type) return `/chart/${params.type}`;
     return "/chart";
   }
@@ -351,48 +349,66 @@ function pageToPathname(page: string, params?: any): string | null {
 
   if (page === "artist-detail") {
     if (params?.id) {
-      const namePart = params.name
-        ? `-${slugify(params.name)}`
-        : params.slug
-          ? `-${slugify(params.slug)}`
-          : "";
-      return `/artist/${params.id}${namePart}`;
+      // Artist URLs are built from English name/stage-name metadata only.
+      // Legacy `slug`/unique-id params are intentionally not re-emitted.
+      const slug = slugify(
+        params?.urlSlug ||
+          params?.url_slug ||
+          params?.artisticNameEn ||
+          params?.artistic_name_en ||
+          params?.nameEn ||
+          params?.name_en ||
+          params?.name ||
+          "",
+      );
+      return `/artist/${params.id}${slug ? `-${slug}` : ""}`;
     }
   }
 
   if (page === "artist-sub-page") {
     if (params?.id && params?.subPage) {
-      const namePart = params.name
-        ? `-${slugify(params.name)}`
-        : params.slug
-          ? `-${slugify(params.slug)}`
-          : "";
-      return `/artist/${params.id}${namePart}/${params.subPage}`;
+      const slug = slugify(
+        params?.urlSlug ||
+          params?.url_slug ||
+          params?.artisticNameEn ||
+          params?.artistic_name_en ||
+          params?.nameEn ||
+          params?.name_en ||
+          params?.name ||
+          "",
+      );
+      return `/artist/${params.id}${slug ? `-${slug}` : ""}/${params.subPage}`;
     }
   }
 
   if (page === "song-detail") {
     if (params?.id) {
-      const titlePart = params.title
-        ? `-${slugify(params.title)}`
-        : params.songSlug
-          ? `-${slugify(params.songSlug)}`
-          : "";
-      return `/track/${params.id}${titlePart}`;
+      const slug = slugify(
+        params?.urlSlug ||
+          params?.url_slug ||
+          params?.titleEn ||
+          params?.title_en ||
+          params?.songSlug ||
+          params?.title ||
+          "",
+      );
+      return `/track/${params.id}${slug ? `-${slug}` : ""}`;
     }
   }
 
   if (page === "playlist-detail") {
     if (params?.id) {
-      const titlePart = params.title
-        ? `-${slugify(params.title)}`
-        : params.slug
-          ? `-${slugify(params.slug)}`
-          : "";
-      return `/playlist/${params.id}${titlePart}`;
+      const slug = slugify(
+        params?.urlSlug || params?.url_slug || params?.titleEn || params?.title_en || params?.slug || params?.title || "",
+      );
+      return `/playlist/${params.id}${slug ? `-${slug}` : ""}`;
     }
-    // slug-only (legacy)
-    if (params?.slug) return `/playlist/${encodeURIComponent(params.slug)}`;
+    // Slug-only legacy links remain accepted by the parser, but new navigation
+    // never emits Persian/Arabic slugs.
+    if (params?.slug) {
+      const slug = slugify(params.slug);
+      if (slug) return `/playlist/${slug}`;
+    }
   }
 
   if (page === "user-playlist-detail") {
@@ -401,20 +417,23 @@ function pageToPathname(page: string, params?: any): string | null {
 
   if (page === "album-detail") {
     if (params?.id) {
-      const titlePart = params.title
-        ? `-${slugify(params.title)}`
-        : params.slug
-          ? `-${slugify(params.slug)}`
-          : "";
-      return `/album/${params.id}${titlePart}`;
+      const slug = slugify(
+        params?.urlSlug || params?.url_slug || params?.titleEn || params?.title_en || params?.slug || params?.title || "",
+      );
+      return `/album/${params.id}${slug ? `-${slug}` : ""}`;
     }
-    if (params?.slug) return `/album/${encodeURIComponent(params.slug)}`;
+    if (params?.slug) {
+      const slug = slugify(params.slug);
+      if (slug) return `/album/${slug}`;
+    }
   }
 
   if (page === "genre-detail") {
     if (params?.id) {
-      const namePart = params.name ? `-${slugify(params.name)}` : "";
-      return `/genres/${params.id}${namePart}`;
+      const slug = slugify(
+        params?.urlSlug || params?.url_slug || params?.nameEn || params?.name_en || params?.slug || params?.name || "",
+      );
+      return `/genres/${params.id}${slug ? `-${slug}` : ""}`;
     }
   }
 
@@ -477,7 +496,7 @@ function writeBrowserHistory(
     // route functional with the stable identifiers needed to reload the page.
     const raw = state.params && typeof state.params === "object" ? state.params : {};
     const safeParams = [
-      "id", "dbId", "uniqueId", "slug", "songSlug", "artistSlug", "name",
+      "id", "dbId", "uniqueId", "slug", "urlSlug", "url_slug", "songSlug", "artistSlug", "name",
       "title", "query", "q", "filter", "tab", "type", "chartType",
       "subPage", "generatedBy", "creatorUniqueId", "isOwner",
     ].reduce<Record<string, unknown>>((result, key) => {
@@ -658,7 +677,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, []);
 
-  const navigateTo = useCallback(
+  const commitNavigation = useCallback(
     (page: string, params?: any, pushHistory: boolean | "replace" = true) => {
       // A popstate handler saves the outgoing entry before calling us. For
       // normal in-app navigation, capture it here while its DOM is still live.
@@ -700,6 +719,28 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
       setCurrentParams(params || null);
     },
     [],
+  );
+
+  const navigateTo = useCallback(
+    (page: string, params?: any, pushHistory: boolean | "replace" = true) => {
+      const isNative =
+        typeof window !== "undefined" && Capacitor.isNativePlatform();
+
+      if (
+        isNative &&
+        page !== currentPageRef.current &&
+        !isNativeScreenReady(page)
+      ) {
+        // Start resolving the local chunk on the same input event, but never
+        // serialize the route transition behind it. AppRouter's existing
+        // dynamic() fallback remains the correctness path if this module was
+        // not already warmed. The visible route therefore changes immediately.
+        void prepareNativeScreen(page).catch(() => undefined);
+      }
+
+      commitNavigation(page, params, pushHistory);
+    },
+    [commitNavigation],
   );
 
   // Keep the ref pointing at the latest navigateTo so the popstate handler
@@ -797,6 +838,44 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
       navigateTo("home", null, "replace");
     }
   }, [navigateTo]);
+
+  // Android hardware/gesture Back must follow the exact same navigation stack
+  // as browser Back. @capacitor/app intercepts the native Back dispatch; once
+  // this listener is installed its default behavior is disabled, so we route
+  // the press through our existing safe goBack() implementation instead. At
+  // the root Home entry goBack() intentionally does nothing, which prevents a
+  // Back press from closing the native app.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let disposed = false;
+    let removeListener: (() => Promise<void>) | null = null;
+
+    void Promise.all([import("@capacitor/core"), import("@capacitor/app")])
+      .then(async ([{ Capacitor }, { App }]) => {
+        if (disposed || !Capacitor.isNativePlatform()) return;
+
+        const handle = await App.addListener("backButton", () => {
+          goBack();
+        });
+
+        if (disposed) {
+          await handle.remove();
+          return;
+        }
+        removeListener = handle.remove;
+      })
+      .catch((error) => {
+        // Web builds never need the native listener. A native registration
+        // failure should not interfere with the browser navigation fallback.
+        console.warn("Unable to register native Android Back handler", error);
+      });
+
+    return () => {
+      disposed = true;
+      if (removeListener) void removeListener();
+    };
+  }, [goBack]);
 
   const handleSetCurrentPage = useCallback(
     (page: string) => navigateTo(page, currentParamsRef.current),

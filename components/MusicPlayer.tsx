@@ -29,7 +29,7 @@ import QueueSheet from "./QueueSheet";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import { getFullShareUrl } from "../utils/share";
-import { createSlug } from "../lib/slug";
+import { createSlug, getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
 import { Sparkles, User, UserRoundCog } from "lucide-react";
 import { clientTrace } from "../lib/clientDebug";
 import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
@@ -555,6 +555,7 @@ const TrackIdentity = memo<{
       track.artistUniqueId ||
       (track as any).artist_unique_id ||
       undefined,
+    urlSlug: track.artistUrlSlug || (track as any).artist_url_slug || undefined,
   }), [track]);
 
   const openSong = (event: React.MouseEvent) => {
@@ -563,24 +564,21 @@ const TrackIdentity = memo<{
     onBeforeNavigate?.();
     navigateTo("song-detail", {
       id: track.id,
-      artistSlug:
-        track.artistUniqueId ||
-        (track as any).artist_unique_id ||
-        createSlug(track.artist),
-      songSlug: createSlug(getSongDisplayTitle(track)),
+      urlSlug: track.urlSlug || getCanonicalSlug(track, getSongDisplayTitle(track)),
+      artistSlug: track.artistUrlSlug || getArtistCanonicalSlug(track, track.artist),
     });
   };
 
   const openArtist = (
     event: React.MouseEvent,
-    artist: { id?: string | number; name: string; uniqueId?: string },
+    artist: { id?: string | number; name: string; uniqueId?: string; urlSlug?: string },
   ) => {
     event.stopPropagation();
     if (isAdPlaying || (!artist.id && !artist.uniqueId)) return;
     onBeforeNavigate?.();
     navigateTo("artist-detail", {
       id: artist.id || artist.uniqueId,
-      slug: artist.uniqueId || createSlug(artist.name),
+      urlSlug: artist.urlSlug || createSlug(artist.name),
     });
   };
 
@@ -1471,7 +1469,7 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="fixed left-0 right-0 z-40 md:hidden"
+        className="sb-native-collapsed-player fixed left-0 right-0 z-40 md:hidden"
         style={{ bottom: 70, willChange: "transform, opacity" }}
       >
         <div className="mx-2 sm:mx-4">
@@ -1570,8 +1568,8 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 if (isDesktop) {
                   navigateTo("song-detail", {
                     id: displayTrack.id,
-                    artistSlug: createSlug(displayTrack.artist),
-                    songSlug: createSlug(getSongDisplayTitle(displayTrack)),
+                    urlSlug: displayTrack.urlSlug || getCanonicalSlug(displayTrack, getSongDisplayTitle(displayTrack)),
+                    artistSlug: displayTrack.artistUrlSlug || getArtistCanonicalSlug(displayTrack, displayTrack.artist),
                   });
                 } else {
                   onExpand();
@@ -1867,9 +1865,10 @@ const DesktopExpandedPlayer = memo<{
         onCollapse();
         navigateTo("artist-detail", {
           id: artistId,
-          slug:
-            (currentTrack as any).artist_unique_id ||
-            createSlug(currentTrack.artist),
+          urlSlug:
+            currentTrack.artistUrlSlug ||
+            (currentTrack as any).artist_url_slug ||
+            getArtistCanonicalSlug(currentTrack, currentTrack.artist),
         });
         return;
       }
@@ -1934,12 +1933,18 @@ const DesktopExpandedPlayer = memo<{
   const generateAndCopyLink = async (type: "song" | "artist") => {
     try {
       if (!displayTrack) return;
-      const id = (displayTrack.id as any) ?? "";
-      const name = type === "song" ? getSongDisplayTitle(displayTrack) : displayTrack.artist;
+      const id =
+        type === "song"
+          ? (displayTrack.id as any) ?? ""
+          : displayTrack.artistId || (displayTrack as any).artist_id || "";
+      const slug =
+        type === "song"
+          ? displayTrack.urlSlug || getCanonicalSlug(displayTrack, getSongDisplayTitle(displayTrack))
+          : displayTrack.artistUrlSlug || getArtistCanonicalSlug(displayTrack, displayTrack.artist);
       const url = getFullShareUrl(
         type === "song" ? "song" : "artist",
         id,
-        name,
+        slug,
       );
 
       const shareText = `گوش دادن به ${getSongDisplayTitle(displayTrack) || "آهنگ"} از ${displayTrack.artist || "هنرمند"} در سداباکس`;
@@ -1980,10 +1985,8 @@ const DesktopExpandedPlayer = memo<{
       onCollapse();
       navigateTo("song-detail", {
         id: currentTrack.id,
-        artistSlug:
-          (currentTrack as any).artist_unique_id ||
-          createSlug(currentTrack.artist),
-        songSlug: createSlug(getSongDisplayTitle(currentTrack)),
+        urlSlug: currentTrack.urlSlug || getCanonicalSlug(currentTrack, getSongDisplayTitle(currentTrack)),
+        artistSlug: currentTrack.artistUrlSlug || getArtistCanonicalSlug(currentTrack, currentTrack.artist),
       });
     }
   }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
@@ -2777,9 +2780,10 @@ const MobileExpandedPlayer = memo<{
         onCollapse();
         navigateTo("artist-detail", {
           id: artistId,
-          slug:
-            (currentTrack as any).artist_unique_id ||
-            createSlug(currentTrack.artist),
+          urlSlug:
+            currentTrack.artistUrlSlug ||
+            (currentTrack as any).artist_url_slug ||
+            getArtistCanonicalSlug(currentTrack, currentTrack.artist),
         });
         return;
       }
@@ -2817,7 +2821,7 @@ const MobileExpandedPlayer = memo<{
         animate: { opacity: 1 },
         exit: { opacity: 0, transition: { duration: 0.5 } },
       }}
-      className="fixed inset-0 z-60 flex flex-col bg-transparent overflow-hidden"
+      className="sb-native-expanded-player fixed inset-0 z-60 flex flex-col bg-transparent overflow-hidden"
     >
       <AnimatePresence>
         {isFree && banner && (
@@ -3110,10 +3114,8 @@ const MobileExpandedPlayer = memo<{
                     if (currentTrack) {
                       navigateTo("song-detail", {
                         id: currentTrack.id,
-                        artistSlug:
-                          (currentTrack as any).artist_unique_id ||
-                          createSlug(currentTrack.artist),
-                        songSlug: createSlug(getSongDisplayTitle(currentTrack)),
+                        urlSlug: currentTrack.urlSlug || getCanonicalSlug(currentTrack, getSongDisplayTitle(currentTrack)),
+                        artistSlug: currentTrack.artistUrlSlug || getArtistCanonicalSlug(currentTrack, currentTrack.artist),
                       });
                     }
                   }}
@@ -3488,7 +3490,7 @@ export default function MusicPlayer() {
                 "مهمان‌ها ۳۰ ثانیه از هر آهنگ را می‌شنوند. برای پخش کامل، لایک و ساخت پلی‌لیست وارد شوید.",
             })
           }
-          className="fixed bottom-[132px] left-1/2 z-[100001] -translate-x-1/2 rounded-full border border-emerald-400/30 bg-black/90 px-4 py-2 text-xs font-bold text-emerald-300 shadow-xl backdrop-blur-xl md:bottom-[86px]"
+          className="sb-native-guest-preview-cta fixed bottom-[132px] left-1/2 z-[100001] -translate-x-1/2 rounded-full border border-emerald-400/30 bg-black/90 px-4 py-2 text-xs font-bold text-emerald-300 shadow-xl backdrop-blur-xl md:bottom-[86px]"
         >
           پیش‌نمایش ۳۰ ثانیه‌ای · ورود برای پخش کامل
         </button>
