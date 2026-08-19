@@ -8,6 +8,7 @@ import { useI18n } from "./I18nContext";
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
+  subtitleLoading?: boolean;
   backgroundImage?: string;
   showLogo?: boolean;
 }
@@ -15,6 +16,7 @@ interface PageHeaderProps {
 const PageHeader: React.FC<PageHeaderProps> = ({
   title,
   subtitle,
+  subtitleLoading = false,
   backgroundImage,
   showLogo = true,
 }) => {
@@ -45,10 +47,19 @@ const PageHeader: React.FC<PageHeaderProps> = ({
       >
         {/* Text */}
         <div className="space-y-1">
-          {subtitle && (
-            <p className="text-emerald-400 font-bold text-sm sm:text-base uppercase tracking-widest animate-fade-in">
-              {subtitle}
-            </p>
+          {(subtitle || subtitleLoading) && (
+            <div className="min-h-5 flex items-center">
+              {subtitleLoading ? (
+                <div
+                  className="h-4 w-36 sm:w-44 rounded-full bg-emerald-400/15 animate-pulse"
+                  aria-label="در حال بارگذاری اطلاعات"
+                />
+              ) : (
+                <p className="text-emerald-400 font-bold text-sm sm:text-base uppercase tracking-widest animate-fade-in">
+                  {subtitle}
+                </p>
+              )}
+            </div>
           )}
           <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight drop-shadow-2xl">
             {title}
@@ -62,6 +73,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
 interface SectionDetailLayoutProps {
   title: string;
   subtitle?: string;
+  subtitleLoading?: boolean;
   backgroundImage?: string;
   children: React.ReactNode;
   onLoadMore?: () => void;
@@ -73,6 +85,7 @@ interface SectionDetailLayoutProps {
 const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
   title,
   subtitle,
+  subtitleLoading = false,
   backgroundImage,
   children,
   onLoadMore,
@@ -155,6 +168,7 @@ const SectionDetailLayout: React.FC<SectionDetailLayoutProps> = ({
       <PageHeader
         title={title}
         subtitle={subtitle}
+        subtitleLoading={subtitleLoading}
         backgroundImage={backgroundImage}
       />
 
