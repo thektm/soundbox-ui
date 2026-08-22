@@ -770,3 +770,14 @@ html[data-sedabox-native] .sb-native-fixed-top-3 {
 html[data-sedabox-native] .sb-native-fixed-top-4 {
   top: calc(var(--sb-safe-top, 0px) + 1rem) !important;
 }
+
+
+/* Profile image cropper */
+.cropper-layer{position:fixed;inset:0;z-index:var(--z-image-cropper);isolation:isolate;background:rgba(5,9,20,.84);display:grid;place-items:center;padding:20px;backdrop-filter:blur(10px)}
+.cropper-dialog{width:min(920px,96vw);max-height:94vh;overflow:auto;background:var(--surface,#111827);border:1px solid rgba(255,255,255,.12);border-radius:22px;box-shadow:0 30px 90px rgba(0,0,0,.55)}
+.cropper-dialog>header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.08)}
+.cropper-dialog>header h2{margin:0 0 5px;font-size:18px}.cropper-dialog>header p{margin:0;color:var(--muted,#94a3b8);font-size:13px}
+.cropper-stage{height:min(62vh,610px);background:#070b14;display:flex;align-items:center;justify-content:center;overflow:hidden}.cropper-stage img{display:block;max-width:100%}
+.cropper-tools{display:flex;justify-content:center;gap:8px;padding:12px;border-top:1px solid rgba(255,255,255,.07)}
+.cropper-dialog>footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid rgba(255,255,255,.08)}.cropper-error{margin:18px;padding:12px 14px;border-radius:12px;background:rgba(239,68,68,.12);color:#fecaca}
+

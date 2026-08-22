@@ -1,0 +1,57 @@
+URL Mapping Change Guide
+=========================
+
+Project
+-------
+SedaBox app: sedabox-new-app-countainer
+Primary mapping file: components/NavigationContext.tsx
+User identity helpers: lib/userProfileRoute.ts
+
+How navigation works
+--------------------
+1. Browser paths are converted to an in-app page and params by parsePathname().
+2. Components call navigateTo(page, params).
+3. commitNavigation() calls pageToPathname(page, params) to write the browser URL.
+4. AppRouter.tsx uses the resulting page and params to render the screen.
+
+Important precedence rule
+-------------------------
+pageToPathname() checks special canonical routes BEFORE the generic
+ROUTED_PAGES.includes(page) fallback. If a page exists in ROUTED_PAGES, the
+generic fallback returns /<page> immediately and any special mapping below it
+will never run.
+
+Therefore, every exception for a page in ROUTED_PAGES must be placed above the
+"simple pages with direct path" block.
+
+Official SedaBox routes
+-----------------------
+- /user/sedabox parses as page "user-detail" with uniqueId "sedabox".
+- /user/sedabox/playlists parses as page "other-user-playlists" with
+  uniqueId "sedabox".
+- navigateTo("other-user-playlists", { uniqueId: "sedabox" }) emits
+  /user/sedabox/playlists.
+- Other users still use the generic /other-user-playlists path because the
+  special mapping only applies when uniqueId is exactly "sedabox".
+
+When changing official profile routing
+--------------------------------------
+- Keep the exact official check scoped to "sedabox".
+- Preserve getCanonicalUserPath() behavior for normal users.
+- Update both directions when adding a route: parsePathname() for incoming URLs
+  and pageToPathname() for URLs emitted by navigateTo().
+- Check every caller's params. For playlist navigation, UserDetail passes
+  profile.unique_id as uniqueId.
+- Do not change the route page key unless AppRouter.tsx and native route loading
+  are updated together.
+- Do not place an exception after ROUTED_PAGES.includes(page).
+
+Validation checklist
+--------------------
+- Type-check the touched frontend files.
+- Test navigating from /user/sedabox to see-more playlists and verify the URL is
+  /user/sedabox/playlists.
+- Reload /user/sedabox/playlists and verify it opens OtherUserPlaylists with
+  uniqueId "sedabox".
+- Test a normal user's see-more playlists route and verify its existing URL and
+  behavior are unchanged.

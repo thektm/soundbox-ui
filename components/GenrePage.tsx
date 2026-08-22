@@ -1,5 +1,6 @@
 "use client";
 
+import { MoreVertical } from "lucide-react";
 import React, { useState, useEffect, useCallback, memo, useRef } from "react";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useNavigation } from "./NavigationContext";
@@ -9,6 +10,7 @@ import { SEO } from "./SEO";
 import { useI18n } from "./I18nContext";
 import { getSongDisplayTitle, getPlayerFeaturedArtists, normalizeSongCollection } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import { SongOptionsDrawer } from "./SongOptionsDrawer";
 
 // ============ TYPES ============
 interface GenreSong {
@@ -113,6 +115,7 @@ const SongListItem = memo(
     onArtistClick,
     onSongClick,
     onAlbumClick,
+    onMore,
   }: {
     song: GenreSong;
     index: number;
@@ -121,6 +124,7 @@ const SongListItem = memo(
     onArtistClick: () => void;
     onSongClick: () => void;
     onAlbumClick: () => void;
+    onMore: () => void;
   }) => (
     <div
       role="button"
@@ -210,7 +214,15 @@ const SongListItem = memo(
       <div className="text-zinc-400 text-sm flex-shrink-0 w-10 text-left">
         {formatDuration(song.duration_seconds)}
       </div>
-    </div>
+    <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onMore(); }}
+        className="shrink-0 p-2 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition"
+        aria-label="song options"
+      >
+        <MoreVertical className="w-5 h-5" />
+      </button>
+      </div>
   ),
 );
 SongListItem.displayName = "SongListItem";
@@ -224,6 +236,7 @@ const SongGridCard = memo(
     onArtistClick,
     onSongClick,
     onAlbumClick,
+    onMore,
   }: {
     song: GenreSong;
     isPlaying: boolean;
@@ -231,6 +244,7 @@ const SongGridCard = memo(
     onArtistClick: () => void;
     onSongClick: () => void;
     onAlbumClick: () => void;
+    onMore?: () => void;
   }) => (
     <div
       role="button"
@@ -353,6 +367,7 @@ export default function GenrePage({
   const { direction } = useI18n();
 
   const [songs, setSongs] = useState<GenreSong[]>([]);
+  const [selectedSongForOptions, setSelectedSongForOptions] = useState<any | null>(null);
   const [name, setName] = useState(initialName);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
@@ -419,7 +434,13 @@ export default function GenrePage({
     };
   }, [nextPage, isLoadingMore, loadMore]);
 
-  const handlePlay = useCallback(
+  const openSongOptions = (song: any) => {
+    setSelectedSongForOptions(song);
+  };
+
+  const closeSongOptions = () => setSelectedSongForOptions(null);
+
+const handlePlay = useCallback(
     (song: GenreSong) => {
       playTrack({
         id: String(song.id),
@@ -617,6 +638,7 @@ export default function GenrePage({
                   onArtistClick={() => handleArtistClick(song)}
                   onSongClick={() => handleSongClick(song)}
                   onAlbumClick={() => handleAlbumClick(song)}
+                  onMore={() => openSongOptions(song)}
                 />
               ))}
             </div>
@@ -680,6 +702,11 @@ export default function GenrePage({
           to   { transform: scaleY(1); }
         }
       `}</style>
-    </div>
+    <SongOptionsDrawer
+        isOpen={!!selectedSongForOptions}
+        onClose={closeSongOptions}
+        song={selectedSongForOptions}
+      />
+      </div>
   );
 }

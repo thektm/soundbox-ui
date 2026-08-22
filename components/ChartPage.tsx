@@ -9,6 +9,7 @@ import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { useI18n } from "./I18nContext";
 import { getPlayerFeaturedArtists, getSongDisplayTitle, normalizeSongCollection } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import { SongOptionsDrawer } from "./SongOptionsDrawer";
 import { getCanonicalSlug } from "../lib/slug";
 
 interface ChartPageProps {
@@ -44,6 +45,8 @@ const ChartPage: React.FC<ChartPageProps> = ({
   );
   const [loading, setLoading] = useState(!initialData);
   const [title, setTitle] = useState(initialTitle || "");
+  const [selectedSong, setSelectedSong] = useState<any | null>(null);
+  const [isSongOptionsOpen, setIsSongOptionsOpen] = useState(false);
 
   const endpointMap: Record<string, string> = {
     "daily-songs": "daily-top-songs-global",
@@ -183,8 +186,31 @@ const ChartPage: React.FC<ChartPageProps> = ({
                   urlSlug: getCanonicalSlug(item, item.name || item.title),
                 });
             }}
-            className="group flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-all cursor-pointer border border-transparent hover:border-white/5 shadow-lg shadow-black/20"
+            className="group relative flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-all cursor-pointer border border-transparent hover:border-white/5 shadow-lg shadow-black/20"
           >
+            {type === "songs" && (
+              <button
+                type="button"
+                aria-label="song options"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedSong(item);
+                  setIsSongOptionsOpen(true);
+                }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-zinc-900/80 border border-white/10 text-zinc-300 hover:text-white hover:bg-emerald-500/20 hover:border-emerald-400/40 transition-all flex items-center justify-center backdrop-blur-sm"
+              >
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <circle cx="12" cy="5" r="1.8" />
+                  <circle cx="12" cy="12" r="1.8" />
+                  <circle cx="12" cy="19" r="1.8" />
+                </svg>
+              </button>
+            )}
+
             {/* Rank */}
             <div className="w-10 text-center flex flex-col items-center">
               <span
@@ -286,6 +312,15 @@ const ChartPage: React.FC<ChartPageProps> = ({
           </div>
         ))}
       </div>
+
+      <SongOptionsDrawer
+        isOpen={isSongOptionsOpen}
+        onClose={() => {
+          setIsSongOptionsOpen(false);
+          setSelectedSong(null);
+        }}
+        song={selectedSong}
+      />
     </SectionDetailLayout>
   );
 };

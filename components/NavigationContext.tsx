@@ -12,7 +12,10 @@ import React, {
 import { decodeShare, slugify } from "../utils/share";
 import { getCanonicalUserPath } from "../lib/userProfileRoute";
 import { Capacitor } from "@capacitor/core";
-import { isNativeScreenReady, prepareNativeScreen } from "../lib/nativeScreenLoader";
+import {
+  isNativeScreenReady,
+  prepareNativeScreen,
+} from "../lib/nativeScreenLoader";
 
 interface NavigationContextType {
   currentPage: string;
@@ -245,6 +248,12 @@ function parsePathname(pathname: string): { page: string; params: any } {
   if (first === "user" && parts[1]) {
     const segment = decodeURIComponent(parts[1]);
     if (segment.toLowerCase() === "sedabox") {
+      if (parts[2]?.toLowerCase() === "playlists") {
+        return {
+          page: "other-user-playlists",
+          params: { uniqueId: "sedabox" },
+        };
+      }
       return {
         page: "user-detail",
         params: { id: "sedabox", uniqueId: "sedabox", isOfficial: true },
@@ -308,7 +317,10 @@ function parsePathname(pathname: string): { page: string; params: any } {
   return { page: "home", params: null };
 }
 
-function parseLocation(pathname: string, search = ""): { page: string; params: any } {
+function parseLocation(
+  pathname: string,
+  search = "",
+): { page: string; params: any } {
   const parsed = parsePathname(pathname);
   if (parsed.page === "search") {
     return { page: "search", params: parseSearchParams(search) };
@@ -334,6 +346,16 @@ function pageToPathname(page: string, params?: any): string | null {
     if (params?.chartType) return `/chart/${params.chartType}`;
     if (params?.type) return `/chart/${params.type}`;
     return "/chart";
+  }
+
+  // SedaBox has a dedicated public playlists URL. This must be checked before
+  // the generic ROUTED_PAGES fallback below because other-user-playlists is a
+  // routed page name as well.
+  if (
+    page === "other-user-playlists" &&
+    String(params?.uniqueId || "").toLowerCase() === "sedabox"
+  ) {
+    return "/user/sedabox/playlists";
   }
 
   // simple pages with direct path
@@ -399,7 +421,13 @@ function pageToPathname(page: string, params?: any): string | null {
   if (page === "playlist-detail") {
     if (params?.id) {
       const slug = slugify(
-        params?.urlSlug || params?.url_slug || params?.titleEn || params?.title_en || params?.slug || params?.title || "",
+        params?.urlSlug ||
+          params?.url_slug ||
+          params?.titleEn ||
+          params?.title_en ||
+          params?.slug ||
+          params?.title ||
+          "",
       );
       return `/playlist/${params.id}${slug ? `-${slug}` : ""}`;
     }
@@ -418,7 +446,13 @@ function pageToPathname(page: string, params?: any): string | null {
   if (page === "album-detail") {
     if (params?.id) {
       const slug = slugify(
-        params?.urlSlug || params?.url_slug || params?.titleEn || params?.title_en || params?.slug || params?.title || "",
+        params?.urlSlug ||
+          params?.url_slug ||
+          params?.titleEn ||
+          params?.title_en ||
+          params?.slug ||
+          params?.title ||
+          "",
       );
       return `/album/${params.id}${slug ? `-${slug}` : ""}`;
     }
@@ -431,7 +465,13 @@ function pageToPathname(page: string, params?: any): string | null {
   if (page === "genre-detail") {
     if (params?.id) {
       const slug = slugify(
-        params?.urlSlug || params?.url_slug || params?.nameEn || params?.name_en || params?.slug || params?.name || "",
+        params?.urlSlug ||
+          params?.url_slug ||
+          params?.nameEn ||
+          params?.name_en ||
+          params?.slug ||
+          params?.name ||
+          "",
       );
       return `/genres/${params.id}${slug ? `-${slug}` : ""}`;
     }
@@ -465,13 +505,18 @@ interface NavigationHistoryState {
 }
 
 function createNavigationEntryKey(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return `sb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-function isNavigationHistoryState(value: unknown): value is NavigationHistoryState {
+function isNavigationHistoryState(
+  value: unknown,
+): value is NavigationHistoryState {
   if (!value || typeof value !== "object") return false;
   const state = value as Record<string, unknown>;
   return (
@@ -494,14 +539,35 @@ function writeBrowserHistory(
     // API payloads passed as initial page data should normally be structured-
     // cloneable. If a future caller passes a non-cloneable value, keep the
     // route functional with the stable identifiers needed to reload the page.
-    const raw = state.params && typeof state.params === "object" ? state.params : {};
+    const raw =
+      state.params && typeof state.params === "object" ? state.params : {};
     const safeParams = [
-      "id", "dbId", "uniqueId", "slug", "urlSlug", "url_slug", "songSlug", "artistSlug", "name",
-      "title", "query", "q", "filter", "tab", "type", "chartType",
-      "subPage", "generatedBy", "creatorUniqueId", "isOwner",
+      "id",
+      "dbId",
+      "uniqueId",
+      "slug",
+      "urlSlug",
+      "url_slug",
+      "songSlug",
+      "artistSlug",
+      "name",
+      "title",
+      "query",
+      "q",
+      "filter",
+      "tab",
+      "type",
+      "chartType",
+      "subPage",
+      "generatedBy",
+      "creatorUniqueId",
+      "isOwner",
     ].reduce<Record<string, unknown>>((result, key) => {
       const value = raw[key];
-      if (["string", "number", "boolean"].includes(typeof value) || value === null) {
+      if (
+        ["string", "number", "boolean"].includes(typeof value) ||
+        value === null
+      ) {
         result[key] = value;
       }
       return result;
@@ -509,7 +575,10 @@ function writeBrowserHistory(
     const fallback = { ...state, params: safeParams };
     if (mode === "push") window.history.pushState(fallback, "", path);
     else window.history.replaceState(fallback, "", path);
-    console.warn("Navigation state contained a non-cloneable value; stored safe route params instead.", error);
+    console.warn(
+      "Navigation state contained a non-cloneable value; stored safe route params instead.",
+      error,
+    );
   }
 }
 
@@ -528,7 +597,9 @@ export function replaceCurrentNavigationEntry(
   const state: NavigationHistoryState = {
     ...(existing && typeof existing === "object" ? existing : {}),
     [NAV_HISTORY_MARKER]: NAV_HISTORY_VERSION,
-    __sbNavIndex: isNavigationHistoryState(existing) ? existing.__sbNavIndex : 0,
+    __sbNavIndex: isNavigationHistoryState(existing)
+      ? existing.__sbNavIndex
+      : 0,
     __sbNavKey: isNavigationHistoryState(existing)
       ? existing.__sbNavKey
       : createNavigationEntryKey(),
@@ -539,12 +610,18 @@ export function replaceCurrentNavigationEntry(
 }
 
 /** Used only as a defensive fallback when a component cannot call navigateTo. */
-export function pushNavigationEntry(page: string, params: any, path: string): NavigationHistoryState | null {
+export function pushNavigationEntry(
+  page: string,
+  params: any,
+  path: string,
+): NavigationHistoryState | null {
   if (typeof window === "undefined") return null;
   const existing = window.history.state;
   const state: NavigationHistoryState = {
     [NAV_HISTORY_MARKER]: NAV_HISTORY_VERSION,
-    __sbNavIndex: isNavigationHistoryState(existing) ? existing.__sbNavIndex + 1 : 1,
+    __sbNavIndex: isNavigationHistoryState(existing)
+      ? existing.__sbNavIndex + 1
+      : 1,
     __sbNavKey: createNavigationEntryKey(),
     page,
     params: params || null,
@@ -586,7 +663,9 @@ const createNavigationScrollStore = (): NavigationScrollStore => {
   };
 };
 
-const NavigationScrollContext = createContext<NavigationScrollStore | null>(null);
+const NavigationScrollContext = createContext<NavigationScrollStore | null>(
+  null,
+);
 
 export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -597,14 +676,16 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
   });
   const [currentParams, setCurrentParams] = useState<any>(() => {
     if (typeof window === "undefined") return null;
-    return parseLocation(window.location.pathname, window.location.search).params;
+    return parseLocation(window.location.pathname, window.location.search)
+      .params;
   });
   const currentPageRef = useRef(currentPage);
   const currentParamsRef = useRef(currentParams);
   currentPageRef.current = currentPage;
   currentParamsRef.current = currentParams;
   const initialBrowserState =
-    typeof window !== "undefined" && isNavigationHistoryState(window.history.state)
+    typeof window !== "undefined" &&
+    isNavigationHistoryState(window.history.state)
       ? window.history.state
       : null;
   const initialEntryKeyRef = useRef<string>(
@@ -671,7 +752,8 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
     // as a container is registered (avoids a brief "no-scroll" state).
     try {
       if (active) scrollStore.set(active.scrollTop);
-      else if (typeof window !== "undefined") scrollStore.set(window.scrollY || 0);
+      else if (typeof window !== "undefined")
+        scrollStore.set(window.scrollY || 0);
     } catch (err) {
       /* ignore */
     }
@@ -701,7 +783,9 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
           ? currentHistoryKeyRef.current
           : createNavigationEntryKey();
         const state: NavigationHistoryState = {
-          ...(replacing && existing && typeof existing === "object" ? existing : {}),
+          ...(replacing && existing && typeof existing === "object"
+            ? existing
+            : {}),
           [NAV_HISTORY_MARKER]: NAV_HISTORY_VERSION,
           __sbNavIndex: nextIndex,
           __sbNavKey: nextKey,
@@ -900,7 +984,9 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
       window.location.search,
     );
     const existing = window.history.state;
-    const initialState: NavigationHistoryState = isNavigationHistoryState(existing)
+    const initialState: NavigationHistoryState = isNavigationHistoryState(
+      existing,
+    )
       ? {
           ...existing,
           page: parsedInitial.page,
@@ -932,7 +1018,10 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
         : window.scrollY || 0;
       scrollPositions.current[currentHistoryKeyRef.current] = outgoingPosition;
 
-      const parsed = parseLocation(window.location.pathname, window.location.search);
+      const parsed = parseLocation(
+        window.location.pathname,
+        window.location.search,
+      );
       let state: NavigationHistoryState;
       if (isNavigationHistoryState(event.state)) {
         state = event.state;
@@ -940,7 +1029,9 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
         // This can happen for an old same-origin entry created before the
         // navigation provider initialized. Normalize it without changing URL.
         state = {
-          ...(event.state && typeof event.state === "object" ? event.state : {}),
+          ...(event.state && typeof event.state === "object"
+            ? event.state
+            : {}),
           [NAV_HISTORY_MARKER]: NAV_HISTORY_VERSION,
           __sbNavIndex: Math.max(0, currentHistoryIndexRef.current - 1),
           __sbNavKey: createNavigationEntryKey(),
@@ -957,7 +1048,11 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({
       currentHistoryIndexRef.current = state.__sbNavIndex;
       currentHistoryKeyRef.current = state.__sbNavKey;
       setHistoryEntryKey(state.__sbNavKey);
-      navigateToRef.current(state.page || parsed.page, state.params ?? parsed.params, false);
+      navigateToRef.current(
+        state.page || parsed.page,
+        state.params ?? parsed.params,
+        false,
+      );
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -1036,11 +1131,12 @@ export const useNavigation = () => {
   return context;
 };
 
-
 export const useNavigationScroll = () => {
   const store = useContext(NavigationScrollContext);
   if (!store) {
-    throw new Error("useNavigationScroll must be used within a NavigationProvider");
+    throw new Error(
+      "useNavigationScroll must be used within a NavigationProvider",
+    );
   }
   return useSyncExternalStore(store.subscribe, store.getSnapshot, () => 0);
 };

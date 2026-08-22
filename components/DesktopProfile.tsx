@@ -16,6 +16,8 @@ import FollowingArtistsPage from "./FollowingArtistsPage";
 import UserIcon from "./UserIcon";
 import { useI18n } from "./I18nContext";
 import UserAvatar from "./UserAvatar";
+import { useImageCropper } from "./ImageCropperContext";
+import ProfileDeleteConfirmModal from "./ProfileDeleteConfirmModal";
 import { buildUserNavigationParams } from "../lib/userProfileRoute";
 import { getSongDisplayTitle } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
@@ -107,8 +109,10 @@ export default function DesktopProfile() {
 
   const [isFetching, setIsFetching] = useState(() => !authUser);
   const [isSaving, setIsSaving] = useState(false);
+  const { cropImage } = useImageCropper();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDeletingImage, setIsDeletingImage] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,7 +127,15 @@ export default function DesktopProfile() {
     setIsUploadingImage(true);
     const toastId = toast.loading("در حال آپلود تصویر...");
     try {
-      await updateProfileImage(file);
+      const cropped = await cropImage(file, {
+        mode: "square",
+        title: "تنظیم تصویر پروفایل",
+        description: "تصویر را جابه‌جا کنید و با لمس یا کنترل‌ها بزرگ‌نمایی کنید.",
+        maxOutputDimension: 1200,
+        maxOutputBytes: 3 * 1024 * 1024,
+      });
+      if (!cropped) return;
+      await updateProfileImage(cropped.file);
       toast.success("تصویر پروفایل با موفقیت آپلود شد", { id: toastId });
     } catch (err: any) {
       toast.error(formatErrorMessage(err), { id: toastId });
@@ -134,9 +146,11 @@ export default function DesktopProfile() {
     }
   };
 
-  const handleDeleteImage = async () => {
-    if (!confirm("آیا از حذف تصویر پروفایل خود مطمئن هستید؟")) return;
+  const handleDeleteImage = () => {
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmDeleteImage = async () => {
     setIsDeletingImage(true);
     const toastId = toast.loading("در حال حذف تصویر...");
     try {
@@ -208,7 +222,8 @@ export default function DesktopProfile() {
       }
     };
     void refresh();
-    return () => {
+
+  return () => {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -765,7 +780,21 @@ export default function DesktopProfile() {
     }
   };
 
+
+  const deleteConfirmModal = (
+    <ProfileDeleteConfirmModal
+      open={showDeleteConfirm}
+      busy={isDeletingImage}
+      onCancel={() => setShowDeleteConfirm(false)}
+      onConfirm={() => {
+        setShowDeleteConfirm(false);
+        void confirmDeleteImage();
+      }}
+    />
+  );
   return (
+    <>
+      {deleteConfirmModal}
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white overflow-hidden font-sans"
     >
@@ -1050,5 +1079,6 @@ export default function DesktopProfile() {
         </div>
       </ResponsiveSheet>
     </div>
+  </>
   );
 }

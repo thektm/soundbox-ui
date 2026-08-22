@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useCallback, memo, useMemo } from "react";
 import { useNavigation } from "./NavigationContext";
 import { useAuth } from "./AuthContext";
-import { useDiscovery } from "./DiscoveryContext";
 import { getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
 import { getSongDisplayTitle } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
-import { CreatePlaylistModal } from "./CreatePlaylistModal";
 import { useI18n } from "./I18nContext";
+import { normalizeUserAvatarUrl } from "../lib/mediaUrl";
+import { CreatePlaylistModal } from "./CreatePlaylistModal";
 
 // ============================================================================
 // ICONS - Spotify-style icons
@@ -452,7 +452,7 @@ const LibraryItemComponent = memo(
                 className="w-full h-full bg-linear-to-br from-zinc-700 to-zinc-800 flex items-center justify-center"
                 aria-hidden="true"
               >
-                <Icons.Playlists active={false} />
+                {item.meta?.sidebarIcon || <Icons.Playlists active={false} />}
               </div>
             )}
           </div>
@@ -533,7 +533,7 @@ const LibraryItemComponent = memo(
             )
           ) : (
             <div className="w-full h-full bg-linear-to-br from-zinc-700 to-zinc-800 flex items-center justify-center">
-              <Icons.Playlists active={false} />
+              {item.meta?.sidebarIcon || <Icons.Playlists active={false} />}
             </div>
           )}
           {item.pinned && viewMode === "list" && (
@@ -604,8 +604,12 @@ const LibraryItemComponent = memo(
 
             // For non-user items render clickable title/subtitle when handlers are provided
             const explicitSubtitle =
-              item.meta && (item.meta.artist_name || item.owner);
-            const subtitleText = explicitSubtitle ||
+              item.meta &&
+              (item.meta.artist_name ||
+                item.owner ||
+                item.meta.sidebarSubtitle);
+            const subtitleText =
+              explicitSubtitle ||
               (hidePlaylistTypeLabel && item.type === "playlist"
                 ? ""
                 : typeLabels[item.type]);
@@ -656,7 +660,8 @@ const LibraryItemComponent = memo(
                         {subtitleText}
                       </span>
                     )}
-                    {item.owner && item.meta == null &&
+                    {item.owner &&
+                      item.meta == null &&
                       `${subtitleText ? " • " : ""}${item.owner}`}
                   </p>
                 )}
@@ -696,7 +701,8 @@ function Sidebar() {
 
     return {
       storageKey,
-      collapsed: storedValue === null ? isTabletAtStartup : storedValue === "true",
+      collapsed:
+        storedValue === null ? isTabletAtStartup : storedValue === "true",
     };
   });
   const [isCollapsed, setIsCollapsed] = useState(initialSidebarState.collapsed);
@@ -724,17 +730,15 @@ function Sidebar() {
     }
   }, [viewMode]);
 
-  const [libraryTab, setLibraryTab] = useState<"playlists" | "library">(
-    "playlists",
-  );
-  const {
-    recommendedPlaylists: rawRecommended,
-    isLoading: loadingRecommended,
-  } = useDiscovery();
-
   const [libraryItems, setLibraryItems] = useState<PlaylistItem[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState<boolean>(false);
+  const [libraryFilter, setLibraryFilter] = useState<
+    "all" | "playlist" | "song" | "artist"
+  >("all");
+  const [librarySearch, setLibrarySearch] = useState("");
+  const [isLibrarySearchOpen, setIsLibrarySearchOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [likedSongsCount, setLikedSongsCount] = useState<number | null>(null);
 
   // Helper for normalizing covers
   const ensureHttps = (u: any) => {
@@ -768,29 +772,16 @@ function Sidebar() {
     return undefined;
   };
 
-  const recommendedPlaylists = useMemo(() => {
-    return rawRecommended.map((p: any) => {
-      const covers = normalizeCover(p.top_three_song_covers || p.covers);
-      const single = normalizeCover(p.cover_image) as string | undefined;
-      return {
-        id: p.unique_id || p.id,
-        name: p.title || p.name,
-        type: "playlist",
-        image: (covers && (Array.isArray(covers) ? covers.length > 0 : !!covers)
-          ? covers
-          : single) as string | string[] | undefined,
-        owner: p.owner || undefined,
-        pinned: false,
-      } as PlaylistItem;
-    });
-  }, [rawRecommended]);
-
-  // Fetch library items (history) similar to LibraryScreen
   const fetchLibraryItems = useCallback(async () => {
     setLoadingLibrary(true);
     try {
+      const query = librarySearch.trim();
+      const params = new URLSearchParams();
+      if (libraryFilter !== "all") params.set("type", libraryFilter);
+      if (query) params.set("q", query);
+      const endpoint = query ? "history/search/" : "history/";
       const resp = await authenticatedFetch(
-        "https://api.sedabox.com/api/profile/history/",
+        `https://api.sedabox.com/api/profile/${endpoint}?${params.toString()}`,
       );
       if (resp.ok) {
         const data = await resp.json();
@@ -814,7 +805,11 @@ function Sidebar() {
               ? item.image_profile?.image ||
                 item.profile_image ||
                 item.profile_image?.image
-              : undefined) ||
+              : h.type === "artist"
+                ? item.profile_image?.image ||
+                  item.profile_image ||
+                  item.image_profile?.image
+                : undefined) ||
             item.cover_image ||
             item.image ||
             item.covers;
@@ -823,7 +818,10 @@ function Sidebar() {
             id: item.unique_id || item.id,
             name: displayName,
             type: h.type as any,
-            image: normalizeCover(imageSrc),
+            image:
+              h.type === "artist" || h.type === "user"
+                ? normalizeUserAvatarUrl(imageSrc)
+                : normalizeCover(imageSrc),
             owner: item.owner || undefined,
             meta: item,
             pinned: false,
@@ -836,9 +834,23 @@ function Sidebar() {
     } finally {
       setLoadingLibrary(false);
     }
+  }, [authenticatedFetch, libraryFilter, librarySearch]);
+
+  const fetchLikedSongsCount = useCallback(async () => {
+    try {
+      const resp = await authenticatedFetch(
+        "https://api.sedabox.com/api/profile/liked-songs/?page=1&page_size=1",
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        const count = Number(data?.count);
+        setLikedSongsCount(Number.isFinite(count) && count >= 0 ? count : 0);
+      }
+    } catch (error) {
+      console.error("Failed to fetch liked songs count:", error);
+    }
   }, [authenticatedFetch]);
 
-  // Handle playlist creation
   const handleCreatePlaylist = useCallback(
     async (name: string, isPublic: boolean) => {
       try {
@@ -846,25 +858,36 @@ function Sidebar() {
           "https://api.sedabox.com/api/profile/user-playlists/",
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ title: name, public: isPublic }),
           },
         );
         if (resp.ok) {
           const data = await resp.json();
-          if (data?.id) {
-            return String(data.id);
-          }
+          await fetchLibraryItems();
+          return data?.id || true;
         }
-      } catch (err) {
-        console.error("Failed to create playlist:", err);
+      } catch (error) {
+        console.error("Failed to create playlist:", error);
       }
       return null;
     },
-    [authenticatedFetch],
+    [authenticatedFetch, fetchLibraryItems],
   );
+
+  useEffect(() => {
+    fetchLikedSongsCount();
+  }, [fetchLikedSongsCount]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => {
+        fetchLibraryItems();
+      },
+      librarySearch.trim() ? 300 : 0,
+    );
+    return () => window.clearTimeout(timer);
+  }, [fetchLibraryItems, librarySearch]);
 
   // Check active state
   const isActivePath = useCallback(
@@ -927,7 +950,9 @@ function Sidebar() {
               aria-label={isCollapsed ? "باز کردن سایدبار" : "بستن سایدبار"}
               aria-expanded={!isCollapsed}
             >
-              <span className="sb-sidebar-toggle-icon">{isCollapsed ? <Icons.ChevronLeft /> : <Icons.ChevronRight />}</span>
+              <span className="sb-sidebar-toggle-icon">
+                {isCollapsed ? <Icons.ChevronLeft /> : <Icons.ChevronRight />}
+              </span>
             </button>
           </div>
 
@@ -949,135 +974,78 @@ function Sidebar() {
       {/* Library Section */}
       <div className="flex-1 p-2 overflow-hidden flex flex-col">
         <div className="bg-zinc-900 rounded-lg flex-1 flex flex-col overflow-hidden">
-          {/* Library Header */}
-          <div className="p-3 pb-2 flex items-center justify-between sticky top-0 bg-zinc-900 z-10 transition-colors duration-200">
-            <div
-              className="flex items-center gap-1.5 flex-1 overflow-hidden"
-              role="tablist"
-              aria-label="بخش‌های کتابخانه"
-            >
-              <button
-                role="tab"
-                aria-selected={libraryTab === "playlists"}
-                aria-controls="library-content-area"
-                id="tab-playlists"
-                onClick={() => {
-                  setLibraryTab("playlists");
-                  // No re-fetch needed if we have them, usually
-                }}
-                onDoubleClick={() => navigateTo("recommended-playlists")}
-                className={`
-                  flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none
-                  ${
-                    libraryTab === "playlists"
-                      ? "bg-white/15 text-white shadow-xl shadow-black/20"
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
-                  }
-                  ${isCollapsed ? "hidden" : "block shrink-0"}
-                `}
-                aria-label="پلی‌لیست‌ها"
-              >
-                <Icons.Library active={libraryTab === "playlists"} />
-                <span className="font-bold text-xs whitespace-nowrap">
-                  پلی‌لیست‌ها
-                </span>
-              </button>
-              {!isCollapsed && (
+          {/* Authenticated library header */}
+          {!isCollapsed && (
+            <div className="p-3 pb-2 sticky top-0 bg-zinc-900 z-10">
+              <div className="flex items-center justify-between gap-2">
                 <button
-                  role="tab"
-                  aria-selected={libraryTab === "library"}
-                  aria-controls="library-content-area"
-                  id="tab-library"
-                  onClick={() => {
-                    setLibraryTab("library");
-                    // Always fetch library items when switching to the Library tab
-                    fetchLibraryItems();
-                  }}
-                  onDoubleClick={() => navigateTo("library")}
-                  className={`
-                    flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none
-                    ${
-                      libraryTab === "library"
-                        ? "bg-white/15 text-white shadow-xl shadow-black/20"
-                        : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
-                    }
-                    ${isCollapsed ? "hidden" : "block shrink-0"}
-                  `}
-                  aria-label="کتابخانه شما"
+                  onClick={() => navigateTo("library")}
+                  className="text-sm font-bold text-white hover:text-emerald-400 transition-colors"
                 >
-                  <Icons.Search active={libraryTab === "library"} />
-                  <span className="font-bold text-xs whitespace-nowrap">
-                    کتابخانه شما
-                  </span>
+                  کتابخانه شما
                 </button>
-              )}
-
-              {isCollapsed && (
-                <button
-                  role="tab"
-                  aria-selected={true} // in collapsed mode, we cycle them so it's always the active one conceptually
-                  onClick={() => {
-                    const next =
-                      libraryTab === "playlists" ? "library" : "playlists";
-                    setLibraryTab(next);
-                    // When toggling in collapsed mode, fetch every time we switch to library
-                    if (next === "library") fetchLibraryItems();
-                  }}
-                  onDoubleClick={() =>
-                    navigateTo(
-                      libraryTab === "playlists"
-                        ? "recommended-playlists"
-                        : "library",
-                    )
-                  }
-                  className="p-1 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center justify-center w-full focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-                  aria-label={
-                    libraryTab === "playlists"
-                      ? "مشاهده پلی‌لیست‌ها"
-                      : "مشاهده کتابخانه"
-                  }
-                >
-                  {libraryTab === "playlists" ? (
-                    <Icons.Library active={true} />
-                  ) : (
-                    <Icons.Search active={true} />
-                  )}
-                </button>
-              )}
-            </div>
-
-            {!isCollapsed && (
-              <div className="flex items-center gap-1 shrink-0 mr-1.5">
-                {libraryTab === "playlists" ? (
+                <div className="flex items-center gap-1">
                   <button
                     onClick={() => setShowCreateModal(true)}
-                    className="p-2 rounded-full hover:bg-white/10 text-zinc-400 hover:text-white transition-all transform active:scale-95 duration-200 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                    className="w-8 h-8 rounded-full bg-zinc-800 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                     title="ایجاد پلی‌لیست جدید"
                     aria-label="ایجاد پلی‌لیست جدید"
                   >
                     <Icons.Plus />
                   </button>
-                ) : (
                   <button
-                    onClick={() => navigateTo("liked-songs")}
-                    className="p-2 rounded-full hover:bg-white/10 text-emerald-500 hover:text-emerald-400 transition-all transform active:scale-95 animate-in fade-in zoom-in duration-300 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
-                    title="آهنگ‌های لایک شده"
-                    aria-label="مشاهده آهنگ‌های لایک شده"
+                    onClick={() => setIsLibrarySearchOpen((open) => !open)}
+                    className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                    title="جستجو در کتابخانه"
+                    aria-label="جستجو در کتابخانه"
+                    aria-expanded={isLibrarySearchOpen}
                   >
-                    <Icons.Heart filled={true} />
+                    <Icons.Search active={isLibrarySearchOpen} />
                   </button>
-                )}
+                </div>
               </div>
-            )}
-          </div>
+              <div
+                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isLibrarySearchOpen ? "grid-rows-[1fr] opacity-100 mt-2" : "grid-rows-[0fr] opacity-0"}`}
+              >
+                <div className="overflow-hidden">
+                  <input
+                    autoFocus={isLibrarySearchOpen}
+                    value={librarySearch}
+                    onChange={(event) => setLibrarySearch(event.target.value)}
+                    placeholder="جستجو در کتابخانه ..."
+                    className="w-full h-9 px-3 rounded-md bg-zinc-800 border border-white/5 text-white text-xs placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50"
+                    aria-label="جستجو در کتابخانه"
+                  />
+                </div>
+              </div>
+              <div
+                className="flex items-center gap-1.5 mt-2"
+                role="group"
+                aria-label="فیلترهای کتابخانه"
+              >
+                {[
+                  ["playlist", "پلی‌لیست‌ها"],
+                  ["song", "آهنگ‌ها"],
+                  ["artist", "هنرمندان"],
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setLibraryFilter(id as typeof libraryFilter)}
+                    aria-pressed={libraryFilter === id}
+                    className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors ${libraryFilter === id ? "bg-white text-black" : "bg-zinc-800 text-zinc-200 hover:bg-zinc-700"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Library Items */}
           <div
             id="library-content-area"
             role="tabpanel"
-            aria-labelledby={
-              libraryTab === "playlists" ? "tab-playlists" : "tab-library"
-            }
+            aria-label="محتویات کتابخانه"
             className={`
             flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 scroll-smooth
             ${
@@ -1088,7 +1056,7 @@ function Sidebar() {
             ${isCollapsed ? "grid grid-cols-1 gap-2 px-2" : ""}
           `}
           >
-            {(libraryTab === "playlists" ? loadingRecommended : loadingLibrary)
+            {loadingLibrary
               ? Array.from({ length: 12 }).map((_, i) => (
                   <div
                     key={"skeleton-" + i}
@@ -1099,17 +1067,38 @@ function Sidebar() {
                     }
                   />
                 ))
-              : (libraryTab === "playlists"
-                  ? recommendedPlaylists
-                  : libraryItems
-                ).map((item) => (
+              : [
+                  {
+                    id: "liked-songs",
+                    name: "آهنگ‌های لایک شده",
+                    type: "playlist" as const,
+                    image: undefined,
+                    pinned: true,
+                    meta: {
+                      sidebarSubtitle:
+                        likedSongsCount === null
+                          ? "در حال بارگذاری..."
+                          : `${likedSongsCount} آهنگ`,
+                      sidebarIcon: (
+                        <div className="w-full h-full bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-800 flex items-center justify-center">
+                          <Icons.Heart filled />
+                        </div>
+                      ),
+                    },
+                  },
+                  ...libraryItems,
+                ].map((item) => (
                   <LibraryItemComponent
                     key={`${item.type}-${item.id}`}
                     item={item}
                     isCollapsed={isCollapsed}
                     viewMode={viewMode}
-                    hidePlaylistTypeLabel={libraryTab === "playlists"}
+                    hidePlaylistTypeLabel={item.id === "liked-songs"}
                     onClick={() => {
+                      if (item.id === "liked-songs") {
+                        navigateTo("liked-songs");
+                        return;
+                      }
                       if (item.type === "artist") {
                         navigateTo("artist-detail", {
                           id: item.id,
@@ -1204,14 +1193,13 @@ function Sidebar() {
         </div>
       </div>
 
-      {/* Profile quick access removed for brevity or kept if needed */}
-      {/* Portals and Modals */}
       <CreatePlaylistModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreatePlaylist}
       />
 
+      {/* Profile quick access removed for brevity or kept if needed */}
       {/* Bottom Section - Profile Quick Access */}
       <div className="p-2">
         <div className="bg-zinc-900 rounded-lg">

@@ -19,7 +19,10 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useI18n } from "./I18nContext";
 import { openAuthPrompt } from "./authPrompt";
-import { buildUserNavigationParams, isSedaboxUser } from "../lib/userProfileRoute";
+import {
+  buildUserNavigationParams,
+  isSedaboxUser,
+} from "../lib/userProfileRoute";
 import { readFollowingState } from "../lib/apiActionState";
 
 // ============================================================================
@@ -302,9 +305,11 @@ export default function FollowersFollowing({
     const fetchInitialData = async () => {
       setIsInitialLoading(true);
       try {
-        const res = await authenticatedFetch(
-          `https://api.sedabox.com/api/profile/u/${uniqueId}/?followers=1&following=1`,
-        );
+        const profileEndpoint =
+          uniqueId.toLowerCase() === "sedabox"
+            ? "https://api.sedabox.com/api/profile/sedabox/?followers=1&following=1"
+            : `https://api.sedabox.com/api/profile/u/${uniqueId}/?followers=1&following=1`;
+        const res = await authenticatedFetch(profileEndpoint);
         if (res.ok) {
           const data = await res.json();
           if (data.followers) {
@@ -452,13 +457,7 @@ export default function FollowersFollowing({
         }
       }
     },
-    [
-      accessToken,
-      authenticatedFetch,
-      followers,
-      following,
-      isEnglish,
-    ],
+    [accessToken, authenticatedFetch, followers, following, isEnglish],
   );
 
   // Refs
@@ -634,9 +633,7 @@ export default function FollowersFollowing({
   const filteredFollowing = following;
 
   return (
-    <div
-      className="flex flex-col h-screen bg-[#030303] text-white font-sans overflow-hidden"
-    >
+    <div className="flex flex-col h-screen bg-[#030303] text-white font-sans overflow-hidden">
       {/* ================= HEADER ================= */}
       <div className="shrink-0 z-30 bg-[#030303]/95 backdrop-blur-xl border-b border-white/[0.04]">
         {/* Top Bar */}

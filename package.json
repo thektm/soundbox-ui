@@ -29,7 +29,8 @@
     "react-hot-toast": "^2.6.0",
     "react-toastify": "^11.0.5",
     "tailwind-merge": "^3.4.1",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "cropperjs": "^1.6.2"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",

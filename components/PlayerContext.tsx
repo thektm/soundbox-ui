@@ -17,7 +17,10 @@ import dynamic from "next/dynamic";
 import { toast } from "react-hot-toast";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { useI18n } from "./I18nContext";
-import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
+import {
+  getPlayerFeaturedArtists,
+  getSongDisplayTitle,
+} from "../lib/songDisplay";
 import type {
   DownloadFlowStatus,
   DownloadQuality,
@@ -57,8 +60,8 @@ interface NativeDownloadPluginContract {
   ): Promise<{ remove: () => Promise<void> }>;
 }
 
-const NativeDownload = registerPlugin<NativeDownloadPluginContract>("NativeDownload");
-
+const NativeDownload =
+  registerPlugin<NativeDownloadPluginContract>("NativeDownload");
 
 // Ensure any URL coming from the server uses HTTPS where possible.
 function ensureHttps(u?: string | null): string | undefined {
@@ -105,10 +108,14 @@ function formatTrackDuration(seconds: number): string {
 }
 
 function asGuestPreviewTrack(track: Track, previewSeconds?: number): Track {
-  const requested = Number(previewSeconds || track.durationSeconds || GUEST_PREVIEW_DURATION_SECONDS);
+  const requested = Number(
+    previewSeconds || track.durationSeconds || GUEST_PREVIEW_DURATION_SECONDS,
+  );
   const durationSeconds = Math.min(
     GUEST_PREVIEW_DURATION_SECONDS,
-    Number.isFinite(requested) && requested > 0 ? requested : GUEST_PREVIEW_DURATION_SECONDS,
+    Number.isFinite(requested) && requested > 0
+      ? requested
+      : GUEST_PREVIEW_DURATION_SECONDS,
   );
   return {
     ...track,
@@ -237,7 +244,10 @@ interface PlayerContextType {
   next: () => void;
   previous: () => void;
   toggleLike: () => Promise<void>;
-  download: (track?: Track, preferredQuality?: DownloadQuality) => Promise<void>;
+  download: (
+    track?: Track,
+    preferredQuality?: DownloadQuality,
+  ) => Promise<void>;
   close: () => void;
   reorderQueue: (newQueue: Track[]) => void;
   shuffleQueue: () => void;
@@ -265,14 +275,20 @@ interface PlayerPlaybackContextType {
 }
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
-const PlayerActionsContext = createContext<PlayerActionsContextType | null>(null);
+const PlayerActionsContext = createContext<PlayerActionsContextType | null>(
+  null,
+);
 const PlayerLayoutContext = createContext<PlayerLayoutContextType | null>(null);
-const PlayerPlaybackContext = createContext<PlayerPlaybackContextType | null>(null);
+const PlayerPlaybackContext = createContext<PlayerPlaybackContextType | null>(
+  null,
+);
 
 export function usePlayerLayoutState() {
   const context = useContext(PlayerLayoutContext);
   if (!context) {
-    throw new Error("usePlayerLayoutState must be used within a PlayerProvider");
+    throw new Error(
+      "usePlayerLayoutState must be used within a PlayerProvider",
+    );
   }
   return context;
 }
@@ -388,7 +404,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const playbackRequestSequenceRef = useRef(0);
   const restorationAbortRef = useRef<AbortController | null>(null);
   const pendingRestoredPlaybackRef = useRef<PlayAtIndexOptions | null>(null);
-  const pendingPlaybackSessionRef = useRef<PersistedPlaybackSession | null>(null);
+  const pendingPlaybackSessionRef = useRef<PersistedPlaybackSession | null>(
+    null,
+  );
   const restoredAudioElementRef = useRef<HTMLAudioElement | null>(null);
   const playbackHydrationAttemptedRef = useRef(false);
   const playbackPersistenceReadyRef = useRef(false);
@@ -441,7 +459,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const resp = await authenticatedFetchRef.current(
           `https://api.sedabox.com/api/songs/${track.id}/`,
         );
-        if (!resp.ok || cancelled || languageRef.current !== requestedLanguage) {
+        if (
+          !resp.ok ||
+          cancelled ||
+          languageRef.current !== requestedLanguage
+        ) {
           return;
         }
 
@@ -480,7 +502,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         // A language switch should never interrupt playback just because the
         // metadata refresh failed; the existing localized queue value remains.
-        console.warn('Failed to refresh player metadata after language change:', error);
+        console.warn(
+          "Failed to refresh player metadata after language change:",
+          error,
+        );
       }
     })();
 
@@ -678,12 +703,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       const handleLoadedMetadata = () => {
         const activeTrack = currentTrackRef.current;
-        const mediaDuration = Number.isFinite(audio.duration) ? audio.duration : 0;
+        const mediaDuration = Number.isFinite(audio.duration)
+          ? audio.duration
+          : 0;
         const safeDuration =
           !accessTokenRef.current && activeTrack?.isPreview
             ? Math.min(
                 GUEST_PREVIEW_DURATION_SECONDS,
-                mediaDuration || activeTrack.durationSeconds || GUEST_PREVIEW_DURATION_SECONDS,
+                mediaDuration ||
+                  activeTrack.durationSeconds ||
+                  GUEST_PREVIEW_DURATION_SECONDS,
               )
             : mediaDuration;
         setDuration(safeDuration);
@@ -895,7 +924,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // 30-second preview URL is being resolved.
       if (!accessTokenRef.current) {
         const previewTrack = asGuestPreviewTrack(track);
-        setDuration(previewTrack.durationSeconds || GUEST_PREVIEW_DURATION_SECONDS);
+        setDuration(
+          previewTrack.durationSeconds || GUEST_PREVIEW_DURATION_SECONDS,
+        );
       } else {
         setDuration(track.durationSeconds || 0);
       }
@@ -1018,7 +1049,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               },
               data.preview_duration_seconds,
             );
-            setDuration(guestTrack.durationSeconds || GUEST_PREVIEW_DURATION_SECONDS);
+            setDuration(
+              guestTrack.durationSeconds || GUEST_PREVIEW_DURATION_SECONDS,
+            );
             currentTrackRef.current = guestTrack;
             setQueueState((previous) =>
               previous.map((item) =>
@@ -1042,7 +1075,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 },
               },
             );
-            if (!response.ok) throw new Error("Unable to upgrade preview stream");
+            if (!response.ok)
+              throw new Error("Unable to upgrade preview stream");
             const data = await response.json();
             const fullStream = ensureHttps(data.stream_url || "") as string;
             if (!fullStream) throw new Error("Full stream is unavailable");
@@ -1258,19 +1292,27 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           if (track && track.id) {
             resolvedUrlsRef.current.set(String(track.id), resolvedSrc);
           }
-        } catch (e) {
-        }
+        } catch (e) {}
 
         if (requestSequence !== playbackRequestSequenceRef.current) return;
 
         const applyRequestedPosition = () => {
           const audio = audioRef.current;
-          if (!audio || requestSequence !== playbackRequestSequenceRef.current) {
+          if (
+            !audio ||
+            requestSequence !== playbackRequestSequenceRef.current
+          ) {
             return false;
           }
-          const knownDuration = Number.isFinite(audio.duration) ? audio.duration : 0;
-          const maxPosition = knownDuration > 0 ? knownDuration : requestedStartAt;
-          const safePosition = Math.max(0, Math.min(requestedStartAt, maxPosition));
+          const knownDuration = Number.isFinite(audio.duration)
+            ? audio.duration
+            : 0;
+          const maxPosition =
+            knownDuration > 0 ? knownDuration : requestedStartAt;
+          const safePosition = Math.max(
+            0,
+            Math.min(requestedStartAt, maxPosition),
+          );
           try {
             audio.currentTime = safePosition;
           } catch {
@@ -1291,8 +1333,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         const handleAutoplayFailure = (error: any) => {
           if (requestSequence !== playbackRequestSequenceRef.current) return;
           const autoplayWasBlocked =
-            error?.name === "NotAllowedError" ||
-            error?.name === "AbortError";
+            error?.name === "NotAllowedError" || error?.name === "AbortError";
           if (!autoplayWasBlocked) {
             console.error("Playback failed:", {
               name: error?.name || null,
@@ -1382,8 +1423,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               audio.src = "";
               audio.load();
             }
-          } catch (error) {
-          }
+          } catch (error) {}
 
           audio.src = resolvedSrc;
           audio.load();
@@ -1463,8 +1503,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       pendingSession?.queue[pendingSession.currentIndex]?.id;
     const isRestoringPersistedSession = Boolean(
       snapshot.isLoading &&
-        pendingSession &&
-        String(activeTrackId || "") === String(pendingTrackId || ""),
+      pendingSession &&
+      String(activeTrackId || "") === String(pendingTrackId || ""),
     );
     const audioPosition =
       audio && Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
@@ -1590,11 +1630,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const launchPendingRestore = () => {
       const restored = pendingPlaybackSessionRef.current;
       const audio = audioRef.current;
-      if (
-        !restored ||
-        !audio ||
-        restoredAudioElementRef.current === audio
-      ) {
+      if (!restored || !audio || restoredAudioElementRef.current === audio) {
         return;
       }
 
@@ -1737,7 +1773,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           if (resp.ok) {
             const data = await resp.json();
             if (data.type === "stream") {
-
               // Completely reset audio element to clear any error state from ad playback
               if (audioRef.current) {
                 audioRef.current.pause();
@@ -1745,16 +1780,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
                 audioRef.current.src = "";
                 try {
                   audioRef.current.load();
-                } catch (e) {
-                }
+                } catch (e) {}
               }
 
               // Destroy any HLS instance that might be attached
               if (hlsRef.current) {
                 try {
                   hlsRef.current.destroy();
-                } catch (e) {
-                }
+                } catch (e) {}
                 hlsRef.current = null;
               }
 
@@ -1792,6 +1825,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setCurrentAd(null);
         adSubmitIdRef.current = null;
         // if for some reason submission failed, we fall through to normal logic
+      }
+
+      if (repeatMode === "off" && !isShuffle) {
+        // No-repeat is a terminal playback mode: keep the same queue item
+        // selected, rewind it, and wait for an explicit user action.
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+        setProgress(0);
+        setIsPlaying(false);
+        setIsLoading(false);
+        return;
       }
 
       if (repeatMode === "one") {
@@ -1862,12 +1908,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             track.image ||
             existing.image,
           lyrics: track.lyrics ?? existing.lyrics,
-          featuredArtists:
-            track.featuredArtists ?? existing.featuredArtists,
+          featuredArtists: track.featuredArtists ?? existing.featuredArtists,
           isLiked: track.isLiked ?? existing.isLiked,
           likesCount: track.likesCount ?? existing.likesCount,
-          durationSeconds:
-            track.durationSeconds ?? existing.durationSeconds,
+          durationSeconds: track.durationSeconds ?? existing.durationSeconds,
           isPreview: track.isPreview ?? existing.isPreview,
           previewUrl: track.previewUrl ?? existing.previewUrl,
         };
@@ -2010,12 +2054,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const toggleShuffle = useCallback(() => setIsShuffle((prev) => !prev), []);
 
   const cycleRepeat = useCallback(() => {
-    setRepeatMode((prev) => {
-      if (prev === "off") return "all";
-      if (prev === "all") return "one";
-      return "off";
+    const currentState = isShuffle ? "shuffle" : repeatMode;
+    const nextState =
+      currentState === "all"
+        ? "one"
+        : currentState === "one"
+          ? "shuffle"
+          : currentState === "shuffle"
+            ? "off"
+            : "all";
+
+    console.info("[MusicPlayer] repeat state change", {
+      clicked: true,
+      currentState,
+      nextState,
+      landedOn: nextState,
     });
-  }, []);
+
+    if (nextState === "shuffle") {
+      setRepeatMode("all");
+      setIsShuffle(true);
+      return;
+    }
+
+    setIsShuffle(false);
+    setRepeatMode(nextState);
+  }, [isShuffle, repeatMode]);
 
   const loadAudioSourceAt = useCallback(
     async (
@@ -2075,7 +2139,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       audio.load();
       await waitForAudioReady(audio, signal);
       const safeDuration = Number.isFinite(audio.duration) ? audio.duration : 0;
-      audio.currentTime = Math.max(0, Math.min(positionSeconds, safeDuration || positionSeconds));
+      audio.currentTime = Math.max(
+        0,
+        Math.min(positionSeconds, safeDuration || positionSeconds),
+      );
       if (shouldResume) await audio.play();
     },
     [],
@@ -2102,8 +2169,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const controller = new AbortController();
       qualitySwitchAbortRef.current = controller;
       const previousSource = audio.currentSrc || audio.src;
-      const previousTime = Number.isFinite(audio.currentTime) ? audio.currentTime : progress;
+      const previousTime = Number.isFinite(audio.currentTime)
+        ? audio.currentTime
+        : progress;
       const shouldResume = !audio.paused || isActuallyPlayingRef.current;
+      let fallbackSucceeded = false;
 
       audio.pause();
       setIsPlaying(false);
@@ -2121,12 +2191,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         );
         const payload = await response.json().catch(() => ({}));
 
-        if (response.status === 409 && payload?.error?.code === "PLAYBACK_QUALITY_UNAVAILABLE") {
+        if (
+          response.status === 409 &&
+          payload?.error?.code === "PLAYBACK_QUALITY_UNAVAILABLE"
+        ) {
           if (shouldResume) {
             await audio.play().catch(() => undefined);
             setIsPlaying(!audio.paused);
           }
-          toast(t("کیفیت انتخاب‌شده برای این آهنگ موجود نیست؛ فایل فعلی ادامه پیدا می‌کند."));
+          toast(
+            t(
+              "کیفیت انتخاب‌شده برای این آهنگ موجود نیست؛ فایل فعلی ادامه پیدا می‌کند.",
+            ),
+          );
           return;
         }
         if (!response.ok) {
@@ -2158,8 +2235,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               shouldResume,
               controller.signal,
             );
+            fallbackSucceeded = true;
           }
-          throw switchError;
+          if (!fallbackSucceeded) throw switchError;
         }
 
         if (sequence === qualitySwitchSequenceRef.current) {
@@ -2169,6 +2247,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error: any) {
         if (error?.name === "AbortError") return;
+        // A requested quality can fail while the previous working quality is
+        // restored successfully. This is an expected fallback path: do not
+        // bubble it to UI error toasts.
+        if (fallbackSucceeded) return;
         if (shouldResume && audioRef.current?.paused && previousSource) {
           try {
             await loadAudioSourceAt(
@@ -2373,7 +2455,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (!accessTokenRef.current) {
         requestAuth({
           title: "دانلود موسیقی",
-          description: "دانلود برای کاربران واردشده و براساس پلن حساب در دسترس است.",
+          description:
+            "دانلود برای کاربران واردشده و براساس پلن حساب در دسترس است.",
         });
         return;
       }
@@ -2395,16 +2478,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         );
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw payload;
-        const options: DownloadQualityOption[] = Array.isArray(payload.qualities)
+        const options: DownloadQualityOption[] = Array.isArray(
+          payload.qualities,
+        )
           ? payload.qualities.filter(
               (option: any) =>
-                option && (option.quality === "128" || option.quality === "320"),
+                option &&
+                (option.quality === "128" || option.quality === "320"),
             )
           : [];
         setDownloadOptions(options);
         const preferred = options.find(
-          (option) =>
-            option.quality === preferredQuality && option.available,
+          (option) => option.quality === preferredQuality && option.available,
         );
         const preferenceFromPlayer = options.find(
           (option) =>
@@ -2413,7 +2498,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         );
         const fallback = options.find((option) => option.available);
         setSelectedDownloadQuality(
-          preferred?.quality || preferenceFromPlayer?.quality || fallback?.quality || null,
+          preferred?.quality ||
+            preferenceFromPlayer?.quality ||
+            fallback?.quality ||
+            null,
         );
         setDownloadStatus("ready");
       } catch (error: any) {
@@ -2443,7 +2531,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const startDownload = useCallback(async () => {
     const targetTrack = downloadTrack;
     const selectedQuality = selectedDownloadQuality;
-    if (!targetTrack || !selectedQuality || downloadStatus === "downloading") return;
+    if (!targetTrack || !selectedQuality || downloadStatus === "downloading")
+      return;
 
     downloadAbortRef.current?.abort();
     const controller = new AbortController();
@@ -2466,7 +2555,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       );
       const prepared = await prepareResponse.json().catch(() => ({}));
       if (!prepareResponse.ok) throw prepared;
-      const downloadUrl = ensureHttps(prepared.download_url) || prepared.download_url;
+      const downloadUrl =
+        ensureHttps(prepared.download_url) || prepared.download_url;
       if (!downloadUrl) throw new Error("DOWNLOAD_SOURCE_UNAVAILABLE");
 
       const proxyUrl = ensureHttps(prepared.proxy_url) || prepared.proxy_url;
@@ -2486,13 +2576,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             "progress",
             ({ bytes, totalBytes }) => {
               if (controller.signal.aborted) return;
-              const safeLoaded = Number.isFinite(bytes) ? Math.max(0, bytes) : 0;
+              const safeLoaded = Number.isFinite(bytes)
+                ? Math.max(0, bytes)
+                : 0;
               const safeTotal =
-                Number.isFinite(totalBytes) && totalBytes > 0 ? totalBytes : null;
+                Number.isFinite(totalBytes) && totalBytes > 0
+                  ? totalBytes
+                  : null;
               setDownloadLoadedBytes(safeLoaded);
               setDownloadTotalBytes(safeTotal);
               setDownloadProgress(
-                safeTotal ? Math.min(100, (safeLoaded / safeTotal) * 100) : null,
+                safeTotal
+                  ? Math.min(100, (safeLoaded / safeTotal) * 100)
+                  : null,
               );
             },
           );
@@ -2502,7 +2598,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           let nativeFallbackUrl: string | undefined;
           if (proxyUrl) {
             try {
-              nativeFallbackUrl = new URL(proxyUrl, "https://api.sedabox.com").toString();
+              nativeFallbackUrl = new URL(
+                proxyUrl,
+                "https://api.sedabox.com",
+              ).toString();
             } catch {
               nativeFallbackUrl = undefined;
             }
@@ -2560,10 +2659,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           throw new Error(`DOWNLOAD_HTTP_${fileResponse.status}`);
         }
 
-        const contentLength = Number(fileResponse.headers.get("content-length") || 0);
-        const totalBytes = Number.isFinite(contentLength) && contentLength > 0
-          ? contentLength
-          : null;
+        const contentLength = Number(
+          fileResponse.headers.get("content-length") || 0,
+        );
+        const totalBytes =
+          Number.isFinite(contentLength) && contentLength > 0
+            ? contentLength
+            : null;
         setDownloadTotalBytes(totalBytes);
 
         let blob: Blob;
@@ -2581,7 +2683,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               let chunkBuffer: ArrayBuffer;
               if (value.buffer instanceof ArrayBuffer) {
                 chunkBuffer =
-                  value.byteOffset === 0 && value.byteLength === value.buffer.byteLength
+                  value.byteOffset === 0 &&
+                  value.byteLength === value.buffer.byteLength
                     ? value.buffer
                     : value.buffer.slice(
                         value.byteOffset,
@@ -2622,14 +2725,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
 
       setDownloadStatus("success");
-      void authenticatedFetch("https://api.sedabox.com/api/profile/downloads/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          song_id: Number(targetTrack.id),
-          quality: selectedQuality,
-        }),
-      })
+      void authenticatedFetch(
+        "https://api.sedabox.com/api/profile/downloads/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            song_id: Number(targetTrack.id),
+            quality: selectedQuality,
+          }),
+        },
+      )
         .then(async (response) => {
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) throw payload;
@@ -2867,22 +2973,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           <PlayerContext.Provider value={value}>
             {children}
             {downloadTrack && (
-            <DownloadFlowModal
-              isOpen
-              track={downloadTrack}
-              options={downloadOptions}
-              selectedQuality={selectedDownloadQuality}
-              status={downloadStatus}
-              progress={downloadProgress}
-              loadedBytes={downloadLoadedBytes}
-              totalBytes={downloadTotalBytes}
-              error={downloadError}
-              onSelect={(selected: DownloadQuality) =>
-                setSelectedDownloadQuality(selected)
-              }
-              onStart={() => void startDownload()}
-              onClose={closeDownloadFlow}
-            />
+              <DownloadFlowModal
+                isOpen
+                track={downloadTrack}
+                options={downloadOptions}
+                selectedQuality={selectedDownloadQuality}
+                status={downloadStatus}
+                progress={downloadProgress}
+                loadedBytes={downloadLoadedBytes}
+                totalBytes={downloadTotalBytes}
+                error={downloadError}
+                onSelect={(selected: DownloadQuality) =>
+                  setSelectedDownloadQuality(selected)
+                }
+                onStart={() => void startDownload()}
+                onClose={closeDownloadFlow}
+              />
             )}
           </PlayerContext.Provider>
         </PlayerPlaybackContext.Provider>

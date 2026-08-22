@@ -1,5 +1,6 @@
 "use client";
 
+import { MoreVertical } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
@@ -8,6 +9,7 @@ import { usePlayerActions } from "./PlayerContext";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { getSongDisplayTitle, getPlayerFeaturedArtists, normalizeSongCollection } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import { SongOptionsDrawer } from "./SongOptionsDrawer";
 
 interface ApiSong {
   id: number;
@@ -33,6 +35,7 @@ const LatestReleasesPage: React.FC = () => {
   const { setQueue } = usePlayerActions();
   const { navigateTo } = useNavigation();
   const [songs, setSongs] = useState<ApiSong[]>([]);
+  const [selectedSongForOptions, setSelectedSongForOptions] = useState<any | null>(null);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -76,7 +79,13 @@ const LatestReleasesPage: React.FC = () => {
     }
   };
 
-  const handlePlay = (startIndex: number) => {
+  const openSongOptions = (song: any) => {
+    setSelectedSongForOptions(song);
+  };
+
+  const closeSongOptions = () => setSelectedSongForOptions(null);
+
+const handlePlay = (startIndex: number) => {
     const queue = songs.map((song) => ({
       id: String(song.id),
       title: getSongDisplayTitle(song),
@@ -127,6 +136,15 @@ const LatestReleasesPage: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); openSongOptions(song); }}
+              className="absolute left-4 top-4 z-10 p-2 rounded-full bg-black/40 backdrop-blur hover:bg-black/60 text-white/80 hover:text-white transition"
+              aria-label="song options"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
 
             {/* Info */}
             <div className="flex-1 p-6 sm:p-8 space-y-3 w-full">
@@ -211,6 +229,11 @@ const LatestReleasesPage: React.FC = () => {
           </div>
         ))}
       </div>
+    <SongOptionsDrawer
+        isOpen={!!selectedSongForOptions}
+        onClose={closeSongOptions}
+        song={selectedSongForOptions}
+      />
     </SectionDetailLayout>
   );
 };

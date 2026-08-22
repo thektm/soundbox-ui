@@ -1,5 +1,6 @@
 "use client";
 
+import { MoreVertical } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import SectionDetailLayout from "./SectionDetailLayout";
 import { useAuth } from "./AuthContext";
@@ -9,6 +10,7 @@ import { getCanonicalSlug } from "../lib/slug";
 import ImageWithPlaceholder from "./ImageWithPlaceholder";
 import { getSongDisplayTitle, getPlayerFeaturedArtists, normalizeSongCollection } from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
+import { SongOptionsDrawer } from "./SongOptionsDrawer";
 
 interface ApiSong {
   id: number;
@@ -34,6 +36,7 @@ const NewDiscoveriesPage: React.FC = () => {
   const { setQueue } = usePlayerActions();
   const { navigateTo } = useNavigation();
   const [songs, setSongs] = useState<ApiSong[]>([]);
+  const [selectedSongForOptions, setSelectedSongForOptions] = useState<any | null>(null);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -77,7 +80,13 @@ const NewDiscoveriesPage: React.FC = () => {
     }
   };
 
-  const handlePlay = (startIndex: number) => {
+  const openSongOptions = (song: any) => {
+    setSelectedSongForOptions(song);
+  };
+
+  const closeSongOptions = () => setSelectedSongForOptions(null);
+
+const handlePlay = (startIndex: number) => {
     const queue = songs.map((song) => ({
       id: String(song.id),
       title: getSongDisplayTitle(song),
@@ -106,7 +115,7 @@ const NewDiscoveriesPage: React.FC = () => {
           <div
             key={song.id}
             onClick={() => handlePlay(index)}
-            className="group flex gap-4 p-3 items-center bg-zinc-900/30 rounded-2xl hover:bg-zinc-800/50 transition-all border border-white/5 cursor-pointer"
+            className="group relative flex gap-4 p-3 items-center bg-zinc-900/30 rounded-2xl hover:bg-zinc-800/50 transition-all border border-white/5 cursor-pointer"
           >
             <div className="relative w-24 h-24 shrink-0 overflow-hidden rounded-xl shadow-lg">
               <ImageWithPlaceholder
@@ -124,6 +133,14 @@ const NewDiscoveriesPage: React.FC = () => {
                 </svg>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); openSongOptions(song); }}
+              className="absolute left-3 top-3 z-10 p-2 rounded-full bg-black/40 backdrop-blur hover:bg-black/60 text-white/80 hover:text-white transition"
+              aria-label="song options"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
             <div className="flex-1 min-w-0 pr-2">
               <h3
                 className="w-fit max-w-full font-black text-white text-lg truncate group-hover:text-emerald-400 transition-colors hover:underline decoration-zinc-500"
@@ -163,6 +180,11 @@ const NewDiscoveriesPage: React.FC = () => {
           </div>
         ))}
       </div>
+    <SongOptionsDrawer
+        isOpen={!!selectedSongForOptions}
+        onClose={closeSongOptions}
+        song={selectedSongForOptions}
+      />
     </SectionDetailLayout>
   );
 };

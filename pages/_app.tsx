@@ -7,6 +7,7 @@ import ResponsiveAppShell from "../components/ResponsiveAppShell";
 import toast, { Toaster, ToastBar, type Toast } from "react-hot-toast";
 import { SEO } from "@/components/SEO";
 import { I18nProvider, useI18n } from "@/components/I18nContext";
+import { ImageCropperProvider } from "@/components/ImageCropperContext";
 import {
   installClientFetchGuard,
   sanitizeUserFacingErrorText,
@@ -74,9 +75,11 @@ export default function App({ Component, pageProps }: AppProps) {
             </div>
           )}
         </Toaster>
-        <ResponsiveAppShell>
-          <AppRouter />
-        </ResponsiveAppShell>
+        <ImageCropperProvider>
+          <ResponsiveAppShell>
+            <AppRouter />
+          </ResponsiveAppShell>
+        </ImageCropperProvider>
       </AppContainer>
     </I18nProvider>
   );

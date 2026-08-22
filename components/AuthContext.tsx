@@ -933,7 +933,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       }
 
       if (!response.ok) {
+        const refreshFailureCode = String(
+          body?.error?.code || body?.code || "",
+        ).toUpperCase();
         if (response.status === 401) {
+          if (refreshFailureCode === "TOKEN_REVOKED" || refreshFailureCode === "TOKEN_INVALID") {
+            if (getStoredRefreshToken() === token) {
+              await clearLocalAuth(token);
+            }
+            return null;
+          }
           // Give a concurrent context/session mutation a short chance to
           // publish its newer token pair before deciding this refresh is bad.
           await new Promise((resolve) => setTimeout(resolve, 100));
@@ -1261,10 +1270,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           ? formatErrorMessage(parsedBody)
           : defaultMsg;
 
+        // A playback quality switch can intentionally return 409 when the
+        // requested quality is unavailable for the current song. The player
+        // handles this case itself (keeps the current stream and shows the
+        // user-facing quality-unavailable message). Do not create a generic
+        // API failure toast for this single handled playback scenario.
+        const isHandledPlaybackQualityUnavailable =
+          response.status === 409 &&
+          String(input).includes("/playback-quality/") &&
+          String(parsedBody?.error?.code || "").toUpperCase() ===
+            "PLAYBACK_QUALITY_UNAVAILABLE";
+
         // Avoid showing toasts for 401 (unauthorized) responses — these are
         // handled elsewhere (refresh/logout logic) and often occur during
         // initialization or navigation races. Show toasts for other statuses.
-        if (response.status !== 401) {
+        if (response.status !== 401 && !isHandledPlaybackQualityUnavailable) {
           try {
             toast.error(message || defaultMsg);
           } catch (e) {

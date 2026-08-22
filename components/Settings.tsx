@@ -17,6 +17,8 @@ import { AppLanguage, useI18n } from "./I18nContext";
 import { openAuthPrompt } from "./authPrompt";
 import { usePlayerActions } from "./PlayerContext";
 import UserAvatar from "./UserAvatar";
+import { useImageCropper } from "./ImageCropperContext";
+import ProfileDeleteConfirmModal from "./ProfileDeleteConfirmModal";
 
 // Reusable Icon Component
 const Icon = ({
@@ -611,11 +613,19 @@ const SessionsSheet = ({
 
     setRevokingId(sessionId);
     try {
+      const refreshToken =
+        typeof window !== "undefined"
+          ? localStorage.getItem("refreshToken")
+          : null;
       const url = `https://api.sedabox.com/api/auth/sessions/${encodeURIComponent(
         sessionId,
       )}/revoke/`;
       const res = await authenticatedFetch(url, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refreshToken }),
       });
       const text = await res.text();
       const body = text ? JSON.parse(text) : null;
@@ -979,8 +989,10 @@ export default function Settings() {
   } = useAuth();
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const { cropImage } = useImageCropper();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDeletingImage, setIsDeletingImage] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -994,7 +1006,15 @@ export default function Settings() {
     setIsUploadingImage(true);
     const toastId = toast.loading("در حال آپلود تصویر...");
     try {
-      await updateProfileImage(file);
+      const cropped = await cropImage(file, {
+        mode: "square",
+        title: "تنظیم تصویر پروفایل",
+        description: "تصویر را جابه‌جا کنید و با لمس یا کنترل‌ها بزرگ‌نمایی کنید.",
+        maxOutputDimension: 1200,
+        maxOutputBytes: 3 * 1024 * 1024,
+      });
+      if (!cropped) return;
+      await updateProfileImage(cropped.file);
       toast.success("تصویر پروفایل با موفقیت آپلود شد", { id: toastId });
     } catch (err: any) {
       toast.error(formatErrorMessage(err), { id: toastId });
@@ -1004,9 +1024,11 @@ export default function Settings() {
     }
   };
 
-  const handleImageDelete = async () => {
-    if (!confirm("آیا از حذف تصویر پروفایل خود مطمئن هستید؟")) return;
+  const handleImageDelete = () => {
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmImageDelete = async () => {
     setIsDeletingImage(true);
     const toastId = toast.loading("در حال حذف تصویر...");
     try {
@@ -1300,7 +1322,21 @@ export default function Settings() {
     },
   ];
 
+
+  const deleteConfirmModal = (
+    <ProfileDeleteConfirmModal
+      open={showDeleteConfirm}
+      busy={isDeletingImage}
+      onCancel={() => setShowDeleteConfirm(false)}
+      onConfirm={() => {
+        setShowDeleteConfirm(false);
+        void confirmImageDelete();
+      }}
+    />
+  );
   return (
+    <>
+      {deleteConfirmModal}
     <div
       className="relative w-full min-h-screen bg-[#030303] text-white overflow-hidden font-sans pb-24"
     >
@@ -1487,5 +1523,6 @@ export default function Settings() {
         onChangePassword={handleChangePassword}
       />
     </div>
+    </>
   );
 }

@@ -29,10 +29,17 @@ import QueueSheet from "./QueueSheet";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
 import { ResponsiveSheet } from "./ResponsiveSheet";
 import { getFullShareUrl } from "../utils/share";
-import { createSlug, getCanonicalSlug, getArtistCanonicalSlug } from "../lib/slug";
+import {
+  createSlug,
+  getCanonicalSlug,
+  getArtistCanonicalSlug,
+} from "../lib/slug";
 import { Sparkles, User, UserRoundCog } from "lucide-react";
 import { clientTrace } from "../lib/clientDebug";
-import { getPlayerFeaturedArtists, getSongDisplayTitle } from "../lib/songDisplay";
+import {
+  getPlayerFeaturedArtists,
+  getSongDisplayTitle,
+} from "../lib/songDisplay";
 import SongTitleWithFeaturedArtists from "./SongTitleWithFeaturedArtists";
 
 // ============================================================================
@@ -415,7 +422,8 @@ const ProgressBar = memo<ProgressProps>(
       return (
         <div className="w-full">
           <div
-            dir="ltr" data-direction-fixed="ltr"
+            dir="ltr"
+            data-direction-fixed="ltr"
             ref={ref}
             className="relative h-1.5 bg-white/10 rounded-full cursor-pointer group"
             onClick={handleClick}
@@ -508,6 +516,29 @@ const Spinner = ({ size = "w-5 h-5" }: { size?: string }) => (
   />
 );
 
+const DesktopControlHint = ({
+  label,
+  visible = false,
+  hover = true,
+}: {
+  label: string;
+  visible?: boolean;
+  hover?: boolean;
+}) => (
+  <span
+    aria-hidden="true"
+    className={`pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-white px-2.5 py-1 text-[10px] font-semibold text-neutral-900 shadow-lg shadow-black/25 transition-[opacity,transform] duration-200 ease-out ${
+      visible
+        ? "-translate-y-1/2 opacity-100"
+        : hover
+          ? "-translate-y-[35%] opacity-0 group-hover:-translate-y-1/2 group-hover:opacity-100"
+          : "-translate-y-[35%] opacity-0"
+    }`}
+  >
+    {label}
+  </span>
+);
+
 // ============================================================================
 // PLAYING BARS
 // ============================================================================
@@ -538,106 +569,117 @@ const TrackIdentity = memo<{
   onBeforeNavigate?: () => void;
   titleClassName?: string;
   artistsClassName?: string;
-}>(({
-  track,
-  isAdPlaying,
-  align = "start",
-  compact = false,
-  onBeforeNavigate,
-  titleClassName = "",
-  artistsClassName = "",
-}) => {
-  const { navigateTo } = useNavigation();
-  const primaryArtist = useMemo(() => ({
-    id: track.artistId || (track as any).artist_id,
-    name: track.artist,
-    uniqueId:
-      track.artistUniqueId ||
-      (track as any).artist_unique_id ||
-      undefined,
-    urlSlug: track.artistUrlSlug || (track as any).artist_url_slug || undefined,
-  }), [track]);
+}>(
+  ({
+    track,
+    isAdPlaying,
+    align = "start",
+    compact = false,
+    onBeforeNavigate,
+    titleClassName = "",
+    artistsClassName = "",
+  }) => {
+    const { navigateTo } = useNavigation();
+    const primaryArtist = useMemo(
+      () => ({
+        id: track.artistId || (track as any).artist_id,
+        name: track.artist,
+        uniqueId:
+          track.artistUniqueId || (track as any).artist_unique_id || undefined,
+        urlSlug:
+          track.artistUrlSlug || (track as any).artist_url_slug || undefined,
+      }),
+      [track],
+    );
 
-  const openSong = (event: React.MouseEvent) => {
-    event.stopPropagation();
-    if (isAdPlaying) return;
-    onBeforeNavigate?.();
-    navigateTo("song-detail", {
-      id: track.id,
-      urlSlug: track.urlSlug || getCanonicalSlug(track, getSongDisplayTitle(track)),
-      artistSlug: track.artistUrlSlug || getArtistCanonicalSlug(track, track.artist),
-    });
-  };
+    const openSong = (event: React.MouseEvent) => {
+      event.stopPropagation();
+      if (isAdPlaying) return;
+      onBeforeNavigate?.();
+      navigateTo("song-detail", {
+        id: track.id,
+        urlSlug:
+          track.urlSlug || getCanonicalSlug(track, getSongDisplayTitle(track)),
+        artistSlug:
+          track.artistUrlSlug || getArtistCanonicalSlug(track, track.artist),
+      });
+    };
 
-  const openArtist = (
-    event: React.MouseEvent,
-    artist: { id?: string | number; name: string; uniqueId?: string; urlSlug?: string },
-  ) => {
-    event.stopPropagation();
-    if (isAdPlaying || (!artist.id && !artist.uniqueId)) return;
-    onBeforeNavigate?.();
-    navigateTo("artist-detail", {
-      id: artist.id || artist.uniqueId,
-      urlSlug: artist.urlSlug || createSlug(artist.name),
-    });
-  };
+    const openArtist = (
+      event: React.MouseEvent,
+      artist: {
+        id?: string | number;
+        name: string;
+        uniqueId?: string;
+        urlSlug?: string;
+      },
+    ) => {
+      event.stopPropagation();
+      if (isAdPlaying || (!artist.id && !artist.uniqueId)) return;
+      onBeforeNavigate?.();
+      navigateTo("artist-detail", {
+        id: artist.id || artist.uniqueId,
+        urlSlug: artist.urlSlug || createSlug(artist.name),
+      });
+    };
 
-  const titleAlignment =
-    align === "center" ? "mx-auto text-center" : "text-start";
-  const artistsDirection = textDirection(primaryArtist.name);
+    const titleAlignment =
+      align === "center" ? "mx-auto text-center" : "text-start";
+    const artistsDirection = textDirection(primaryArtist.name);
 
-  return (
-    <div className={`min-w-0 ${align === "center" ? "w-full" : "flex-1"}`}>
-      <button
-        type="button"
-        onClick={openSong}
-        disabled={Boolean(isAdPlaying)}
-        dir={textDirection(getSongDisplayTitle(track))}
-        data-player-no-expand="true"
-        className={`block w-fit max-w-full truncate font-bold text-white ${titleAlignment} ${
-          compact ? "text-sm" : ""
-        } ${isAdPlaying ? "cursor-default" : "hover:underline"} ${titleClassName}`}
-      >
-        <SongTitleWithFeaturedArtists song={track} />
-      </button>
-      <div
-        dir={artistsDirection}
-        className={`mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 overflow-hidden ${
-          align === "center"
-            ? "justify-center text-center"
-            : artistsDirection === "rtl"
-              ? "justify-end text-right"
-              : "justify-start text-left"
-        } ${artistsClassName}`}
-      >
-        {isAdPlaying ? (
-          <span className="truncate text-xs text-neutral-400">Ad</span>
-        ) : primaryArtist.id || primaryArtist.uniqueId ? (
-          <button
-            type="button"
-            onClick={(event) => openArtist(event, primaryArtist)}
-            dir={textDirection(primaryArtist.name)}
-            data-player-no-expand="true"
-            className={`inline-block w-fit max-w-full flex-none truncate text-xs text-neutral-400 transition hover:text-white hover:underline ${
-              textDirection(primaryArtist.name) === "rtl"
-                ? "text-right"
-                : "text-left"
-            }`}
-          >
-            {primaryArtist.name}
-          </button>
-        ) : (
-          <span
-            dir={textDirection(primaryArtist.name)}
-            className="inline-block w-fit max-w-full truncate text-xs text-neutral-400"
-          >
-            {primaryArtist.name}
-          </span>
-        )}
+    return (
+      <div className={`min-w-0 ${align === "center" ? "w-full" : "flex-1"}`}>
+        <button
+          type="button"
+          onClick={openSong}
+          disabled={Boolean(isAdPlaying)}
+          dir={textDirection(getSongDisplayTitle(track))}
+          data-player-no-expand="true"
+          className={`block w-fit max-w-full truncate font-bold text-white ${titleAlignment} ${
+            compact ? "text-sm" : ""
+          } ${isAdPlaying ? "cursor-default" : "hover:underline"} ${titleClassName}`}
+        >
+          <SongTitleWithFeaturedArtists song={track} />
+        </button>
+        <div
+          dir={artistsDirection}
+          className={`mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 overflow-hidden ${
+            align === "center"
+              ? "justify-center text-center"
+              : artistsDirection === "rtl"
+                ? "justify-end text-right"
+                : "justify-start text-left"
+          } ${artistsClassName}`}
+        >
+          {isAdPlaying ? (
+            <span className="truncate text-xs text-neutral-400">Ad</span>
+          ) : primaryArtist.id || primaryArtist.uniqueId ? (
+            <button
+              type="button"
+              onClick={(event) => openArtist(event, primaryArtist)}
+              dir={textDirection(primaryArtist.name)}
+              data-player-no-expand="true"
+              className={`inline-block w-fit max-w-full flex-none truncate text-xs text-neutral-400 transition hover:text-white hover:underline ${
+                textDirection(primaryArtist.name) === "rtl"
+                  ? "text-right"
+                  : "text-left"
+              }`}
+            >
+              {primaryArtist.name}
+            </button>
+          ) : (
+            <span
+              dir={textDirection(primaryArtist.name)}
+              className="inline-block w-fit max-w-full truncate text-xs text-neutral-400"
+            >
+              {primaryArtist.name}
+            </span>
+          )}
+        </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+);
 TrackIdentity.displayName = "TrackIdentity";
 
 // ============================================================================
@@ -1347,7 +1389,6 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
     close,
     seek,
     isShuffle,
-    toggleShuffle,
     repeatMode,
     cycleRepeat,
     isLiked,
@@ -1474,7 +1515,8 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
       >
         <div className="mx-2 sm:mx-4">
           <div
-            dir="ltr" data-direction-fixed="ltr"
+            dir="ltr"
+            data-direction-fixed="ltr"
             ref={containerRef}
             className="relative bg-neutral-900/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl overflow-hidden"
           >
@@ -1568,8 +1610,15 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                 if (isDesktop) {
                   navigateTo("song-detail", {
                     id: displayTrack.id,
-                    urlSlug: displayTrack.urlSlug || getCanonicalSlug(displayTrack, getSongDisplayTitle(displayTrack)),
-                    artistSlug: displayTrack.artistUrlSlug || getArtistCanonicalSlug(displayTrack, displayTrack.artist),
+                    urlSlug:
+                      displayTrack.urlSlug ||
+                      getCanonicalSlug(
+                        displayTrack,
+                        getSongDisplayTitle(displayTrack),
+                      ),
+                    artistSlug:
+                      displayTrack.artistUrlSlug ||
+                      getArtistCanonicalSlug(displayTrack, displayTrack.artist),
                   });
                 } else {
                   onExpand();
@@ -1617,27 +1666,14 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
           <div className="flex flex-col items-center gap-2 w-[40%] max-w-[722px]">
             <div className="flex items-center gap-4">
               <button
-                onClick={
-                  (() => {
-                    if (isAdPlaying) return;
-                    setTimeout(() => {
-                      if (isShuffle) {
-                        toggleShuffle();
-                        cycleRepeat();
-                      } else if (repeatMode === "one") {
-                        cycleRepeat();
-                        cycleRepeat();
-                      } else {
-                        toggleShuffle();
-                      }
-                    }, 0);
-                  }) as unknown as React.MouseEventHandler
-                }
+                onClick={() => {
+                  if (!isAdPlaying) cycleRepeat();
+                }}
                 disabled={isAdPlaying}
                 className={`p-2 transition-colors relative ${
                   isShuffle || repeatMode === "one" || repeatMode === "all"
                     ? "text-emerald-500"
-                    : "text-zinc-400 hover:text-white"
+                    : "text-white hover:text-white"
                 } disabled:opacity-30`}
               >
                 {isShuffle ? (
@@ -1649,21 +1685,31 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
                       1
                     </span>
                   </>
-                ) : (
+                ) : repeatMode === "all" ? (
                   <Icon.Repeat c="w-4 h-4" />
+                ) : (
+                  <Icon.Repeat c="w-4 h-4 text-white" />
                 )}
               </button>
               <button
                 onClick={previous}
                 disabled={!previousTrack || isAdPlaying}
-                className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30"
+                className="group relative p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30"
               >
+                {previousTrack && !isAdPlaying && (
+                  <DesktopControlHint label="Previous" />
+                )}
                 <Icon.Prev c="w-5 h-5" />
               </button>
               <button
                 onClick={togglePlay}
-                className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-black hover:scale-105 transition-transform"
+                className="group relative w-8 h-8 rounded-full bg-white flex items-center justify-center text-black hover:scale-105 transition-transform"
               >
+                <DesktopControlHint
+                  label="Play"
+                  visible={!isPlaying && !isLoading}
+                  hover={false}
+                />
                 {isLoading ? (
                   <Spinner size="w-4 h-4" />
                 ) : isPlaying ? (
@@ -1675,8 +1721,11 @@ const CollapsedPlayer = memo<{ onExpand: () => void }>(({ onExpand }) => {
               <button
                 onClick={next}
                 disabled={!nextTrack || isAdPlaying}
-                className="p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30"
+                className="group relative p-2 text-zinc-400 hover:text-white transition-colors disabled:opacity-30"
               >
+                {nextTrack && !isAdPlaying && (
+                  <DesktopControlHint label="Next" />
+                )}
                 <Icon.Next c="w-5 h-5" />
               </button>
               {/* Single dynamic button above handles shuffle/repeat display and actions; duplicate repeat button removed */}
@@ -1767,7 +1816,6 @@ const DesktopExpandedPlayer = memo<{
     seek,
     isShuffle,
     repeatMode,
-    toggleShuffle,
     cycleRepeat,
     next,
     previous,
@@ -1935,12 +1983,14 @@ const DesktopExpandedPlayer = memo<{
       if (!displayTrack) return;
       const id =
         type === "song"
-          ? (displayTrack.id as any) ?? ""
+          ? ((displayTrack.id as any) ?? "")
           : displayTrack.artistId || (displayTrack as any).artist_id || "";
       const slug =
         type === "song"
-          ? displayTrack.urlSlug || getCanonicalSlug(displayTrack, getSongDisplayTitle(displayTrack))
-          : displayTrack.artistUrlSlug || getArtistCanonicalSlug(displayTrack, displayTrack.artist);
+          ? displayTrack.urlSlug ||
+            getCanonicalSlug(displayTrack, getSongDisplayTitle(displayTrack))
+          : displayTrack.artistUrlSlug ||
+            getArtistCanonicalSlug(displayTrack, displayTrack.artist);
       const url = getFullShareUrl(
         type === "song" ? "song" : "artist",
         id,
@@ -1951,7 +2001,10 @@ const DesktopExpandedPlayer = memo<{
       if (typeof navigator !== "undefined" && (navigator as any).share) {
         try {
           await (navigator as any).share({
-            title: getSongDisplayTitle(displayTrack) || displayTrack.artist || "SedaBox",
+            title:
+              getSongDisplayTitle(displayTrack) ||
+              displayTrack.artist ||
+              "SedaBox",
             text: shareText,
             url,
           });
@@ -1985,8 +2038,12 @@ const DesktopExpandedPlayer = memo<{
       onCollapse();
       navigateTo("song-detail", {
         id: currentTrack.id,
-        urlSlug: currentTrack.urlSlug || getCanonicalSlug(currentTrack, getSongDisplayTitle(currentTrack)),
-        artistSlug: currentTrack.artistUrlSlug || getArtistCanonicalSlug(currentTrack, currentTrack.artist),
+        urlSlug:
+          currentTrack.urlSlug ||
+          getCanonicalSlug(currentTrack, getSongDisplayTitle(currentTrack)),
+        artistSlug:
+          currentTrack.artistUrlSlug ||
+          getArtistCanonicalSlug(currentTrack, currentTrack.artist),
       });
     }
   }, [currentTrack, navigateTo, onCollapse, isAdPlaying]);
@@ -2127,22 +2184,9 @@ const DesktopExpandedPlayer = memo<{
                   {/* Controls */}
                   <div className="flex items-center gap-6">
                     <button
-                      onClick={
-                        (() => {
-                          if (isAdPlaying) return;
-                          setTimeout(() => {
-                            if (isShuffle) {
-                              toggleShuffle();
-                              cycleRepeat();
-                            } else if (repeatMode === "one") {
-                              cycleRepeat();
-                              cycleRepeat();
-                            } else {
-                              toggleShuffle();
-                            }
-                          }, 0);
-                        }) as unknown as React.MouseEventHandler
-                      }
+                      onClick={() => {
+                        if (!isAdPlaying) cycleRepeat();
+                      }}
                       disabled={isAdPlaying}
                       className={`w-12 h-12 rounded-full flex items-center justify-center transition-all relative ${
                         isShuffle ||
@@ -2161,23 +2205,31 @@ const DesktopExpandedPlayer = memo<{
                             1
                           </span>
                         </>
-                      ) : (
+                      ) : repeatMode === "all" ? (
                         <Icon.Repeat c="w-5 h-5" />
+                      ) : (
+                        <Icon.Repeat c="w-5 h-5 text-white" />
                       )}
                     </button>
 
                     <button
                       onClick={next}
                       disabled={isAdPlaying}
-                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
+                      className="group relative w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
                     >
+                      {!isAdPlaying && <DesktopControlHint label="Next" />}
                       <Icon.Next c="w-7 h-7" />
                     </button>
                     <button
                       onClick={togglePlay}
                       disabled={isLoading}
-                      className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-2xl shadow-white/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50"
+                      className="group relative w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-2xl shadow-white/20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50"
                     >
+                      <DesktopControlHint
+                        label="Play"
+                        visible={!isPlaying && !isLoading}
+                        hover={false}
+                      />
                       {isLoading ? (
                         <Spinner size="w-8 h-8" />
                       ) : isPlaying ? (
@@ -2189,8 +2241,9 @@ const DesktopExpandedPlayer = memo<{
                     <button
                       onClick={previous}
                       disabled={isAdPlaying}
-                      className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
+                      className="group relative w-14 h-14 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/20 transition-all hover:scale-105 disabled:opacity-30"
                     >
+                      {!isAdPlaying && <DesktopControlHint label="Previous" />}
                       <Icon.Prev c="w-7 h-7" />
                     </button>
 
@@ -2263,9 +2316,7 @@ const DesktopExpandedPlayer = memo<{
           </div>
 
           {/* Right Section - Queue/Lyrics Panel */}
-          <div
-            className="w-96 xl:w-[420px] h-full flex flex-col bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden"
-          >
+          <div className="w-96 xl:w-[420px] h-full flex flex-col bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
             {/* Tabs */}
             <div className="flex border-b border-white/10">
               {(["queue", "lyrics", "related"] as const).map((tab) => (
@@ -2731,7 +2782,6 @@ const MobileExpandedPlayer = memo<{
     seek,
     isShuffle,
     repeatMode,
-    toggleShuffle,
     cycleRepeat,
     cycleQuality,
     next,
@@ -2868,7 +2918,8 @@ const MobileExpandedPlayer = memo<{
         style={{ willChange: "transform, opacity" }}
       >
         <div
-          dir="ltr" data-direction-fixed="ltr"
+          dir="ltr"
+          data-direction-fixed="ltr"
           className="relative flex flex-col min-h-0 h-full px-3 py-4 sm:px-6 sm:py-8 overflow-hidden"
         >
           <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-start gap-2 mb-4">
@@ -2916,9 +2967,7 @@ const MobileExpandedPlayer = memo<{
               onPrevious={previous}
             />
 
-            <div
-              className="mt-4 sm:mt-8 mb-4 sm:mb-6 w-full max-w-[900px]"
-            ></div>
+            <div className="mt-4 sm:mt-8 mb-4 sm:mb-6 w-full max-w-[900px]"></div>
 
             <div className="w-full max-w-[900px] flex flex-col items-center flex-grow justify-center">
               <div className="w-full mb-6">
@@ -2932,22 +2981,9 @@ const MobileExpandedPlayer = memo<{
               <div className="flex items-center justify-between w-full mb-4 sm:mb-8">
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={
-                      (() => {
-                        if (isAdPlaying) return;
-                        setTimeout(() => {
-                          if (isShuffle) {
-                            toggleShuffle();
-                            cycleRepeat();
-                          } else if (repeatMode === "one") {
-                            cycleRepeat();
-                            cycleRepeat();
-                          } else {
-                            toggleShuffle();
-                          }
-                        }, 0);
-                      }) as unknown as React.MouseEventHandler
-                    }
+                    onClick={() => {
+                      if (!isAdPlaying) cycleRepeat();
+                    }}
                     disabled={isAdPlaying}
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors relative ${
                       isShuffle || repeatMode === "one" || repeatMode === "all"
@@ -2964,8 +3000,10 @@ const MobileExpandedPlayer = memo<{
                           1
                         </span>
                       </>
-                    ) : (
+                    ) : repeatMode === "all" ? (
                       <Icon.Repeat c="w-5 h-5" />
+                    ) : (
+                      <Icon.Repeat c="w-5 h-5 text-white" />
                     )}
                   </button>
                 </div>
@@ -3114,8 +3152,18 @@ const MobileExpandedPlayer = memo<{
                     if (currentTrack) {
                       navigateTo("song-detail", {
                         id: currentTrack.id,
-                        urlSlug: currentTrack.urlSlug || getCanonicalSlug(currentTrack, getSongDisplayTitle(currentTrack)),
-                        artistSlug: currentTrack.artistUrlSlug || getArtistCanonicalSlug(currentTrack, currentTrack.artist),
+                        urlSlug:
+                          currentTrack.urlSlug ||
+                          getCanonicalSlug(
+                            currentTrack,
+                            getSongDisplayTitle(currentTrack),
+                          ),
+                        artistSlug:
+                          currentTrack.artistUrlSlug ||
+                          getArtistCanonicalSlug(
+                            currentTrack,
+                            currentTrack.artist,
+                          ),
                       });
                     }
                   }}
@@ -3364,7 +3412,10 @@ export default function MusicPlayer() {
           rawData?.data ??
           rawData?.result ??
           (Array.isArray(rawData?.results) ? rawData.results[0] : rawData);
-        if (controller.signal.aborted || requestId !== bannerRequestIdRef.current) {
+        if (
+          controller.signal.aborted ||
+          requestId !== bannerRequestIdRef.current
+        ) {
           clientTrace("PLAYER_AD", "response:ignored-stale", { requestId });
           return;
         }
