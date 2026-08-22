@@ -12,6 +12,7 @@ const BODY_TIMEOUT_MS = 10_000;
 type HomeSummaryRecord = {
   createdAt: number;
   promise: Promise<any>;
+  settled: boolean;
 };
 
 const records = new Map<string, HomeSummaryRecord>();
@@ -50,9 +51,15 @@ export const requestHomeSummary = (
   request: () => Promise<Response>,
 ): Promise<any> => {
   pruneRecords();
+  const cacheAcrossMounts = !key.startsWith("member:");
 
   const existing = records.get(key);
-  if (existing && Date.now() - existing.createdAt <= PREFETCH_TTL_MS) {
+  if (
+    existing &&
+    (!existing.settled ||
+      (cacheAcrossMounts &&
+        Date.now() - existing.createdAt <= PREFETCH_TTL_MS))
+  ) {
     return existing.promise;
   }
 
@@ -91,7 +98,27 @@ export const requestHomeSummary = (
       throw error;
     });
 
-  records.set(key, { createdAt: Date.now(), promise });
+  // Keep member requests only for concurrent consumers (for example React
+  // Strict Mode). A later home visit must contact the API so a revoked session
+  // cannot keep rendering from a previous successful response.
+  const record: HomeSummaryRecord = {
+    createdAt: Date.now(),
+    promise,
+    settled: false,
+  };
+  records.set(key, record);
+  void promise.then(
+    () => {
+      record.settled = true;
+      if (!cacheAcrossMounts && records.get(key) === record) {
+        records.delete(key);
+      }
+    },
+    () => {
+      record.settled = true;
+      if (records.get(key) === record) records.delete(key);
+    },
+  );
   pruneRecords();
   return promise;
 };
